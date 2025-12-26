@@ -21,9 +21,8 @@ COPY services/order-service/ .
 # Tidy dependencies and build
 RUN go mod tidy
 
-# application
+# API application only (no worker for order-service)
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/bin/api ./cmd/api
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/bin/worker ./cmd/worker
 
 # Final stage
 FROM alpine:3.19
@@ -33,15 +32,23 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata
 
-# Copy binaries from builder
+# Copy binary from builder
 COPY --from=builder /app/bin/api /app/api
-COPY --from=builder /app/bin/worker /app/worker
 
 # Create non-root user
-RUN adduser -D -g '' appuser
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+# Set ownership
+RUN chown -R appuser:appuser /app
+
 USER appuser
 
-# Default command (can be overridden)
+# Expose port
 EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8001/health || exit 1
 
 CMD ["/app/api"]
