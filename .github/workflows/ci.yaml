@@ -1,0 +1,222 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  GO_VERSION: '1.21'
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/wms-platform
+
+jobs:
+  # Unit and Integration Tests
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - order-service
+          - waving-service
+          - routing-service
+          - picking-service
+          - consolidation-service
+          - packing-service
+          - shipping-service
+          - inventory-service
+          - labor-service
+          - orchestrator
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            services/${{ matrix.service }}/go.sum
+            orchestrator/go.sum
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.service == 'orchestrator' && 'orchestrator' || format('services/{0}', matrix.service) }}
+        run: go mod download
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          working-directory: ${{ matrix.service == 'orchestrator' && 'orchestrator' || format('services/{0}', matrix.service) }}
+          args: --timeout=5m
+
+      - name: Run unit tests
+        working-directory: ${{ matrix.service == 'orchestrator' && 'orchestrator' || format('services/{0}', matrix.service) }}
+        run: |
+          go test ./internal/domain/... -v -race -coverprofile=coverage-unit.txt -covermode=atomic
+
+      - name: Run integration tests
+        working-directory: ${{ matrix.service == 'orchestrator' && 'orchestrator' || format('services/{0}', matrix.service) }}
+        run: |
+          go test ./tests/integration/... -v -timeout=10m -coverprofile=coverage-integration.txt -covermode=atomic
+        env:
+          DOCKER_CONFIG: /dev/null
+          TESTCONTAINERS_RYUK_DISABLED: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: |
+            ${{ matrix.service == 'orchestrator' && 'orchestrator' || format('services/{0}', matrix.service) }}/coverage-unit.txt
+            ${{ matrix.service == 'orchestrator' && 'orchestrator' || format('services/{0}', matrix.service) }}/coverage-integration.txt
+          flags: ${{ matrix.service }}
+          name: ${{ matrix.service }}
+
+  # Build Docker Images
+  build:
+    name: Build Images
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    strategy:
+      matrix:
+        service:
+          - order-service
+          - waving-service
+          - routing-service
+          - picking-service
+          - consolidation-service
+          - packing-service
+          - shipping-service
+          - inventory-service
+          - labor-service
+          - orchestrator
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service == 'orchestrator' && 'orchestrator' || format('services/{0}', matrix.service) }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            SERVICE_NAME=${{ matrix.service }}
+            VERSION=${{ github.sha }}
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment:
+      name: staging
+      url: https://staging.wms-platform.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy to staging
+        run: |
+          kubectl apply -f deployments/kubernetes/base/
+          kubectl apply -f deployments/kubernetes/services/
+          kubectl set image deployment/* *=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/*:${{ github.ref_name }}-${{ github.sha }} -n wms-platform
+          kubectl rollout status deployment -n wms-platform --timeout=10m
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          # Add smoke test commands here
+          kubectl run smoke-test --image=curlimages/curl:latest --restart=Never --rm -i -- \
+            curl -f http://order-service.wms-platform.svc.cluster.local:8001/health || exit 1
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://wms-platform.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy to production
+        run: |
+          kubectl apply -f deployments/kubernetes/base/
+          kubectl apply -f deployments/kubernetes/services/
+          kubectl set image deployment/* *=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/*:main-${{ github.sha }} -n wms-platform
+          kubectl rollout status deployment -n wms-platform --timeout=15m
+
+      - name: Run health checks
+        run: |
+          echo "Running production health checks..."
+          kubectl run health-check --image=curlimages/curl:latest --restart=Never --rm -i -- \
+            curl -f http://order-service.wms-platform.svc.cluster.local:8001/health || exit 1
+
+      - name: Notify deployment
+        if: success()
+        run: |
+          echo "Production deployment successful!"
+          # Add notification logic (Slack, email, etc.)

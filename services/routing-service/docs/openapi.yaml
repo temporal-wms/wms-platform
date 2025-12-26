@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: Routing Service API
+  description: REST API for pick route optimization and management
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8003/api/v1
+
+tags:
+  - name: Routes
+
+paths:
+  /routes:
+    post:
+      summary: Calculate optimal route
+      tags: [Routes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [waveId, pickerId]
+              properties:
+                waveId:
+                  type: string
+                pickerId:
+                  type: string
+                strategy:
+                  type: string
+                  enum: [shortest_path, zone_based, priority_first]
+            examples:
+              shortestPath:
+                value:
+                  waveId: "WAVE-001"
+                  pickerId: "PICKER-123"
+                  strategy: "shortest_path"
+      responses:
+        '201':
+          description: Route calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+              examples:
+                route:
+                  value:
+                    routeId: "ROUTE-001"
+                    waveId: "WAVE-001"
+                    pickerId: "PICKER-123"
+                    status: "calculated"
+                    strategy: "shortest_path"
+                    totalDistance: 125.5
+                    estimatedTime: 45
+                    stops:
+                      - sequence: 1
+                        locationId: "A-1-2-3"
+                        sku: "WIDGET-001"
+                        quantity: 2
+                      - sequence: 2
+                        locationId: "A-2-1-4"
+                        sku: "GADGET-002"
+                        quantity: 1
+
+  /routes/{routeId}:
+    get:
+      summary: Get route by ID
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Route details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+
+  /routes/{routeId}/start:
+    post:
+      summary: Start route
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Route started
+
+  /routes/{routeId}/stops/{stopSequence}/complete:
+    post:
+      summary: Complete a stop
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: stopSequence
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Stop completed
+
+  /routes/picker/{pickerId}/active:
+    get:
+      summary: Get active route for picker
+      tags: [Routes]
+      parameters:
+        - name: pickerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Active route
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+components:
+  schemas:
+    RouteResponse:
+      type: object
+      properties:
+        routeId:
+          type: string
+        waveId:
+          type: string
+        pickerId:
+          type: string
+        status:
+          type: string
+        strategy:
+          type: string
+        totalDistance:
+          type: number
+        estimatedTime:
+          type: integer
+        stops:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteStop'
+
+    RouteStop:
+      type: object
+      properties:
+        sequence:
+          type: integer
+        locationId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        completed:
+          type: boolean

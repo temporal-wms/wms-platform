@@ -1,0 +1,839 @@
+asyncapi: 3.0.0
+info:
+  title: WMS Platform Event-Driven API
+  version: 1.0.0
+  description: |
+    The WMS (Warehouse Management System) Platform uses an event-driven architecture with Apache Kafka.
+    This document describes all domain events published and consumed across the 9 microservices.
+
+    ## Event Flow
+
+    Order → Wave → Route → Pick → Consolidate → Pack → Ship
+
+    ## Services
+    - **order-service**: Order lifecycle management
+    - **waving-service**: Wave planning and execution
+    - **routing-service**: Pick route calculation
+    - **picking-service**: Pick task management
+    - **consolidation-service**: Multi-item order consolidation
+    - **packing-service**: Packing task management
+    - **shipping-service**: Shipment and carrier integration
+    - **inventory-service**: Inventory management
+    - **labor-service**: Worker and shift management
+
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  production:
+    host: kafka.production.wms.example.com:9092
+    protocol: kafka
+    description: Production Kafka cluster
+  staging:
+    host: kafka.staging.wms.example.com:9092
+    protocol: kafka
+    description: Staging Kafka cluster
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.orders.events:
+    address: wms.orders.events
+    messages:
+      OrderReceived:
+        $ref: '#/components/messages/OrderReceived'
+      OrderValidated:
+        $ref: '#/components/messages/OrderValidated'
+      OrderCancelled:
+        $ref: '#/components/messages/OrderCancelled'
+      OrderAssignedToWave:
+        $ref: '#/components/messages/OrderAssignedToWave'
+      OrderShipped:
+        $ref: '#/components/messages/OrderShipped'
+      OrderCompleted:
+        $ref: '#/components/messages/OrderCompleted'
+    description: Order lifecycle events
+
+  wms.waves.events:
+    address: wms.waves.events
+    messages:
+      WaveCreated:
+        $ref: '#/components/messages/WaveCreated'
+      WaveScheduled:
+        $ref: '#/components/messages/WaveScheduled'
+      WaveReleased:
+        $ref: '#/components/messages/WaveReleased'
+      WaveCompleted:
+        $ref: '#/components/messages/WaveCompleted'
+      WaveCancelled:
+        $ref: '#/components/messages/WaveCancelled'
+      OrderAddedToWave:
+        $ref: '#/components/messages/OrderAddedToWave'
+      OrderRemovedFromWave:
+        $ref: '#/components/messages/OrderRemovedFromWave'
+    description: Wave management events
+
+  wms.picking.events:
+    address: wms.picking.events
+    messages:
+      PickTaskCreated:
+        $ref: '#/components/messages/PickTaskCreated'
+      PickTaskAssigned:
+        $ref: '#/components/messages/PickTaskAssigned'
+      PickTaskStarted:
+        $ref: '#/components/messages/PickTaskStarted'
+      PickTaskCompleted:
+        $ref: '#/components/messages/PickTaskCompleted'
+      PickTaskCancelled:
+        $ref: '#/components/messages/PickTaskCancelled'
+    description: Picking task events
+
+  wms.inventory.events:
+    address: wms.inventory.events
+    messages:
+      InventoryReceived:
+        $ref: '#/components/messages/InventoryReceived'
+      InventoryReserved:
+        $ref: '#/components/messages/InventoryReserved'
+      InventoryReleased:
+        $ref: '#/components/messages/InventoryReleased'
+      InventoryAdjusted:
+        $ref: '#/components/messages/InventoryAdjusted'
+      LowStockAlert:
+        $ref: '#/components/messages/LowStockAlert'
+    description: Inventory management events
+
+  wms.labor.events:
+    address: wms.labor.events
+    messages:
+      ShiftStarted:
+        $ref: '#/components/messages/ShiftStarted'
+      ShiftEnded:
+        $ref: '#/components/messages/ShiftEnded'
+      WorkerAssigned:
+        $ref: '#/components/messages/WorkerAssigned'
+      TaskCompleted:
+        $ref: '#/components/messages/TaskCompleted'
+    description: Labor and workforce events
+
+operations:
+  publishOrderReceived:
+    action: send
+    channel:
+      $ref: '#/channels/wms.orders.events'
+    messages:
+      - $ref: '#/channels/wms.orders.events/messages/OrderReceived'
+    description: Published when a new order is received
+
+  subscribeOrderReceived:
+    action: receive
+    channel:
+      $ref: '#/channels/wms.orders.events'
+    messages:
+      - $ref: '#/channels/wms.orders.events/messages/OrderReceived'
+    description: Subscribe to new orders (consumed by waving-service, inventory-service)
+
+components:
+  messages:
+    # Order Events
+    OrderReceived:
+      name: OrderReceived
+      title: Order Received Event
+      summary: Published when a new order is created and validated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderReceivedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - payload:
+            orderId: ORD-a1b2c3d4
+            customerId: CUST-123
+            orderLines:
+              - sku: SKU-12345
+                quantity: 2
+                weight: 1.5
+            priority: same_day
+            promisedDeliveryAt: '2025-12-25T15:00:00Z'
+
+    OrderValidated:
+      name: OrderValidated
+      title: Order Validated Event
+      summary: Published when an order passes validation checks
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderValidatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderCancelled:
+      name: OrderCancelled
+      title: Order Cancelled Event
+      summary: Published when an order is cancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderCancelledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderAssignedToWave:
+      name: OrderAssignedToWave
+      title: Order Assigned to Wave Event
+      summary: Published when an order is assigned to a wave for picking
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderAssignedToWavePayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderShipped:
+      name: OrderShipped
+      title: Order Shipped Event
+      summary: Published when an order is shipped to the customer
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderShippedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderCompleted:
+      name: OrderCompleted
+      title: Order Completed Event
+      summary: Published when an order fulfillment is completed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    # Wave Events
+    WaveCreated:
+      name: WaveCreated
+      title: Wave Created Event
+      summary: Published when a new wave is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WaveScheduled:
+      name: WaveScheduled
+      title: Wave Scheduled Event
+      summary: Published when a wave is scheduled for execution
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveScheduledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WaveReleased:
+      name: WaveReleased
+      title: Wave Released Event
+      summary: Published when a wave is released for picking
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveReleasedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WaveCompleted:
+      name: WaveCompleted
+      title: Wave Completed Event
+      summary: Published when all orders in a wave are picked
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WaveCancelled:
+      name: WaveCancelled
+      title: Wave Cancelled Event
+      summary: Published when a wave is cancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveCancelledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderAddedToWave:
+      name: OrderAddedToWave
+      title: Order Added to Wave Event
+      summary: Published when an order is added to a wave
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderAddedToWavePayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderRemovedFromWave:
+      name: OrderRemovedFromWave
+      title: Order Removed from Wave Event
+      summary: Published when an order is removed from a wave
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderRemovedFromWavePayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    # Picking Events
+    PickTaskCreated:
+      name: PickTaskCreated
+      title: Pick Task Created Event
+      summary: Published when a pick task is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PickTaskAssigned:
+      name: PickTaskAssigned
+      title: Pick Task Assigned Event
+      summary: Published when a pick task is assigned to a worker
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskAssignedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PickTaskStarted:
+      name: PickTaskStarted
+      title: Pick Task Started Event
+      summary: Published when a worker starts a pick task
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskStartedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PickTaskCompleted:
+      name: PickTaskCompleted
+      title: Pick Task Completed Event
+      summary: Published when a pick task is completed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PickTaskCancelled:
+      name: PickTaskCancelled
+      title: Pick Task Cancelled Event
+      summary: Published when a pick task is cancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskCancelledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    # Inventory Events
+    InventoryReceived:
+      name: InventoryReceived
+      title: Inventory Received Event
+      summary: Published when new inventory is received
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryReceivedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    InventoryReserved:
+      name: InventoryReserved
+      title: Inventory Reserved Event
+      summary: Published when inventory is reserved for an order
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryReservedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    InventoryReleased:
+      name: InventoryReleased
+      title: Inventory Released Event
+      summary: Published when reserved inventory is released
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryReleasedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    InventoryAdjusted:
+      name: InventoryAdjusted
+      title: Inventory Adjusted Event
+      summary: Published when inventory quantities are adjusted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryAdjustedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    LowStockAlert:
+      name: LowStockAlert
+      title: Low Stock Alert Event
+      summary: Published when inventory falls below reorder point
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/LowStockAlertPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    # Labor Events
+    ShiftStarted:
+      name: ShiftStarted
+      title: Shift Started Event
+      summary: Published when a worker starts their shift
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShiftStartedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ShiftEnded:
+      name: ShiftEnded
+      title: Shift Ended Event
+      summary: Published when a worker ends their shift
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShiftEndedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WorkerAssigned:
+      name: WorkerAssigned
+      title: Worker Assigned Event
+      summary: Published when a worker is assigned to a task
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerAssignedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    TaskCompleted:
+      name: TaskCompleted
+      title: Task Completed Event
+      summary: Published when a worker completes a task
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    # CloudEvents Standard Headers
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+          description: CloudEvents specification version
+        ce-type:
+          type: string
+          description: Event type identifier
+        ce-source:
+          type: string
+          description: Event source (service name)
+        ce-id:
+          type: string
+          description: Unique event identifier (UUID)
+        ce-time:
+          type: string
+          format: date-time
+          description: Event timestamp (RFC3339)
+        ce-wmscorrelationid:
+          type: string
+          description: Correlation ID for tracing related events
+        ce-wmswavenumber:
+          type: string
+          description: Wave number (if applicable)
+        ce-wmsworkflowid:
+          type: string
+          description: Temporal workflow ID (if applicable)
+        content-type:
+          type: string
+          const: application/json
+
+    # Order Event Payloads
+    OrderReceivedPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+          description: Unique order identifier
+          example: ORD-a1b2c3d4
+        customerId:
+          type: string
+          description: Customer identifier
+          example: CUST-123
+        orderLines:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLine'
+        priority:
+          type: string
+          enum: [same_day, next_day, standard]
+          description: Order priority level
+        promisedDeliveryAt:
+          type: string
+          format: date-time
+          description: Promised delivery date and time
+
+    OrderLine:
+      type: object
+      properties:
+        sku:
+          type: string
+          description: Stock keeping unit
+          example: SKU-12345
+        quantity:
+          type: integer
+          description: Quantity ordered
+          minimum: 1
+        weight:
+          type: number
+          format: float
+          description: Item weight in kg
+
+    OrderValidatedPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        validatedAt:
+          type: string
+          format: date-time
+
+    OrderCancelledPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+
+    OrderAssignedToWavePayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        waveId:
+          type: string
+        assignedAt:
+          type: string
+          format: date-time
+
+    OrderShippedPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        shippedAt:
+          type: string
+          format: date-time
+
+    OrderCompletedPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+
+    # Wave Event Payloads
+    WaveCreatedPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        waveType:
+          type: string
+          enum: [digital, wholesale, priority, mixed]
+        fulfillmentMode:
+          type: string
+          enum: [wave, discrete]
+        createdAt:
+          type: string
+          format: date-time
+
+    WaveScheduledPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        scheduledStart:
+          type: string
+          format: date-time
+        scheduledEnd:
+          type: string
+          format: date-time
+
+    WaveReleasedPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        orderIds:
+          type: array
+          items:
+            type: string
+        releasedAt:
+          type: string
+          format: date-time
+
+    WaveCompletedPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        orderCount:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+
+    WaveCancelledPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+
+    OrderAddedToWavePayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        orderId:
+          type: string
+        addedAt:
+          type: string
+          format: date-time
+
+    OrderRemovedFromWavePayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        orderId:
+          type: string
+        removedAt:
+          type: string
+          format: date-time
+
+    # Picking Event Payloads
+    PickTaskCreatedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        waveId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PickTaskAssignedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        workerId:
+          type: string
+        assignedAt:
+          type: string
+          format: date-time
+
+    PickTaskStartedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        workerId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+
+    PickTaskCompletedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        workerId:
+          type: string
+        pickedItems:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              quantity:
+                type: integer
+              locationId:
+                type: string
+        completedAt:
+          type: string
+          format: date-time
+
+    PickTaskCancelledPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+
+    # Inventory Event Payloads
+    InventoryReceivedPayload:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        locationId:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+
+    InventoryReservedPayload:
+      type: object
+      properties:
+        reservationId:
+          type: string
+        orderId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        reservedAt:
+          type: string
+          format: date-time
+
+    InventoryReleasedPayload:
+      type: object
+      properties:
+        reservationId:
+          type: string
+        orderId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        releasedAt:
+          type: string
+          format: date-time
+
+    InventoryAdjustedPayload:
+      type: object
+      properties:
+        adjustmentId:
+          type: string
+        sku:
+          type: string
+        quantityChange:
+          type: integer
+        reason:
+          type: string
+        adjustedAt:
+          type: string
+          format: date-time
+
+    LowStockAlertPayload:
+      type: object
+      properties:
+        sku:
+          type: string
+        currentQuantity:
+          type: integer
+        reorderPoint:
+          type: integer
+        alertedAt:
+          type: string
+          format: date-time
+
+    # Labor Event Payloads
+    ShiftStartedPayload:
+      type: object
+      properties:
+        shiftId:
+          type: string
+        workerId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+
+    ShiftEndedPayload:
+      type: object
+      properties:
+        shiftId:
+          type: string
+        workerId:
+          type: string
+        endTime:
+          type: string
+          format: date-time
+        tasksCompleted:
+          type: integer
+
+    WorkerAssignedPayload:
+      type: object
+      properties:
+        workerId:
+          type: string
+        taskId:
+          type: string
+        taskType:
+          type: string
+          enum: [picking, packing, consolidation, shipping]
+        assignedAt:
+          type: string
+          format: date-time
+
+    TaskCompletedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        workerId:
+          type: string
+        taskType:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+          description: Task duration in seconds

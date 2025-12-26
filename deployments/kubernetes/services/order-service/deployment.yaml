@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: wms-platform
+  labels:
+    app: order-service
+    tier: backend
+    component: microservice
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+        tier: backend
+        component: microservice
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: wms-platform
+      containers:
+      - name: order-service
+        image: wms-platform/order-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8001
+          protocol: TCP
+        - name: grpc
+          containerPort: 9001
+          protocol: TCP
+        env:
+        - name: SERVICE_NAME
+          value: "order-service"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-credentials
+              key: uri
+        - name: MONGODB_DATABASE
+          value: "orders_db"
+        - name: KAFKA_BROKERS
+          value: "kafka-0.kafka-headless.wms-platform.svc.cluster.local:9092,kafka-1.kafka-headless.wms-platform.svc.cluster.local:9092,kafka-2.kafka-headless.wms-platform.svc.cluster.local:9092"
+        - name: TEMPORAL_HOST
+          value: "temporal-frontend.wms-platform.svc.cluster.local:7233"
+        - name: TEMPORAL_NAMESPACE
+          value: "wms-platform"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://jaeger-collector.observability.svc.cluster.local:4317"
+        - name: TRACING_ENABLED
+          value: "true"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+      terminationGracePeriodSeconds: 30

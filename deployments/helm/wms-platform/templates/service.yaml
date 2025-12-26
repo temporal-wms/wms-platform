@@ -1,0 +1,34 @@
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- if and $serviceConfig.enabled (ne $serviceConfig.type "worker") }}
+{{- if ne (dig "service" "enabled" true $serviceConfig) false }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $serviceName }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "wms-platform.service.labels" (dict "serviceName" $serviceName "serviceConfig" $serviceConfig) | nindent 4 }}
+    {{- include "wms-platform.labels" $ | nindent 4 }}
+  {{- with $serviceConfig.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $serviceConfig.service.type | default "ClusterIP" }}
+  ports:
+  - name: http
+    port: {{ $serviceConfig.ports.http }}
+    targetPort: http
+    protocol: TCP
+  {{- if $serviceConfig.ports.grpc }}
+  - name: grpc
+    port: {{ $serviceConfig.ports.grpc }}
+    targetPort: grpc
+    protocol: TCP
+  {{- end }}
+  selector:
+    {{- include "wms-platform.service.selectorLabels" (dict "serviceName" $serviceName) | nindent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}

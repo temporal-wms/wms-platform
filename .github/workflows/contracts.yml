@@ -1,0 +1,178 @@
+name: Contract Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  GO_VERSION: '1.24'
+
+jobs:
+  consumer-tests:
+    name: Consumer Contract Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install Pact CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/pact-foundation/pact-ruby-standalone/master/install.sh | PACT_CLI_VERSION=2.4.5 bash
+          echo "$HOME/pact/bin" >> $GITHUB_PATH
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run Consumer Tests
+        run: make test-pact
+
+      - name: Upload Pact files
+        uses: actions/upload-artifact@v4
+        with:
+          name: pacts
+          path: contracts/pacts/
+          retention-days: 7
+
+  openapi-validation:
+    name: OpenAPI Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run OpenAPI Validation
+        run: make test-openapi
+
+  event-schema-validation:
+    name: Event Schema Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run Event Schema Validation
+        run: make test-events
+
+  provider-verification:
+    name: Provider Verification
+    needs: consumer-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - order-service
+          - inventory-service
+          - routing-service
+          - picking-service
+          - consolidation-service
+          - packing-service
+          - shipping-service
+          - labor-service
+          - waving-service
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install Pact CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/pact-foundation/pact-ruby-standalone/master/install.sh | PACT_CLI_VERSION=2.4.5 bash
+          echo "$HOME/pact/bin" >> $GITHUB_PATH
+
+      - name: Download Pacts
+        uses: actions/download-artifact@v4
+        with:
+          name: pacts
+          path: contracts/pacts/
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run Provider Verification
+        run: make test-provider-${{ matrix.service }}
+
+  contract-summary:
+    name: Contract Test Summary
+    needs: [consumer-tests, openapi-validation, event-schema-validation, provider-verification]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.consumer-tests.result }}" == "failure" ] || \
+             [ "${{ needs.openapi-validation.result }}" == "failure" ] || \
+             [ "${{ needs.event-schema-validation.result }}" == "failure" ] || \
+             [ "${{ needs.provider-verification.result }}" == "failure" ]; then
+            echo "❌ Contract tests failed"
+            exit 1
+          else
+            echo "✅ All contract tests passed"
+          fi

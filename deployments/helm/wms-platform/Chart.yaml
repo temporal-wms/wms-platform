@@ -1,0 +1,16 @@
+apiVersion: v2
+name: wms-platform
+description: Warehouse Management System Platform - Complete microservices deployment
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - wms
+  - warehouse
+  - fulfillment
+  - microservices
+  - event-driven
+maintainers:
+  - name: WMS Platform Team
+    email: wms@example.com
+dependencies: []

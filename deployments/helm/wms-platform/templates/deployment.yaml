@@ -1,0 +1,102 @@
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- if $serviceConfig.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $serviceName }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "wms-platform.service.labels" (dict "serviceName" $serviceName "serviceConfig" $serviceConfig) | nindent 4 }}
+    {{- include "wms-platform.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $serviceConfig.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "wms-platform.service.selectorLabels" (dict "serviceName" $serviceName) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wms-platform.service.labels" (dict "serviceName" $serviceName "serviceConfig" $serviceConfig) | nindent 8 }}
+        {{- include "wms-platform.labels" $ | nindent 8 }}
+      {{- with $serviceConfig.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "wms-platform.serviceAccountName" $ }}
+      containers:
+      - name: {{ $serviceName }}
+        image: {{ include "wms-platform.service.image" (dict "Values" $.Values "serviceConfig" $serviceConfig) }}
+        imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+        ports:
+        {{- if eq $serviceConfig.type "worker" }}
+        - name: metrics
+          containerPort: {{ $serviceConfig.ports.metrics }}
+          protocol: TCP
+        {{- else }}
+        - name: http
+          containerPort: {{ $serviceConfig.ports.http }}
+          protocol: TCP
+        {{- if $serviceConfig.ports.grpc }}
+        - name: grpc
+          containerPort: {{ $serviceConfig.ports.grpc }}
+          protocol: TCP
+        {{- end }}
+        {{- end }}
+        env:
+        {{- range $serviceConfig.env }}
+        - name: {{ .name }}
+          value: {{ .value | quote }}
+        {{- end }}
+        {{- range $serviceConfig.secrets }}
+        - name: {{ .name }}
+          valueFrom:
+            {{- toYaml .valueFrom | nindent 12 }}
+        {{- end }}
+        {{- if $serviceConfig.envFrom }}
+        envFrom:
+        {{- toYaml $serviceConfig.envFrom | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml $serviceConfig.resources | nindent 10 }}
+        {{- if $serviceConfig.healthCheck }}
+        {{- with $serviceConfig.healthCheck.liveness }}
+        livenessProbe:
+          httpGet:
+            path: {{ .path }}
+            port: {{ .port }}
+          initialDelaySeconds: {{ .initialDelaySeconds | default 30 }}
+          periodSeconds: {{ .periodSeconds | default 10 }}
+          timeoutSeconds: {{ .timeoutSeconds | default 5 }}
+          failureThreshold: {{ .failureThreshold | default 3 }}
+        {{- end }}
+        {{- with $serviceConfig.healthCheck.readiness }}
+        readinessProbe:
+          httpGet:
+            path: {{ .path }}
+            port: {{ .port }}
+          initialDelaySeconds: {{ .initialDelaySeconds | default 5 }}
+          periodSeconds: {{ .periodSeconds | default 5 }}
+          timeoutSeconds: {{ .timeoutSeconds | default 3 }}
+          failureThreshold: {{ .failureThreshold | default 3 }}
+        {{- end }}
+        {{- with $serviceConfig.healthCheck.startup }}
+        startupProbe:
+          httpGet:
+            path: {{ .path }}
+            port: {{ .port }}
+          initialDelaySeconds: {{ .initialDelaySeconds | default 0 }}
+          periodSeconds: {{ .periodSeconds | default 5 }}
+          timeoutSeconds: {{ .timeoutSeconds | default 3 }}
+          failureThreshold: {{ .failureThreshold | default 30 }}
+        {{- end }}
+        {{- end }}
+      terminationGracePeriodSeconds: {{ $serviceConfig.terminationGracePeriodSeconds | default 30 }}
+{{- end }}
+{{- end }}

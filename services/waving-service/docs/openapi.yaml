@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: Waving Service API
+  description: REST API for wave management and order batching operations
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8002/api/v1
+
+tags:
+  - name: Waves
+
+paths:
+  /waves:
+    post:
+      summary: Create a new wave
+      tags: [Waves]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [waveType, zone]
+              properties:
+                waveType:
+                  type: string
+                  enum: [single_order, batch, zone_based]
+                zone:
+                  type: string
+                maxOrders:
+                  type: integer
+                scheduledReleaseAt:
+                  type: string
+                  format: date-time
+            examples:
+              batchWave:
+                value:
+                  waveType: "batch"
+                  zone: "A"
+                  maxOrders: 50
+                  scheduledReleaseAt: "2024-12-24T14:00:00Z"
+      responses:
+        '201':
+          description: Wave created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+              examples:
+                created:
+                  value:
+                    waveId: "WAVE-001"
+                    waveNumber: 1
+                    waveType: "batch"
+                    zone: "A"
+                    status: "created"
+                    maxOrders: 50
+                    currentOrders: 0
+                    createdAt: "2024-12-24T10:00:00Z"
+
+    get:
+      summary: List waves
+      tags: [Waves]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [created, scheduled, released, completed, cancelled]
+        - name: zone
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Waves list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WaveResponse'
+
+  /waves/{waveId}:
+    get:
+      summary: Get wave by ID
+      tags: [Waves]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wave details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+
+  /waves/{waveId}/release:
+    post:
+      summary: Release wave for picking
+      tags: [Waves]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wave released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+
+  /waves/{waveId}/orders:
+    post:
+      summary: Add order to wave
+      tags: [Waves]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId]
+              properties:
+                orderId:
+                  type: string
+      responses:
+        '200':
+          description: Order added to wave
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+components:
+  schemas:
+    WaveResponse:
+      type: object
+      properties:
+        waveId:
+          type: string
+        waveNumber:
+          type: integer
+        waveType:
+          type: string
+        zone:
+          type: string
+        status:
+          type: string
+        maxOrders:
+          type: integer
+        currentOrders:
+          type: integer
+        orders:
+          type: array
+          items:
+            type: string
+        scheduledReleaseAt:
+          type: string
+          format: date-time
+        releasedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time

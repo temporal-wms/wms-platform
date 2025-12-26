@@ -1,0 +1,206 @@
+openapi: 3.0.3
+info:
+  title: Labor Service API
+  description: REST API for workforce and labor management
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8009/api/v1
+
+tags:
+  - name: Workers
+  - name: Shifts
+  - name: Tasks
+
+paths:
+  /workers:
+    post:
+      summary: Create worker
+      tags: [Workers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workerId, name, skills]
+              properties:
+                workerId:
+                  type: string
+                name:
+                  type: string
+                skills:
+                  type: array
+                  items:
+                    type: string
+            examples:
+              worker:
+                value:
+                  workerId: "PICKER-123"
+                  name: "John Doe"
+                  skills: ["picking", "packing"]
+      responses:
+        '201':
+          description: Worker created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+
+    get:
+      summary: List workers
+      tags: [Workers]
+      parameters:
+        - name: skill
+          in: query
+          schema:
+            type: string
+        - name: available
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Workers list
+
+  /workers/{workerId}:
+    get:
+      summary: Get worker by ID
+      tags: [Workers]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Worker details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+
+  /workers/{workerId}/shift/start:
+    post:
+      summary: Start shift
+      tags: [Shifts]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zone]
+              properties:
+                zone:
+                  type: string
+                shiftType:
+                  type: string
+                  enum: [morning, afternoon, evening, night]
+      responses:
+        '200':
+          description: Shift started
+
+  /workers/{workerId}/shift/end:
+    post:
+      summary: End shift
+      tags: [Shifts]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Shift ended
+
+  /workers/{workerId}/task/assign:
+    post:
+      summary: Assign task to worker
+      tags: [Tasks]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [taskId, taskType]
+              properties:
+                taskId:
+                  type: string
+                taskType:
+                  type: string
+                  enum: [picking, packing, consolidation]
+      responses:
+        '200':
+          description: Task assigned
+
+  /workers/available:
+    get:
+      summary: Get available workers
+      tags: [Workers]
+      parameters:
+        - name: skill
+          in: query
+          schema:
+            type: string
+        - name: zone
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Available workers
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+components:
+  schemas:
+    WorkerResponse:
+      type: object
+      properties:
+        workerId:
+          type: string
+        name:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [active, on_shift, idle, offline]
+        currentZone:
+          type: string
+        currentShiftId:
+          type: string
+        assignedTasks:
+          type: array
+          items:
+            type: object
+            properties:
+              taskId:
+                type: string
+              taskType:
+                type: string
+              status:
+                type: string

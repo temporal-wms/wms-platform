@@ -1,0 +1,221 @@
+openapi: 3.0.3
+info:
+  title: Inventory Service API
+  description: REST API for inventory management operations
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8008/api/v1
+
+tags:
+  - name: Inventory
+
+paths:
+  /inventory:
+    post:
+      summary: Create inventory item
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, productName]
+              properties:
+                sku:
+                  type: string
+                productName:
+                  type: string
+                reorderPoint:
+                  type: integer
+                reorderQuantity:
+                  type: integer
+            examples:
+              item:
+                value:
+                  sku: "WIDGET-001"
+                  productName: "Premium Widget"
+                  reorderPoint: 10
+                  reorderQuantity: 100
+      responses:
+        '201':
+          description: Item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+
+    get:
+      summary: List inventory
+      tags: [Inventory]
+      parameters:
+        - name: sku
+          in: query
+          schema:
+            type: string
+        - name: lowStock
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Inventory list
+
+  /inventory/{sku}:
+    get:
+      summary: Get inventory by SKU
+      tags: [Inventory]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+
+  /inventory/{sku}/receive:
+    post:
+      summary: Receive stock
+      tags: [Inventory]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locationId, quantity]
+              properties:
+                locationId:
+                  type: string
+                quantity:
+                  type: integer
+                zone:
+                  type: string
+            examples:
+              receive:
+                value:
+                  locationId: "A-1-2-3"
+                  quantity: 100
+                  zone: "A"
+      responses:
+        '200':
+          description: Stock received
+
+  /inventory/{sku}/reserve:
+    post:
+      summary: Reserve stock
+      tags: [Inventory]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, quantity]
+              properties:
+                orderId:
+                  type: string
+                locationId:
+                  type: string
+                quantity:
+                  type: integer
+      responses:
+        '200':
+          description: Stock reserved
+
+  /inventory/{sku}/adjust:
+    post:
+      summary: Adjust inventory
+      tags: [Inventory]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locationId, newQuantity, reason]
+              properties:
+                locationId:
+                  type: string
+                newQuantity:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Inventory adjusted
+
+  /inventory/low-stock:
+    get:
+      summary: Get low stock items
+      tags: [Inventory]
+      responses:
+        '200':
+          description: Low stock items
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+components:
+  schemas:
+    InventoryItemResponse:
+      type: object
+      properties:
+        sku:
+          type: string
+        productName:
+          type: string
+        totalQuantity:
+          type: integer
+        reservedQuantity:
+          type: integer
+        availableQuantity:
+          type: integer
+        reorderPoint:
+          type: integer
+        reorderQuantity:
+          type: integer
+        locations:
+          type: array
+          items:
+            type: object
+            properties:
+              locationId:
+                type: string
+              zone:
+                type: string
+              quantity:
+                type: integer
+              reserved:
+                type: integer
+              available:
+                type: integer

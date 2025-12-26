@@ -1,0 +1,15 @@
+go 1.24.0
+
+use (
+	./orchestrator
+	./services/consolidation-service
+	./services/inventory-service
+	./services/labor-service
+	./services/order-service
+	./services/packing-service
+	./services/picking-service
+	./services/routing-service
+	./services/shipping-service
+	./services/waving-service
+	./shared
+)

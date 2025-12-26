@@ -1,0 +1,223 @@
+# =========================
+# Go
+# =========================
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.txt
+coverage.html
+
+# Go workspace file
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# Go build cache
+.cache/
+
+# =========================
+# IDE and Editors
+# =========================
+
+# JetBrains IDEs (GoLand, IntelliJ)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# =========================
+# OS Generated
+# =========================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.directory
+
+# =========================
+# Environment & Config
+# =========================
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.envrc
+
+# Local configuration
+*.local.yaml
+*.local.yml
+config.local.*
+
+# =========================
+# Logs & Debug
+# =========================
+
+# Log files
+*.log
+logs/
+log/
+
+# Debug files
+debug/
+*.debug
+
+# Profiling
+*.prof
+*.pprof
+cpu.out
+mem.out
+trace.out
+
+# =========================
+# Docker
+# =========================
+
+# Docker override files
+docker-compose.override.yml
+docker-compose.local.yml
+
+# =========================
+# Kubernetes
+# =========================
+
+# Local Kubernetes configs
+kubeconfig
+*.kubeconfig
+
+# Helm
+charts/*.tgz
+
+# =========================
+# Testing
+# =========================
+
+# Test output
+test-results/
+testdata/*.generated.*
+
+# Contract testing
+contracts/pacts/*.json
+
+# =========================
+# Build & CI
+# =========================
+
+# Build output
+build/
+tmp/
+temp/
+
+# CI artifacts
+artifacts/
+
+# =========================
+# Documentation
+# =========================
+
+# Generated docs
+docs/generated/
+site/
+
+# =========================
+# Secrets (NEVER commit these)
+# =========================
+
+# Private keys
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Credentials
+credentials.json
+secrets.yaml
+secrets.yml
+*-credentials.*
+
+# Service account keys
+*-sa-key.json
+
+# =========================
+# Database
+# =========================
+
+# MongoDB data
+data/mongodb/
+mongo-data/
+
+# SQLite
+*.sqlite
+*.db
+
+# =========================
+# Misc
+# =========================
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# Node modules (if any tooling uses npm)
+node_modules/
+
+# Python virtual environments (if any tooling uses Python)
+venv/
+.venv/
+__pycache__/

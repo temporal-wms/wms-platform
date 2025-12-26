@@ -1,0 +1,62 @@
+# Temporal Dynamic Configuration for Development
+
+# Frontend settings
+frontend.enableClientVersionCheck:
+  - value: true
+    constraints: {}
+
+# History settings
+history.defaultActivityRetryPolicy:
+  - value:
+      InitialIntervalInSeconds: 1
+      BackoffCoefficient: 2.0
+      MaximumIntervalInSeconds: 60
+      MaximumAttempts: 3
+    constraints: {}
+
+# Matching settings
+matching.numTaskqueueReadPartitions:
+  - value: 5
+    constraints: {}
+matching.numTaskqueueWritePartitions:
+  - value: 5
+    constraints: {}
+
+# Archival settings
+system.archivalEnabled:
+  - value: false
+    constraints: {}
+
+# Worker settings
+worker.enableArchiver:
+  - value: false
+    constraints: {}
+worker.enableBatcher:
+  - value: true
+    constraints: {}
+
+# Limit settings for development
+limit.maxIDLength:
+  - value: 1000
+    constraints: {}
+limit.blobSizeLimitError:
+  - value: 2097152  # 2MB
+    constraints: {}
+limit.blobSizeLimitWarn:
+  - value: 524288   # 512KB
+    constraints: {}
+
+# Search attributes
+system.enableSearchAttributes:
+  - value: true
+    constraints: {}
+
+# Per-namespace settings
+frontend.namespaceRPS:
+  - value: 2000
+    constraints: {}
+
+# Enable advanced visibility
+system.advancedVisibilityWritingMode:
+  - value: "on"
+    constraints: {}

@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: routing-service
+  namespace: wms-platform
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: routing-service

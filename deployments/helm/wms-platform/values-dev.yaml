@@ -1,0 +1,191 @@
+# Development environment values
+global:
+  namespace: wms-platform-dev
+  imageRegistry: wms-platform
+  imagePullPolicy: Always
+  environment: development
+  region: us-east-1
+
+mongodb:
+  # Use in-cluster MongoDB for development
+  createSecret: true
+  uri: "mongodb://mongodb-0.mongodb-headless.wms-platform-dev.svc.cluster.local:27017/?replicaSet=rs0"
+
+platformConfig:
+  enabled: true
+  data:
+    KAFKA_BROKERS: "kafka-0.kafka-headless.wms-platform-dev.svc.cluster.local:9092"
+    KAFKA_CONSUMER_GROUP_PREFIX: "wms-platform-dev"
+    KAFKA_PRODUCER_ACKS: "1"  # Faster for dev
+    KAFKA_PRODUCER_RETRIES: "1"
+    TEMPORAL_HOST: "temporal-frontend.wms-platform-dev.svc.cluster.local:7233"
+    TEMPORAL_NAMESPACE: "wms-platform-dev"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.observability.svc.cluster.local:4317"
+    TRACING_ENABLED: "true"
+    METRICS_ENABLED: "true"
+    LOG_LEVEL: "debug"  # More verbose for dev
+    LOG_FORMAT: "json"
+    ENVIRONMENT: "development"
+    REGION: "us-east-1"
+
+# Override service configurations for development
+services:
+  order-service:
+    replicaCount: 1  # Lower replicas for dev
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false  # Disable autoscaling in dev
+    podDisruptionBudget:
+      enabled: false  # Disable PDB in dev
+
+  waving-service:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false
+
+  routing-service:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false
+
+  picking-service:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false
+
+  consolidation-service:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false
+
+  packing-service:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false
+
+  shipping-service:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false
+
+  inventory-service:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false
+
+  labor-service:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false
+
+  orchestrator:
+    replicaCount: 1
+    image:
+      tag: dev
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    autoscaling:
+      enabled: false
+    podDisruptionBudget:
+      enabled: false

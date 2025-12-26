@@ -1,0 +1,172 @@
+openapi: 3.0.3
+info:
+  title: Packing Service API
+  description: REST API for packing operations and label generation
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8006/api/v1
+
+tags:
+  - name: Packing
+
+paths:
+  /tasks:
+    post:
+      summary: Create pack task
+      tags: [Packing]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, items]
+              properties:
+                orderId:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                      quantity:
+                        type: integer
+            examples:
+              packTask:
+                value:
+                  orderId: "ORD-A1B2C3D4"
+                  items:
+                    - sku: "WIDGET-001"
+                      quantity: 2
+                    - sku: "GADGET-002"
+                      quantity: 1
+      responses:
+        '201':
+          description: Pack task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
+
+  /tasks/{taskId}/verify:
+    post:
+      summary: Verify item
+      tags: [Packing]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, quantity]
+              properties:
+                sku:
+                  type: string
+                quantity:
+                  type: integer
+      responses:
+        '200':
+          description: Item verified
+
+  /tasks/{taskId}/package:
+    post:
+      summary: Select packaging
+      tags: [Packing]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packageType]
+              properties:
+                packageType:
+                  type: string
+                  enum: [small_box, medium_box, large_box, envelope]
+                dimensions:
+                  type: object
+                  properties:
+                    length:
+                      type: number
+                    width:
+                      type: number
+                    height:
+                      type: number
+                weight:
+                  type: number
+      responses:
+        '200':
+          description: Package selected
+
+  /tasks/{taskId}/label:
+    post:
+      summary: Apply shipping label
+      tags: [Packing]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [labelId]
+              properties:
+                labelId:
+                  type: string
+      responses:
+        '200':
+          description: Label applied
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+components:
+  schemas:
+    PackTaskResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        status:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              quantity:
+                type: integer
+              verified:
+                type: boolean
+        packageType:
+          type: string
+        labelId:
+          type: string

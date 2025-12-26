@@ -1,0 +1,384 @@
+openapi: 3.0.3
+info:
+  title: Order Service API
+  description: |
+    Comprehensive REST API for order management operations in the WMS platform.
+
+    This service handles:
+    - Order creation and validation
+    - Order lifecycle management
+    - Order-wave assignment tracking
+    - Order status updates and queries
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8001/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Orders
+    description: Order management operations
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /orders:
+    post:
+      summary: Create a new order
+      description: Creates a new order in the system and triggers the order fulfillment workflow
+      tags:
+        - Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+            examples:
+              sameDayOrder:
+                summary: Same-day priority order
+                value:
+                  customerId: "CUST-12345"
+                  priority: "same_day"
+                  promisedDeliveryAt: "2024-12-24T20:00:00Z"
+                  shippingAddress:
+                    street: "123 Main St"
+                    city: "San Francisco"
+                    state: "CA"
+                    zipCode: "94105"
+                    country: "US"
+                  items:
+                    - sku: "WIDGET-001"
+                      quantity: 2
+                      unitPrice: 19.99
+                    - sku: "GADGET-002"
+                      quantity: 1
+                      unitPrice: 49.99
+              standardOrder:
+                summary: Standard priority order
+                value:
+                  customerId: "CUST-67890"
+                  priority: "standard"
+                  promisedDeliveryAt: "2024-12-27T17:00:00Z"
+                  shippingAddress:
+                    street: "456 Oak Ave"
+                    street2: "Suite 200"
+                    city: "Los Angeles"
+                    state: "CA"
+                    zipCode: "90001"
+                    country: "US"
+                  items:
+                    - sku: "WIDGET-003"
+                      quantity: 5
+                      unitPrice: 9.99
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+              examples:
+                createdOrder:
+                  value:
+                    orderId: "ORD-A1B2C3D4"
+                    customerId: "CUST-12345"
+                    status: "received"
+                    priority: "same_day"
+                    promisedDeliveryAt: "2024-12-24T20:00:00Z"
+                    shippingAddress:
+                      street: "123 Main St"
+                      city: "San Francisco"
+                      state: "CA"
+                      zipCode: "94105"
+                      country: "US"
+                    items:
+                      - sku: "WIDGET-001"
+                        productName: "Premium Widget"
+                        quantity: 2
+                        unitPrice: 19.99
+                        weight: 0.5
+                      - sku: "GADGET-002"
+                        productName: "Smart Gadget"
+                        quantity: 1
+                        unitPrice: 49.99
+                        weight: 1.2
+                    totalItems: 2
+                    totalQuantity: 3
+                    totalWeight: 2.2
+                    totalValue: 89.97
+                    createdAt: "2024-12-24T10:00:00Z"
+                    updatedAt: "2024-12-24T10:00:00Z"
+        '400':
+          description: Invalid request
+        '500':
+          description: Internal server error
+
+    get:
+      summary: List orders
+      description: Retrieve a paginated list of orders with optional filtering
+      tags:
+        - Orders
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [received, validated, assigned_to_wave, picking, packing, shipped, completed, cancelled]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [same_day, next_day, standard]
+        - name: customerId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderListItem'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      pageSize:
+                        type: integer
+                      total:
+                        type: integer
+                      hasMore:
+                        type: boolean
+
+  /orders/{orderId}:
+    get:
+      summary: Get order by ID
+      tags:
+        - Orders
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '404':
+          description: Order not found
+
+  /orders/{orderId}/validate:
+    put:
+      summary: Validate order
+      tags:
+        - Orders
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order validated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+
+  /orders/{orderId}/cancel:
+    put:
+      summary: Cancel order
+      tags:
+        - Orders
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+
+  /health:
+    get:
+      summary: Health check
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+
+components:
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required:
+        - customerId
+        - priority
+        - shippingAddress
+        - items
+      properties:
+        customerId:
+          type: string
+        priority:
+          type: string
+          enum: [same_day, next_day, standard]
+        promisedDeliveryAt:
+          type: string
+          format: date-time
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemInput'
+
+    OrderItemInput:
+      type: object
+      required:
+        - sku
+        - quantity
+        - unitPrice
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+
+    OrderResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        promisedDeliveryAt:
+          type: string
+          format: date-time
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        totalItems:
+          type: integer
+        totalQuantity:
+          type: integer
+        totalWeight:
+          type: number
+        totalValue:
+          type: number
+        waveId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      properties:
+        sku:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+        weight:
+          type: number
+
+    OrderListItem:
+      type: object
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        totalItems:
+          type: integer
+        totalQuantity:
+          type: integer
+        waveId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Address:
+      type: object
+      required:
+        - street
+        - city
+        - state
+        - zipCode
+        - country
+      properties:
+        street:
+          type: string
+        street2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: string
+        country:
+          type: string

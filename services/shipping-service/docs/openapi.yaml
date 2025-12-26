@@ -1,0 +1,163 @@
+openapi: 3.0.3
+info:
+  title: Shipping Service API
+  description: REST API for shipment and carrier operations
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8007/api/v1
+
+tags:
+  - name: Shipments
+
+paths:
+  /shipments:
+    post:
+      summary: Create shipment
+      tags: [Shipments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, carrier, serviceType]
+              properties:
+                orderId:
+                  type: string
+                carrier:
+                  type: string
+                  enum: [ups, fedex, usps, dhl]
+                serviceType:
+                  type: string
+                packageDetails:
+                  type: object
+                  properties:
+                    weight:
+                      type: number
+                    dimensions:
+                      type: object
+            examples:
+              shipment:
+                value:
+                  orderId: "ORD-A1B2C3D4"
+                  carrier: "ups"
+                  serviceType: "ground"
+                  packageDetails:
+                    weight: 2.5
+                    dimensions:
+                      length: 12
+                      width: 10
+                      height: 8
+      responses:
+        '201':
+          description: Shipment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+              examples:
+                created:
+                  value:
+                    shipmentId: "SHIP-001"
+                    orderId: "ORD-A1B2C3D4"
+                    carrier: "ups"
+                    serviceType: "ground"
+                    status: "created"
+                    createdAt: "2024-12-24T10:00:00Z"
+
+  /shipments/{shipmentId}/label:
+    post:
+      summary: Generate shipping label
+      tags: [Shipments]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Label generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trackingNumber:
+                    type: string
+                  labelUrl:
+                    type: string
+                  labelFormat:
+                    type: string
+
+  /shipments/{shipmentId}/manifest:
+    post:
+      summary: Add to manifest
+      tags: [Shipments]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manifestId]
+              properties:
+                manifestId:
+                  type: string
+      responses:
+        '200':
+          description: Added to manifest
+
+  /shipments/{shipmentId}/ship:
+    post:
+      summary: Confirm shipment
+      tags: [Shipments]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Shipment confirmed
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+components:
+  schemas:
+    ShipmentResponse:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        carrier:
+          type: string
+        serviceType:
+          type: string
+        trackingNumber:
+          type: string
+        status:
+          type: string
+        labelUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        shippedAt:
+          type: string
+          format: date-time

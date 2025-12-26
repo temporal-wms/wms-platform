@@ -1,0 +1,140 @@
+# Staging environment values
+global:
+  namespace: wms-platform-staging
+  imageRegistry: wms-platform
+  imagePullPolicy: IfNotPresent
+  environment: staging
+  region: us-east-1
+
+mongodb:
+  # Use external MongoDB secret for staging
+  createSecret: false
+  secretName: mongodb-credentials-staging
+
+platformConfig:
+  enabled: true
+  data:
+    KAFKA_BROKERS: "kafka-0.kafka-headless.wms-platform-staging.svc.cluster.local:9092,kafka-1.kafka-headless.wms-platform-staging.svc.cluster.local:9092,kafka-2.kafka-headless.wms-platform-staging.svc.cluster.local:9092"
+    KAFKA_CONSUMER_GROUP_PREFIX: "wms-platform-staging"
+    KAFKA_PRODUCER_ACKS: "all"
+    KAFKA_PRODUCER_RETRIES: "3"
+    TEMPORAL_HOST: "temporal-frontend.wms-platform-staging.svc.cluster.local:7233"
+    TEMPORAL_NAMESPACE: "wms-platform-staging"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.observability.svc.cluster.local:4317"
+    TRACING_ENABLED: "true"
+    METRICS_ENABLED: "true"
+    LOG_LEVEL: "info"
+    LOG_FORMAT: "json"
+    ENVIRONMENT: "staging"
+    REGION: "us-east-1"
+
+# Override service configurations for staging
+services:
+  order-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+  waving-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    podDisruptionBudget:
+      minAvailable: 1
+
+  routing-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    podDisruptionBudget:
+      minAvailable: 1
+
+  picking-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 6
+    podDisruptionBudget:
+      minAvailable: 1
+
+  consolidation-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    podDisruptionBudget:
+      minAvailable: 1
+
+  packing-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    podDisruptionBudget:
+      minAvailable: 1
+
+  shipping-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    podDisruptionBudget:
+      minAvailable: 1
+
+  inventory-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 6
+    podDisruptionBudget:
+      minAvailable: 1
+
+  labor-service:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    podDisruptionBudget:
+      minAvailable: 1
+
+  orchestrator:
+    replicaCount: 2
+    image:
+      tag: staging
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 6
+    podDisruptionBudget:
+      minAvailable: 1

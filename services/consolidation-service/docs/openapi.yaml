@@ -1,0 +1,127 @@
+openapi: 3.0.3
+info:
+  title: Consolidation Service API
+  description: REST API for order consolidation operations
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8005/api/v1
+
+tags:
+  - name: Consolidation
+
+paths:
+  /consolidations:
+    post:
+      summary: Create consolidation
+      tags: [Consolidation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, stationId]
+              properties:
+                orderId:
+                  type: string
+                stationId:
+                  type: string
+            examples:
+              consolidation:
+                value:
+                  orderId: "ORD-A1B2C3D4"
+                  stationId: "STATION-01"
+      responses:
+        '201':
+          description: Consolidation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsolidationResponse'
+
+  /consolidations/{consolidationId}/consolidate:
+    post:
+      summary: Consolidate item
+      tags: [Consolidation]
+      parameters:
+        - name: consolidationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, quantity]
+              properties:
+                sku:
+                  type: string
+                quantity:
+                  type: integer
+      responses:
+        '200':
+          description: Item consolidated
+
+  /consolidations/{consolidationId}/complete:
+    post:
+      summary: Complete consolidation
+      tags: [Consolidation]
+      parameters:
+        - name: consolidationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consolidation completed
+
+  /consolidations/station/{stationId}:
+    get:
+      summary: Get consolidations at station
+      tags: [Consolidation]
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consolidations at station
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+components:
+  schemas:
+    ConsolidationResponse:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+        orderId:
+          type: string
+        stationId:
+          type: string
+        status:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              quantity:
+                type: integer
+              consolidated:
+                type: boolean

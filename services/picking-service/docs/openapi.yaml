@@ -1,0 +1,189 @@
+openapi: 3.0.3
+info:
+  title: Picking Service API
+  description: REST API for pick task management and execution
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8004/api/v1
+
+tags:
+  - name: Pick Tasks
+
+paths:
+  /tasks:
+    post:
+      summary: Create pick task
+      tags: [Pick Tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, items]
+              properties:
+                orderId:
+                  type: string
+                routeId:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                      quantity:
+                        type: integer
+                      locationId:
+                        type: string
+            examples:
+              pickTask:
+                value:
+                  orderId: "ORD-A1B2C3D4"
+                  routeId: "ROUTE-001"
+                  items:
+                    - sku: "WIDGET-001"
+                      quantity: 2
+                      locationId: "A-1-2-3"
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickTaskResponse'
+
+  /tasks/{taskId}/assign:
+    post:
+      summary: Assign task to picker
+      tags: [Pick Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pickerId]
+              properties:
+                pickerId:
+                  type: string
+      responses:
+        '200':
+          description: Task assigned
+
+  /tasks/{taskId}/pick:
+    post:
+      summary: Confirm item picked
+      tags: [Pick Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, quantity, locationId]
+              properties:
+                sku:
+                  type: string
+                quantity:
+                  type: integer
+                locationId:
+                  type: string
+      responses:
+        '200':
+          description: Item picked
+
+  /tasks/{taskId}/exception:
+    post:
+      summary: Report pick exception
+      tags: [Pick Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [exceptionType, sku]
+              properties:
+                exceptionType:
+                  type: string
+                  enum: [short_pick, damaged, not_found]
+                sku:
+                  type: string
+                actualQuantity:
+                  type: integer
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Exception reported
+
+  /tasks/picker/{pickerId}/active:
+    get:
+      summary: Get active tasks for picker
+      tags: [Pick Tasks]
+      parameters:
+        - name: pickerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Active tasks
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+components:
+  schemas:
+    PickTaskResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        routeId:
+          type: string
+        pickerId:
+          type: string
+        status:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              quantity:
+                type: integer
+              locationId:
+                type: string
+              picked:
+                type: boolean
