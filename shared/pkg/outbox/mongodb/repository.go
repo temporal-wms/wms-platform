@@ -63,11 +63,13 @@ func (r *OutboxRepository) SaveAll(ctx context.Context, events []*outbox.OutboxE
 
 // FindUnpublished retrieves unpublished events up to the specified limit
 func (r *OutboxRepository) FindUnpublished(ctx context.Context, limit int) ([]*outbox.OutboxEvent, error) {
+	// Find events that haven't been published yet and haven't exceeded max retries (default 10)
+	// Note: $ifNull is an aggregation operator and can't be used in find queries
 	filter := bson.M{
 		"publishedAt": bson.M{"$exists": false},
 		"$or": []bson.M{
-			{"retryCount": bson.M{"$lt": bson.M{"$ifNull": []interface{}{"$maxRetries", 10}}}},
-			{"maxRetries": bson.M{"$exists": false}},
+			{"retryCount": bson.M{"$lt": 10}},            // retry count below max
+			{"retryCount": bson.M{"$exists": false}},     // no retries yet
 		},
 	}
 
