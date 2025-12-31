@@ -9,7 +9,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
 
-	"github.com/wms-platform/labor-service/internal/domain"
+	"github.com/wms-platform/facility-service/internal/domain"
 )
 
 // StationRepository interface for station persistence

@@ -64,6 +64,7 @@ func main() {
 		ShippingServiceURL:      config.ShippingServiceURL,
 		LaborServiceURL:         config.LaborServiceURL,
 		WavingServiceURL:        config.WavingServiceURL,
+		FacilityServiceURL:      config.FacilityServiceURL,
 	})
 
 	// Create activities with service clients
@@ -473,6 +474,7 @@ type Config struct {
 	ShippingServiceURL      string
 	LaborServiceURL         string
 	WavingServiceURL        string
+	FacilityServiceURL      string
 }
 
 func loadConfig() *Config {
@@ -491,6 +493,7 @@ func loadConfig() *Config {
 		ShippingServiceURL:      getEnv("SHIPPING_SERVICE_URL", "http://localhost:8007"),
 		LaborServiceURL:         getEnv("LABOR_SERVICE_URL", "http://localhost:8009"),
 		WavingServiceURL:        getEnv("WAVING_SERVICE_URL", "http://localhost:8002"),
+		FacilityServiceURL:      getEnv("FACILITY_SERVICE_URL", "http://localhost:8010"),
 	}
 }
 

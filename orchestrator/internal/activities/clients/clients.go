@@ -27,6 +27,7 @@ type Config struct {
 	ShippingServiceURL      string
 	LaborServiceURL         string
 	WavingServiceURL        string
+	FacilityServiceURL      string
 }
 
 // NewServiceClients creates a new ServiceClients instance
@@ -457,11 +458,11 @@ func (c *ServiceClients) MoveToDeadLetter(ctx context.Context, orderID string, r
 	return c.doRequest(ctx, http.MethodPost, url, req, nil)
 }
 
-// Station Service methods (for process path routing)
+// Facility Service methods (for process path routing and station management)
 
 // FindCapableStations finds stations with all required capabilities
 func (c *ServiceClients) FindCapableStations(ctx context.Context, req *FindCapableStationsRequest) ([]Station, error) {
-	url := fmt.Sprintf("%s/api/v1/stations/find-capable", c.config.LaborServiceURL)
+	url := fmt.Sprintf("%s/api/v1/stations/find-capable", c.config.FacilityServiceURL)
 	var result []Station
 	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
 		return nil, err
@@ -471,7 +472,7 @@ func (c *ServiceClients) FindCapableStations(ctx context.Context, req *FindCapab
 
 // GetStation retrieves a station by ID
 func (c *ServiceClients) GetStation(ctx context.Context, stationID string) (*Station, error) {
-	url := fmt.Sprintf("%s/api/v1/stations/%s", c.config.LaborServiceURL, stationID)
+	url := fmt.Sprintf("%s/api/v1/stations/%s", c.config.FacilityServiceURL, stationID)
 	var result Station
 	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
 		return nil, err
@@ -481,7 +482,7 @@ func (c *ServiceClients) GetStation(ctx context.Context, stationID string) (*Sta
 
 // GetStationsByZone retrieves stations in a zone
 func (c *ServiceClients) GetStationsByZone(ctx context.Context, zone string) ([]Station, error) {
-	url := fmt.Sprintf("%s/api/v1/stations/zone/%s", c.config.LaborServiceURL, zone)
+	url := fmt.Sprintf("%s/api/v1/stations/zone/%s", c.config.FacilityServiceURL, zone)
 	var result []Station
 	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
 		return nil, err
@@ -491,7 +492,7 @@ func (c *ServiceClients) GetStationsByZone(ctx context.Context, zone string) ([]
 
 // GetStationsByType retrieves stations by type
 func (c *ServiceClients) GetStationsByType(ctx context.Context, stationType string) ([]Station, error) {
-	url := fmt.Sprintf("%s/api/v1/stations/type/%s", c.config.LaborServiceURL, stationType)
+	url := fmt.Sprintf("%s/api/v1/stations/type/%s", c.config.FacilityServiceURL, stationType)
 	var result []Station
 	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
 		return nil, err

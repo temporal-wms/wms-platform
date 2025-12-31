@@ -54,6 +54,26 @@ spec:
           value: "http://jaeger-collector.observability.svc.cluster.local:4317"
         - name: TRACING_ENABLED
           value: "true"
+        - name: ORDER_SERVICE_URL
+          value: "http://order-service.wms-platform.svc.cluster.local:8001"
+        - name: INVENTORY_SERVICE_URL
+          value: "http://inventory-service.wms-platform.svc.cluster.local:8008"
+        - name: ROUTING_SERVICE_URL
+          value: "http://routing-service.wms-platform.svc.cluster.local:8003"
+        - name: PICKING_SERVICE_URL
+          value: "http://picking-service.wms-platform.svc.cluster.local:8004"
+        - name: CONSOLIDATION_SERVICE_URL
+          value: "http://consolidation-service.wms-platform.svc.cluster.local:8005"
+        - name: PACKING_SERVICE_URL
+          value: "http://packing-service.wms-platform.svc.cluster.local:8006"
+        - name: SHIPPING_SERVICE_URL
+          value: "http://shipping-service.wms-platform.svc.cluster.local:8007"
+        - name: LABOR_SERVICE_URL
+          value: "http://labor-service.wms-platform.svc.cluster.local:8009"
+        - name: WAVING_SERVICE_URL
+          value: "http://waving-service.wms-platform.svc.cluster.local:8002"
+        - name: FACILITY_SERVICE_URL
+          value: "http://facility-service.wms-platform.svc.cluster.local:8010"
         resources:
           requests:
             memory: "512Mi"

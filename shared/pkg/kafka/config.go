@@ -70,6 +70,7 @@ var Topics = struct {
 	ShippingEvents      string
 	InventoryEvents     string
 	LaborEvents         string
+	FacilityEvents      string
 
 	// Outbound topics
 	ShipmentsOutbound string
@@ -85,6 +86,7 @@ var Topics = struct {
 	ShippingEvents:      "wms.shipping.events",
 	InventoryEvents:     "wms.inventory.events",
 	LaborEvents:         "wms.labor.events",
+	FacilityEvents:      "wms.facility.events",
 
 	ShipmentsOutbound: "wms.shipments.outbound",
 }

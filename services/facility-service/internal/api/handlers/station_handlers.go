@@ -10,7 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/logging"
 	"github.com/wms-platform/shared/pkg/middleware"
 
-	"github.com/wms-platform/labor-service/internal/application"
+	"github.com/wms-platform/facility-service/internal/application"
 )
 
 // StationHandlers contains handlers for station operations
@@ -218,7 +218,7 @@ func (h *StationHandlers) AddCapability(c *gin.Context) {
 	stationID := c.Param("stationId")
 	capability := c.Param("capability")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
-		"station.id":  stationID,
+		"station.id": stationID,
 		"capability": capability,
 	})
 
@@ -247,7 +247,7 @@ func (h *StationHandlers) RemoveCapability(c *gin.Context) {
 	stationID := c.Param("stationId")
 	capability := c.Param("capability")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
-		"station.id":  stationID,
+		"station.id": stationID,
 		"capability": capability,
 	})
 

@@ -376,7 +376,7 @@ type StationCreatedEvent struct {
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
-func (e *StationCreatedEvent) EventType() string { return "station.created" }
+func (e *StationCreatedEvent) EventType() string    { return "station.created" }
 func (e *StationCreatedEvent) OccurredAt() time.Time { return e.CreatedAt }
 
 // StationCapabilityAddedEvent is emitted when a capability is added
@@ -386,7 +386,7 @@ type StationCapabilityAddedEvent struct {
 	AddedAt    time.Time `json:"addedAt"`
 }
 
-func (e *StationCapabilityAddedEvent) EventType() string { return "station.capability.added" }
+func (e *StationCapabilityAddedEvent) EventType() string    { return "station.capability.added" }
 func (e *StationCapabilityAddedEvent) OccurredAt() time.Time { return e.AddedAt }
 
 // StationCapabilityRemovedEvent is emitted when a capability is removed
@@ -396,7 +396,7 @@ type StationCapabilityRemovedEvent struct {
 	RemovedAt  time.Time `json:"removedAt"`
 }
 
-func (e *StationCapabilityRemovedEvent) EventType() string { return "station.capability.removed" }
+func (e *StationCapabilityRemovedEvent) EventType() string    { return "station.capability.removed" }
 func (e *StationCapabilityRemovedEvent) OccurredAt() time.Time { return e.RemovedAt }
 
 // StationCapabilitiesUpdatedEvent is emitted when capabilities are bulk updated
@@ -406,7 +406,7 @@ type StationCapabilitiesUpdatedEvent struct {
 	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
-func (e *StationCapabilitiesUpdatedEvent) EventType() string { return "station.capabilities.updated" }
+func (e *StationCapabilitiesUpdatedEvent) EventType() string    { return "station.capabilities.updated" }
 func (e *StationCapabilitiesUpdatedEvent) OccurredAt() time.Time { return e.UpdatedAt }
 
 // StationStatusChangedEvent is emitted when station status changes
@@ -417,7 +417,7 @@ type StationStatusChangedEvent struct {
 	ChangedAt time.Time `json:"changedAt"`
 }
 
-func (e *StationStatusChangedEvent) EventType() string { return "station.status.changed" }
+func (e *StationStatusChangedEvent) EventType() string    { return "station.status.changed" }
 func (e *StationStatusChangedEvent) OccurredAt() time.Time { return e.ChangedAt }
 
 // WorkerAssignedToStationEvent is emitted when a worker is assigned to a station
@@ -427,5 +427,5 @@ type WorkerAssignedToStationEvent struct {
 	AssignedAt time.Time `json:"assignedAt"`
 }
 
-func (e *WorkerAssignedToStationEvent) EventType() string { return "station.worker.assigned" }
+func (e *WorkerAssignedToStationEvent) EventType() string    { return "station.worker.assigned" }
 func (e *WorkerAssignedToStationEvent) OccurredAt() time.Time { return e.AssignedAt }

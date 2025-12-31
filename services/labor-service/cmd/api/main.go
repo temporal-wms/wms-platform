@@ -21,7 +21,6 @@ import (
 	"github.com/wms-platform/shared/pkg/outbox"
 	"github.com/wms-platform/shared/pkg/tracing"
 
-	"github.com/wms-platform/labor-service/internal/api/handlers"
 	"github.com/wms-platform/labor-service/internal/application"
 	"github.com/wms-platform/labor-service/internal/domain"
 	mongoRepo "github.com/wms-platform/labor-service/internal/infrastructure/mongodb"
@@ -89,7 +88,6 @@ func main() {
 
 	// Initialize repositories with instrumented client and event factory
 	repo := mongoRepo.NewWorkerRepository(instrumentedMongo.Database(), eventFactory)
-	stationRepo := mongoRepo.NewStationRepository(instrumentedMongo.Database(), eventFactory)
 
 	// Initialize and start outbox publisher
 	outboxPublisher := outbox.NewPublisher(
@@ -112,12 +110,6 @@ func main() {
 	// Initialize application services
 	laborService := application.NewLaborApplicationService(
 		repo,
-		instrumentedProducer,
-		eventFactory,
-		logger,
-	)
-	stationService := application.NewStationApplicationService(
-		stationRepo,
 		instrumentedProducer,
 		eventFactory,
 		logger,
@@ -170,10 +162,6 @@ func main() {
 		workers.GET("/available", getAvailableHandler(laborService, logger))
 		workers.GET("", listWorkersHandler(laborService, logger))
 	}
-
-	// Station routes (for process path routing)
-	stationHandlers := handlers.NewStationHandlers(stationService, logger)
-	stationHandlers.RegisterRoutes(apiV1)
 
 	// Start server
 	srv := &http.Server{

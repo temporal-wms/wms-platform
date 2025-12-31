@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wms-platform/labor-service/internal/domain"
+	"github.com/wms-platform/facility-service/internal/domain"
 	"github.com/wms-platform/shared/pkg/cloudevents"
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
@@ -105,11 +105,11 @@ func (r *StationRepository) Save(ctx context.Context, station *domain.Station) e
 					continue
 				}
 
-				// Create outbox event from CloudEvent
+				// Create outbox event from CloudEvent - publish to FacilityEvents topic
 				outboxEvent, err := outbox.NewOutboxEventFromCloudEvent(
 					station.StationID,
 					"Station",
-					kafka.Topics.LaborEvents,
+					kafka.Topics.FacilityEvents,
 					cloudEvent,
 				)
 				if err != nil {
