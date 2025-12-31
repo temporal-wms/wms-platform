@@ -106,18 +106,19 @@ type RouteItemRequest struct {
 
 // PickTask represents a pick task
 type PickTask struct {
-	TaskID      string       `json:"taskId"`
-	OrderID     string       `json:"orderId"`
-	WaveID      string       `json:"waveId"`
-	RouteID     string       `json:"routeId"`
-	WorkerID    string       `json:"workerId,omitempty"`
-	Status      string       `json:"status"`
-	Items       []PickItem   `json:"items"`
-	PickedItems []PickedItem `json:"pickedItems,omitempty"`
-	ToteID      string       `json:"toteId,omitempty"`
-	CreatedAt   time.Time    `json:"createdAt"`
-	StartedAt   *time.Time   `json:"startedAt,omitempty"`
-	CompletedAt *time.Time   `json:"completedAt,omitempty"`
+	TaskID           string       `json:"taskId"`
+	OrderID          string       `json:"orderId"`
+	WaveID           string       `json:"waveId"`
+	RouteID          string       `json:"routeId"`
+	WorkerID         string       `json:"workerId,omitempty"`
+	Status           string       `json:"status"`
+	Items            []PickItem   `json:"items"`
+	PickedItemsCount int          `json:"pickedItemsCount,omitempty"`
+	PickedItems      []PickedItem `json:"pickedItems,omitempty"`
+	ToteID           string       `json:"toteId,omitempty"`
+	CreatedAt        time.Time    `json:"createdAt"`
+	StartedAt        *time.Time   `json:"startedAt,omitempty"`
+	CompletedAt      *time.Time   `json:"completedAt,omitempty"`
 }
 
 // PickItem represents an item to be picked
@@ -169,9 +170,9 @@ type ConsolidationUnit struct {
 
 // ExpectedItem represents an expected item for consolidation
 type ExpectedItem struct {
-	SKU      string `json:"sku"`
-	Quantity int    `json:"quantity"`
-	ToteID   string `json:"toteId"`
+	SKU          string `json:"sku"`
+	Quantity     int    `json:"quantity"`
+	SourceToteID string `json:"sourceToteId"`
 }
 
 // ConsolidatedItem represents a consolidated item
@@ -234,6 +235,7 @@ type Dimensions struct {
 type CreatePackTaskRequest struct {
 	TaskID  string     `json:"taskId"`
 	OrderID string     `json:"orderId"`
+	WaveID  string     `json:"waveId"`
 	Items   []PackItem `json:"items"`
 }
 
@@ -254,40 +256,71 @@ type ApplyLabelRequest struct {
 
 // Shipment represents a shipment
 type Shipment struct {
-	ShipmentID     string         `json:"shipmentId"`
-	OrderID        string         `json:"orderId"`
-	PackageID      string         `json:"packageId"`
-	Carrier        string         `json:"carrier"`
-	Service        string         `json:"service"`
-	TrackingNumber string         `json:"trackingNumber,omitempty"`
-	Status         string         `json:"status"`
-	Weight         float64        `json:"weight"`
-	Dimensions     Dimensions     `json:"dimensions"`
-	ShippingAddress Address       `json:"shippingAddress"`
-	Label          *ShippingLabel `json:"label,omitempty"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	ShippedAt      *time.Time     `json:"shippedAt,omitempty"`
+	ShipmentID      string              `json:"shipmentId"`
+	OrderID         string              `json:"orderId"`
+	PackageID       string              `json:"packageId"`
+	Carrier         ShipmentCarrier     `json:"carrier"`
+	ServiceType     string              `json:"serviceType,omitempty"`
+	TrackingNumber  string              `json:"trackingNumber,omitempty"`
+	Status          string              `json:"status"`
+	Package         ShipmentPackageInfo `json:"package,omitempty"`
+	Recipient       ShipmentAddress     `json:"recipient,omitempty"`
+	Shipper         ShipmentAddress     `json:"shipper,omitempty"`
+	Label           *ShippingLabel      `json:"label,omitempty"`
+	CreatedAt       time.Time           `json:"createdAt"`
+	ShippedAt       *time.Time          `json:"shippedAt,omitempty"`
+}
+
+// ShipmentCarrier represents a shipping carrier
+type ShipmentCarrier struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	AccountID   string `json:"accountId"`
+	ServiceType string `json:"serviceType"`
+}
+
+// ShipmentPackageInfo represents package information for shipment
+type ShipmentPackageInfo struct {
+	PackageID   string     `json:"packageId"`
+	Weight      float64    `json:"weight"`
+	Dimensions  Dimensions `json:"dimensions"`
+	PackageType string     `json:"packageType"`
+}
+
+// ShipmentAddress represents a shipping address
+type ShipmentAddress struct {
+	Name       string `json:"name"`
+	Company    string `json:"company,omitempty"`
+	Street1    string `json:"street1"`
+	Street2    string `json:"street2,omitempty"`
+	City       string `json:"city"`
+	State      string `json:"state"`
+	PostalCode string `json:"postalCode"`
+	Country    string `json:"country"`
+	Phone      string `json:"phone,omitempty"`
+	Email      string `json:"email,omitempty"`
 }
 
 // CreateShipmentRequest represents a request to create a shipment
 type CreateShipmentRequest struct {
-	ShipmentID      string     `json:"shipmentId"`
-	OrderID         string     `json:"orderId"`
-	PackageID       string     `json:"packageId"`
-	Carrier         string     `json:"carrier"`
-	Service         string     `json:"service"`
-	Weight          float64    `json:"weight"`
-	Dimensions      Dimensions `json:"dimensions"`
-	ShippingAddress Address    `json:"shippingAddress"`
+	ShipmentID string              `json:"shipmentId"`
+	OrderID    string              `json:"orderId"`
+	PackageID  string              `json:"packageId"`
+	WaveID     string              `json:"waveId,omitempty"`
+	Carrier    ShipmentCarrier     `json:"carrier"`
+	Package    ShipmentPackageInfo `json:"package"`
+	Recipient  ShipmentAddress     `json:"recipient"`
+	Shipper    ShipmentAddress     `json:"shipper"`
 }
 
 // ShippingLabel represents a shipping label
 type ShippingLabel struct {
-	TrackingNumber string    `json:"trackingNumber"`
-	LabelURL       string    `json:"labelUrl,omitempty"`
-	LabelData      string    `json:"labelData,omitempty"`
-	Carrier        string    `json:"carrier"`
-	CreatedAt      time.Time `json:"createdAt"`
+	TrackingNumber string          `json:"trackingNumber"`
+	LabelURL       string          `json:"labelUrl,omitempty"`
+	LabelData      string          `json:"labelData,omitempty"`
+	LabelFormat    string          `json:"labelFormat,omitempty"`
+	Carrier        ShipmentCarrier `json:"carrier"`
+	CreatedAt      time.Time       `json:"createdAt"`
 }
 
 // LaborTask represents a labor task
@@ -329,4 +362,84 @@ type Wave struct {
 	OrderIDs       []string  `json:"orderIds"`
 	ScheduledStart time.Time `json:"scheduledStart"`
 	CreatedAt      time.Time `json:"createdAt"`
+}
+
+// Station represents a packing/consolidation station with capabilities
+type Station struct {
+	StationID          string            `json:"stationId"`
+	Name               string            `json:"name"`
+	Zone               string            `json:"zone"`
+	StationType        string            `json:"stationType"`
+	Status             string            `json:"status"`
+	Capabilities       []string          `json:"capabilities"`
+	MaxConcurrentTasks int               `json:"maxConcurrentTasks"`
+	CurrentTasks       int               `json:"currentTasks"`
+	AvailableCapacity  int               `json:"availableCapacity"`
+	AssignedWorkerID   string            `json:"assignedWorkerId,omitempty"`
+	Equipment          []StationEquipment `json:"equipment"`
+	CreatedAt          time.Time         `json:"createdAt"`
+	UpdatedAt          time.Time         `json:"updatedAt"`
+}
+
+// StationEquipment represents equipment at a station
+type StationEquipment struct {
+	EquipmentID   string `json:"equipmentId"`
+	EquipmentType string `json:"equipmentType"`
+	Status        string `json:"status"`
+}
+
+// FindCapableStationsRequest represents a request to find capable stations
+type FindCapableStationsRequest struct {
+	Requirements []string `json:"requirements"`
+	StationType  string   `json:"stationType"`
+	Zone         string   `json:"zone"`
+}
+
+// ProcessRequirement represents a fulfillment requirement
+type ProcessRequirement string
+
+const (
+	RequirementSingleItem ProcessRequirement = "single_item"
+	RequirementMultiItem  ProcessRequirement = "multi_item"
+	RequirementGiftWrap   ProcessRequirement = "gift_wrap"
+	RequirementHazmat     ProcessRequirement = "hazmat"
+	RequirementOversized  ProcessRequirement = "oversized"
+	RequirementFragile    ProcessRequirement = "fragile"
+	RequirementColdChain  ProcessRequirement = "cold_chain"
+	RequirementHighValue  ProcessRequirement = "high_value"
+)
+
+// ProcessPath represents the determined process path for an order
+type ProcessPath struct {
+	PathID                string               `json:"pathId"`
+	OrderID               string               `json:"orderId"`
+	Requirements          []ProcessRequirement `json:"requirements"`
+	ConsolidationRequired bool                 `json:"consolidationRequired"`
+	GiftWrapRequired      bool                 `json:"giftWrapRequired"`
+	SpecialHandling       []string             `json:"specialHandling"`
+	TargetStation         string               `json:"targetStation,omitempty"`
+}
+
+// GiftWrapDetails contains details for gift wrap processing
+type GiftWrapDetails struct {
+	WrapType    string `json:"wrapType"`
+	GiftMessage string `json:"giftMessage"`
+	HidePrice   bool   `json:"hidePrice"`
+}
+
+// HazmatDetails contains details for hazardous material handling
+type HazmatDetails struct {
+	Class              string `json:"class"`
+	UNNumber           string `json:"unNumber"`
+	PackingGroup       string `json:"packingGroup"`
+	ProperShippingName string `json:"properShippingName"`
+	LimitedQuantity    bool   `json:"limitedQuantity"`
+}
+
+// ColdChainDetails contains details for temperature-controlled shipping
+type ColdChainDetails struct {
+	MinTempCelsius  float64 `json:"minTempCelsius"`
+	MaxTempCelsius  float64 `json:"maxTempCelsius"`
+	RequiresDryIce  bool    `json:"requiresDryIce"`
+	RequiresGelPack bool    `json:"requiresGelPack"`
 }

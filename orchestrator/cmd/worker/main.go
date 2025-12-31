@@ -2,14 +2,25 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/wms-platform/orchestrator/internal/activities"
 	"github.com/wms-platform/orchestrator/internal/workflows"
+	"github.com/wms-platform/shared/pkg/metrics"
+	"github.com/wms-platform/shared/pkg/middleware"
 	"github.com/wms-platform/shared/pkg/temporal"
+	"go.temporal.io/api/enums/v1"
+	temporalclient "go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/client"
 )
 
 func main() {
@@ -23,6 +34,14 @@ func main() {
 
 	// Load configuration
 	config := loadConfig()
+
+	// Initialize Prometheus metrics
+	metricsConfig := metrics.DefaultConfig("orchestrator")
+	m := metrics.New(metricsConfig)
+	logger.Info("Metrics initialized")
+
+	// Initialize failure metrics helper
+	failureMetrics := middleware.NewFailureMetrics(m)
 
 	// Initialize Temporal client
 	ctx := context.Background()
@@ -51,6 +70,13 @@ func main() {
 	orderActivities := activities.NewOrderActivities(serviceClients, logger)
 	inventoryActivities := activities.NewInventoryActivities(serviceClients, logger)
 	routingActivities := activities.NewRoutingActivities(serviceClients, logger)
+	pickingActivities := activities.NewPickingActivities(serviceClients, logger)
+	consolidationActivities := activities.NewConsolidationActivities(serviceClients, logger)
+	packingActivities := activities.NewPackingActivities(serviceClients, logger)
+	shippingActivities := activities.NewShippingActivities(serviceClients, logger)
+	reprocessingActivities := activities.NewReprocessingActivities(serviceClients, temporalClient.Client(), logger, failureMetrics)
+	processPathActivities := activities.NewProcessPathActivities(serviceClients, logger)
+	giftWrapActivities := activities.NewGiftWrapActivities(serviceClients)
 
 	// Create worker
 	workerOpts := temporal.DefaultWorkerOptions(temporal.TaskQueues.Orchestrator)
@@ -63,6 +89,9 @@ func main() {
 	w.RegisterWorkflow(workflows.ConsolidationWorkflow)
 	w.RegisterWorkflow(workflows.PackingWorkflow)
 	w.RegisterWorkflow(workflows.ShippingWorkflow)
+	w.RegisterWorkflow(workflows.GiftWrapWorkflow)
+	w.RegisterWorkflow(workflows.ReprocessingBatchWorkflow)
+	w.RegisterWorkflow(workflows.ReprocessingOrchestrationWorkflow)
 	logger.Info("Registered workflows", "workflows", []string{
 		"OrderFulfillmentWorkflow",
 		"OrderCancellationWorkflow",
@@ -70,6 +99,9 @@ func main() {
 		"ConsolidationWorkflow",
 		"PackingWorkflow",
 		"ShippingWorkflow",
+		"GiftWrapWorkflow",
+		"ReprocessingBatchWorkflow",
+		"ReprocessingOrchestrationWorkflow",
 	})
 
 	// Register activities
@@ -78,13 +110,103 @@ func main() {
 	w.RegisterActivity(orderActivities.NotifyCustomerCancellation)
 	w.RegisterActivity(inventoryActivities.ReleaseInventoryReservation)
 	w.RegisterActivity(routingActivities.CalculateRoute)
+
+	// Register picking activities
+	w.RegisterActivity(pickingActivities.CreatePickTask)
+	w.RegisterActivity(pickingActivities.AssignPickerToTask)
+
+	// Register consolidation activities
+	w.RegisterActivity(consolidationActivities.CreateConsolidationUnit)
+	w.RegisterActivity(consolidationActivities.ConsolidateItems)
+	w.RegisterActivity(consolidationActivities.VerifyConsolidation)
+	w.RegisterActivity(consolidationActivities.CompleteConsolidation)
+
+	// Register packing activities
+	w.RegisterActivity(packingActivities.CreatePackTask)
+	w.RegisterActivity(packingActivities.SelectPackagingMaterials)
+	w.RegisterActivity(packingActivities.PackItems)
+	w.RegisterActivity(packingActivities.WeighPackage)
+	w.RegisterActivity(packingActivities.GenerateShippingLabel)
+	w.RegisterActivity(packingActivities.ApplyLabelToPackage)
+	w.RegisterActivity(packingActivities.SealPackage)
+
+	// Register shipping activities
+	w.RegisterActivity(shippingActivities.CreateShipment)
+	w.RegisterActivity(shippingActivities.ScanPackage)
+	w.RegisterActivity(shippingActivities.VerifyShippingLabel)
+	w.RegisterActivity(shippingActivities.PlaceOnOutboundDock)
+	w.RegisterActivity(shippingActivities.AddToCarrierManifest)
+	w.RegisterActivity(shippingActivities.MarkOrderShipped)
+	w.RegisterActivity(shippingActivities.NotifyCustomerShipped)
+
+	// Register reprocessing activities
+	w.RegisterActivity(reprocessingActivities.QueryFailedWorkflows)
+	w.RegisterActivity(reprocessingActivities.ProcessFailedWorkflow)
+
+	// Register process path activities
+	w.RegisterActivity(processPathActivities.DetermineProcessPath)
+	w.RegisterActivity(processPathActivities.FindCapableStation)
+	w.RegisterActivity(processPathActivities.GetStation)
+	w.RegisterActivity(processPathActivities.GetStationsByZone)
+
+	// Register gift wrap activities
+	w.RegisterActivity(giftWrapActivities.CreateGiftWrapTask)
+	w.RegisterActivity(giftWrapActivities.AssignGiftWrapWorker)
+	w.RegisterActivity(giftWrapActivities.CheckGiftWrapStatus)
+	w.RegisterActivity(giftWrapActivities.ApplyGiftMessage)
+	w.RegisterActivity(giftWrapActivities.CompleteGiftWrapTask)
+
 	logger.Info("Registered activities", "activities", []string{
 		"ValidateOrder",
 		"CancelOrder",
 		"NotifyCustomerCancellation",
 		"ReleaseInventoryReservation",
 		"CalculateRoute",
+		"CreatePickTask",
+		"AssignPickerToTask",
+		"CreateConsolidationUnit",
+		"ConsolidateItems",
+		"VerifyConsolidation",
+		"CompleteConsolidation",
+		"CreatePackTask",
+		"SelectPackagingMaterials",
+		"PackItems",
+		"WeighPackage",
+		"GenerateShippingLabel",
+		"ApplyLabelToPackage",
+		"SealPackage",
+		"CreateShipment",
+		"ScanPackage",
+		"VerifyShippingLabel",
+		"PlaceOnOutboundDock",
+		"AddToCarrierManifest",
+		"MarkOrderShipped",
+		"NotifyCustomerShipped",
+		"QueryFailedWorkflows",
+		"ProcessFailedWorkflow",
+		"DetermineProcessPath",
+		"FindCapableStation",
+		"GetStation",
+		"GetStationsByZone",
+		"CreateGiftWrapTask",
+		"AssignGiftWrapWorker",
+		"CheckGiftWrapStatus",
+		"ApplyGiftMessage",
+		"CompleteGiftWrapTask",
 	})
+
+	// Create reprocessing schedule if enabled
+	if getEnv("REPROCESSING_ENABLED", "true") == "true" {
+		if err := createReprocessingSchedule(ctx, temporalClient.Client(), logger); err != nil {
+			logger.Warn("Failed to create reprocessing schedule", "error", err)
+			// Continue even if schedule creation fails - can be created manually
+		}
+	}
+
+	// Start health server with signal bridge
+	healthPort := getEnv("HEALTH_PORT", "8080")
+	healthServer := startHealthServer(healthPort, temporalClient.Client(), m, logger)
+	logger.Info("Health server started", "port", healthPort)
 
 	// Start worker in background
 	go func() {
@@ -101,8 +223,242 @@ func main() {
 	<-quit
 	logger.Info("Shutting down worker...")
 
+	// Shutdown health server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := healthServer.Shutdown(ctx); err != nil {
+		logger.Error("Health server shutdown failed", "error", err)
+	}
+
 	w.Stop()
 	logger.Info("Worker stopped")
+}
+
+func startHealthServer(port string, temporalClient temporalclient.Client, m *metrics.Metrics, logger *slog.Logger) *http.Server {
+	mux := http.NewServeMux()
+
+	// Health check endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy"}`))
+	})
+
+	// Ready check endpoint
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ready"}`))
+	})
+
+	// Prometheus metrics endpoint
+	mux.Handle("/metrics", m.Handler())
+
+	// Signal bridge endpoints for simulators
+	mux.HandleFunc("/api/v1/signals/wave-assigned", createWaveAssignedHandler(temporalClient, logger))
+	mux.HandleFunc("/api/v1/signals/pick-completed", createPickCompletedHandler(temporalClient, logger))
+
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Health server failed", "error", err)
+		}
+	}()
+
+	return server
+}
+
+// PickCompletedRequest represents the request body for the pick-completed signal
+type PickCompletedRequest struct {
+	OrderID     string       `json:"orderId"`
+	TaskID      string       `json:"taskId"`
+	PickedItems []PickedItem `json:"pickedItems"`
+}
+
+// PickedItem represents a picked item in the signal
+type PickedItem struct {
+	SKU        string `json:"sku"`
+	Quantity   int    `json:"quantity"`
+	LocationID string `json:"locationId"`
+	ToteID     string `json:"toteId"`
+}
+
+// WaveAssignedRequest represents the request body for the wave-assigned signal
+type WaveAssignedRequest struct {
+	OrderID string `json:"orderId"`
+	WaveID  string `json:"waveId"`
+}
+
+// createWaveAssignedHandler creates a handler for the wave-assigned signal endpoint
+func createWaveAssignedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only accept POST requests
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+			return
+		}
+
+		// Read request body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"failed to read request body"}`))
+			return
+		}
+		defer r.Body.Close()
+
+		// Parse request
+		var req WaveAssignedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			logger.Error("Failed to parse request", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid JSON"}`))
+			return
+		}
+
+		// Validate request
+		if req.OrderID == "" || req.WaveID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"orderId and waveId are required"}`))
+			return
+		}
+
+		// Construct workflow ID (order fulfillment workflow follows pattern "order-fulfillment-{orderId}")
+		workflowID := fmt.Sprintf("order-fulfillment-%s", req.OrderID)
+
+		// Build signal payload matching workflow expectations
+		signalPayload := map[string]interface{}{
+			"waveId": req.WaveID,
+		}
+
+		// Send signal to Temporal workflow
+		err = temporalClient.SignalWorkflow(
+			r.Context(),
+			workflowID,
+			"", // Run ID - empty to signal the latest run
+			"waveAssigned",
+			signalPayload,
+		)
+		if err != nil {
+			logger.Error("Failed to signal workflow", "workflowId", workflowID, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    false,
+				"error":      err.Error(),
+				"workflowId": workflowID,
+			})
+			return
+		}
+
+		logger.Info("Successfully signaled wave assignment",
+			"workflowId", workflowID,
+			"orderId", req.OrderID,
+			"waveId", req.WaveID,
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Wave assigned signal sent successfully",
+		})
+	}
+}
+
+// createPickCompletedHandler creates a handler for the pick-completed signal endpoint
+func createPickCompletedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only accept POST requests
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+			return
+		}
+
+		// Read request body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"failed to read request body"}`))
+			return
+		}
+		defer r.Body.Close()
+
+		// Parse request
+		var req PickCompletedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			logger.Error("Failed to parse request", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid JSON"}`))
+			return
+		}
+
+		// Validate request
+		if req.OrderID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"orderId is required"}`))
+			return
+		}
+
+		// Construct workflow ID (picking workflow follows pattern "picking-{orderId}")
+		workflowID := fmt.Sprintf("picking-%s", req.OrderID)
+
+		// Build signal payload matching workflow expectations
+		signalPayload := map[string]interface{}{
+			"taskId":      req.TaskID,
+			"pickedItems": req.PickedItems,
+		}
+
+		// Send signal to Temporal workflow
+		err = temporalClient.SignalWorkflow(
+			r.Context(),
+			workflowID,
+			"", // Run ID - empty to signal the latest run
+			"pickCompleted",
+			signalPayload,
+		)
+		if err != nil {
+			logger.Error("Failed to signal workflow", "workflowId", workflowID, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    false,
+				"error":      err.Error(),
+				"workflowId": workflowID,
+			})
+			return
+		}
+
+		logger.Info("Successfully signaled workflow",
+			"workflowId", workflowID,
+			"orderId", req.OrderID,
+			"taskId", req.TaskID,
+			"itemsCount", len(req.PickedItems),
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Signal sent successfully",
+		})
+	}
 }
 
 // Config holds application configuration
@@ -143,4 +499,59 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// createReprocessingSchedule creates a Temporal schedule for the reprocessing batch workflow
+func createReprocessingSchedule(ctx context.Context, temporalClient client.Client, logger *slog.Logger) error {
+	scheduleID := workflows.ReprocessingScheduleID
+
+	// Check if schedule already exists
+	scheduleHandle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
+	_, err := scheduleHandle.Describe(ctx)
+	if err == nil {
+		logger.Info("Reprocessing schedule already exists", "scheduleId", scheduleID)
+		return nil
+	}
+
+	// Schedule doesn't exist or error checking - try to create it
+	if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "NotFound") {
+		// Unexpected error
+		return fmt.Errorf("failed to check schedule: %w", err)
+	}
+
+	// Create the schedule
+	_, err = temporalClient.ScheduleClient().Create(ctx, client.ScheduleOptions{
+		ID: scheduleID,
+		Spec: client.ScheduleSpec{
+			Intervals: []client.ScheduleIntervalSpec{
+				{
+					Every: workflows.ReprocessingBatchInterval,
+				},
+			},
+		},
+		Action: &client.ScheduleWorkflowAction{
+			ID:        "reprocessing-batch",
+			Workflow:  workflows.ReprocessingBatchWorkflow,
+			TaskQueue: temporal.TaskQueues.Orchestrator,
+			Args:      []interface{}{workflows.ReprocessingBatchInput{}},
+		},
+		Overlap: enums.SCHEDULE_OVERLAP_POLICY_SKIP, // Skip if previous run still executing
+		Paused:  false,
+	})
+
+	if err != nil {
+		// Check if schedule already exists (race condition)
+		if strings.Contains(err.Error(), "already exists") {
+			logger.Info("Reprocessing schedule already exists (created by another worker)", "scheduleId", scheduleID)
+			return nil
+		}
+		return fmt.Errorf("failed to create schedule: %w", err)
+	}
+
+	logger.Info("Created reprocessing schedule",
+		"scheduleId", scheduleID,
+		"interval", workflows.ReprocessingBatchInterval.String(),
+	)
+
+	return nil
 }

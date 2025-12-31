@@ -21,6 +21,7 @@ import (
 	"github.com/wms-platform/shared/pkg/outbox"
 	"github.com/wms-platform/shared/pkg/tracing"
 
+	"github.com/wms-platform/labor-service/internal/api/handlers"
 	"github.com/wms-platform/labor-service/internal/application"
 	"github.com/wms-platform/labor-service/internal/domain"
 	mongoRepo "github.com/wms-platform/labor-service/internal/infrastructure/mongodb"
@@ -88,6 +89,7 @@ func main() {
 
 	// Initialize repositories with instrumented client and event factory
 	repo := mongoRepo.NewWorkerRepository(instrumentedMongo.Database(), eventFactory)
+	stationRepo := mongoRepo.NewStationRepository(instrumentedMongo.Database(), eventFactory)
 
 	// Initialize and start outbox publisher
 	outboxPublisher := outbox.NewPublisher(
@@ -107,9 +109,15 @@ func main() {
 	defer outboxPublisher.Stop()
 	logger.Info("Outbox publisher started")
 
-	// Initialize application service
+	// Initialize application services
 	laborService := application.NewLaborApplicationService(
 		repo,
+		instrumentedProducer,
+		eventFactory,
+		logger,
+	)
+	stationService := application.NewStationApplicationService(
+		stationRepo,
 		instrumentedProducer,
 		eventFactory,
 		logger,
@@ -142,23 +150,30 @@ func main() {
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
 	// API v1 routes
-	api := router.Group("/api/v1/workers")
+	apiV1 := router.Group("/api/v1")
+
+	// Worker routes
+	workers := apiV1.Group("/workers")
 	{
-		api.POST("", createWorkerHandler(laborService, logger))
-		api.GET("/:workerId", getWorkerHandler(laborService, logger))
-		api.POST("/:workerId/shift/start", startShiftHandler(laborService, logger))
-		api.POST("/:workerId/shift/end", endShiftHandler(laborService, logger))
-		api.POST("/:workerId/break/start", startBreakHandler(laborService, logger))
-		api.POST("/:workerId/break/end", endBreakHandler(laborService, logger))
-		api.POST("/:workerId/task/assign", assignTaskHandler(laborService, logger))
-		api.POST("/:workerId/task/start", startTaskHandler(laborService, logger))
-		api.POST("/:workerId/task/complete", completeTaskHandler(laborService, logger))
-		api.POST("/:workerId/skills", addSkillHandler(laborService, logger))
-		api.GET("/status/:status", getByStatusHandler(laborService, logger))
-		api.GET("/zone/:zone", getByZoneHandler(laborService, logger))
-		api.GET("/available", getAvailableHandler(laborService, logger))
-		api.GET("", listWorkersHandler(laborService, logger))
+		workers.POST("", createWorkerHandler(laborService, logger))
+		workers.GET("/:workerId", getWorkerHandler(laborService, logger))
+		workers.POST("/:workerId/shift/start", startShiftHandler(laborService, logger))
+		workers.POST("/:workerId/shift/end", endShiftHandler(laborService, logger))
+		workers.POST("/:workerId/break/start", startBreakHandler(laborService, logger))
+		workers.POST("/:workerId/break/end", endBreakHandler(laborService, logger))
+		workers.POST("/:workerId/task/assign", assignTaskHandler(laborService, logger))
+		workers.POST("/:workerId/task/start", startTaskHandler(laborService, logger))
+		workers.POST("/:workerId/task/complete", completeTaskHandler(laborService, logger))
+		workers.POST("/:workerId/skills", addSkillHandler(laborService, logger))
+		workers.GET("/status/:status", getByStatusHandler(laborService, logger))
+		workers.GET("/zone/:zone", getByZoneHandler(laborService, logger))
+		workers.GET("/available", getAvailableHandler(laborService, logger))
+		workers.GET("", listWorkersHandler(laborService, logger))
 	}
+
+	// Station routes (for process path routing)
+	stationHandlers := handlers.NewStationHandlers(stationService, logger)
+	stationHandlers.RegisterRoutes(apiV1)
 
 	// Start server
 	srv := &http.Server{

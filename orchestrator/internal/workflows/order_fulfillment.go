@@ -10,19 +10,62 @@ import (
 
 // OrderFulfillmentInput represents the input for the order fulfillment workflow
 type OrderFulfillmentInput struct {
-	OrderID            string    `json:"orderId"`
-	CustomerID         string    `json:"customerId"`
-	Items              []Item    `json:"items"`
-	Priority           string    `json:"priority"`
-	PromisedDeliveryAt time.Time `json:"promisedDeliveryAt"`
-	IsMultiItem        bool      `json:"isMultiItem"`
+	OrderID            string              `json:"orderId"`
+	CustomerID         string              `json:"customerId"`
+	Items              []Item              `json:"items"`
+	Priority           string              `json:"priority"`
+	PromisedDeliveryAt time.Time           `json:"promisedDeliveryAt"`
+	IsMultiItem        bool                `json:"isMultiItem"`
+	// Process path fields
+	GiftWrap         bool                  `json:"giftWrap"`
+	GiftWrapDetails  *GiftWrapDetailsInput `json:"giftWrapDetails,omitempty"`
+	HazmatDetails    *HazmatDetailsInput   `json:"hazmatDetails,omitempty"`
+	ColdChainDetails *ColdChainDetailsInput `json:"coldChainDetails,omitempty"`
+	TotalValue       float64               `json:"totalValue"`
 }
 
 // Item represents an order item
 type Item struct {
-	SKU      string  `json:"sku"`
-	Quantity int     `json:"quantity"`
-	Weight   float64 `json:"weight"`
+	SKU               string  `json:"sku"`
+	Quantity          int     `json:"quantity"`
+	Weight            float64 `json:"weight"`
+	IsFragile         bool    `json:"isFragile"`
+	IsHazmat          bool    `json:"isHazmat"`
+	RequiresColdChain bool    `json:"requiresColdChain"`
+}
+
+// GiftWrapDetailsInput contains gift wrap configuration
+type GiftWrapDetailsInput struct {
+	WrapType    string `json:"wrapType"`
+	GiftMessage string `json:"giftMessage"`
+	HidePrice   bool   `json:"hidePrice"`
+}
+
+// HazmatDetailsInput contains hazmat details
+type HazmatDetailsInput struct {
+	Class              string `json:"class"`
+	UNNumber           string `json:"unNumber"`
+	PackingGroup       string `json:"packingGroup"`
+	ProperShippingName string `json:"properShippingName"`
+	LimitedQuantity    bool   `json:"limitedQuantity"`
+}
+
+// ColdChainDetailsInput contains cold chain requirements
+type ColdChainDetailsInput struct {
+	MinTempCelsius  float64 `json:"minTempCelsius"`
+	MaxTempCelsius  float64 `json:"maxTempCelsius"`
+	RequiresDryIce  bool    `json:"requiresDryIce"`
+	RequiresGelPack bool    `json:"requiresGelPack"`
+}
+
+// ProcessPathResult represents the determined process path
+type ProcessPathResult struct {
+	PathID                string   `json:"pathId"`
+	Requirements          []string `json:"requirements"`
+	ConsolidationRequired bool     `json:"consolidationRequired"`
+	GiftWrapRequired      bool     `json:"giftWrapRequired"`
+	SpecialHandling       []string `json:"specialHandling"`
+	TargetStation         string   `json:"targetStation,omitempty"`
 }
 
 // OrderFulfillmentResult represents the result of the order fulfillment workflow
@@ -123,9 +166,59 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	}
 
 	// ========================================
-	// Step 2: Wait for Wave Assignment
+	// Step 2: Determine Process Path
 	// ========================================
-	logger.Info("Step 2: Waiting for wave assignment", "orderId", input.OrderID)
+	logger.Info("Step 2: Determining process path", "orderId", input.OrderID)
+
+	// Build process path items
+	processPathItems := make([]map[string]interface{}, len(input.Items))
+	for i, item := range input.Items {
+		processPathItems[i] = map[string]interface{}{
+			"sku":               item.SKU,
+			"quantity":          item.Quantity,
+			"weight":            item.Weight,
+			"isFragile":         item.IsFragile,
+			"isHazmat":          item.IsHazmat,
+			"requiresColdChain": item.RequiresColdChain,
+		}
+	}
+
+	processPathInput := map[string]interface{}{
+		"orderId":    input.OrderID,
+		"items":      processPathItems,
+		"giftWrap":   input.GiftWrap,
+		"totalValue": input.TotalValue,
+	}
+	if input.GiftWrapDetails != nil {
+		processPathInput["giftWrapDetails"] = input.GiftWrapDetails
+	}
+	if input.HazmatDetails != nil {
+		processPathInput["hazmatDetails"] = input.HazmatDetails
+	}
+	if input.ColdChainDetails != nil {
+		processPathInput["coldChainDetails"] = input.ColdChainDetails
+	}
+
+	var processPath ProcessPathResult
+	err = workflow.ExecuteActivity(ctx, "DetermineProcessPath", processPathInput).Get(ctx, &processPath)
+	if err != nil {
+		result.Status = "process_path_failed"
+		result.Error = fmt.Sprintf("process path determination failed: %v", err)
+		return result, err
+	}
+
+	logger.Info("Process path determined",
+		"orderId", input.OrderID,
+		"pathId", processPath.PathID,
+		"requirements", processPath.Requirements,
+		"consolidationRequired", processPath.ConsolidationRequired,
+		"giftWrapRequired", processPath.GiftWrapRequired,
+	)
+
+	// ========================================
+	// Step 3: Wait for Wave Assignment
+	// ========================================
+	logger.Info("Step 3: Waiting for wave assignment", "orderId", input.OrderID)
 
 	// Set up signal channel for wave assignment
 	var waveAssignment WaveAssignment
@@ -161,9 +254,9 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	logger.Info("Order assigned to wave", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
 
 	// ========================================
-	// Step 3: Calculate Route
+	// Step 4: Calculate Route
 	// ========================================
-	logger.Info("Step 3: Calculating pick route", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
+	logger.Info("Step 4: Calculating pick route", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
 
 	var routeResult RouteResult
 	err = workflow.ExecuteActivity(ctx, "CalculateRoute", map[string]interface{}{
@@ -178,9 +271,9 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	}
 
 	// ========================================
-	// Step 4: Execute Picking (Child Workflow)
+	// Step 5: Execute Picking (Child Workflow)
 	// ========================================
-	logger.Info("Step 4: Starting picking workflow", "orderId", input.OrderID, "routeId", routeResult.RouteID)
+	logger.Info("Step 5: Starting picking workflow", "orderId", input.OrderID, "routeId", routeResult.RouteID)
 
 	pickingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("picking-%s", input.OrderID),
@@ -203,10 +296,10 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	}
 
 	// ========================================
-	// Step 5: Consolidation (if multi-item order)
+	// Step 6: Consolidation (based on process path)
 	// ========================================
-	if input.IsMultiItem {
-		logger.Info("Step 5: Starting consolidation workflow", "orderId", input.OrderID)
+	if processPath.ConsolidationRequired {
+		logger.Info("Step 6: Starting consolidation workflow", "orderId", input.OrderID)
 
 		consolidationChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 			WorkflowID:               fmt.Sprintf("consolidation-%s", input.OrderID),
@@ -216,6 +309,7 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 
 		err = workflow.ExecuteChildWorkflow(consolidationChildCtx, "ConsolidationWorkflow", map[string]interface{}{
 			"orderId":     input.OrderID,
+			"waveId":      waveAssignment.WaveID,
 			"pickedItems": pickResult.PickedItems,
 		}).Get(ctx, nil)
 		if err != nil {
@@ -224,13 +318,70 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 			return result, err
 		}
 	} else {
-		logger.Info("Step 5: Skipping consolidation (single item order)", "orderId", input.OrderID)
+		logger.Info("Step 6: Skipping consolidation (single item order)", "orderId", input.OrderID)
 	}
 
 	// ========================================
-	// Step 6: Packing (Child Workflow)
+	// Step 7: Gift Wrap (if required by process path)
 	// ========================================
-	logger.Info("Step 6: Starting packing workflow", "orderId", input.OrderID)
+	if processPath.GiftWrapRequired {
+		logger.Info("Step 7: Starting gift wrap workflow", "orderId", input.OrderID)
+
+		giftWrapChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+			WorkflowID:               fmt.Sprintf("giftwrap-%s", input.OrderID),
+			WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
+			RetryPolicy:              childOpts.RetryPolicy,
+		})
+
+		giftWrapInput := map[string]interface{}{
+			"orderId": input.OrderID,
+			"waveId":  waveAssignment.WaveID,
+			"items":   input.Items,
+		}
+		if input.GiftWrapDetails != nil {
+			giftWrapInput["wrapDetails"] = map[string]interface{}{
+				"wrapType":    input.GiftWrapDetails.WrapType,
+				"giftMessage": input.GiftWrapDetails.GiftMessage,
+				"hidePrice":   input.GiftWrapDetails.HidePrice,
+			}
+		}
+
+		var giftWrapResult map[string]interface{}
+		err = workflow.ExecuteChildWorkflow(giftWrapChildCtx, "GiftWrapWorkflow", giftWrapInput).Get(ctx, &giftWrapResult)
+		if err != nil {
+			result.Status = "giftwrap_failed"
+			result.Error = fmt.Sprintf("gift wrap workflow failed: %v", err)
+			return result, err
+		}
+	} else {
+		logger.Info("Step 7: Skipping gift wrap (not required)", "orderId", input.OrderID)
+	}
+
+	// ========================================
+	// Step 8: Find Capable Station for Packing
+	// ========================================
+	var targetStationID string
+	if len(processPath.Requirements) > 0 {
+		logger.Info("Step 8: Finding capable packing station", "orderId", input.OrderID, "requirements", processPath.Requirements)
+
+		var capableStation map[string]interface{}
+		err = workflow.ExecuteActivity(ctx, "FindCapableStation", map[string]interface{}{
+			"requirements": processPath.Requirements,
+			"stationType":  "packing",
+		}).Get(ctx, &capableStation)
+		if err != nil {
+			logger.Warn("Failed to find capable station, using default routing", "orderId", input.OrderID, "error", err)
+			// Non-fatal: continue with default station routing
+		} else if stationID, ok := capableStation["stationId"].(string); ok {
+			targetStationID = stationID
+			logger.Info("Capable station found", "orderId", input.OrderID, "stationId", targetStationID)
+		}
+	}
+
+	// ========================================
+	// Step 9: Packing (Child Workflow)
+	// ========================================
+	logger.Info("Step 9: Starting packing workflow", "orderId", input.OrderID, "stationId", targetStationID)
 
 	packingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("packing-%s", input.OrderID),
@@ -238,10 +389,18 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		RetryPolicy:              childOpts.RetryPolicy,
 	})
 
+	packingInput := map[string]interface{}{
+		"orderId":         input.OrderID,
+		"waveId":          waveAssignment.WaveID,
+		"requirements":    processPath.Requirements,
+		"specialHandling": processPath.SpecialHandling,
+	}
+	if targetStationID != "" {
+		packingInput["stationId"] = targetStationID
+	}
+
 	var packResult PackResult
-	err = workflow.ExecuteChildWorkflow(packingChildCtx, "PackingWorkflow", map[string]interface{}{
-		"orderId": input.OrderID,
-	}).Get(ctx, &packResult)
+	err = workflow.ExecuteChildWorkflow(packingChildCtx, "PackingWorkflow", packingInput).Get(ctx, &packResult)
 	if err != nil {
 		result.Status = "packing_failed"
 		result.Error = fmt.Sprintf("packing workflow failed: %v", err)
@@ -251,9 +410,9 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	result.TrackingNumber = packResult.TrackingNumber
 
 	// ========================================
-	// Step 7: Shipping/SLAM (Child Workflow)
+	// Step 10: Shipping/SLAM (Child Workflow)
 	// ========================================
-	logger.Info("Step 7: Starting shipping workflow", "orderId", input.OrderID, "trackingNumber", packResult.TrackingNumber)
+	logger.Info("Step 10: Starting shipping workflow", "orderId", input.OrderID, "trackingNumber", packResult.TrackingNumber)
 
 	shippingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("shipping-%s", input.OrderID),

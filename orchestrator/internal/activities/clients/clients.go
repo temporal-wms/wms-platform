@@ -89,11 +89,20 @@ func (c *ServiceClients) doRequest(ctx context.Context, method, url string, body
 // ValidateOrder calls order-service to validate an order
 func (c *ServiceClients) ValidateOrder(ctx context.Context, orderID string) (*OrderValidationResult, error) {
 	url := fmt.Sprintf("%s/api/v1/orders/%s/validate", c.config.OrderServiceURL, orderID)
-	var result OrderValidationResult
-	if err := c.doRequest(ctx, http.MethodPost, url, nil, &result); err != nil {
+	// Order-service returns an OrderDTO, not OrderValidationResult
+	var order Order
+	if err := c.doRequest(ctx, http.MethodPut, url, nil, &order); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	// Check if order was validated successfully by checking status
+	isValid := order.Status == "validated" || order.Status == "wave_assigned" ||
+		order.Status == "picking" || order.Status == "consolidated" ||
+		order.Status == "packed" || order.Status == "shipped"
+	return &OrderValidationResult{
+		OrderID:     order.OrderID,
+		Valid:       isValid,
+		ValidatedAt: order.UpdatedAt,
+	}, nil
 }
 
 // GetOrder retrieves an order from order-service
@@ -182,9 +191,12 @@ func (c *ServiceClients) GetPickTask(ctx context.Context, taskID string) (*PickT
 }
 
 // AssignPickTask assigns a worker to a pick task
-func (c *ServiceClients) AssignPickTask(ctx context.Context, taskID, workerID string) error {
+func (c *ServiceClients) AssignPickTask(ctx context.Context, taskID, pickerID, toteID string) error {
 	url := fmt.Sprintf("%s/api/v1/tasks/%s/assign", c.config.PickingServiceURL, taskID)
-	body := map[string]string{"workerId": workerID}
+	body := map[string]string{
+		"pickerId": pickerID,
+		"toteId":   toteID,
+	}
 	return c.doRequest(ctx, http.MethodPost, url, body, nil)
 }
 
@@ -308,11 +320,19 @@ func (c *ServiceClients) GetShipment(ctx context.Context, shipmentID string) (*S
 	return &result, nil
 }
 
+// GenerateLabelRequest represents a request to generate a label
+type GenerateLabelRequest struct {
+	LabelFormat string `json:"labelFormat"`
+}
+
 // GenerateLabel generates a shipping label
 func (c *ServiceClients) GenerateLabel(ctx context.Context, shipmentID string) (*ShippingLabel, error) {
 	url := fmt.Sprintf("%s/api/v1/shipments/%s/label", c.config.ShippingServiceURL, shipmentID)
 	var result ShippingLabel
-	if err := c.doRequest(ctx, http.MethodPost, url, nil, &result); err != nil {
+	req := GenerateLabelRequest{
+		LabelFormat: "PDF",
+	}
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -363,4 +383,118 @@ func (c *ServiceClients) GetWave(ctx context.Context, waveID string) (*Wave, err
 		return nil, err
 	}
 	return &result, nil
+}
+
+// Reprocessing Service methods
+
+// EligibleOrder represents an order eligible for reprocessing
+type EligibleOrder struct {
+	OrderID       string    `json:"orderId"`
+	WorkflowID    string    `json:"workflowId"`
+	RunID         string    `json:"runId"`
+	FailureStatus string    `json:"failureStatus"`
+	FailureReason string    `json:"failureReason"`
+	FailedAt      time.Time `json:"failedAt"`
+	RetryCount    int       `json:"retryCount"`
+	CustomerID    string    `json:"customerId"`
+	Priority      string    `json:"priority"`
+}
+
+// EligibleOrdersResponse represents the response from the eligible orders endpoint
+type EligibleOrdersResponse struct {
+	Data  []EligibleOrder `json:"data"`
+	Total int64           `json:"total"`
+}
+
+// GetEligibleOrders retrieves orders eligible for reprocessing from order-service
+func (c *ServiceClients) GetEligibleOrders(ctx context.Context, failureStatuses []string, maxRetries int, limit int) (*EligibleOrdersResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/reprocessing/eligible?limit=%d&maxRetries=%d",
+		c.config.OrderServiceURL, limit, maxRetries)
+
+	for _, status := range failureStatuses {
+		url += fmt.Sprintf("&status=%s", status)
+	}
+
+	var result EligibleOrdersResponse
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// IncrementRetryCountRequest is the request for incrementing retry count
+type IncrementRetryCountRequest struct {
+	FailureStatus string `json:"failureStatus"`
+	FailureReason string `json:"failureReason"`
+	WorkflowID    string `json:"workflowId"`
+	RunID         string `json:"runId"`
+}
+
+// IncrementRetryCount increments the retry count for an order in order-service
+func (c *ServiceClients) IncrementRetryCount(ctx context.Context, orderID string, req *IncrementRetryCountRequest) error {
+	url := fmt.Sprintf("%s/api/v1/reprocessing/orders/%s/retry-count", c.config.OrderServiceURL, orderID)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// ResetOrderForRetry resets an order for retry processing
+func (c *ServiceClients) ResetOrderForRetry(ctx context.Context, orderID string) error {
+	url := fmt.Sprintf("%s/api/v1/reprocessing/orders/%s/reset", c.config.OrderServiceURL, orderID)
+	return c.doRequest(ctx, http.MethodPost, url, nil, nil)
+}
+
+// MoveToDeadLetterRequest is the request for moving an order to DLQ
+type MoveToDeadLetterRequest struct {
+	FailureStatus string `json:"failureStatus"`
+	FailureReason string `json:"failureReason"`
+	RetryCount    int    `json:"retryCount"`
+	WorkflowID    string `json:"workflowId"`
+	RunID         string `json:"runId"`
+}
+
+// MoveToDeadLetter moves an order to the dead letter queue
+func (c *ServiceClients) MoveToDeadLetter(ctx context.Context, orderID string, req *MoveToDeadLetterRequest) error {
+	url := fmt.Sprintf("%s/api/v1/reprocessing/orders/%s/dlq", c.config.OrderServiceURL, orderID)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// Station Service methods (for process path routing)
+
+// FindCapableStations finds stations with all required capabilities
+func (c *ServiceClients) FindCapableStations(ctx context.Context, req *FindCapableStationsRequest) ([]Station, error) {
+	url := fmt.Sprintf("%s/api/v1/stations/find-capable", c.config.LaborServiceURL)
+	var result []Station
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetStation retrieves a station by ID
+func (c *ServiceClients) GetStation(ctx context.Context, stationID string) (*Station, error) {
+	url := fmt.Sprintf("%s/api/v1/stations/%s", c.config.LaborServiceURL, stationID)
+	var result Station
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetStationsByZone retrieves stations in a zone
+func (c *ServiceClients) GetStationsByZone(ctx context.Context, zone string) ([]Station, error) {
+	url := fmt.Sprintf("%s/api/v1/stations/zone/%s", c.config.LaborServiceURL, zone)
+	var result []Station
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetStationsByType retrieves stations by type
+func (c *ServiceClients) GetStationsByType(ctx context.Context, stationType string) ([]Station, error) {
+	url := fmt.Sprintf("%s/api/v1/stations/type/%s", c.config.LaborServiceURL, stationType)
+	var result []Station
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }

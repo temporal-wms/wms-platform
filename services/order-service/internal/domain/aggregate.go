@@ -48,22 +48,29 @@ const (
 	StatusShipped      Status = "shipped"
 	StatusDelivered    Status = "delivered"
 	StatusCancelled    Status = "cancelled"
+	StatusPendingRetry Status = "pending_retry"
+	StatusDeadLetter   Status = "dead_letter"
 )
+
+// HighValueThreshold is the order value threshold for high-value handling (in currency units)
+const HighValueThreshold = 500.0
 
 // Order is the aggregate root for the Order Management bounded context
 type Order struct {
-	ID                 primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	OrderID            string             `bson:"orderId" json:"orderId"`
-	CustomerID         string             `bson:"customerId" json:"customerId"`
-	Items              []OrderItem        `bson:"items" json:"items"`
-	ShippingAddress    Address            `bson:"shippingAddress" json:"shippingAddress"`
-	Priority           Priority           `bson:"priority" json:"priority"`
-	Status             Status             `bson:"status" json:"status"`
-	PromisedDeliveryAt time.Time          `bson:"promisedDeliveryAt" json:"promisedDeliveryAt"`
-	WaveID             string             `bson:"waveId,omitempty" json:"waveId,omitempty"`
-	TrackingNumber     string             `bson:"trackingNumber,omitempty" json:"trackingNumber,omitempty"`
-	CreatedAt          time.Time          `bson:"createdAt" json:"createdAt"`
-	UpdatedAt          time.Time          `bson:"updatedAt" json:"updatedAt"`
+	ID                  primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	OrderID             string             `bson:"orderId" json:"orderId"`
+	CustomerID          string             `bson:"customerId" json:"customerId"`
+	Items               []OrderItem        `bson:"items" json:"items"`
+	ShippingAddress     Address            `bson:"shippingAddress" json:"shippingAddress"`
+	Priority            Priority           `bson:"priority" json:"priority"`
+	Status              Status             `bson:"status" json:"status"`
+	PromisedDeliveryAt  time.Time          `bson:"promisedDeliveryAt" json:"promisedDeliveryAt"`
+	WaveID              string             `bson:"waveId,omitempty" json:"waveId,omitempty"`
+	TrackingNumber      string             `bson:"trackingNumber,omitempty" json:"trackingNumber,omitempty"`
+	CreatedAt           time.Time          `bson:"createdAt" json:"createdAt"`
+	UpdatedAt           time.Time          `bson:"updatedAt" json:"updatedAt"`
+	GiftWrap            bool               `bson:"giftWrap" json:"giftWrap"`
+	ProcessRequirements OrderRequirements  `bson:"processRequirements" json:"processRequirements"`
 
 	// Domain events - transient, not persisted
 	domainEvents []DomainEvent `bson:"-" json:"-"`
@@ -71,14 +78,29 @@ type Order struct {
 
 // OrderItem represents an item in an order
 type OrderItem struct {
-	SKU         string  `bson:"sku" json:"sku"`
-	Name        string  `bson:"name" json:"name"`
-	Quantity    int     `bson:"quantity" json:"quantity"`
-	Weight      float64 `bson:"weight" json:"weight"`
-	Dimensions  Dims    `bson:"dimensions" json:"dimensions"`
-	UnitPrice   float64 `bson:"unitPrice" json:"unitPrice"`
-	PickedQty   int     `bson:"pickedQty" json:"pickedQty"`
-	LocationID  string  `bson:"locationId,omitempty" json:"locationId,omitempty"`
+	SKU               string  `bson:"sku" json:"sku"`
+	Name              string  `bson:"name" json:"name"`
+	Quantity          int     `bson:"quantity" json:"quantity"`
+	Weight            float64 `bson:"weight" json:"weight"`
+	Dimensions        Dims    `bson:"dimensions" json:"dimensions"`
+	UnitPrice         float64 `bson:"unitPrice" json:"unitPrice"`
+	PickedQty         int     `bson:"pickedQty" json:"pickedQty"`
+	LocationID        string  `bson:"locationId,omitempty" json:"locationId,omitempty"`
+	IsFragile         bool    `bson:"isFragile" json:"isFragile"`
+	IsHazmat          bool    `bson:"isHazmat" json:"isHazmat"`
+	RequiresColdChain bool    `bson:"requiresColdChain" json:"requiresColdChain"`
+}
+
+// IsOversized returns true if the item exceeds standard shipping dimensions
+// Oversized threshold: any dimension > 100cm or total weight > 30kg
+func (i *OrderItem) IsOversized() bool {
+	const maxDimension = 100.0 // cm
+	const maxWeight = 30.0    // kg
+
+	return i.Dimensions.Length > maxDimension ||
+		i.Dimensions.Width > maxDimension ||
+		i.Dimensions.Height > maxDimension ||
+		i.Weight > maxWeight
 }
 
 // Dims represents item dimensions
@@ -131,15 +153,26 @@ func NewOrder(
 		domainEvents:       make([]DomainEvent, 0),
 	}
 
+	// Calculate process path requirements based on order characteristics
+	order.CalculateRequirements()
+
 	order.addDomainEvent(NewOrderReceivedEvent(order))
 
 	return order, nil
 }
 
 // Validate validates the order and transitions it to validated status
+// This method is idempotent - if already validated, it returns success
 func (o *Order) Validate() error {
 	if o.Status == StatusCancelled {
 		return ErrOrderCancelled
+	}
+
+	// Idempotency: if already validated or further along, return success
+	if o.Status == StatusValidated || o.Status == StatusWaveAssigned ||
+		o.Status == StatusPicking || o.Status == StatusConsolidated ||
+		o.Status == StatusPacked || o.Status == StatusShipped {
+		return nil
 	}
 
 	if o.Status != StatusReceived {
@@ -286,6 +319,85 @@ func (o *Order) IsSingleItem() bool {
 	return len(o.Items) == 1 && o.Items[0].Quantity == 1
 }
 
+// TotalValue returns the total value of the order
+func (o *Order) TotalValue() float64 {
+	total := 0.0
+	for _, item := range o.Items {
+		total += item.UnitPrice * float64(item.Quantity)
+	}
+	return total
+}
+
+// CalculateRequirements analyzes the order and populates ProcessRequirements
+// This should be called when the order is created or modified
+func (o *Order) CalculateRequirements() {
+	requirements := make([]ProcessRequirement, 0)
+
+	// Single vs Multi item requirement
+	if o.IsSingleItem() {
+		requirements = append(requirements, RequirementSingleItem)
+	} else {
+		requirements = append(requirements, RequirementMultiItem)
+	}
+
+	// Gift wrap requirement (order-level)
+	if o.GiftWrap {
+		requirements = append(requirements, RequirementGiftWrap)
+	}
+
+	// Item-level requirements (deduplicated)
+	hasFragile := false
+	hasHazmat := false
+	hasColdChain := false
+	hasOversized := false
+
+	for _, item := range o.Items {
+		if item.IsFragile && !hasFragile {
+			requirements = append(requirements, RequirementFragile)
+			hasFragile = true
+		}
+		if item.IsHazmat && !hasHazmat {
+			requirements = append(requirements, RequirementHazmat)
+			hasHazmat = true
+		}
+		if item.RequiresColdChain && !hasColdChain {
+			requirements = append(requirements, RequirementColdChain)
+			hasColdChain = true
+		}
+		if item.IsOversized() && !hasOversized {
+			requirements = append(requirements, RequirementOversized)
+			hasOversized = true
+		}
+	}
+
+	// High value requirement (order-level threshold)
+	if o.TotalValue() >= HighValueThreshold {
+		requirements = append(requirements, RequirementHighValue)
+	}
+
+	o.ProcessRequirements.Requirements = requirements
+}
+
+// SetGiftWrapDetails sets the gift wrap details and recalculates requirements
+func (o *Order) SetGiftWrapDetails(details *GiftWrapDetails) {
+	o.GiftWrap = true
+	o.ProcessRequirements.GiftWrapDetails = details
+	o.CalculateRequirements()
+	o.UpdatedAt = time.Now().UTC()
+}
+
+// SetHazmatDetails sets the hazmat details for the order
+func (o *Order) SetHazmatDetails(details *HazmatDetails) {
+	o.ProcessRequirements.HazmatDetails = details
+	o.UpdatedAt = time.Now().UTC()
+}
+
+// SetColdChainDetails sets the cold chain details for the order
+func (o *Order) SetColdChainDetails(details *ColdChainDetails) {
+	o.ProcessRequirements.ColdChainDetails = details
+	o.UpdatedAt = time.Now().UTC()
+}
+
 // addDomainEvent adds a domain event to the order
 func (o *Order) addDomainEvent(event DomainEvent) {
 	o.domainEvents = append(o.domainEvents, event)
@@ -299,4 +411,42 @@ func (o *Order) DomainEvents() []DomainEvent {
 // ClearDomainEvents clears all pending domain events
 func (o *Order) ClearDomainEvents() {
 	o.domainEvents = make([]DomainEvent, 0)
+}
+
+// ResetForRetry prepares the order for reprocessing after a transient failure
+// This clears the wave assignment and sets the order to pending_retry status
+func (o *Order) ResetForRetry() error {
+	// Cannot reset orders in terminal states
+	if o.Status == StatusCancelled || o.Status == StatusShipped || o.Status == StatusDelivered {
+		return errors.New("cannot reset order in terminal status")
+	}
+
+	// Cannot reset orders already in dead letter
+	if o.Status == StatusDeadLetter {
+		return errors.New("cannot reset order in dead letter queue")
+	}
+
+	o.WaveID = ""
+	o.Status = StatusPendingRetry
+	o.UpdatedAt = time.Now().UTC()
+
+	return nil
+}
+
+// MoveToDeadLetter marks the order as moved to dead letter queue after exhausting retries
+func (o *Order) MoveToDeadLetter(reason string) error {
+	// Cannot move shipped/delivered orders to DLQ
+	if o.Status == StatusShipped || o.Status == StatusDelivered {
+		return errors.New("cannot move shipped or delivered order to dead letter queue")
+	}
+
+	// Already in DLQ
+	if o.Status == StatusDeadLetter {
+		return nil
+	}
+
+	o.Status = StatusDeadLetter
+	o.UpdatedAt = time.Now().UTC()
+
+	return nil
 }

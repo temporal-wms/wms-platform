@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/wms-platform/orchestrator/internal/activities/clients"
+	"github.com/wms-platform/shared/pkg/middleware"
 )
 
 // ServiceClients wraps all service clients
@@ -58,6 +59,94 @@ type RoutingActivities struct {
 // NewRoutingActivities creates a new RoutingActivities instance
 func NewRoutingActivities(clients *ServiceClients, logger *slog.Logger) *RoutingActivities {
 	return &RoutingActivities{
+		clients: clients,
+		logger:  logger,
+	}
+}
+
+// PickingActivities contains activities related to picking operations
+type PickingActivities struct {
+	clients *ServiceClients
+	logger  *slog.Logger
+}
+
+// NewPickingActivities creates a new PickingActivities instance
+func NewPickingActivities(clients *ServiceClients, logger *slog.Logger) *PickingActivities {
+	return &PickingActivities{
+		clients: clients,
+		logger:  logger,
+	}
+}
+
+// ConsolidationActivities contains activities related to consolidation operations
+type ConsolidationActivities struct {
+	clients *ServiceClients
+	logger  *slog.Logger
+}
+
+// NewConsolidationActivities creates a new ConsolidationActivities instance
+func NewConsolidationActivities(clients *ServiceClients, logger *slog.Logger) *ConsolidationActivities {
+	return &ConsolidationActivities{
+		clients: clients,
+		logger:  logger,
+	}
+}
+
+// PackingActivities contains activities related to packing operations
+type PackingActivities struct {
+	clients *ServiceClients
+	logger  *slog.Logger
+}
+
+// NewPackingActivities creates a new PackingActivities instance
+func NewPackingActivities(clients *ServiceClients, logger *slog.Logger) *PackingActivities {
+	return &PackingActivities{
+		clients: clients,
+		logger:  logger,
+	}
+}
+
+// ShippingActivities contains activities related to shipping operations
+type ShippingActivities struct {
+	clients *ServiceClients
+	logger  *slog.Logger
+}
+
+// NewShippingActivities creates a new ShippingActivities instance
+func NewShippingActivities(clients *ServiceClients, logger *slog.Logger) *ShippingActivities {
+	return &ShippingActivities{
+		clients: clients,
+		logger:  logger,
+	}
+}
+
+// ReprocessingActivities contains activities related to workflow reprocessing
+type ReprocessingActivities struct {
+	clients        *ServiceClients
+	temporalClient interface{} // Temporal client for workflow operations
+	logger         *slog.Logger
+	failureMetrics *middleware.FailureMetrics
+}
+
+// NewReprocessingActivities creates a new ReprocessingActivities instance
+func NewReprocessingActivities(clients *ServiceClients, temporalClient interface{}, logger *slog.Logger, failureMetrics *middleware.FailureMetrics) *ReprocessingActivities {
+	return &ReprocessingActivities{
+		clients:        clients,
+		temporalClient: temporalClient,
+		logger:         logger,
+		failureMetrics: failureMetrics,
+	}
+}
+
+// ProcessPathActivities contains activities related to process path routing
+type ProcessPathActivities struct {
+	clients *ServiceClients
+	logger  *slog.Logger
+}
+
+// NewProcessPathActivities creates a new ProcessPathActivities instance
+func NewProcessPathActivities(clients *ServiceClients, logger *slog.Logger) *ProcessPathActivities {
+	return &ProcessPathActivities{
 		clients: clients,
 		logger:  logger,
 	}
