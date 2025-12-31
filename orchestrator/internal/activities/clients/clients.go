@@ -123,6 +123,24 @@ func (c *ServiceClients) CancelOrder(ctx context.Context, orderID, reason string
 	return c.doRequest(ctx, http.MethodPost, url, body, nil)
 }
 
+// StartPicking marks an order as picking in progress
+func (c *ServiceClients) StartPicking(ctx context.Context, orderID string) error {
+	url := fmt.Sprintf("%s/api/v1/orders/%s/start-picking", c.config.OrderServiceURL, orderID)
+	return c.doRequest(ctx, http.MethodPut, url, nil, nil)
+}
+
+// MarkConsolidated marks an order as consolidated
+func (c *ServiceClients) MarkConsolidated(ctx context.Context, orderID string) error {
+	url := fmt.Sprintf("%s/api/v1/orders/%s/mark-consolidated", c.config.OrderServiceURL, orderID)
+	return c.doRequest(ctx, http.MethodPut, url, nil, nil)
+}
+
+// MarkPacked marks an order as packed
+func (c *ServiceClients) MarkPacked(ctx context.Context, orderID string) error {
+	url := fmt.Sprintf("%s/api/v1/orders/%s/mark-packed", c.config.OrderServiceURL, orderID)
+	return c.doRequest(ctx, http.MethodPut, url, nil, nil)
+}
+
 // InventoryService methods
 
 // ReserveInventory reserves inventory for an order
@@ -135,6 +153,36 @@ func (c *ServiceClients) ReserveInventory(ctx context.Context, req *ReserveInven
 func (c *ServiceClients) ReleaseInventoryReservation(ctx context.Context, orderID string) error {
 	url := fmt.Sprintf("%s/api/v1/inventory/release/%s", c.config.InventoryServiceURL, orderID)
 	return c.doRequest(ctx, http.MethodPost, url, nil, nil)
+}
+
+// PickInventory decrements inventory for picked items
+func (c *ServiceClients) PickInventory(ctx context.Context, sku string, req *PickInventoryRequest) error {
+	url := fmt.Sprintf("%s/api/v1/inventory/%s/pick", c.config.InventoryServiceURL, sku)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// StageInventory converts soft reservation to hard allocation (physical staging)
+func (c *ServiceClients) StageInventory(ctx context.Context, sku string, req *StageInventoryRequest) error {
+	url := fmt.Sprintf("%s/api/v1/inventory/%s/stage", c.config.InventoryServiceURL, sku)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// PackInventory marks a hard allocation as packed
+func (c *ServiceClients) PackInventory(ctx context.Context, sku string, req *PackInventoryRequest) error {
+	url := fmt.Sprintf("%s/api/v1/inventory/%s/pack", c.config.InventoryServiceURL, sku)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// ShipInventory ships a packed allocation (removes inventory from system)
+func (c *ServiceClients) ShipInventory(ctx context.Context, sku string, req *ShipInventoryRequest) error {
+	url := fmt.Sprintf("%s/api/v1/inventory/%s/ship", c.config.InventoryServiceURL, sku)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// ReturnInventoryToShelf returns hard allocated inventory back to shelf
+func (c *ServiceClients) ReturnInventoryToShelf(ctx context.Context, sku string, req *ReturnToShelfRequest) error {
+	url := fmt.Sprintf("%s/api/v1/inventory/%s/return-to-shelf", c.config.InventoryServiceURL, sku)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
 }
 
 // GetInventoryBySKU retrieves inventory for a SKU

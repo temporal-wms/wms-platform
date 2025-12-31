@@ -158,17 +158,27 @@ func main() {
 	// API v1 routes
 	api := router.Group("/api/v1/inventory")
 	{
+		// Static routes first (must come before wildcard routes)
 		api.POST("", createItemHandler(inventoryService, logger))
+		api.GET("", listInventoryHandler(inventoryService, logger))
+		api.GET("/location/:locationId", getByLocationHandler(inventoryService, logger))
+		api.GET("/zone/:zone", getByZoneHandler(inventoryService, logger))
+		api.GET("/low-stock", getLowStockHandler(inventoryService, logger))
+		api.POST("/release/:orderId", releaseByOrderHandler(inventoryService, logger))
+
+		// Wildcard SKU routes (must come after static routes)
 		api.GET("/:sku", getItemHandler(inventoryService, logger))
 		api.POST("/:sku/receive", receiveStockHandler(inventoryService, logger))
 		api.POST("/:sku/reserve", reserveHandler(inventoryService, logger))
 		api.POST("/:sku/pick", pickHandler(inventoryService, logger))
 		api.POST("/:sku/release", releaseReservationHandler(inventoryService, logger))
 		api.POST("/:sku/adjust", adjustHandler(inventoryService, logger))
-		api.GET("/location/:locationId", getByLocationHandler(inventoryService, logger))
-		api.GET("/zone/:zone", getByZoneHandler(inventoryService, logger))
-		api.GET("/low-stock", getLowStockHandler(inventoryService, logger))
-		api.GET("", listInventoryHandler(inventoryService, logger))
+
+		// Hard allocation routes (physical staging lifecycle)
+		api.POST("/:sku/stage", stageHandler(inventoryService, logger))
+		api.POST("/:sku/pack", packHandler(inventoryService, logger))
+		api.POST("/:sku/ship", shipHandler(inventoryService, logger))
+		api.POST("/:sku/return-to-shelf", returnToShelfHandler(inventoryService, logger))
 	}
 
 	// Start server
@@ -504,5 +514,171 @@ func listInventoryHandler(service *application.InventoryApplicationService, logg
 
 		items, _ := service.ListInventory(c.Request.Context(), query)
 		c.JSON(http.StatusOK, items)
+	}
+}
+
+func releaseByOrderHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		orderID := c.Param("orderId")
+		if orderID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "orderId is required"})
+			return
+		}
+
+		cmd := application.ReleaseByOrderCommand{
+			OrderID: orderID,
+		}
+
+		releasedCount, err := service.ReleaseByOrder(c.Request.Context(), cmd)
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"orderId":       orderID,
+			"releasedCount": releasedCount,
+			"message":       "Reservations released successfully",
+		})
+	}
+}
+
+// stageHandler converts a soft reservation to hard allocation (physical staging)
+func stageHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			ReservationID     string `json:"reservationId" binding:"required"`
+			StagingLocationID string `json:"stagingLocationId" binding:"required"`
+			StagedBy          string `json:"stagedBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		cmd := application.StageCommand{
+			SKU:               c.Param("sku"),
+			ReservationID:     req.ReservationID,
+			StagingLocationID: req.StagingLocationID,
+			StagedBy:          req.StagedBy,
+		}
+
+		item, err := service.Stage(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+// packHandler marks a hard allocation as packed
+func packHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			AllocationID string `json:"allocationId" binding:"required"`
+			PackedBy     string `json:"packedBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		cmd := application.PackCommand{
+			SKU:          c.Param("sku"),
+			AllocationID: req.AllocationID,
+			PackedBy:     req.PackedBy,
+		}
+
+		item, err := service.Pack(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+// shipHandler ships a packed allocation (removes inventory from system)
+func shipHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			AllocationID string `json:"allocationId" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		cmd := application.ShipCommand{
+			SKU:          c.Param("sku"),
+			AllocationID: req.AllocationID,
+		}
+
+		item, err := service.Ship(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+// returnToShelfHandler returns hard allocated inventory back to shelf
+func returnToShelfHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			AllocationID string `json:"allocationId" binding:"required"`
+			ReturnedBy   string `json:"returnedBy" binding:"required"`
+			Reason       string `json:"reason" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		cmd := application.ReturnToShelfCommand{
+			SKU:          c.Param("sku"),
+			AllocationID: req.AllocationID,
+			ReturnedBy:   req.ReturnedBy,
+			Reason:       req.Reason,
+		}
+
+		item, err := service.ReturnToShelf(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, item)
 	}
 }

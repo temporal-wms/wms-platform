@@ -4,8 +4,72 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/wms-platform/orchestrator/internal/activities/clients"
 	"go.temporal.io/sdk/activity"
 )
+
+// ConfirmInventoryPickInput holds the input for confirming inventory picks
+type ConfirmInventoryPickInput struct {
+	OrderID     string                     `json:"orderId"`
+	PickedItems []ConfirmInventoryPickItem `json:"pickedItems"`
+}
+
+// ConfirmInventoryPickItem represents a picked item for inventory decrement
+type ConfirmInventoryPickItem struct {
+	SKU        string `json:"sku"`
+	Quantity   int    `json:"quantity"`
+	LocationID string `json:"locationId"`
+}
+
+// ConfirmInventoryPick decrements inventory for all picked items
+func (a *InventoryActivities) ConfirmInventoryPick(ctx context.Context, input ConfirmInventoryPickInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Confirming inventory pick", "orderId", input.OrderID, "itemCount", len(input.PickedItems))
+
+	var lastError error
+	successCount := 0
+
+	for _, item := range input.PickedItems {
+		req := &clients.PickInventoryRequest{
+			OrderID:    input.OrderID,
+			LocationID: item.LocationID,
+			Quantity:   item.Quantity,
+			CreatedBy:  "orchestrator",
+		}
+
+		err := a.clients.PickInventory(ctx, item.SKU, req)
+		if err != nil {
+			logger.Error("Failed to pick inventory",
+				"orderId", input.OrderID,
+				"sku", item.SKU,
+				"error", err)
+			lastError = err
+			// Continue with other items, don't fail the whole operation
+			continue
+		}
+
+		successCount++
+		logger.Info("Inventory picked successfully",
+			"orderId", input.OrderID,
+			"sku", item.SKU,
+			"quantity", item.Quantity,
+			"locationId", item.LocationID,
+		)
+	}
+
+	logger.Info("Inventory pick confirmation complete",
+		"orderId", input.OrderID,
+		"successCount", successCount,
+		"totalItems", len(input.PickedItems),
+	)
+
+	// Return error only if all items failed
+	if successCount == 0 && lastError != nil {
+		return fmt.Errorf("failed to pick any inventory items: %w", lastError)
+	}
+
+	return nil
+}
 
 // ReleaseInventoryReservation releases inventory reservations for an order
 func (a *InventoryActivities) ReleaseInventoryReservation(ctx context.Context, orderID string) error {
@@ -19,5 +83,269 @@ func (a *InventoryActivities) ReleaseInventoryReservation(ctx context.Context, o
 	}
 
 	logger.Info("Inventory reservation released successfully", "orderId", orderID)
+	return nil
+}
+
+// StageInventoryInput holds the input for staging inventory (soft to hard allocation)
+type StageInventoryInput struct {
+	OrderID           string                `json:"orderId"`
+	StagingLocationID string                `json:"stagingLocationId"`
+	StagedBy          string                `json:"stagedBy"`
+	Items             []StageInventoryItem  `json:"items"`
+}
+
+// StageInventoryItem represents an item to be staged
+type StageInventoryItem struct {
+	SKU           string `json:"sku"`
+	ReservationID string `json:"reservationId"`
+}
+
+// StageInventoryOutput holds the output from staging inventory
+type StageInventoryOutput struct {
+	StagedItems   []StagedItem `json:"stagedItems"`
+	FailedItems   []string     `json:"failedItems,omitempty"`
+	AllocationIDs []string     `json:"allocationIds"`
+}
+
+// StagedItem represents a successfully staged item
+type StagedItem struct {
+	SKU          string `json:"sku"`
+	AllocationID string `json:"allocationId"`
+}
+
+// StageInventory converts soft reservations to hard allocations (physical staging)
+func (a *InventoryActivities) StageInventory(ctx context.Context, input StageInventoryInput) (*StageInventoryOutput, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Staging inventory", "orderId", input.OrderID, "itemCount", len(input.Items))
+
+	output := &StageInventoryOutput{
+		StagedItems:   make([]StagedItem, 0),
+		FailedItems:   make([]string, 0),
+		AllocationIDs: make([]string, 0),
+	}
+
+	var lastError error
+	for _, item := range input.Items {
+		req := &clients.StageInventoryRequest{
+			ReservationID:     item.ReservationID,
+			StagingLocationID: input.StagingLocationID,
+			StagedBy:          input.StagedBy,
+		}
+
+		err := a.clients.StageInventory(ctx, item.SKU, req)
+		if err != nil {
+			logger.Error("Failed to stage inventory",
+				"orderId", input.OrderID,
+				"sku", item.SKU,
+				"reservationId", item.ReservationID,
+				"error", err)
+			output.FailedItems = append(output.FailedItems, item.SKU)
+			lastError = err
+			continue
+		}
+
+		// Note: In a real implementation, we'd get the allocationID from the response
+		// For now, we'll use a composite ID
+		allocationID := fmt.Sprintf("%s-%s", input.OrderID, item.SKU)
+		output.StagedItems = append(output.StagedItems, StagedItem{
+			SKU:          item.SKU,
+			AllocationID: allocationID,
+		})
+		output.AllocationIDs = append(output.AllocationIDs, allocationID)
+
+		logger.Info("Inventory staged successfully",
+			"orderId", input.OrderID,
+			"sku", item.SKU,
+			"allocationId", allocationID,
+		)
+	}
+
+	logger.Info("Inventory staging complete",
+		"orderId", input.OrderID,
+		"stagedCount", len(output.StagedItems),
+		"failedCount", len(output.FailedItems),
+	)
+
+	if len(output.StagedItems) == 0 && lastError != nil {
+		return nil, fmt.Errorf("failed to stage any inventory items: %w", lastError)
+	}
+
+	return output, nil
+}
+
+// PackInventoryInput holds the input for marking inventory as packed
+type PackInventoryInput struct {
+	OrderID       string              `json:"orderId"`
+	PackedBy      string              `json:"packedBy"`
+	Items         []PackInventoryItem `json:"items"`
+}
+
+// PackInventoryItem represents an item to be marked as packed
+type PackInventoryItem struct {
+	SKU          string `json:"sku"`
+	AllocationID string `json:"allocationId"`
+}
+
+// PackInventory marks hard allocations as packed
+func (a *InventoryActivities) PackInventory(ctx context.Context, input PackInventoryInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Packing inventory", "orderId", input.OrderID, "itemCount", len(input.Items))
+
+	var lastError error
+	successCount := 0
+
+	for _, item := range input.Items {
+		req := &clients.PackInventoryRequest{
+			AllocationID: item.AllocationID,
+			PackedBy:     input.PackedBy,
+		}
+
+		err := a.clients.PackInventory(ctx, item.SKU, req)
+		if err != nil {
+			logger.Error("Failed to pack inventory",
+				"orderId", input.OrderID,
+				"sku", item.SKU,
+				"allocationId", item.AllocationID,
+				"error", err)
+			lastError = err
+			continue
+		}
+
+		successCount++
+		logger.Info("Inventory packed successfully",
+			"orderId", input.OrderID,
+			"sku", item.SKU,
+			"allocationId", item.AllocationID,
+		)
+	}
+
+	logger.Info("Inventory packing complete",
+		"orderId", input.OrderID,
+		"successCount", successCount,
+		"totalItems", len(input.Items),
+	)
+
+	if successCount == 0 && lastError != nil {
+		return fmt.Errorf("failed to pack any inventory items: %w", lastError)
+	}
+
+	return nil
+}
+
+// ShipInventoryInput holds the input for shipping inventory
+type ShipInventoryInput struct {
+	OrderID string              `json:"orderId"`
+	Items   []ShipInventoryItem `json:"items"`
+}
+
+// ShipInventoryItem represents an item to be shipped
+type ShipInventoryItem struct {
+	SKU          string `json:"sku"`
+	AllocationID string `json:"allocationId"`
+}
+
+// ShipInventory ships hard allocations (removes inventory from system)
+func (a *InventoryActivities) ShipInventory(ctx context.Context, input ShipInventoryInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Shipping inventory", "orderId", input.OrderID, "itemCount", len(input.Items))
+
+	var lastError error
+	successCount := 0
+
+	for _, item := range input.Items {
+		req := &clients.ShipInventoryRequest{
+			AllocationID: item.AllocationID,
+		}
+
+		err := a.clients.ShipInventory(ctx, item.SKU, req)
+		if err != nil {
+			logger.Error("Failed to ship inventory",
+				"orderId", input.OrderID,
+				"sku", item.SKU,
+				"allocationId", item.AllocationID,
+				"error", err)
+			lastError = err
+			continue
+		}
+
+		successCount++
+		logger.Info("Inventory shipped successfully",
+			"orderId", input.OrderID,
+			"sku", item.SKU,
+			"allocationId", item.AllocationID,
+		)
+	}
+
+	logger.Info("Inventory shipping complete",
+		"orderId", input.OrderID,
+		"successCount", successCount,
+		"totalItems", len(input.Items),
+	)
+
+	if successCount == 0 && lastError != nil {
+		return fmt.Errorf("failed to ship any inventory items: %w", lastError)
+	}
+
+	return nil
+}
+
+// ReturnInventoryToShelfInput holds the input for returning inventory to shelf
+type ReturnInventoryToShelfInput struct {
+	OrderID    string                       `json:"orderId"`
+	ReturnedBy string                       `json:"returnedBy"`
+	Reason     string                       `json:"reason"`
+	Items      []ReturnInventoryToShelfItem `json:"items"`
+}
+
+// ReturnInventoryToShelfItem represents an item to be returned to shelf
+type ReturnInventoryToShelfItem struct {
+	SKU          string `json:"sku"`
+	AllocationID string `json:"allocationId"`
+}
+
+// ReturnInventoryToShelf returns hard allocated inventory back to available stock
+func (a *InventoryActivities) ReturnInventoryToShelf(ctx context.Context, input ReturnInventoryToShelfInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Returning inventory to shelf", "orderId", input.OrderID, "itemCount", len(input.Items), "reason", input.Reason)
+
+	var lastError error
+	successCount := 0
+
+	for _, item := range input.Items {
+		req := &clients.ReturnToShelfRequest{
+			AllocationID: item.AllocationID,
+			ReturnedBy:   input.ReturnedBy,
+			Reason:       input.Reason,
+		}
+
+		err := a.clients.ReturnInventoryToShelf(ctx, item.SKU, req)
+		if err != nil {
+			logger.Error("Failed to return inventory to shelf",
+				"orderId", input.OrderID,
+				"sku", item.SKU,
+				"allocationId", item.AllocationID,
+				"error", err)
+			lastError = err
+			continue
+		}
+
+		successCount++
+		logger.Info("Inventory returned to shelf successfully",
+			"orderId", input.OrderID,
+			"sku", item.SKU,
+			"allocationId", item.AllocationID,
+		)
+	}
+
+	logger.Info("Inventory return to shelf complete",
+		"orderId", input.OrderID,
+		"successCount", successCount,
+		"totalItems", len(input.Items),
+	)
+
+	if successCount == 0 && lastError != nil {
+		return fmt.Errorf("failed to return any inventory items to shelf: %w", lastError)
+	}
+
 	return nil
 }

@@ -86,6 +86,7 @@ func main() {
 	// Register workflows
 	w.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	w.RegisterWorkflow(workflows.OrderCancellationWorkflow)
+	w.RegisterWorkflow(workflows.OrderCancellationWorkflowWithAllocations)
 	w.RegisterWorkflow(workflows.PickingWorkflow)
 	w.RegisterWorkflow(workflows.ConsolidationWorkflow)
 	w.RegisterWorkflow(workflows.PackingWorkflow)
@@ -109,7 +110,15 @@ func main() {
 	w.RegisterActivity(orderActivities.ValidateOrder)
 	w.RegisterActivity(orderActivities.CancelOrder)
 	w.RegisterActivity(orderActivities.NotifyCustomerCancellation)
+	w.RegisterActivity(orderActivities.StartPicking)
+	w.RegisterActivity(orderActivities.MarkConsolidated)
+	w.RegisterActivity(orderActivities.MarkPacked)
 	w.RegisterActivity(inventoryActivities.ReleaseInventoryReservation)
+	w.RegisterActivity(inventoryActivities.ConfirmInventoryPick)
+	w.RegisterActivity(inventoryActivities.StageInventory)
+	w.RegisterActivity(inventoryActivities.PackInventory)
+	w.RegisterActivity(inventoryActivities.ShipInventory)
+	w.RegisterActivity(inventoryActivities.ReturnInventoryToShelf)
 	w.RegisterActivity(routingActivities.CalculateRoute)
 
 	// Register picking activities
@@ -162,6 +171,7 @@ func main() {
 		"CancelOrder",
 		"NotifyCustomerCancellation",
 		"ReleaseInventoryReservation",
+		"ConfirmInventoryPick",
 		"CalculateRoute",
 		"CreatePickTask",
 		"AssignPickerToTask",

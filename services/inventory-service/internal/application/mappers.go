@@ -11,14 +11,15 @@ func ToInventoryItemDTO(item *domain.InventoryItem) *InventoryItemDTO {
 	locations := make([]StockLocationDTO, 0, len(item.Locations))
 	for _, loc := range item.Locations {
 		locations = append(locations, StockLocationDTO{
-			LocationID: loc.LocationID,
-			Zone:       loc.Zone,
-			Aisle:      loc.Aisle,
-			Rack:       loc.Rack,
-			Level:      loc.Level,
-			Quantity:   loc.Quantity,
-			Reserved:   loc.Reserved,
-			Available:  loc.Available,
+			LocationID:    loc.LocationID,
+			Zone:          loc.Zone,
+			Aisle:         loc.Aisle,
+			Rack:          loc.Rack,
+			Level:         loc.Level,
+			Quantity:      loc.Quantity,
+			Reserved:      loc.Reserved,
+			HardAllocated: loc.HardAllocated,
+			Available:     loc.Available,
 		})
 	}
 
@@ -35,19 +36,39 @@ func ToInventoryItemDTO(item *domain.InventoryItem) *InventoryItemDTO {
 		})
 	}
 
+	hardAllocations := make([]HardAllocationDTO, 0, len(item.HardAllocations))
+	for _, alloc := range item.HardAllocations {
+		hardAllocations = append(hardAllocations, HardAllocationDTO{
+			AllocationID:      alloc.AllocationID,
+			ReservationID:     alloc.ReservationID,
+			OrderID:           alloc.OrderID,
+			Quantity:          alloc.Quantity,
+			SourceLocationID:  alloc.SourceLocationID,
+			StagingLocationID: alloc.StagingLocationID,
+			Status:            alloc.Status,
+			StagedBy:          alloc.StagedBy,
+			PackedBy:          alloc.PackedBy,
+			CreatedAt:         alloc.CreatedAt,
+			PackedAt:          alloc.PackedAt,
+			ShippedAt:         alloc.ShippedAt,
+		})
+	}
+
 	return &InventoryItemDTO{
-		SKU:               item.SKU,
-		ProductName:       item.ProductName,
-		Locations:         locations,
-		TotalQuantity:     item.TotalQuantity,
-		ReservedQuantity:  item.ReservedQuantity,
-		AvailableQuantity: item.AvailableQuantity,
-		ReorderPoint:      item.ReorderPoint,
-		ReorderQuantity:   item.ReorderQuantity,
-		Reservations:      reservations,
-		LastCycleCount:    item.LastCycleCount,
-		CreatedAt:         item.CreatedAt,
-		UpdatedAt:         item.UpdatedAt,
+		SKU:                   item.SKU,
+		ProductName:           item.ProductName,
+		Locations:             locations,
+		TotalQuantity:         item.TotalQuantity,
+		ReservedQuantity:      item.ReservedQuantity,
+		HardAllocatedQuantity: item.HardAllocatedQuantity,
+		AvailableQuantity:     item.AvailableQuantity,
+		ReorderPoint:          item.ReorderPoint,
+		ReorderQuantity:       item.ReorderQuantity,
+		Reservations:          reservations,
+		HardAllocations:       hardAllocations,
+		LastCycleCount:        item.LastCycleCount,
+		CreatedAt:             item.CreatedAt,
+		UpdatedAt:             item.UpdatedAt,
 	}
 }
 

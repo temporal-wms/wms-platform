@@ -114,7 +114,51 @@ func ShippingWorkflow(ctx workflow.Context, input map[string]interface{}) error 
 		return fmt.Errorf("failed to mark order shipped: %w", err)
 	}
 
-	// Step 7: Notify customer with tracking info
+	// Step 7: Ship inventory (finalize hard allocation - remove from inventory system)
+	// Extract allocation info from input if available
+	if allocationIDs, ok := input["allocationIds"].([]interface{}); ok && len(allocationIDs) > 0 {
+		logger.Info("Finalizing inventory shipment (removing from system)", "orderId", orderID, "allocationCount", len(allocationIDs))
+
+		// Build ship items from allocations and picked items
+		shipItems := make([]map[string]interface{}, 0)
+		pickedItems, _ := input["pickedItems"].([]interface{})
+
+		for i, allocID := range allocationIDs {
+			if strAllocID, ok := allocID.(string); ok {
+				sku := ""
+				// Try to get SKU from picked items
+				if i < len(pickedItems) {
+					if itemMap, ok := pickedItems[i].(map[string]interface{}); ok {
+						if skuVal, ok := itemMap["sku"].(string); ok {
+							sku = skuVal
+						}
+					}
+				}
+				shipItems = append(shipItems, map[string]interface{}{
+					"sku":          sku,
+					"allocationId": strAllocID,
+				})
+			}
+		}
+
+		if len(shipItems) > 0 {
+			err = workflow.ExecuteActivity(ctx, "ShipInventory", map[string]interface{}{
+				"orderId": orderID,
+				"items":   shipItems,
+			}).Get(ctx, nil)
+			if err != nil {
+				// Log but don't fail - inventory removal can be reconciled
+				logger.Warn("Failed to finalize inventory shipment, continuing workflow",
+					"orderId", orderID,
+					"error", err,
+				)
+			} else {
+				logger.Info("Inventory shipped successfully (removed from system)", "orderId", orderID)
+			}
+		}
+	}
+
+	// Step 8: Notify customer with tracking info
 	logger.Info("Notifying customer", "orderId", orderID, "trackingNumber", trackingNumber)
 	err = workflow.ExecuteActivity(ctx, "NotifyCustomerShipped", map[string]interface{}{
 		"orderId":        orderID,

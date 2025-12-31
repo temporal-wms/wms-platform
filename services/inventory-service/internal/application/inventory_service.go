@@ -211,6 +211,41 @@ func (s *InventoryApplicationService) ReleaseReservation(ctx context.Context, cm
 	return ToInventoryItemDTO(item), nil
 }
 
+// ReleaseByOrder releases all reservations for an order across all SKUs
+func (s *InventoryApplicationService) ReleaseByOrder(ctx context.Context, cmd ReleaseByOrderCommand) (int, error) {
+	// Find all inventory items with reservations for this order
+	items, err := s.repo.FindByOrderID(ctx, cmd.OrderID)
+	if err != nil {
+		s.logger.Error("Failed to find items by order", "orderId", cmd.OrderID, "error", err)
+		return 0, fmt.Errorf("failed to find items by order: %w", err)
+	}
+
+	releasedCount := 0
+	for _, item := range items {
+		// Release reservation for this order
+		if err := item.ReleaseReservation(cmd.OrderID); err != nil {
+			s.logger.Warn("Failed to release reservation", "sku", item.SKU, "orderId", cmd.OrderID, "error", err)
+			continue // Continue with other items
+		}
+
+		// Save the updated item
+		if err := s.repo.Save(ctx, item); err != nil {
+			s.logger.Error("Failed to save item after release", "sku", item.SKU, "error", err)
+			continue
+		}
+
+		// Update projections
+		if s.projector != nil {
+			_ = s.projector.OnInventoryReserved(ctx, item.SKU, cmd.OrderID)
+		}
+
+		releasedCount++
+	}
+
+	s.logger.Info("Released reservations by order", "orderId", cmd.OrderID, "releasedCount", releasedCount)
+	return releasedCount, nil
+}
+
 // Adjust adjusts inventory quantity
 func (s *InventoryApplicationService) Adjust(ctx context.Context, cmd AdjustCommand) (*InventoryItemDTO, error) {
 	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
@@ -242,7 +277,19 @@ func (s *InventoryApplicationService) Adjust(ctx context.Context, cmd AdjustComm
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Adjusted inventory", "sku", cmd.SKU, "location", cmd.LocationID, "newQuantity", cmd.NewQuantity)
+	// Log business event: inventory adjusted
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.adjusted",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "adjusted",
+		RelatedIDs: map[string]string{
+			"locationId":  cmd.LocationID,
+			"newQuantity": fmt.Sprintf("%d", cmd.NewQuantity),
+			"reason":      cmd.Reason,
+		},
+	})
+
 	return ToInventoryItemDTO(item), nil
 }
 
@@ -288,6 +335,187 @@ func (s *InventoryApplicationService) ListInventory(ctx context.Context, query L
 	}
 
 	return ToInventoryListDTOs(items), nil
+}
+
+// Stage converts a soft reservation to hard allocation (physical staging)
+func (s *InventoryApplicationService) Stage(ctx context.Context, cmd StageCommand) (*InventoryItemDTO, error) {
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	if item == nil {
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Stage inventory (domain logic - converts soft to hard allocation)
+	if err := item.Stage(cmd.ReservationID, cmd.StagingLocationID, cmd.StagedBy); err != nil {
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.staged",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "staged",
+		RelatedIDs: map[string]string{
+			"reservationId":     cmd.ReservationID,
+			"stagingLocationId": cmd.StagingLocationID,
+			"stagedBy":          cmd.StagedBy,
+		},
+	})
+
+	s.logger.Info("Staged inventory", "sku", cmd.SKU, "reservationId", cmd.ReservationID, "stagingLocation", cmd.StagingLocationID)
+	return ToInventoryItemDTO(item), nil
+}
+
+// Pack marks a hard allocation as packed
+func (s *InventoryApplicationService) Pack(ctx context.Context, cmd PackCommand) (*InventoryItemDTO, error) {
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	if item == nil {
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Pack inventory (domain logic)
+	if err := item.Pack(cmd.AllocationID, cmd.PackedBy); err != nil {
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.packed",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "packed",
+		RelatedIDs: map[string]string{
+			"allocationId": cmd.AllocationID,
+			"packedBy":     cmd.PackedBy,
+		},
+	})
+
+	s.logger.Info("Packed inventory", "sku", cmd.SKU, "allocationId", cmd.AllocationID)
+	return ToInventoryItemDTO(item), nil
+}
+
+// Ship ships a packed allocation (removes inventory from system)
+func (s *InventoryApplicationService) Ship(ctx context.Context, cmd ShipCommand) (*InventoryItemDTO, error) {
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	if item == nil {
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Ship inventory (domain logic - removes from system)
+	if err := item.Ship(cmd.AllocationID); err != nil {
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.shipped",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "shipped",
+		RelatedIDs: map[string]string{
+			"allocationId": cmd.AllocationID,
+		},
+	})
+
+	s.logger.Info("Shipped inventory", "sku", cmd.SKU, "allocationId", cmd.AllocationID)
+	return ToInventoryItemDTO(item), nil
+}
+
+// ReturnToShelf returns hard allocated inventory back to shelf
+func (s *InventoryApplicationService) ReturnToShelf(ctx context.Context, cmd ReturnToShelfCommand) (*InventoryItemDTO, error) {
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	if item == nil {
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Return to shelf (domain logic - moves from hard allocation back to available)
+	if err := item.ReturnToShelf(cmd.AllocationID, cmd.ReturnedBy, cmd.Reason); err != nil {
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.returned_to_shelf",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "returned_to_shelf",
+		RelatedIDs: map[string]string{
+			"allocationId": cmd.AllocationID,
+			"returnedBy":   cmd.ReturnedBy,
+			"reason":       cmd.Reason,
+		},
+	})
+
+	s.logger.Info("Returned inventory to shelf", "sku", cmd.SKU, "allocationId", cmd.AllocationID, "reason", cmd.Reason)
+	return ToInventoryItemDTO(item), nil
 }
 
 // updateProjections updates the CQRS read model based on domain events

@@ -9,40 +9,47 @@ import (
 
 // Errors
 var (
-	ErrInsufficientStock  = errors.New("insufficient stock")
-	ErrInvalidQuantity    = errors.New("invalid quantity")
-	ErrReservationNotFound = errors.New("reservation not found")
+	ErrInsufficientStock           = errors.New("insufficient stock")
+	ErrInvalidQuantity             = errors.New("invalid quantity")
+	ErrReservationNotFound         = errors.New("reservation not found")
+	ErrAllocationNotFound          = errors.New("hard allocation not found")
+	ErrAlreadyHardAllocated        = errors.New("reservation already hard allocated")
+	ErrCannotReleaseHardAllocation = errors.New("cannot release hard allocation without physical return")
+	ErrInvalidAllocationStatus     = errors.New("invalid allocation status")
 )
 
 // InventoryItem is the aggregate root for the Inventory bounded context
 type InventoryItem struct {
-	ID               primitive.ObjectID     `bson:"_id,omitempty"`
-	SKU              string                 `bson:"sku"`
-	ProductName      string                 `bson:"productName"`
-	Locations        []StockLocation        `bson:"locations"`
-	TotalQuantity    int                    `bson:"totalQuantity"`
-	ReservedQuantity int                    `bson:"reservedQuantity"`
-	AvailableQuantity int                   `bson:"availableQuantity"`
-	ReorderPoint     int                    `bson:"reorderPoint"`
-	ReorderQuantity  int                    `bson:"reorderQuantity"`
-	Reservations     []Reservation          `bson:"reservations"`
-	Transactions     []InventoryTransaction `bson:"transactions,omitempty"`
-	LastCycleCount   *time.Time             `bson:"lastCycleCount,omitempty"`
-	CreatedAt        time.Time              `bson:"createdAt"`
-	UpdatedAt        time.Time              `bson:"updatedAt"`
-	DomainEvents     []DomainEvent          `bson:"-"`
+	ID                    primitive.ObjectID     `bson:"_id,omitempty"`
+	SKU                   string                 `bson:"sku"`
+	ProductName           string                 `bson:"productName"`
+	Locations             []StockLocation        `bson:"locations"`
+	TotalQuantity         int                    `bson:"totalQuantity"`
+	ReservedQuantity      int                    `bson:"reservedQuantity"`
+	HardAllocatedQuantity int                    `bson:"hardAllocatedQuantity"`
+	AvailableQuantity     int                    `bson:"availableQuantity"`
+	ReorderPoint          int                    `bson:"reorderPoint"`
+	ReorderQuantity       int                    `bson:"reorderQuantity"`
+	Reservations          []Reservation          `bson:"reservations"`
+	HardAllocations       []HardAllocation       `bson:"hardAllocations"`
+	Transactions          []InventoryTransaction `bson:"transactions,omitempty"`
+	LastCycleCount        *time.Time             `bson:"lastCycleCount,omitempty"`
+	CreatedAt             time.Time              `bson:"createdAt"`
+	UpdatedAt             time.Time              `bson:"updatedAt"`
+	DomainEvents          []DomainEvent          `bson:"-"`
 }
 
 // StockLocation represents inventory at a specific location
 type StockLocation struct {
-	LocationID string `bson:"locationId"`
-	Zone       string `bson:"zone"`
-	Aisle      string `bson:"aisle"`
-	Rack       int    `bson:"rack"`
-	Level      int    `bson:"level"`
-	Quantity   int    `bson:"quantity"`
-	Reserved   int    `bson:"reserved"`
-	Available  int    `bson:"available"`
+	LocationID    string `bson:"locationId"`
+	Zone          string `bson:"zone"`
+	Aisle         string `bson:"aisle"`
+	Rack          int    `bson:"rack"`
+	Level         int    `bson:"level"`
+	Quantity      int    `bson:"quantity"`
+	Reserved      int    `bson:"reserved"`
+	HardAllocated int    `bson:"hardAllocated"`
+	Available     int    `bson:"available"`
 }
 
 // Reservation represents a stock reservation for an order
@@ -51,9 +58,26 @@ type Reservation struct {
 	OrderID       string    `bson:"orderId"`
 	Quantity      int       `bson:"quantity"`
 	LocationID    string    `bson:"locationId"`
-	Status        string    `bson:"status"` // active, fulfilled, cancelled
+	Status        string    `bson:"status"` // active, staged, fulfilled, cancelled
 	CreatedAt     time.Time `bson:"createdAt"`
 	ExpiresAt     time.Time `bson:"expiresAt"`
+}
+
+// HardAllocation represents physically staged/locked inventory
+// Created when a picker physically moves items to a staging area
+type HardAllocation struct {
+	AllocationID      string     `bson:"allocationId"`
+	ReservationID     string     `bson:"reservationId"`
+	OrderID           string     `bson:"orderId"`
+	Quantity          int        `bson:"quantity"`
+	SourceLocationID  string     `bson:"sourceLocationId"`
+	StagingLocationID string     `bson:"stagingLocationId"`
+	Status            string     `bson:"status"` // staged, packed, shipped, returned
+	StagedBy          string     `bson:"stagedBy"`
+	PackedBy          string     `bson:"packedBy,omitempty"`
+	CreatedAt         time.Time  `bson:"createdAt"`
+	PackedAt          *time.Time `bson:"packedAt,omitempty"`
+	ShippedAt         *time.Time `bson:"shippedAt,omitempty"`
 }
 
 // InventoryTransaction represents an inventory change
@@ -72,19 +96,21 @@ type InventoryTransaction struct {
 func NewInventoryItem(sku, productName string, reorderPoint, reorderQty int) *InventoryItem {
 	now := time.Now()
 	return &InventoryItem{
-		SKU:              sku,
-		ProductName:      productName,
-		Locations:        make([]StockLocation, 0),
-		TotalQuantity:    0,
-		ReservedQuantity: 0,
-		AvailableQuantity: 0,
-		ReorderPoint:     reorderPoint,
-		ReorderQuantity:  reorderQty,
-		Reservations:     make([]Reservation, 0),
-		Transactions:     make([]InventoryTransaction, 0),
-		CreatedAt:        now,
-		UpdatedAt:        now,
-		DomainEvents:     make([]DomainEvent, 0),
+		SKU:                   sku,
+		ProductName:           productName,
+		Locations:             make([]StockLocation, 0),
+		TotalQuantity:         0,
+		ReservedQuantity:      0,
+		HardAllocatedQuantity: 0,
+		AvailableQuantity:     0,
+		ReorderPoint:          reorderPoint,
+		ReorderQuantity:       reorderQty,
+		Reservations:          make([]Reservation, 0),
+		HardAllocations:       make([]HardAllocation, 0),
+		Transactions:          make([]InventoryTransaction, 0),
+		CreatedAt:             now,
+		UpdatedAt:             now,
+		DomainEvents:          make([]DomainEvent, 0),
 	}
 }
 
@@ -340,4 +366,262 @@ func generateTransactionID() string {
 
 func generateReservationID() string {
 	return "RES-" + time.Now().Format("20060102150405")
+}
+
+func generateAllocationID() string {
+	return "ALLOC-" + time.Now().Format("20060102150405.000")
+}
+
+// Stage converts a soft reservation to a hard allocation (physical staging)
+// This is called when picker physically moves items to staging area
+func (i *InventoryItem) Stage(reservationID, stagingLocationID, stagedBy string) error {
+	// Find the active reservation
+	var reservation *Reservation
+	var reservationIdx int
+	for idx := range i.Reservations {
+		if i.Reservations[idx].ReservationID == reservationID && i.Reservations[idx].Status == "active" {
+			reservation = &i.Reservations[idx]
+			reservationIdx = idx
+			break
+		}
+	}
+
+	if reservation == nil {
+		return ErrReservationNotFound
+	}
+
+	// Check if already hard allocated
+	for _, alloc := range i.HardAllocations {
+		if alloc.ReservationID == reservationID && alloc.Status != "returned" {
+			return ErrAlreadyHardAllocated
+		}
+	}
+
+	// Update reservation status to "staged"
+	i.Reservations[reservationIdx].Status = "staged"
+
+	// Move quantity from Reserved to HardAllocated at location level
+	for idx := range i.Locations {
+		if i.Locations[idx].LocationID == reservation.LocationID {
+			i.Locations[idx].Reserved -= reservation.Quantity
+			i.Locations[idx].HardAllocated += reservation.Quantity
+			break
+		}
+	}
+
+	// Update aggregate counters
+	i.ReservedQuantity -= reservation.Quantity
+	i.HardAllocatedQuantity += reservation.Quantity
+
+	// Create hard allocation
+	allocation := HardAllocation{
+		AllocationID:      generateAllocationID(),
+		ReservationID:     reservationID,
+		OrderID:           reservation.OrderID,
+		Quantity:          reservation.Quantity,
+		SourceLocationID:  reservation.LocationID,
+		StagingLocationID: stagingLocationID,
+		Status:            "staged",
+		StagedBy:          stagedBy,
+		CreatedAt:         time.Now(),
+	}
+	i.HardAllocations = append(i.HardAllocations, allocation)
+	i.UpdatedAt = time.Now()
+
+	// Emit domain event
+	i.AddDomainEvent(&InventoryStagedEvent{
+		SKU:               i.SKU,
+		AllocationID:      allocation.AllocationID,
+		OrderID:           reservation.OrderID,
+		Quantity:          reservation.Quantity,
+		SourceLocationID:  reservation.LocationID,
+		StagingLocationID: stagingLocationID,
+		StagedBy:          stagedBy,
+		StagedAt:          time.Now(),
+	})
+
+	return nil
+}
+
+// Pack marks a hard allocation as packed (ready for shipping)
+func (i *InventoryItem) Pack(allocationID, packedBy string) error {
+	for idx := range i.HardAllocations {
+		if i.HardAllocations[idx].AllocationID == allocationID {
+			if i.HardAllocations[idx].Status != "staged" {
+				return ErrInvalidAllocationStatus
+			}
+			now := time.Now()
+			i.HardAllocations[idx].Status = "packed"
+			i.HardAllocations[idx].PackedBy = packedBy
+			i.HardAllocations[idx].PackedAt = &now
+			i.UpdatedAt = time.Now()
+
+			i.AddDomainEvent(&InventoryPackedEvent{
+				SKU:          i.SKU,
+				AllocationID: allocationID,
+				OrderID:      i.HardAllocations[idx].OrderID,
+				PackedBy:     packedBy,
+				PackedAt:     now,
+			})
+			return nil
+		}
+	}
+	return ErrAllocationNotFound
+}
+
+// Ship marks a hard allocation as shipped and removes inventory
+func (i *InventoryItem) Ship(allocationID string) error {
+	for idx := range i.HardAllocations {
+		if i.HardAllocations[idx].AllocationID == allocationID {
+			if i.HardAllocations[idx].Status != "packed" {
+				return ErrInvalidAllocationStatus
+			}
+			allocation := &i.HardAllocations[idx]
+			now := time.Now()
+			allocation.Status = "shipped"
+			allocation.ShippedAt = &now
+
+			// Reduce total quantity (inventory leaves warehouse)
+			i.TotalQuantity -= allocation.Quantity
+			i.HardAllocatedQuantity -= allocation.Quantity
+
+			// Update source location
+			for locIdx := range i.Locations {
+				if i.Locations[locIdx].LocationID == allocation.SourceLocationID {
+					i.Locations[locIdx].Quantity -= allocation.Quantity
+					i.Locations[locIdx].HardAllocated -= allocation.Quantity
+					break
+				}
+			}
+
+			// Mark associated reservation as fulfilled
+			for resIdx := range i.Reservations {
+				if i.Reservations[resIdx].ReservationID == allocation.ReservationID {
+					i.Reservations[resIdx].Status = "fulfilled"
+					break
+				}
+			}
+
+			i.UpdatedAt = time.Now()
+
+			// Record transaction
+			i.Transactions = append(i.Transactions, InventoryTransaction{
+				TransactionID: generateTransactionID(),
+				Type:          "ship",
+				Quantity:      -allocation.Quantity,
+				LocationID:    allocation.SourceLocationID,
+				ReferenceID:   allocation.OrderID,
+				CreatedAt:     time.Now(),
+				CreatedBy:     "system",
+			})
+
+			i.AddDomainEvent(&InventoryShippedEvent{
+				SKU:          i.SKU,
+				AllocationID: allocationID,
+				OrderID:      allocation.OrderID,
+				Quantity:     allocation.Quantity,
+				ShippedAt:    now,
+			})
+
+			// Check for low stock
+			if i.AvailableQuantity <= i.ReorderPoint {
+				i.AddDomainEvent(&LowStockAlertEvent{
+					SKU:             i.SKU,
+					CurrentQuantity: i.AvailableQuantity,
+					ReorderPoint:    i.ReorderPoint,
+					AlertedAt:       time.Now(),
+				})
+			}
+
+			return nil
+		}
+	}
+	return ErrAllocationNotFound
+}
+
+// ReturnToShelf returns a hard allocated item back to shelf
+// This is required to release hard allocations (physical return needed)
+func (i *InventoryItem) ReturnToShelf(allocationID, returnedBy, reason string) error {
+	for idx := range i.HardAllocations {
+		if i.HardAllocations[idx].AllocationID == allocationID {
+			allocation := &i.HardAllocations[idx]
+
+			if allocation.Status == "shipped" {
+				return errors.New("cannot return shipped inventory")
+			}
+
+			// Move quantity back from HardAllocated to Available
+			for locIdx := range i.Locations {
+				if i.Locations[locIdx].LocationID == allocation.SourceLocationID {
+					i.Locations[locIdx].HardAllocated -= allocation.Quantity
+					i.Locations[locIdx].Available += allocation.Quantity
+					break
+				}
+			}
+
+			// Update aggregate counters
+			i.HardAllocatedQuantity -= allocation.Quantity
+			i.AvailableQuantity += allocation.Quantity
+
+			// Mark allocation as returned
+			allocation.Status = "returned"
+
+			// Cancel the associated reservation
+			for resIdx := range i.Reservations {
+				if i.Reservations[resIdx].ReservationID == allocation.ReservationID {
+					i.Reservations[resIdx].Status = "cancelled"
+					break
+				}
+			}
+
+			i.UpdatedAt = time.Now()
+
+			// Record transaction
+			i.Transactions = append(i.Transactions, InventoryTransaction{
+				TransactionID: generateTransactionID(),
+				Type:          "return_to_shelf",
+				Quantity:      allocation.Quantity,
+				LocationID:    allocation.SourceLocationID,
+				ReferenceID:   allocation.OrderID,
+				Reason:        reason,
+				CreatedAt:     time.Now(),
+				CreatedBy:     returnedBy,
+			})
+
+			i.AddDomainEvent(&InventoryReturnedToShelfEvent{
+				SKU:              i.SKU,
+				AllocationID:     allocationID,
+				OrderID:          allocation.OrderID,
+				Quantity:         allocation.Quantity,
+				SourceLocationID: allocation.SourceLocationID,
+				ReturnedBy:       returnedBy,
+				Reason:           reason,
+				ReturnedAt:       time.Now(),
+			})
+
+			return nil
+		}
+	}
+	return ErrAllocationNotFound
+}
+
+// GetHardAllocation returns a hard allocation by ID
+func (i *InventoryItem) GetHardAllocation(allocationID string) *HardAllocation {
+	for _, alloc := range i.HardAllocations {
+		if alloc.AllocationID == allocationID {
+			return &alloc
+		}
+	}
+	return nil
+}
+
+// GetActiveHardAllocations returns all non-shipped/returned allocations
+func (i *InventoryItem) GetActiveHardAllocations() []HardAllocation {
+	active := make([]HardAllocation, 0)
+	for _, alloc := range i.HardAllocations {
+		if alloc.Status == "staged" || alloc.Status == "packed" {
+			active = append(active, alloc)
+		}
+	}
+	return active
 }

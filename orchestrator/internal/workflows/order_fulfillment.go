@@ -85,9 +85,10 @@ type WaveAssignment struct {
 
 // PickResult represents the result of the picking workflow
 type PickResult struct {
-	TaskID      string       `json:"taskId"`
-	PickedItems []PickedItem `json:"pickedItems"`
-	Success     bool         `json:"success"`
+	TaskID        string       `json:"taskId"`
+	PickedItems   []PickedItem `json:"pickedItems"`
+	AllocationIDs []string     `json:"allocationIds,omitempty"` // Hard allocation IDs from staging
+	Success       bool         `json:"success"`
 }
 
 // PickedItem represents a picked item
@@ -275,6 +276,13 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	// ========================================
 	logger.Info("Step 5: Starting picking workflow", "orderId", input.OrderID, "routeId", routeResult.RouteID)
 
+	// Update order status to "picking"
+	err = workflow.ExecuteActivity(ctx, "StartPicking", input.OrderID).Get(ctx, nil)
+	if err != nil {
+		logger.Warn("Failed to update order status to picking", "orderId", input.OrderID, "error", err)
+		// Non-fatal: continue with picking workflow
+	}
+
 	pickingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("picking-%s", input.OrderID),
 		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
@@ -316,6 +324,13 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 			result.Status = "consolidation_failed"
 			result.Error = fmt.Sprintf("consolidation workflow failed: %v", err)
 			return result, err
+		}
+
+		// Update order status to "consolidated"
+		err = workflow.ExecuteActivity(ctx, "MarkConsolidated", input.OrderID).Get(ctx, nil)
+		if err != nil {
+			logger.Warn("Failed to update order status to consolidated", "orderId", input.OrderID, "error", err)
+			// Non-fatal: continue with workflow
 		}
 	} else {
 		logger.Info("Step 6: Skipping consolidation (single item order)", "orderId", input.OrderID)
@@ -407,6 +422,13 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		return result, err
 	}
 
+	// Update order status to "packed"
+	err = workflow.ExecuteActivity(ctx, "MarkPacked", input.OrderID).Get(ctx, nil)
+	if err != nil {
+		logger.Warn("Failed to update order status to packed", "orderId", input.OrderID, "error", err)
+		// Non-fatal: continue with shipping workflow
+	}
+
 	result.TrackingNumber = packResult.TrackingNumber
 
 	// ========================================
@@ -457,6 +479,15 @@ func getWaveTimeout(priority string) time.Duration {
 	}
 }
 
+// OrderCancellationInput holds optional input for order cancellation
+type OrderCancellationInput struct {
+	OrderID       string                       `json:"orderId"`
+	Reason        string                       `json:"reason"`
+	AllocationIDs []string                     `json:"allocationIds,omitempty"` // Hard allocations to return to shelf
+	PickedItems   []PickedItem                 `json:"pickedItems,omitempty"`   // Items that were picked (for return-to-shelf)
+	IsHardAllocated bool                       `json:"isHardAllocated"`         // Whether inventory has been staged
+}
+
 // OrderCancellationWorkflow handles order cancellation with compensation
 func OrderCancellationWorkflow(ctx workflow.Context, orderID string, reason string) error {
 	logger := workflow.GetLogger(ctx)
@@ -476,7 +507,8 @@ func OrderCancellationWorkflow(ctx workflow.Context, orderID string, reason stri
 		return fmt.Errorf("failed to cancel order: %w", err)
 	}
 
-	// Step 2: Release inventory reservations
+	// Step 2: Release inventory - handle both soft reservations and hard allocations
+	// First, try to release soft reservations (for orders not yet staged)
 	err = workflow.ExecuteActivity(ctx, "ReleaseInventoryReservation", orderID).Get(ctx, nil)
 	if err != nil {
 		logger.Warn("Failed to release inventory reservation", "orderId", orderID, "error", err)
@@ -490,5 +522,91 @@ func OrderCancellationWorkflow(ctx workflow.Context, orderID string, reason stri
 	}
 
 	logger.Info("Order cancellation completed", "orderId", orderID)
+	return nil
+}
+
+// OrderCancellationWorkflowWithAllocations handles order cancellation with hard allocation support
+// Use this when cancelling orders that have been staged (hard allocated)
+func OrderCancellationWorkflowWithAllocations(ctx workflow.Context, input OrderCancellationInput) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting order cancellation workflow with allocations",
+		"orderId", input.OrderID,
+		"reason", input.Reason,
+		"isHardAllocated", input.IsHardAllocated,
+		"allocationCount", len(input.AllocationIDs),
+	)
+
+	ao := workflow.ActivityOptions{
+		StartToCloseTimeout: DefaultActivityTimeout,
+		RetryPolicy: &temporal.RetryPolicy{
+			MaximumAttempts: DefaultMaxRetryAttempts,
+		},
+	}
+	ctx = workflow.WithActivityOptions(ctx, ao)
+
+	// Step 1: Cancel the order
+	err := workflow.ExecuteActivity(ctx, "CancelOrder", input.OrderID, input.Reason).Get(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to cancel order: %w", err)
+	}
+
+	// Step 2: Handle inventory based on allocation status
+	if input.IsHardAllocated && len(input.AllocationIDs) > 0 {
+		// Order has been staged - need to return inventory to shelf
+		logger.Info("Returning hard allocated inventory to shelf", "orderId", input.OrderID, "allocationCount", len(input.AllocationIDs))
+
+		// Build return items from allocations
+		returnItems := make([]map[string]interface{}, 0, len(input.AllocationIDs))
+		for i, allocID := range input.AllocationIDs {
+			sku := ""
+			if i < len(input.PickedItems) {
+				sku = input.PickedItems[i].SKU
+			}
+			returnItems = append(returnItems, map[string]interface{}{
+				"sku":          sku,
+				"allocationId": allocID,
+			})
+		}
+
+		err = workflow.ExecuteActivity(ctx, "ReturnInventoryToShelf", map[string]interface{}{
+			"orderId":    input.OrderID,
+			"returnedBy": "cancellation-workflow",
+			"reason":     input.Reason,
+			"items":      returnItems,
+		}).Get(ctx, nil)
+		if err != nil {
+			logger.Warn("Failed to return inventory to shelf",
+				"orderId", input.OrderID,
+				"error", err,
+			)
+			// Continue - this is a compensation that can be reconciled manually
+		} else {
+			logger.Info("Hard allocated inventory returned to shelf successfully",
+				"orderId", input.OrderID,
+			)
+		}
+	} else {
+		// Order only has soft reservation - release normally
+		logger.Info("Releasing soft inventory reservation", "orderId", input.OrderID)
+		err = workflow.ExecuteActivity(ctx, "ReleaseInventoryReservation", input.OrderID).Get(ctx, nil)
+		if err != nil {
+			logger.Warn("Failed to release inventory reservation",
+				"orderId", input.OrderID,
+				"error", err,
+			)
+			// Continue with other compensations
+		}
+	}
+
+	// Step 3: Notify customer
+	err = workflow.ExecuteActivity(ctx, "NotifyCustomerCancellation", input.OrderID, input.Reason).Get(ctx, nil)
+	if err != nil {
+		logger.Warn("Failed to notify customer of cancellation",
+			"orderId", input.OrderID,
+			"error", err,
+		)
+	}
+
+	logger.Info("Order cancellation completed", "orderId", input.OrderID)
 	return nil
 }

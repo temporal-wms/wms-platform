@@ -41,6 +41,11 @@ type ReleaseReservationCommand struct {
 	OrderID string
 }
 
+// ReleaseByOrderCommand represents the command to release all reservations for an order
+type ReleaseByOrderCommand struct {
+	OrderID string
+}
+
 // AdjustCommand represents the command to adjust inventory
 type AdjustCommand struct {
 	SKU         string
@@ -86,4 +91,33 @@ type ListInventoryQuery struct {
 	Offset    int
 	SortBy    string
 	SortOrder string
+}
+
+// StageCommand represents the command to stage inventory (soft to hard allocation)
+type StageCommand struct {
+	SKU               string
+	ReservationID     string
+	StagingLocationID string
+	StagedBy          string
+}
+
+// PackCommand represents the command to mark allocation as packed
+type PackCommand struct {
+	SKU          string
+	AllocationID string
+	PackedBy     string
+}
+
+// ShipCommand represents the command to ship a packed allocation
+type ShipCommand struct {
+	SKU          string
+	AllocationID string
+}
+
+// ReturnToShelfCommand represents the command to return hard allocated inventory
+type ReturnToShelfCommand struct {
+	SKU          string
+	AllocationID string
+	ReturnedBy   string
+	Reason       string
 }

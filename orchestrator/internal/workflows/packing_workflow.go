@@ -11,6 +11,7 @@ import (
 // PackingWorkflowInput represents input for the packing workflow
 type PackingWorkflowInput struct {
 	OrderID string `json:"orderId"`
+	WaveID  string `json:"waveId"`
 }
 
 // PackingWorkflow coordinates the packing process for an order
@@ -18,7 +19,8 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (PackRe
 	logger := workflow.GetLogger(ctx)
 
 	orderID, _ := input["orderId"].(string)
-	logger.Info("Starting packing workflow", "orderId", orderID)
+	waveID, _ := input["waveId"].(string)
+	logger.Info("Starting packing workflow", "orderId", orderID, "waveId", waveID)
 
 	// Activity options
 	ao := workflow.ActivityOptions{
@@ -39,6 +41,7 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (PackRe
 	var taskID string
 	err := workflow.ExecuteActivity(ctx, "CreatePackTask", map[string]interface{}{
 		"orderId": orderID,
+		"waveId":  waveID,
 	}).Get(ctx, &taskID)
 	if err != nil {
 		return result, fmt.Errorf("failed to create pack task: %w", err)
@@ -88,7 +91,16 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (PackRe
 	}
 
 	result.TrackingNumber = labelData["trackingNumber"].(string)
-	result.Carrier = labelData["carrier"].(string)
+	// carrier is returned as a nested object (ShipmentCarrier), extract the code
+	if carrierMap, ok := labelData["carrier"].(map[string]interface{}); ok {
+		if code, ok := carrierMap["code"].(string); ok {
+			result.Carrier = code
+		} else if name, ok := carrierMap["name"].(string); ok {
+			result.Carrier = name
+		}
+	} else if carrierStr, ok := labelData["carrier"].(string); ok {
+		result.Carrier = carrierStr
+	}
 
 	// Step 6: Apply label to package
 	logger.Info("Applying label to package", "orderId", orderID, "packageId", packageID, "trackingNumber", result.TrackingNumber)
@@ -105,6 +117,51 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (PackRe
 	err = workflow.ExecuteActivity(ctx, "SealPackage", packageID).Get(ctx, nil)
 	if err != nil {
 		return result, fmt.Errorf("failed to seal package: %w", err)
+	}
+
+	// Step 8: Mark inventory as packed (hard allocation status update)
+	// Extract allocation info from input if available
+	if allocationIDs, ok := input["allocationIds"].([]interface{}); ok && len(allocationIDs) > 0 {
+		logger.Info("Marking inventory as packed", "orderId", orderID, "allocationCount", len(allocationIDs))
+
+		// Build pack items from allocations and picked items
+		packItems := make([]map[string]interface{}, 0)
+		pickedItems, _ := input["pickedItems"].([]interface{})
+
+		for i, allocID := range allocationIDs {
+			if strAllocID, ok := allocID.(string); ok {
+				sku := ""
+				// Try to get SKU from picked items
+				if i < len(pickedItems) {
+					if itemMap, ok := pickedItems[i].(map[string]interface{}); ok {
+						if skuVal, ok := itemMap["sku"].(string); ok {
+							sku = skuVal
+						}
+					}
+				}
+				packItems = append(packItems, map[string]interface{}{
+					"sku":          sku,
+					"allocationId": strAllocID,
+				})
+			}
+		}
+
+		if len(packItems) > 0 {
+			err = workflow.ExecuteActivity(ctx, "PackInventory", map[string]interface{}{
+				"orderId":  orderID,
+				"packedBy": "packing-station",
+				"items":    packItems,
+			}).Get(ctx, nil)
+			if err != nil {
+				// Log but don't fail - inventory status can be reconciled
+				logger.Warn("Failed to mark inventory as packed, continuing workflow",
+					"orderId", orderID,
+					"error", err,
+				)
+			} else {
+				logger.Info("Inventory marked as packed successfully", "orderId", orderID)
+			}
+		}
 	}
 
 	logger.Info("Packing completed successfully",

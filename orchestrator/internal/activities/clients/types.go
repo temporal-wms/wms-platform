@@ -65,6 +65,39 @@ type ReserveItemRequest struct {
 	Quantity int    `json:"quantity"`
 }
 
+// PickInventoryRequest represents a request to pick/decrement inventory
+type PickInventoryRequest struct {
+	OrderID    string `json:"orderId"`
+	LocationID string `json:"locationId"`
+	Quantity   int    `json:"quantity"`
+	CreatedBy  string `json:"createdBy"`
+}
+
+// StageInventoryRequest represents a request to stage inventory (soft to hard allocation)
+type StageInventoryRequest struct {
+	ReservationID     string `json:"reservationId"`
+	StagingLocationID string `json:"stagingLocationId"`
+	StagedBy          string `json:"stagedBy"`
+}
+
+// PackInventoryRequest represents a request to mark inventory as packed
+type PackInventoryRequest struct {
+	AllocationID string `json:"allocationId"`
+	PackedBy     string `json:"packedBy"`
+}
+
+// ShipInventoryRequest represents a request to ship inventory
+type ShipInventoryRequest struct {
+	AllocationID string `json:"allocationId"`
+}
+
+// ReturnToShelfRequest represents a request to return staged inventory to shelf
+type ReturnToShelfRequest struct {
+	AllocationID string `json:"allocationId"`
+	ReturnedBy   string `json:"returnedBy"`
+	Reason       string `json:"reason"`
+}
+
 // Route represents a pick route
 type Route struct {
 	RouteID           string      `json:"routeId"`
