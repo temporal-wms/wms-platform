@@ -1,0 +1,64 @@
+{
+  "services": [
+    "order-service",
+    "inventory-service",
+    "waving-service",
+    "routing-service",
+    "picking-service",
+    "consolidation-service",
+    "packing-service",
+    "shipping-service",
+    "labor-service",
+    "facility-service",
+    "orchestrator"
+  ],
+  "namespace": "wms-platform-dev",
+  "tempo_datasource_uid": "tempo",
+  "loki_datasource_uid": "P8E80F9AEF21F6940",
+  "dashboard_template": {
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Recent Traces",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 0, "w": 24, "h": 10},
+        "description": "Recent traces for this service"
+      },
+      {
+        "id": 2,
+        "title": "Trace Duration Distribution",
+        "type": "histogram",
+        "gridPos": {"x": 0, "y": 10, "w": 12, "h": 8},
+        "description": "Distribution of trace durations"
+      },
+      {
+        "id": 3,
+        "title": "Traces Over Time",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 10, "w": 12, "h": 8},
+        "description": "Number of traces over time"
+      },
+      {
+        "id": 4,
+        "title": "Error Traces",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 18, "w": 24, "h": 8},
+        "description": "Traces with errors"
+      },
+      {
+        "id": 5,
+        "title": "Trace Logs Correlation",
+        "type": "logs",
+        "gridPos": {"x": 0, "y": 26, "w": 24, "h": 10},
+        "description": "Logs correlated with traces"
+      }
+    ]
+  }
+}

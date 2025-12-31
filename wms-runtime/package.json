@@ -1,0 +1,20 @@
+{
+  "name": "wms-runtime",
+  "version": "1.0.0",
+  "description": "K6 load testing for WMS Platform",
+  "scripts": {
+    "setup": "k6 run scripts/setup.js",
+    "test:smoke": "k6 run scripts/scenarios/smoke.js",
+    "test:load": "k6 run scripts/scenarios/load.js",
+    "test:stress": "k6 run scripts/scenarios/stress.js",
+    "test:orders": "k6 run scripts/orders.js"
+  },
+  "keywords": [
+    "k6",
+    "load-testing",
+    "wms",
+    "warehouse"
+  ],
+  "author": "WMS Platform Team",
+  "license": "MIT"
+}

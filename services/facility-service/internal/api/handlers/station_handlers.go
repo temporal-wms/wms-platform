@@ -15,15 +15,21 @@ import (
 
 // StationHandlers contains handlers for station operations
 type StationHandlers struct {
-	service *application.StationApplicationService
-	logger  *logging.Logger
+	service         *application.StationApplicationService
+	logger          *logging.Logger
+	businessMetrics *middleware.BusinessMetrics
 }
 
 // NewStationHandlers creates a new StationHandlers
-func NewStationHandlers(service *application.StationApplicationService, logger *logging.Logger) *StationHandlers {
+func NewStationHandlers(
+	service *application.StationApplicationService,
+	logger *logging.Logger,
+	businessMetrics *middleware.BusinessMetrics,
+) *StationHandlers {
 	return &StationHandlers{
-		service: service,
-		logger:  logger,
+		service:         service,
+		logger:          logger,
+		businessMetrics: businessMetrics,
 	}
 }
 
@@ -64,8 +70,13 @@ func (h *StationHandlers) CreateStation(c *gin.Context) {
 		return
 	}
 
+	// Enhanced span attributes
 	middleware.AddSpanAttributes(c, map[string]interface{}{
-		"station.id": req.StationID,
+		"operation":            "create",
+		"station.id":           req.StationID,
+		"station.zone":         req.Zone,
+		"station.type":         req.StationType,
+		"station.capabilities": len(req.Capabilities),
 	})
 
 	cmd := application.CreateStationCommand{
@@ -87,6 +98,12 @@ func (h *StationHandlers) CreateStation(c *gin.Context) {
 		return
 	}
 
+	// Add span event for successful creation
+	middleware.AddSpanEvent(c, "station_created", map[string]interface{}{
+		"station_id": station.StationID,
+		"zone":       station.Zone,
+	})
+
 	c.JSON(http.StatusCreated, station)
 }
 
@@ -96,6 +113,7 @@ func (h *StationHandlers) GetStation(c *gin.Context) {
 
 	stationID := c.Param("stationId")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":  "read",
 		"station.id": stationID,
 	})
 
@@ -120,6 +138,7 @@ func (h *StationHandlers) UpdateStation(c *gin.Context) {
 
 	stationID := c.Param("stationId")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":  "update",
 		"station.id": stationID,
 	})
 
@@ -150,6 +169,11 @@ func (h *StationHandlers) UpdateStation(c *gin.Context) {
 		return
 	}
 
+	// Add span event for successful update
+	middleware.AddSpanEvent(c, "station_updated", map[string]interface{}{
+		"station_id": stationID,
+	})
+
 	c.JSON(http.StatusOK, station)
 }
 
@@ -159,6 +183,7 @@ func (h *StationHandlers) DeleteStation(c *gin.Context) {
 
 	stationID := c.Param("stationId")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":  "delete",
 		"station.id": stationID,
 	})
 
@@ -173,6 +198,11 @@ func (h *StationHandlers) DeleteStation(c *gin.Context) {
 		return
 	}
 
+	// Add span event for successful deletion
+	middleware.AddSpanEvent(c, "station_deleted", map[string]interface{}{
+		"station_id": stationID,
+	})
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -182,7 +212,9 @@ func (h *StationHandlers) SetCapabilities(c *gin.Context) {
 
 	stationID := c.Param("stationId")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
-		"station.id": stationID,
+		"operation":            "update",
+		"station.id":           stationID,
+		"capabilities.count":   0, // will be updated after parsing
 	})
 
 	var req struct {
@@ -192,6 +224,11 @@ func (h *StationHandlers) SetCapabilities(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Update span with actual capabilities count
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"capabilities.count": len(req.Capabilities),
+	})
 
 	cmd := application.SetCapabilitiesCommand{
 		StationID:    stationID,
@@ -208,6 +245,12 @@ func (h *StationHandlers) SetCapabilities(c *gin.Context) {
 		return
 	}
 
+	// Add span event for successful capabilities update
+	middleware.AddSpanEvent(c, "capabilities_updated", map[string]interface{}{
+		"station_id":         stationID,
+		"capabilities_count": len(req.Capabilities),
+	})
+
 	c.JSON(http.StatusOK, station)
 }
 
@@ -218,6 +261,7 @@ func (h *StationHandlers) AddCapability(c *gin.Context) {
 	stationID := c.Param("stationId")
 	capability := c.Param("capability")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":  "update",
 		"station.id": stationID,
 		"capability": capability,
 	})
@@ -237,6 +281,12 @@ func (h *StationHandlers) AddCapability(c *gin.Context) {
 		return
 	}
 
+	// Add span event for capability added
+	middleware.AddSpanEvent(c, "capability_added", map[string]interface{}{
+		"station_id": stationID,
+		"capability": capability,
+	})
+
 	c.JSON(http.StatusOK, station)
 }
 
@@ -247,6 +297,7 @@ func (h *StationHandlers) RemoveCapability(c *gin.Context) {
 	stationID := c.Param("stationId")
 	capability := c.Param("capability")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":  "update",
 		"station.id": stationID,
 		"capability": capability,
 	})
@@ -266,6 +317,12 @@ func (h *StationHandlers) RemoveCapability(c *gin.Context) {
 		return
 	}
 
+	// Add span event for capability removed
+	middleware.AddSpanEvent(c, "capability_removed", map[string]interface{}{
+		"station_id": stationID,
+		"capability": capability,
+	})
+
 	c.JSON(http.StatusOK, station)
 }
 
@@ -275,6 +332,7 @@ func (h *StationHandlers) SetStatus(c *gin.Context) {
 
 	stationID := c.Param("stationId")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":  "update",
 		"station.id": stationID,
 	})
 
@@ -301,6 +359,12 @@ func (h *StationHandlers) SetStatus(c *gin.Context) {
 		return
 	}
 
+	// Add span event for status change
+	middleware.AddSpanEvent(c, "station_status_changed", map[string]interface{}{
+		"station_id": stationID,
+		"new_status": req.Status,
+	})
+
 	c.JSON(http.StatusOK, station)
 }
 
@@ -319,9 +383,11 @@ func (h *StationHandlers) FindCapableStations(c *gin.Context) {
 	}
 
 	middleware.AddSpanAttributes(c, map[string]interface{}{
-		"requirements": req.Requirements,
-		"stationType":  req.StationType,
-		"zone":         req.Zone,
+		"operation":              "read",
+		"query.requirements":     req.Requirements,
+		"query.requirements_count": len(req.Requirements),
+		"query.has_type_filter":  req.StationType != "",
+		"query.has_zone_filter":  req.Zone != "",
 	})
 
 	query := application.FindCapableStationsQuery{
@@ -336,6 +402,11 @@ func (h *StationHandlers) FindCapableStations(c *gin.Context) {
 		return
 	}
 
+	// Add result count to span
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"result.stations_count": len(stations),
+	})
+
 	c.JSON(http.StatusOK, stations)
 }
 
@@ -345,6 +416,12 @@ func (h *StationHandlers) ListStations(c *gin.Context) {
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":    "read",
+		"query.limit":  limit,
+		"query.offset": offset,
+	})
 
 	query := application.ListStationsQuery{
 		Limit:  limit,
@@ -357,6 +434,11 @@ func (h *StationHandlers) ListStations(c *gin.Context) {
 		return
 	}
 
+	// Add result count to span
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"result.stations_count": len(stations),
+	})
+
 	c.JSON(http.StatusOK, stations)
 }
 
@@ -366,7 +448,8 @@ func (h *StationHandlers) GetByZone(c *gin.Context) {
 
 	zone := c.Param("zone")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
-		"zone": zone,
+		"operation": "read",
+		"zone":      zone,
 	})
 
 	query := application.GetStationsByZoneQuery{Zone: zone}
@@ -377,6 +460,11 @@ func (h *StationHandlers) GetByZone(c *gin.Context) {
 		return
 	}
 
+	// Add result count to span
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"result.stations_count": len(stations),
+	})
+
 	c.JSON(http.StatusOK, stations)
 }
 
@@ -386,6 +474,7 @@ func (h *StationHandlers) GetByType(c *gin.Context) {
 
 	stationType := c.Param("type")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":   "read",
 		"stationType": stationType,
 	})
 
@@ -397,6 +486,11 @@ func (h *StationHandlers) GetByType(c *gin.Context) {
 		return
 	}
 
+	// Add result count to span
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"result.stations_count": len(stations),
+	})
+
 	c.JSON(http.StatusOK, stations)
 }
 
@@ -406,7 +500,8 @@ func (h *StationHandlers) GetByStatus(c *gin.Context) {
 
 	status := c.Param("status")
 	middleware.AddSpanAttributes(c, map[string]interface{}{
-		"status": status,
+		"operation": "read",
+		"status":    status,
 	})
 
 	query := application.GetStationsByStatusQuery{Status: status}
@@ -416,6 +511,11 @@ func (h *StationHandlers) GetByStatus(c *gin.Context) {
 		responder.RespondInternalError(err)
 		return
 	}
+
+	// Add result count to span
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"result.stations_count": len(stations),
+	})
 
 	c.JSON(http.StatusOK, stations)
 }

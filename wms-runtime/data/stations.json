@@ -1,0 +1,174 @@
+{
+  "stations": [
+    {
+      "stationId": "PACK-GW-001",
+      "name": "Gift Wrap Station 1",
+      "zone": "zone-a",
+      "stationType": "packing",
+      "capabilities": ["gift_wrap", "single_item", "fragile"],
+      "maxConcurrentTasks": 3
+    },
+    {
+      "stationId": "PACK-GW-002",
+      "name": "Gift Wrap Station 2",
+      "zone": "zone-b",
+      "stationType": "packing",
+      "capabilities": ["gift_wrap", "multi_item", "high_value"],
+      "maxConcurrentTasks": 3
+    },
+    {
+      "stationId": "PACK-GW-003",
+      "name": "Premium Gift Wrap Station",
+      "zone": "zone-a",
+      "stationType": "packing",
+      "capabilities": ["gift_wrap", "premium_wrap", "single_item", "high_value"],
+      "maxConcurrentTasks": 2
+    },
+    {
+      "stationId": "PACK-STD-001",
+      "name": "Standard Packing 1",
+      "zone": "zone-a",
+      "stationType": "packing",
+      "capabilities": ["single_item", "multi_item"],
+      "maxConcurrentTasks": 5
+    },
+    {
+      "stationId": "PACK-STD-002",
+      "name": "Standard Packing 2",
+      "zone": "zone-b",
+      "stationType": "packing",
+      "capabilities": ["single_item", "multi_item"],
+      "maxConcurrentTasks": 5
+    },
+    {
+      "stationId": "PACK-STD-003",
+      "name": "Standard Packing 3",
+      "zone": "zone-c",
+      "stationType": "packing",
+      "capabilities": ["single_item", "multi_item", "fragile"],
+      "maxConcurrentTasks": 4
+    },
+    {
+      "stationId": "PACK-HAZ-001",
+      "name": "Hazmat Packing Station",
+      "zone": "zone-d",
+      "stationType": "packing",
+      "capabilities": ["hazmat", "single_item"],
+      "maxConcurrentTasks": 2
+    },
+    {
+      "stationId": "PACK-OVER-001",
+      "name": "Oversized Packing Station",
+      "zone": "zone-d",
+      "stationType": "packing",
+      "capabilities": ["oversized", "heavy"],
+      "maxConcurrentTasks": 2
+    },
+    {
+      "stationId": "CONSOL-001",
+      "name": "Consolidation Station 1",
+      "zone": "zone-a",
+      "stationType": "consolidation",
+      "capabilities": ["multi_item"],
+      "maxConcurrentTasks": 10
+    },
+    {
+      "stationId": "CONSOL-002",
+      "name": "Consolidation Station 2",
+      "zone": "zone-b",
+      "stationType": "consolidation",
+      "capabilities": ["multi_item", "fragile"],
+      "maxConcurrentTasks": 8
+    },
+    {
+      "stationId": "CONSOL-003",
+      "name": "Consolidation Station 3",
+      "zone": "zone-c",
+      "stationType": "consolidation",
+      "capabilities": ["multi_item", "heavy"],
+      "maxConcurrentTasks": 6
+    },
+    {
+      "stationId": "SHIP-001",
+      "name": "Shipping Station 1",
+      "zone": "zone-e",
+      "stationType": "shipping",
+      "capabilities": ["standard", "multi_item"],
+      "maxConcurrentTasks": 8
+    },
+    {
+      "stationId": "SHIP-002",
+      "name": "Shipping Station 2",
+      "zone": "zone-e",
+      "stationType": "shipping",
+      "capabilities": ["standard", "single_item"],
+      "maxConcurrentTasks": 10
+    },
+    {
+      "stationId": "SHIP-OVER-001",
+      "name": "Oversized Shipping Station",
+      "zone": "zone-e",
+      "stationType": "shipping",
+      "capabilities": ["oversized", "heavy"],
+      "maxConcurrentTasks": 4
+    },
+    {
+      "stationId": "SHIP-HAZ-001",
+      "name": "Hazmat Shipping Station",
+      "zone": "zone-f",
+      "stationType": "shipping",
+      "capabilities": ["hazmat"],
+      "maxConcurrentTasks": 3
+    },
+    {
+      "stationId": "PICK-001",
+      "name": "Picking Station 1",
+      "zone": "zone-a",
+      "stationType": "picking",
+      "capabilities": ["standard", "multi_item"],
+      "maxConcurrentTasks": 15
+    },
+    {
+      "stationId": "PICK-002",
+      "name": "Picking Station 2",
+      "zone": "zone-b",
+      "stationType": "picking",
+      "capabilities": ["standard", "fragile"],
+      "maxConcurrentTasks": 12
+    },
+    {
+      "stationId": "PICK-HAZ-001",
+      "name": "Hazmat Picking Station",
+      "zone": "zone-d",
+      "stationType": "picking",
+      "capabilities": ["hazmat"],
+      "maxConcurrentTasks": 5
+    }
+  ],
+  "giftWrapTypes": [
+    "standard",
+    "premium",
+    "holiday",
+    "birthday",
+    "wedding"
+  ],
+  "giftMessages": [
+    "Happy Birthday!",
+    "Congratulations!",
+    "With love",
+    "Best wishes",
+    "Thinking of you",
+    "Thank you!",
+    "Happy Anniversary!",
+    "Happy Holidays!",
+    null
+  ],
+  "zones": [
+    "zone-a",
+    "zone-b",
+    "zone-c",
+    "zone-d",
+    "zone-e",
+    "zone-f"
+  ]
+}

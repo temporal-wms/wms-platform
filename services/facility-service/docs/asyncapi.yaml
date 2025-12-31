@@ -1,0 +1,337 @@
+asyncapi: 3.0.0
+info:
+  title: Facility Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Facility Service.
+
+    This service publishes events related to station lifecycle management including
+    station creation, status changes, capability updates, and worker assignments.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.facility.events:
+    address: wms.facility.events
+    messages:
+      StationCreated:
+        $ref: '#/components/messages/StationCreated'
+      StationUpdated:
+        $ref: '#/components/messages/StationUpdated'
+      StationDeleted:
+        $ref: '#/components/messages/StationDeleted'
+      StationStatusChanged:
+        $ref: '#/components/messages/StationStatusChanged'
+      StationCapabilityAdded:
+        $ref: '#/components/messages/StationCapabilityAdded'
+      StationCapabilityRemoved:
+        $ref: '#/components/messages/StationCapabilityRemoved'
+      StationCapabilitiesUpdated:
+        $ref: '#/components/messages/StationCapabilitiesUpdated'
+      WorkerAssignedToStation:
+        $ref: '#/components/messages/WorkerAssignedToStation'
+    description: Station lifecycle and management events
+
+operations:
+  publishStationCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.facility.events'
+    messages:
+      - $ref: '#/channels/wms.facility.events/messages/StationCreated'
+    description: Published when a new station is created
+
+  publishStationUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.facility.events'
+    messages:
+      - $ref: '#/channels/wms.facility.events/messages/StationUpdated'
+    description: Published when a station is updated
+
+  publishStationDeleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.facility.events'
+    messages:
+      - $ref: '#/channels/wms.facility.events/messages/StationDeleted'
+    description: Published when a station is deleted
+
+  publishStationStatusChanged:
+    action: send
+    channel:
+      $ref: '#/channels/wms.facility.events'
+    messages:
+      - $ref: '#/channels/wms.facility.events/messages/StationStatusChanged'
+    description: Published when a station status changes
+
+  publishStationCapabilityAdded:
+    action: send
+    channel:
+      $ref: '#/channels/wms.facility.events'
+    messages:
+      - $ref: '#/channels/wms.facility.events/messages/StationCapabilityAdded'
+    description: Published when a capability is added to a station
+
+  publishStationCapabilityRemoved:
+    action: send
+    channel:
+      $ref: '#/channels/wms.facility.events'
+    messages:
+      - $ref: '#/channels/wms.facility.events/messages/StationCapabilityRemoved'
+    description: Published when a capability is removed from a station
+
+  publishStationCapabilitiesUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.facility.events'
+    messages:
+      - $ref: '#/channels/wms.facility.events/messages/StationCapabilitiesUpdated'
+    description: Published when station capabilities are bulk updated
+
+  publishWorkerAssignedToStation:
+    action: send
+    channel:
+      $ref: '#/channels/wms.facility.events'
+    messages:
+      - $ref: '#/channels/wms.facility.events/messages/WorkerAssignedToStation'
+    description: Published when a worker is assigned to a station
+
+components:
+  messages:
+    StationCreated:
+      name: StationCreated
+      title: Station Created Event
+      summary: Published when a new station is created in the facility
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StationCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    StationUpdated:
+      name: StationUpdated
+      title: Station Updated Event
+      summary: Published when station details are updated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StationUpdatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    StationDeleted:
+      name: StationDeleted
+      title: Station Deleted Event
+      summary: Published when a station is deleted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StationDeletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    StationStatusChanged:
+      name: StationStatusChanged
+      title: Station Status Changed Event
+      summary: Published when station status changes (active, inactive, maintenance)
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StationStatusChangedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    StationCapabilityAdded:
+      name: StationCapabilityAdded
+      title: Station Capability Added Event
+      summary: Published when a capability is added to a station
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StationCapabilityAddedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    StationCapabilityRemoved:
+      name: StationCapabilityRemoved
+      title: Station Capability Removed Event
+      summary: Published when a capability is removed from a station
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StationCapabilityRemovedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    StationCapabilitiesUpdated:
+      name: StationCapabilitiesUpdated
+      title: Station Capabilities Updated Event
+      summary: Published when station capabilities are bulk replaced
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StationCapabilitiesUpdatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WorkerAssignedToStation:
+      name: WorkerAssignedToStation
+      title: Worker Assigned to Station Event
+      summary: Published when a worker is assigned to a station
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerAssignedToStationPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+          description: Event type (e.g., station.created, station.status.changed)
+        ce-source:
+          type: string
+          description: Event source (e.g., /facility-service)
+        ce-id:
+          type: string
+          description: Unique event identifier
+        ce-time:
+          type: string
+          format: date-time
+          description: Event timestamp
+        ce-wmscorrelationid:
+          type: string
+          description: WMS correlation ID for distributed tracing
+        ce-wmsworkflowid:
+          type: string
+          description: Temporal workflow ID for workflow correlation
+        content-type:
+          type: string
+          const: application/json
+
+    StationCreatedPayload:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: STN-PACK-001
+        name:
+          type: string
+          example: Packing Station 1
+        zone:
+          type: string
+          example: zone-a
+        stationType:
+          type: string
+          enum: [packing, consolidation, shipping, receiving]
+          example: packing
+        createdAt:
+          type: string
+          format: date-time
+
+    StationUpdatedPayload:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: STN-PACK-001
+        name:
+          type: string
+          example: Packing Station 1 (Updated)
+        zone:
+          type: string
+          example: zone-b
+        updatedAt:
+          type: string
+          format: date-time
+
+    StationDeletedPayload:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: STN-PACK-001
+        deletedAt:
+          type: string
+          format: date-time
+
+    StationStatusChangedPayload:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: STN-PACK-001
+        oldStatus:
+          type: string
+          enum: [active, inactive, maintenance]
+          example: active
+        newStatus:
+          type: string
+          enum: [active, inactive, maintenance]
+          example: maintenance
+        changedAt:
+          type: string
+          format: date-time
+
+    StationCapabilityAddedPayload:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: STN-PACK-001
+        capability:
+          type: string
+          enum: [single_item, multi_item, gift_wrap, hazmat, oversized, fragile, cold_chain, high_value]
+          example: gift_wrap
+        addedAt:
+          type: string
+          format: date-time
+
+    StationCapabilityRemovedPayload:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: STN-PACK-001
+        capability:
+          type: string
+          enum: [single_item, multi_item, gift_wrap, hazmat, oversized, fragile, cold_chain, high_value]
+          example: hazmat
+        removedAt:
+          type: string
+          format: date-time
+
+    StationCapabilitiesUpdatedPayload:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: STN-PACK-001
+        capabilities:
+          type: array
+          items:
+            type: string
+          example: ["single_item", "gift_wrap", "fragile"]
+        updatedAt:
+          type: string
+          format: date-time
+
+    WorkerAssignedToStationPayload:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: STN-PACK-001
+        workerId:
+          type: string
+          example: WORKER-123
+        assignedAt:
+          type: string
+          format: date-time
