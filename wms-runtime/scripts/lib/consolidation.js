@@ -269,9 +269,10 @@ export function processConsolidation(unit) {
   const expectedItems = unit.expectedItems || unit.items || [];
   const hasValidSourceTotes = expectedItems.every((item) => item.sourceToteId && item.sourceToteId.length > 0);
 
+  let consolidatedItems = [];
   if (hasValidSourceTotes) {
     // Step 1: Simulate consolidating items (only if we have valid sourceToteIds)
-    const consolidatedItems = simulateConsolidation(unit);
+    consolidatedItems = simulateConsolidation(unit);
 
     if (consolidatedItems.length === 0 && expectedItems.length > 0) {
       console.warn(`No items consolidated for unit ${consolidationId}`);
@@ -283,14 +284,20 @@ export function processConsolidation(unit) {
     console.warn(`Skipping item consolidation for ${consolidationId} - sourceToteId not populated (data quality issue)`);
   }
 
-  // Step 2: Complete the consolidation
+  // Step 2: Complete the consolidation via API
   const completed = completeConsolidation(consolidationId);
   if (!completed) {
     console.warn(`Failed to complete consolidation ${consolidationId}`);
     return false;
   }
 
-  // Note: No signal needed - workflow activities handle progression automatically
+  // Step 3: Signal the orchestrator workflow that consolidation is complete
+  // THIS IS REQUIRED for the workflow to progress to packing
+  const signalSent = sendConsolidationCompleteSignal(orderId, consolidationId, consolidatedItems);
+  if (!signalSent) {
+    console.warn(`Failed to send consolidation complete signal for ${orderId}, workflow may be stuck`);
+  }
+
   console.log(`Consolidation ${consolidationId} completed successfully`);
   return true;
 }

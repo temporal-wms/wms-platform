@@ -370,14 +370,20 @@ export function processPackTask(task) {
   // Step 1: Simulate packing workflow
   const packageInfo = simulatePackingTask(task);
 
-  // Step 2: Complete the task
+  // Step 2: Complete the task via API
   const completed = completePackTask(taskId);
   if (!completed) {
     console.warn(`Failed to complete pack task ${taskId}`);
     return false;
   }
 
-  // Note: No signal needed - workflow activities handle progression automatically
+  // Step 3: Signal the orchestrator workflow that packing is complete
+  // THIS IS REQUIRED for the workflow to progress to shipping
+  const signalSent = sendPackingCompleteSignal(orderId, taskId, packageInfo);
+  if (!signalSent) {
+    console.warn(`Failed to send packing complete signal for ${orderId}, workflow may be stuck`);
+  }
+
   console.log(`Pack task ${taskId} completed successfully`);
   return true;
 }
