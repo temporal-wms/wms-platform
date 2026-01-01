@@ -65,7 +65,11 @@ Service-specific labels
 */}}
 {{- define "wms-platform.service.labels" -}}
 app: {{ .serviceName }}
+{{- if eq .serviceConfig.type "frontend" }}
+tier: frontend
+{{- else }}
 tier: backend
+{{- end }}
 component: {{ .serviceConfig.type }}
 {{- end }}
 
@@ -83,5 +87,9 @@ Get image for a service
 {{- $registry := .Values.global.imageRegistry }}
 {{- $repository := .serviceConfig.image.repository }}
 {{- $tag := .serviceConfig.image.tag }}
+{{- if $registry }}
 {{- printf "%s/%s:%s" $registry $repository $tag }}
+{{- else }}
+{{- printf "%s:%s" $repository $tag }}
+{{- end }}
 {{- end }}

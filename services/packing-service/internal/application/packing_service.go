@@ -49,7 +49,18 @@ func (s *PackingApplicationService) CreatePackTask(ctx context.Context, cmd Crea
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Created pack task", "taskId", cmd.TaskID, "orderId", cmd.OrderID)
+	// Log business event: packing task created
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "packing.task_created",
+		EntityType: "packTask",
+		EntityID:   cmd.TaskID,
+		Action:     "created",
+		RelatedIDs: map[string]string{
+			"orderId": cmd.OrderID,
+			"waveId":  cmd.WaveID,
+		},
+	})
+
 	return ToPackTaskDTO(task), nil
 }
 
@@ -226,7 +237,18 @@ func (s *PackingApplicationService) ApplyLabel(ctx context.Context, cmd ApplyLab
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Applied label", "taskId", cmd.TaskID, "trackingNumber", cmd.Label.TrackingNumber)
+	// Log business event: label applied
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "packing.label_applied",
+		EntityType: "packTask",
+		EntityID:   cmd.TaskID,
+		Action:     "label_applied",
+		RelatedIDs: map[string]string{
+			"packageId":      task.Package.PackageID,
+			"trackingNumber": cmd.Label.TrackingNumber,
+		},
+	})
+
 	return ToPackTaskDTO(task), nil
 }
 
@@ -253,7 +275,17 @@ func (s *PackingApplicationService) CompletePackTask(ctx context.Context, cmd Co
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Completed pack task", "taskId", cmd.TaskID)
+	// Log business event: packing task completed
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "packing.task_completed",
+		EntityType: "packTask",
+		EntityID:   cmd.TaskID,
+		Action:     "completed",
+		RelatedIDs: map[string]string{
+			"packageId": task.Package.PackageID,
+		},
+	})
+
 	return ToPackTaskDTO(task), nil
 }
 

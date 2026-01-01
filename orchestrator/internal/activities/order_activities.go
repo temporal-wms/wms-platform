@@ -67,3 +67,63 @@ func (a *OrderActivities) NotifyCustomerCancellation(ctx context.Context, orderI
 
 	return nil
 }
+
+// AssignToWave assigns an order to a wave (updates order status to wave_assigned)
+func (a *OrderActivities) AssignToWave(ctx context.Context, orderID, waveID string) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Assigning order to wave", "orderId", orderID, "waveId", waveID)
+
+	err := a.clients.AssignToWave(ctx, orderID, waveID)
+	if err != nil {
+		logger.Error("Failed to assign order to wave", "orderId", orderID, "waveId", waveID, "error", err)
+		return fmt.Errorf("failed to assign order to wave: %w", err)
+	}
+
+	logger.Info("Order assigned to wave successfully", "orderId", orderID, "waveId", waveID)
+	return nil
+}
+
+// StartPicking marks an order as picking in progress
+func (a *OrderActivities) StartPicking(ctx context.Context, orderID string) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Marking order as picking", "orderId", orderID)
+
+	err := a.clients.StartPicking(ctx, orderID)
+	if err != nil {
+		logger.Error("Failed to mark order as picking", "orderId", orderID, "error", err)
+		return fmt.Errorf("failed to mark order as picking: %w", err)
+	}
+
+	logger.Info("Order marked as picking successfully", "orderId", orderID)
+	return nil
+}
+
+// MarkConsolidated marks an order as consolidated
+func (a *OrderActivities) MarkConsolidated(ctx context.Context, orderID string) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Marking order as consolidated", "orderId", orderID)
+
+	err := a.clients.MarkConsolidated(ctx, orderID)
+	if err != nil {
+		logger.Error("Failed to mark order as consolidated", "orderId", orderID, "error", err)
+		return fmt.Errorf("failed to mark order as consolidated: %w", err)
+	}
+
+	logger.Info("Order marked as consolidated successfully", "orderId", orderID)
+	return nil
+}
+
+// MarkPacked marks an order as packed
+func (a *OrderActivities) MarkPacked(ctx context.Context, orderID string) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Marking order as packed", "orderId", orderID)
+
+	err := a.clients.MarkPacked(ctx, orderID)
+	if err != nil {
+		logger.Error("Failed to mark order as packed", "orderId", orderID, "error", err)
+		return fmt.Errorf("failed to mark order as packed: %w", err)
+	}
+
+	logger.Info("Order marked as packed successfully", "orderId", orderID)
+	return nil
+}

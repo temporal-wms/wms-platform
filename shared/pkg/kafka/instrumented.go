@@ -16,6 +16,19 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// addWMSCloudEventAttributes adds WMS extension attributes to a span
+func addWMSCloudEventAttributes(span trace.Span, event *cloudevents.WMSCloudEvent) {
+	if event.CorrelationID != "" {
+		span.SetAttributes(attribute.String("wms.correlation_id", event.CorrelationID))
+	}
+	if event.WaveNumber != "" {
+		span.SetAttributes(attribute.String("wms.wave_number", event.WaveNumber))
+	}
+	if event.WorkflowID != "" {
+		span.SetAttributes(attribute.String("wms.workflow_id", event.WorkflowID))
+	}
+}
+
 // InstrumentedProducer wraps a Producer with metrics and tracing
 type InstrumentedProducer struct {
 	producer *Producer
@@ -50,6 +63,9 @@ func (p *InstrumentedProducer) PublishEvent(ctx context.Context, topic string, e
 		),
 	)
 	defer span.End()
+
+	// Add WMS CloudEvents extension attributes
+	addWMSCloudEventAttributes(span, event)
 
 	// Inject trace context into event headers (via correlation ID for now)
 	carrier := tracing.MapCarrier{}
@@ -104,6 +120,9 @@ func (p *InstrumentedProducer) PublishEventAsync(ctx context.Context, topic stri
 			attribute.Bool("messaging.async", true),
 		),
 	)
+
+	// Add WMS CloudEvents extension attributes
+	addWMSCloudEventAttributes(span, event)
 
 	wrappedCallback := func(err error) {
 		defer span.End()
@@ -231,6 +250,9 @@ func (c *InstrumentedConsumer) instrumentHandler(topic, eventType string, handle
 			),
 		)
 		defer span.End()
+
+		// Add WMS CloudEvents extension attributes
+		addWMSCloudEventAttributes(span, event)
 
 		// Handle the event
 		err := handler(ctx, event)

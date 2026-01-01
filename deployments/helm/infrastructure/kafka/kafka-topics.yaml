@@ -1,0 +1,115 @@
+# Kafka Topics for WMS Platform
+# Apply after Kafka cluster is ready:
+#   kubectl apply -f kafka-topics.yaml -n kafka
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.orders.inbound
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.orders.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.waves.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.picking.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.packing.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.shipping.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.inventory.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.labor.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete

@@ -94,6 +94,8 @@ func main() {
 	w.RegisterWorkflow(workflows.GiftWrapWorkflow)
 	w.RegisterWorkflow(workflows.ReprocessingBatchWorkflow)
 	w.RegisterWorkflow(workflows.ReprocessingOrchestrationWorkflow)
+	w.RegisterWorkflow(workflows.StockShortageWorkflow)
+	w.RegisterWorkflow(workflows.BackorderFulfillmentWorkflow)
 	logger.Info("Registered workflows", "workflows", []string{
 		"OrderFulfillmentWorkflow",
 		"OrderCancellationWorkflow",
@@ -104,12 +106,15 @@ func main() {
 		"GiftWrapWorkflow",
 		"ReprocessingBatchWorkflow",
 		"ReprocessingOrchestrationWorkflow",
+		"StockShortageWorkflow",
+		"BackorderFulfillmentWorkflow",
 	})
 
 	// Register activities
 	w.RegisterActivity(orderActivities.ValidateOrder)
 	w.RegisterActivity(orderActivities.CancelOrder)
 	w.RegisterActivity(orderActivities.NotifyCustomerCancellation)
+	w.RegisterActivity(orderActivities.AssignToWave)
 	w.RegisterActivity(orderActivities.StartPicking)
 	w.RegisterActivity(orderActivities.MarkConsolidated)
 	w.RegisterActivity(orderActivities.MarkPacked)
@@ -119,6 +124,7 @@ func main() {
 	w.RegisterActivity(inventoryActivities.PackInventory)
 	w.RegisterActivity(inventoryActivities.ShipInventory)
 	w.RegisterActivity(inventoryActivities.ReturnInventoryToShelf)
+	w.RegisterActivity(inventoryActivities.RecordStockShortage)
 	w.RegisterActivity(routingActivities.CalculateRoute)
 
 	// Register picking activities
@@ -170,8 +176,13 @@ func main() {
 		"ValidateOrder",
 		"CancelOrder",
 		"NotifyCustomerCancellation",
+		"AssignToWave",
+		"StartPicking",
+		"MarkConsolidated",
+		"MarkPacked",
 		"ReleaseInventoryReservation",
 		"ConfirmInventoryPick",
+		"RecordStockShortage",
 		"CalculateRoute",
 		"CreatePickTask",
 		"AssignPickerToTask",

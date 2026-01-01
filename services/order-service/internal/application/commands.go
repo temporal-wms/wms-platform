@@ -114,3 +114,18 @@ func (a *AddressInput) ToDomainAddress() domain.Address {
 func (c *CreateOrderCommand) ToDomainPriority() domain.Priority {
 	return domain.Priority(c.Priority)
 }
+
+// StartPickingCommand represents the command to mark an order as picking in progress
+type StartPickingCommand struct {
+	OrderID string
+}
+
+// MarkConsolidatedCommand represents the command to mark an order as consolidated
+type MarkConsolidatedCommand struct {
+	OrderID string
+}
+
+// MarkPackedCommand represents the command to mark an order as packed
+type MarkPackedCommand struct {
+	OrderID string
+}

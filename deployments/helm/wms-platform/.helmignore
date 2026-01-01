@@ -21,14 +21,3 @@
 .idea/
 *.tmproj
 .vscode/
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
-# Documentation
-docs/
-*.md
-!README.md
-# Test files
-test/
-tests/

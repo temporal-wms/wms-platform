@@ -121,3 +121,14 @@ type ReturnToShelfCommand struct {
 	ReturnedBy   string
 	Reason       string
 }
+
+// RecordShortageCommand represents the command to record a stock shortage discovered during picking
+type RecordShortageCommand struct {
+	SKU          string
+	LocationID   string
+	OrderID      string
+	ExpectedQty  int
+	ActualQty    int
+	Reason       string // not_found, damaged, quantity_mismatch
+	ReportedBy   string
+}

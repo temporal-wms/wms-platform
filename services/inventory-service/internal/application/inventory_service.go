@@ -518,6 +518,62 @@ func (s *InventoryApplicationService) ReturnToShelf(ctx context.Context, cmd Ret
 	return ToInventoryItemDTO(item), nil
 }
 
+// RecordShortage records a confirmed stock shortage discovered during picking
+func (s *InventoryApplicationService) RecordShortage(ctx context.Context, cmd RecordShortageCommand) (*InventoryItemDTO, error) {
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	if item == nil {
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Record shortage (domain logic - adjusts inventory and emits events)
+	if err := item.RecordShortage(cmd.LocationID, cmd.OrderID, cmd.ExpectedQty, cmd.ActualQty, cmd.Reason, cmd.ReportedBy); err != nil {
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.shortage_recorded",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "shortage_recorded",
+		RelatedIDs: map[string]string{
+			"locationId":  cmd.LocationID,
+			"orderId":     cmd.OrderID,
+			"expectedQty": fmt.Sprintf("%d", cmd.ExpectedQty),
+			"actualQty":   fmt.Sprintf("%d", cmd.ActualQty),
+			"shortageQty": fmt.Sprintf("%d", cmd.ExpectedQty-cmd.ActualQty),
+			"reason":      cmd.Reason,
+			"reportedBy":  cmd.ReportedBy,
+		},
+	})
+
+	s.logger.Info("Recorded stock shortage",
+		"sku", cmd.SKU,
+		"locationId", cmd.LocationID,
+		"orderId", cmd.OrderID,
+		"shortageQty", cmd.ExpectedQty-cmd.ActualQty,
+		"reason", cmd.Reason,
+	)
+	return ToInventoryItemDTO(item), nil
+}
+
 // updateProjections updates the CQRS read model based on domain events
 // Call this after successfully saving an inventory item to keep projections in sync
 func (s *InventoryApplicationService) updateProjections(ctx context.Context, sku string, events []domain.DomainEvent) {
@@ -534,6 +590,10 @@ func (s *InventoryApplicationService) updateProjections(ctx context.Context, sku
 			err = s.projector.OnInventoryAdjusted(ctx, e)
 		case *domain.LowStockAlertEvent:
 			err = s.projector.OnLowStockAlert(ctx, e)
+		case *domain.StockShortageEvent:
+			err = s.projector.OnStockShortage(ctx, e)
+		case *domain.InventoryDiscrepancyEvent:
+			err = s.projector.OnInventoryDiscrepancy(ctx, e)
 		}
 
 		if err != nil {

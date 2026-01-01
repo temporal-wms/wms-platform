@@ -169,6 +169,57 @@ func (p *InventoryProjector) OnInventoryPicked(ctx context.Context, sku string) 
 	return p.projectionRepo.UpdateFields(ctx, sku, updates)
 }
 
+// OnStockShortage handles StockShortageEvent
+func (p *InventoryProjector) OnStockShortage(ctx context.Context, event *domain.StockShortageEvent) error {
+	// Fetch the full inventory aggregate
+	item, err := p.inventoryRepo.FindBySKU(ctx, event.SKU)
+	if err != nil || item == nil {
+		p.logger.Error("Failed to find inventory for projection", "sku", event.SKU, "error", err)
+		return err
+	}
+
+	now := time.Now()
+
+	// Update projection with adjusted quantities
+	updates := map[string]interface{}{
+		"totalQuantity":      item.TotalQuantity,
+		"availableQuantity":  item.AvailableQuantity,
+		"reservedQuantity":   item.ReservedQuantity,
+		"isLowStock":         item.AvailableQuantity <= item.ReorderPoint,
+		"isOutOfStock":       item.AvailableQuantity == 0,
+		"lastShortage":       now,
+		"availableLocations": p.extractAvailableLocations(item),
+		"primaryLocation":    p.findPrimaryLocation(item),
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, event.SKU, updates)
+}
+
+// OnInventoryDiscrepancy handles InventoryDiscrepancyEvent
+func (p *InventoryProjector) OnInventoryDiscrepancy(ctx context.Context, event *domain.InventoryDiscrepancyEvent) error {
+	// Fetch the full inventory aggregate
+	item, err := p.inventoryRepo.FindBySKU(ctx, event.SKU)
+	if err != nil || item == nil {
+		p.logger.Error("Failed to find inventory for projection", "sku", event.SKU, "error", err)
+		return err
+	}
+
+	now := time.Now()
+
+	// Update projection with adjusted quantities
+	updates := map[string]interface{}{
+		"totalQuantity":       item.TotalQuantity,
+		"availableQuantity":   item.AvailableQuantity,
+		"isLowStock":          item.AvailableQuantity <= item.ReorderPoint,
+		"isOutOfStock":        item.AvailableQuantity == 0,
+		"lastDiscrepancy":     now,
+		"lastDiscrepancyType": event.DiscrepancyType,
+		"availableLocations":  p.extractAvailableLocations(item),
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, event.SKU, updates)
+}
+
 // buildProjectionFromAggregate creates a new projection from a full aggregate
 func (p *InventoryProjector) buildProjectionFromAggregate(item *domain.InventoryItem) *InventoryListProjection {
 	// Extract active reservation order IDs

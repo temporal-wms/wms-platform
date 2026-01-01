@@ -1,0 +1,152 @@
+{
+  "expectation_suite_name": "shipping_data_product_quality",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0",
+    "data_product": "shipping-dp",
+    "owner": "logistics-team",
+    "sla": {
+      "freshness_minutes": 5,
+      "completeness_percent": 99.9
+    }
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "shipment_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "order_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "tracking_number"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "carrier_code"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "shipment_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "order_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "shipment_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "status",
+        "value_set": [
+          "created",
+          "label_generated",
+          "manifested",
+          "shipped",
+          "in_transit",
+          "delivered",
+          "exception",
+          "returned"
+        ]
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "carrier_code",
+        "value_set": [
+          "UPS",
+          "FEDEX",
+          "USPS",
+          "DHL",
+          "ONTRAC",
+          "LASERSHIP"
+        ]
+      },
+      "meta": {
+        "notes": "Supported carrier codes"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "tracking_number",
+        "mostly": 0.95
+      },
+      "meta": {
+        "notes": "Tracking number may be null for created status only"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex_list",
+      "kwargs": {
+        "column": "tracking_number",
+        "regex_list": [
+          "^1Z[A-Z0-9]{16}$",
+          "^\\d{12,22}$",
+          "^[A-Z]{2}\\d{9}[A-Z]{2}$"
+        ],
+        "mostly": 0.95
+      },
+      "meta": {
+        "notes": "UPS, FedEx, USPS tracking number formats"
+      }
+    },
+    {
+      "expectation_type": "expect_column_pair_values_A_to_be_greater_than_B",
+      "kwargs": {
+        "column_A": "shipped_at",
+        "column_B": "created_at",
+        "or_equal": false
+      },
+      "meta": {
+        "notes": "Shipped date must be after created date"
+      }
+    },
+    {
+      "expectation_type": "expect_column_pair_values_A_to_be_greater_than_B",
+      "kwargs": {
+        "column_A": "estimated_delivery",
+        "column_B": "shipped_at",
+        "or_equal": false,
+        "mostly": 0.99
+      },
+      "meta": {
+        "notes": "Estimated delivery must be after shipped date"
+      }
+    }
+  ],
+  "ge_cloud_id": null,
+  "data_context_key": "shipping_data_product"
+}

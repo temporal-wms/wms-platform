@@ -54,7 +54,18 @@ func (s *ConsolidationApplicationService) CreateConsolidation(ctx context.Contex
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Created consolidation", "consolidationId", cmd.ConsolidationID, "orderId", cmd.OrderID)
+	// Log business event: consolidation started
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "consolidation.started",
+		EntityType: "consolidation",
+		EntityID:   cmd.ConsolidationID,
+		Action:     "started",
+		RelatedIDs: map[string]string{
+			"orderId": cmd.OrderID,
+			"waveId":  cmd.WaveID,
+		},
+	})
+
 	return ToConsolidationDTO(unit), nil
 }
 
@@ -150,7 +161,14 @@ func (s *ConsolidationApplicationService) CompleteConsolidation(ctx context.Cont
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Completed consolidation", "consolidationId", cmd.ConsolidationID)
+	// Log business event: consolidation completed
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "consolidation.completed",
+		EntityType: "consolidation",
+		EntityID:   cmd.ConsolidationID,
+		Action:     "completed",
+	})
+
 	return ToConsolidationDTO(unit), nil
 }
 

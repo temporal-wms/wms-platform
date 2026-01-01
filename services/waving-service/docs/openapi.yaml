@@ -1,38 +1,49 @@
 openapi: 3.0.3
 info:
   title: Waving Service API
-  description: REST API for wave management and order batching operations
+  description: |
+    REST API for wave management and order batching operations in the WMS platform.
+
+    This service handles:
+    - Wave creation and lifecycle management
+    - Order-to-wave assignment
+    - Wave scheduling and release
+    - Planning and optimization
+    - Continuous waving scheduler
   version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
 
 servers:
   - url: http://localhost:8002/api/v1
+    description: Development server
 
 tags:
   - name: Waves
+    description: Wave management operations
+  - name: Planning
+    description: Wave planning and optimization
+  - name: Scheduler
+    description: Continuous waving scheduler operations
+  - name: Health
+    description: Service health and readiness
 
 paths:
   /waves:
     post:
       summary: Create a new wave
       tags: [Waves]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [waveType, zone]
-              properties:
-                waveType:
-                  type: string
-                  enum: [single_order, batch, zone_based]
-                zone:
-                  type: string
-                maxOrders:
-                  type: integer
-                scheduledReleaseAt:
-                  type: string
-                  format: date-time
+              $ref: '#/components/schemas/CreateWaveRequest'
             examples:
               batchWave:
                 value:
@@ -47,17 +58,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
-              examples:
-                created:
-                  value:
-                    waveId: "WAVE-001"
-                    waveNumber: 1
-                    waveType: "batch"
-                    zone: "A"
-                    status: "created"
-                    maxOrders: 50
-                    currentOrders: 0
-                    createdAt: "2024-12-24T10:00:00Z"
 
     get:
       summary: List waves
@@ -67,11 +67,21 @@ paths:
           in: query
           schema:
             type: string
-            enum: [created, scheduled, released, completed, cancelled]
+            enum: [planning, created, scheduled, released, completed, cancelled]
         - name: zone
           in: query
           schema:
             type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
           description: Waves list
@@ -84,6 +94,39 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/WaveResponse'
+                  total:
+                    type: integer
+
+  /waves/from-orders:
+    post:
+      summary: Create wave from orders
+      description: Create a new wave and automatically add specified orders to it
+      tags: [Waves]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderIds]
+              properties:
+                orderIds:
+                  type: array
+                  items:
+                    type: string
+                waveType:
+                  type: string
+                  enum: [single_order, batch, zone_based, digital]
+                  default: digital
+                zone:
+                  type: string
+      responses:
+        '201':
+          description: Wave created with orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
 
   /waves/{waveId}:
     get:
@@ -102,10 +145,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
+        '404':
+          description: Wave not found
 
-  /waves/{waveId}/release:
-    post:
-      summary: Release wave for picking
+    put:
+      summary: Update wave
+      tags: [Waves]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                zone:
+                  type: string
+                maxOrders:
+                  type: integer
+                scheduledReleaseAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Wave updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+
+    delete:
+      summary: Delete wave
+      description: Delete a wave (only allowed in planning status)
       tags: [Waves]
       parameters:
         - name: waveId
@@ -114,12 +189,10 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: Wave released
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WaveResponse'
+        '204':
+          description: Wave deleted
+        '400':
+          description: Cannot delete wave in current status
 
   /waves/{waveId}/orders:
     post:
@@ -144,16 +217,337 @@ paths:
       responses:
         '200':
           description: Order added to wave
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+
+  /waves/{waveId}/orders/{orderId}:
+    delete:
+      summary: Remove order from wave
+      tags: [Waves]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order removed from wave
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+        '404':
+          description: Wave or order not found
+
+  /waves/{waveId}/schedule:
+    post:
+      summary: Schedule wave
+      description: Schedule a wave for release at a specific time
+      tags: [Waves]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scheduledReleaseAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Wave scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+
+  /waves/{waveId}/release:
+    post:
+      summary: Release wave for picking
+      description: Release a wave to trigger picking workflows
+      tags: [Waves]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wave released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+
+  /waves/{waveId}/cancel:
+    post:
+      summary: Cancel wave
+      description: Cancel a wave (only allowed before completion)
+      tags: [Waves]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Wave cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+
+  /waves/status/{status}:
+    get:
+      summary: Get waves by status
+      tags: [Waves]
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [planning, created, scheduled, released, completed, cancelled]
+      responses:
+        '200':
+          description: Waves with specified status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WaveResponse'
+
+  /waves/zone/{zone}:
+    get:
+      summary: Get waves by zone
+      tags: [Waves]
+      parameters:
+        - name: zone
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Waves in specified zone
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WaveResponse'
+
+  /waves/order/{orderId}:
+    get:
+      summary: Get wave containing order
+      tags: [Waves]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wave containing the order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+        '404':
+          description: Order not found in any wave
+
+  # Planning Endpoints
+  /planning/auto:
+    post:
+      summary: Auto-plan wave
+      description: Automatically plan orders into waves based on optimization criteria
+      tags: [Planning]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                zone:
+                  type: string
+                maxOrdersPerWave:
+                  type: integer
+                priorityWeight:
+                  type: number
+      responses:
+        '200':
+          description: Auto-planning result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wavesCreated:
+                    type: integer
+                  ordersAssigned:
+                    type: integer
+                  waves:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WaveResponse'
+        '501':
+          description: Not implemented
+
+  /planning/optimize/{waveId}:
+    post:
+      summary: Optimize wave
+      description: Optimize order sequence within a wave for efficient picking
+      tags: [Planning]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wave optimized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveResponse'
+        '501':
+          description: Not implemented
+
+  /planning/ready-for-release:
+    get:
+      summary: Get waves ready for release
+      description: Get all waves in scheduled status that are ready to be released
+      tags: [Planning]
+      responses:
+        '200':
+          description: Waves ready for release
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WaveResponse'
+
+  # Scheduler Endpoints
+  /scheduler/status:
+    get:
+      summary: Get scheduler status
+      description: Get the current status of the continuous waving scheduler
+      tags: [Scheduler]
+      responses:
+        '200':
+          description: Scheduler status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchedulerStatus'
+
+  /scheduler/start:
+    post:
+      summary: Start scheduler
+      description: Start the continuous waving scheduler
+      tags: [Scheduler]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intervalSeconds:
+                  type: integer
+                  default: 60
+                maxOrdersPerWave:
+                  type: integer
+                  default: 50
+      responses:
+        '200':
+          description: Scheduler started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchedulerStatus'
+
+  /scheduler/stop:
+    post:
+      summary: Stop scheduler
+      description: Stop the continuous waving scheduler
+      tags: [Scheduler]
+      responses:
+        '200':
+          description: Scheduler stopped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchedulerStatus'
 
   /health:
     get:
       summary: Health check
+      tags: [Health]
       responses:
         '200':
-          description: Healthy
+          description: Service is healthy
+
+  /ready:
+    get:
+      summary: Readiness check
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      tags: [Health]
+      responses:
+        '200':
+          description: Prometheus metrics
 
 components:
   schemas:
+    CreateWaveRequest:
+      type: object
+      required: [waveType]
+      properties:
+        waveType:
+          type: string
+          enum: [single_order, batch, zone_based, digital]
+        zone:
+          type: string
+        maxOrders:
+          type: integer
+        scheduledReleaseAt:
+          type: string
+          format: date-time
+
     WaveResponse:
       type: object
       properties:
@@ -163,24 +557,86 @@ components:
           type: integer
         waveType:
           type: string
+          enum: [single_order, batch, zone_based, digital]
+        fulfillmentMode:
+          type: string
+          enum: [wave, waveless]
         zone:
           type: string
         status:
           type: string
+          enum: [planning, created, scheduled, released, completed, cancelled]
+        priority:
+          type: integer
         maxOrders:
           type: integer
-        currentOrders:
+        orderCount:
           type: integer
         orders:
           type: array
           items:
             type: string
-        scheduledReleaseAt:
+        scheduledStart:
+          type: string
+          format: date-time
+        scheduledEnd:
           type: string
           format: date-time
         releasedAt:
           type: string
           format: date-time
+        completedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SchedulerStatus:
+      type: object
+      properties:
+        running:
+          type: boolean
+        intervalSeconds:
+          type: integer
+        maxOrdersPerWave:
+          type: integer
+        lastRunAt:
+          type: string
+          format: date-time
+        wavesCreatedTotal:
+          type: integer
+        ordersProcessedTotal:
+          type: integer
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

@@ -15,6 +15,10 @@ paths:
     post:
       summary: Create inventory item
       tags: [Inventory]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
       requestBody:
         required: true
         content:
@@ -170,6 +174,49 @@ paths:
         '200':
           description: Inventory adjusted
 
+  /inventory/{sku}/release:
+    post:
+      summary: Release reserved stock
+      description: Release previously reserved inventory back to available stock
+      tags: [Inventory]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, quantity]
+              properties:
+                orderId:
+                  type: string
+                  description: Order ID for which stock was reserved
+                locationId:
+                  type: string
+                  description: Specific location to release from (optional)
+                quantity:
+                  type: integer
+                  description: Quantity to release
+                reason:
+                  type: string
+                  description: Reason for release (e.g., order_cancelled, adjustment)
+      responses:
+        '200':
+          description: Stock released successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '400':
+          description: Cannot release more than reserved quantity
+        '404':
+          description: No reservation found for order
+
   /inventory/low-stock:
     get:
       summary: Get low stock items
@@ -219,3 +266,32 @@ components:
                 type: integer
               available:
                 type: integer
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

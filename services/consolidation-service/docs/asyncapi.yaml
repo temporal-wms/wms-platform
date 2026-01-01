@@ -1,0 +1,152 @@
+asyncapi: 3.0.0
+info:
+  title: Consolidation Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Consolidation Service.
+
+    This service publishes events related to order consolidation for multi-item
+    orders including consolidation start, item arrival, and completion.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.consolidation.events:
+    address: wms.consolidation.events
+    messages:
+      ConsolidationStarted:
+        $ref: '#/components/messages/ConsolidationStarted'
+      ItemConsolidated:
+        $ref: '#/components/messages/ItemConsolidated'
+      ConsolidationCompleted:
+        $ref: '#/components/messages/ConsolidationCompleted'
+    description: Order consolidation events for multi-item orders
+
+operations:
+  publishConsolidationStarted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.consolidation.events'
+    messages:
+      - $ref: '#/channels/wms.consolidation.events/messages/ConsolidationStarted'
+    description: Published when consolidation begins for an order
+
+  publishConsolidationCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.consolidation.events'
+    messages:
+      - $ref: '#/channels/wms.consolidation.events/messages/ConsolidationCompleted'
+    description: Published when all items are consolidated
+
+components:
+  messages:
+    ConsolidationStarted:
+      name: ConsolidationStarted
+      title: Consolidation Started Event
+      summary: Published when consolidation begins for a multi-item order
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ConsolidationStartedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ItemConsolidated:
+      name: ItemConsolidated
+      title: Item Consolidated Event
+      summary: Published when an item is added to consolidation
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ItemConsolidatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ConsolidationCompleted:
+      name: ConsolidationCompleted
+      title: Consolidation Completed Event
+      summary: Published when all items are consolidated for an order
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ConsolidationCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        ce-wmswavenumber:
+          type: string
+        ce-wmsworkflowid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    ConsolidationStartedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+        orderId:
+          type: string
+        waveId:
+          type: string
+        expectedItemCount:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+
+    ItemConsolidatedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+        orderId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        toteId:
+          type: string
+        consolidatedAt:
+          type: string
+          format: date-time
+
+    ConsolidationCompletedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+        orderId:
+          type: string
+        waveId:
+          type: string
+        totalItems:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time

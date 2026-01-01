@@ -65,6 +65,9 @@ func main() {
 	m := metrics.New(metricsConfig)
 	logger.Info("Metrics initialized")
 
+	// Initialize business metrics helper (like order-service)
+	businessMetrics := middleware.NewBusinessMetrics(m)
+
 	// Initialize MongoDB with instrumentation
 	mongoClient, err := mongodb.NewClient(ctx, config.MongoDB)
 	if err != nil {
@@ -143,7 +146,7 @@ func main() {
 	apiV1 := router.Group("/api/v1")
 
 	// Station routes (for process path routing and facility management)
-	stationHandlers := handlers.NewStationHandlers(stationService, logger)
+	stationHandlers := handlers.NewStationHandlers(stationService, logger, businessMetrics)
 	stationHandlers.RegisterRoutes(apiV1)
 
 	// Start server

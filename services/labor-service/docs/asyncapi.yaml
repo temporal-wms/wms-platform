@@ -1,0 +1,167 @@
+asyncapi: 3.0.0
+info:
+  title: Labor Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Labor Service.
+
+    This service publishes events related to workforce management including
+    shift tracking, worker assignments, and task completions.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.labor.events:
+    address: wms.labor.events
+    messages:
+      ShiftStarted:
+        $ref: '#/components/messages/ShiftStarted'
+      ShiftEnded:
+        $ref: '#/components/messages/ShiftEnded'
+      WorkerAssigned:
+        $ref: '#/components/messages/WorkerAssigned'
+      TaskCompleted:
+        $ref: '#/components/messages/TaskCompleted'
+    description: Labor and workforce events
+
+operations:
+  publishShiftStarted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.labor.events'
+    messages:
+      - $ref: '#/channels/wms.labor.events/messages/ShiftStarted'
+    description: Published when a worker starts their shift
+
+  publishTaskCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.labor.events'
+    messages:
+      - $ref: '#/channels/wms.labor.events/messages/TaskCompleted'
+    description: Published when a worker completes a task
+
+components:
+  messages:
+    ShiftStarted:
+      name: ShiftStarted
+      title: Shift Started Event
+      summary: Published when a worker starts their shift
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShiftStartedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ShiftEnded:
+      name: ShiftEnded
+      title: Shift Ended Event
+      summary: Published when a worker ends their shift
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShiftEndedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WorkerAssigned:
+      name: WorkerAssigned
+      title: Worker Assigned Event
+      summary: Published when a worker is assigned to a task
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerAssignedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    TaskCompleted:
+      name: TaskCompleted
+      title: Task Completed Event
+      summary: Published when a worker completes a task
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    ShiftStartedPayload:
+      type: object
+      properties:
+        shiftId:
+          type: string
+        workerId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+
+    ShiftEndedPayload:
+      type: object
+      properties:
+        shiftId:
+          type: string
+        workerId:
+          type: string
+        endTime:
+          type: string
+          format: date-time
+        tasksCompleted:
+          type: integer
+
+    WorkerAssignedPayload:
+      type: object
+      properties:
+        workerId:
+          type: string
+        taskId:
+          type: string
+        taskType:
+          type: string
+          enum: [picking, packing, consolidation, shipping]
+        assignedAt:
+          type: string
+          format: date-time
+
+    TaskCompletedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        workerId:
+          type: string
+        taskType:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+          description: Task duration in seconds

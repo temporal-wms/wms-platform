@@ -96,7 +96,18 @@ func (s *PickingApplicationService) AssignTask(ctx context.Context, cmd AssignTa
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Assigned pick task", "taskId", cmd.TaskID, "pickerId", cmd.PickerID)
+	// Log business event: task assigned
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "task.assigned",
+		EntityType: "pickTask",
+		EntityID:   cmd.TaskID,
+		Action:     "assigned",
+		RelatedIDs: map[string]string{
+			"workerId": cmd.PickerID,
+			"toteId":   cmd.ToteID,
+		},
+	})
+
 	return ToPickTaskDTO(task), nil
 }
 
@@ -148,7 +159,19 @@ func (s *PickingApplicationService) ConfirmPick(ctx context.Context, cmd Confirm
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Confirmed pick", "taskId", cmd.TaskID, "sku", cmd.SKU, "quantity", cmd.PickedQty)
+	// Log business event: item picked
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "item.picked",
+		EntityType: "pickTask",
+		EntityID:   cmd.TaskID,
+		Action:     "picked",
+		RelatedIDs: map[string]string{
+			"sku":      cmd.SKU,
+			"quantity": fmt.Sprintf("%d", cmd.PickedQty),
+			"toteId":   cmd.ToteID,
+		},
+	})
+
 	return ToPickTaskDTO(task), nil
 }
 
@@ -175,7 +198,18 @@ func (s *PickingApplicationService) ReportException(ctx context.Context, cmd Rep
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Warn("Pick exception reported", "taskId", cmd.TaskID, "sku", cmd.SKU, "reason", cmd.Reason)
+	// Log business event: picking exception
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "picking.exception",
+		EntityType: "pickTask",
+		EntityID:   cmd.TaskID,
+		Action:     "exception",
+		RelatedIDs: map[string]string{
+			"sku":    cmd.SKU,
+			"reason": cmd.Reason,
+		},
+	})
+
 	return ToPickTaskDTO(task), nil
 }
 
@@ -202,7 +236,17 @@ func (s *PickingApplicationService) CompleteTask(ctx context.Context, cmd Comple
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Completed pick task", "taskId", cmd.TaskID)
+	// Log business event: task completed
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "task.completed",
+		EntityType: "pickTask",
+		EntityID:   cmd.TaskID,
+		Action:     "completed",
+		RelatedIDs: map[string]string{
+			"orderId": task.OrderID,
+		},
+	})
+
 	return ToPickTaskDTO(task), nil
 }
 
@@ -265,6 +309,36 @@ func (s *PickingApplicationService) GetPendingTasks(ctx context.Context, query G
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to get pending tasks", "zone", query.Zone)
 		return nil, fmt.Errorf("failed to get pending tasks: %w", err)
+	}
+
+	return ToPickTaskDTOs(tasks), nil
+}
+
+// ListTasks retrieves pick tasks with optional status filter
+func (s *PickingApplicationService) ListTasks(ctx context.Context, query ListTasksQuery) ([]PickTaskDTO, error) {
+	var tasks []*domain.PickTask
+	var err error
+
+	if query.Status != "" {
+		status := domain.PickTaskStatus(query.Status)
+		tasks, err = s.repo.FindByStatus(ctx, status)
+	} else {
+		// If no status specified, return pending tasks
+		limit := query.Limit
+		if limit <= 0 {
+			limit = 50
+		}
+		tasks, err = s.repo.FindPendingByZone(ctx, query.Zone, limit)
+	}
+
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to list tasks", "status", query.Status)
+		return nil, fmt.Errorf("failed to list tasks: %w", err)
+	}
+
+	// Apply limit if specified
+	if query.Limit > 0 && len(tasks) > query.Limit {
+		tasks = tasks[:query.Limit]
 	}
 
 	return ToPickTaskDTOs(tasks), nil

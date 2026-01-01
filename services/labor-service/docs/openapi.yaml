@@ -17,6 +17,10 @@ paths:
     post:
       summary: Create worker
       tags: [Workers]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
       requestBody:
         required: true
         content:
@@ -149,6 +153,54 @@ paths:
         '200':
           description: Task assigned
 
+  /workers/{workerId}/task/complete:
+    post:
+      summary: Complete current task
+      description: Mark the worker's current task as completed
+      tags: [Tasks]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                taskId:
+                  type: string
+                  description: Task ID to complete (if worker has multiple tasks)
+                notes:
+                  type: string
+                  description: Optional completion notes
+      responses:
+        '200':
+          description: Task completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  taskId:
+                    type: string
+                  workerId:
+                    type: string
+                  taskType:
+                    type: string
+                  completedAt:
+                    type: string
+                    format: date-time
+                  duration:
+                    type: integer
+                    description: Task duration in seconds
+        '404':
+          description: Worker or task not found
+        '400':
+          description: No active task to complete
+
   /workers/available:
     get:
       summary: Get available workers
@@ -204,3 +256,32 @@ components:
                 type: string
               status:
                 type: string
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

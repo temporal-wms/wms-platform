@@ -1,0 +1,185 @@
+asyncapi: 3.0.0
+info:
+  title: Shipping Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Shipping Service.
+
+    This service publishes events related to shipment management and carrier
+    integration including shipment creation, label generation, manifesting,
+    and ship confirmation.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.shipping.events:
+    address: wms.shipping.events
+    messages:
+      ShipmentCreated:
+        $ref: '#/components/messages/ShipmentCreated'
+      LabelGenerated:
+        $ref: '#/components/messages/LabelGenerated'
+      ShipmentManifested:
+        $ref: '#/components/messages/ShipmentManifested'
+      ShipConfirmed:
+        $ref: '#/components/messages/ShipConfirmed'
+    description: Shipping and carrier integration events
+
+operations:
+  publishShipmentCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.shipping.events'
+    messages:
+      - $ref: '#/channels/wms.shipping.events/messages/ShipmentCreated'
+    description: Published when a shipment is created
+
+  publishShipConfirmed:
+    action: send
+    channel:
+      $ref: '#/channels/wms.shipping.events'
+    messages:
+      - $ref: '#/channels/wms.shipping.events/messages/ShipConfirmed'
+    description: Published when shipment is confirmed by carrier
+
+components:
+  messages:
+    ShipmentCreated:
+      name: ShipmentCreated
+      title: Shipment Created Event
+      summary: Published when a shipment record is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShipmentCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    LabelGenerated:
+      name: LabelGenerated
+      title: Label Generated Event
+      summary: Published when a shipping label is generated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/LabelGeneratedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ShipmentManifested:
+      name: ShipmentManifested
+      title: Shipment Manifested Event
+      summary: Published when a shipment is added to carrier manifest
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShipmentManifestedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ShipConfirmed:
+      name: ShipConfirmed
+      title: Ship Confirmed Event
+      summary: Published when carrier confirms shipment pickup
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShipConfirmedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        ce-wmsworkflowid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    ShipmentCreatedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        packageId:
+          type: string
+        carrier:
+          type: string
+          enum: [ups, fedex, usps, dhl]
+        serviceLevel:
+          type: string
+          enum: [ground, express, overnight, two_day]
+        createdAt:
+          type: string
+          format: date-time
+
+    LabelGeneratedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        labelUrl:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+
+    ShipmentManifestedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        manifestId:
+          type: string
+        carrier:
+          type: string
+        expectedPickupAt:
+          type: string
+          format: date-time
+        manifestedAt:
+          type: string
+          format: date-time
+
+    ShipConfirmedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time

@@ -94,7 +94,17 @@ func (s *OrderApplicationService) CreateOrder(ctx context.Context, cmd CreateOrd
 		s.logger.Info("Started order fulfillment workflow", "orderId", orderID, "workflowId", workflowID)
 	}
 
-	s.logger.Info("Created order", "orderId", orderID, "customerId", cmd.CustomerID)
+	// Log business event: order received
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "order.received",
+		EntityType: "order",
+		EntityID:   orderID,
+		Action:     "created",
+		RelatedIDs: map[string]string{
+			"customerId": cmd.CustomerID,
+			"workflowId": workflowID,
+		},
+	})
 
 	return &OrderCreatedResponse{
 		Order:      *ToOrderDTO(order),
@@ -148,7 +158,14 @@ func (s *OrderApplicationService) ValidateOrder(ctx context.Context, cmd Validat
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Validated order", "orderId", cmd.OrderID)
+	// Log business event: order validated
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "order.validated",
+		EntityType: "order",
+		EntityID:   cmd.OrderID,
+		Action:     "validated",
+	})
+
 	return ToOrderDTO(order), nil
 }
 
@@ -183,7 +200,17 @@ func (s *OrderApplicationService) CancelOrder(ctx context.Context, cmd CancelOrd
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Cancelled order", "orderId", cmd.OrderID, "reason", cmd.Reason)
+	// Log business event: order cancelled
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "order.cancelled",
+		EntityType: "order",
+		EntityID:   cmd.OrderID,
+		Action:     "cancelled",
+		RelatedIDs: map[string]string{
+			"reason": cmd.Reason,
+		},
+	})
+
 	return ToOrderDTO(order), nil
 }
 
@@ -256,7 +283,17 @@ func (s *OrderApplicationService) AssignToWave(ctx context.Context, cmd AssignTo
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Assigned order to wave", "orderId", cmd.OrderID, "waveId", cmd.WaveID)
+	// Log business event: order assigned to wave
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "order.wave_assigned",
+		EntityType: "order",
+		EntityID:   cmd.OrderID,
+		Action:     "wave_assigned",
+		RelatedIDs: map[string]string{
+			"waveId": cmd.WaveID,
+		},
+	})
+
 	return ToOrderDTO(order), nil
 }
 
@@ -291,7 +328,137 @@ func (s *OrderApplicationService) MarkShipped(ctx context.Context, cmd MarkShipp
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Marked order as shipped", "orderId", cmd.OrderID, "trackingNumber", cmd.TrackingNumber)
+	// Log business event: order shipped
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "order.shipped",
+		EntityType: "order",
+		EntityID:   cmd.OrderID,
+		Action:     "shipped",
+		RelatedIDs: map[string]string{
+			"trackingNumber": cmd.TrackingNumber,
+		},
+	})
+
+	return ToOrderDTO(order), nil
+}
+
+// StartPicking marks an order as picking in progress (called by orchestrator)
+func (s *OrderApplicationService) StartPicking(ctx context.Context, cmd StartPickingCommand) (*OrderDTO, error) {
+	order, err := s.orderRepo.FindByID(ctx, cmd.OrderID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get order", "orderId", cmd.OrderID)
+		return nil, fmt.Errorf("failed to get order: %w", err)
+	}
+
+	if order == nil {
+		return nil, errors.ErrNotFound("order")
+	}
+
+	// Start picking (domain logic)
+	if err := order.StartPicking(); err != nil {
+		return nil, errors.ErrConflict(err.Error())
+	}
+
+	// Capture events before save
+	events := order.DomainEvents()
+
+	// Save the updated order
+	if err := s.orderRepo.Save(ctx, order); err != nil {
+		s.logger.WithError(err).Error("Failed to save order", "orderId", cmd.OrderID)
+		return nil, fmt.Errorf("failed to save order: %w", err)
+	}
+
+	// Update CQRS projections
+	s.updateProjections(ctx, events)
+
+	// Log business event: picking started
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "order.picking_started",
+		EntityType: "order",
+		EntityID:   cmd.OrderID,
+		Action:     "picking_started",
+	})
+
+	return ToOrderDTO(order), nil
+}
+
+// MarkConsolidated marks an order as consolidated (called by orchestrator)
+func (s *OrderApplicationService) MarkConsolidated(ctx context.Context, cmd MarkConsolidatedCommand) (*OrderDTO, error) {
+	order, err := s.orderRepo.FindByID(ctx, cmd.OrderID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get order", "orderId", cmd.OrderID)
+		return nil, fmt.Errorf("failed to get order: %w", err)
+	}
+
+	if order == nil {
+		return nil, errors.ErrNotFound("order")
+	}
+
+	// Mark as consolidated (domain logic)
+	if err := order.MarkConsolidated(); err != nil {
+		return nil, errors.ErrConflict(err.Error())
+	}
+
+	// Capture events before save
+	events := order.DomainEvents()
+
+	// Save the updated order
+	if err := s.orderRepo.Save(ctx, order); err != nil {
+		s.logger.WithError(err).Error("Failed to save order", "orderId", cmd.OrderID)
+		return nil, fmt.Errorf("failed to save order: %w", err)
+	}
+
+	// Update CQRS projections
+	s.updateProjections(ctx, events)
+
+	// Log business event: order consolidated
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "order.consolidated",
+		EntityType: "order",
+		EntityID:   cmd.OrderID,
+		Action:     "consolidated",
+	})
+
+	return ToOrderDTO(order), nil
+}
+
+// MarkPacked marks an order as packed (called by orchestrator)
+func (s *OrderApplicationService) MarkPacked(ctx context.Context, cmd MarkPackedCommand) (*OrderDTO, error) {
+	order, err := s.orderRepo.FindByID(ctx, cmd.OrderID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get order", "orderId", cmd.OrderID)
+		return nil, fmt.Errorf("failed to get order: %w", err)
+	}
+
+	if order == nil {
+		return nil, errors.ErrNotFound("order")
+	}
+
+	// Mark as packed (domain logic)
+	if err := order.MarkPacked(); err != nil {
+		return nil, errors.ErrConflict(err.Error())
+	}
+
+	// Capture events before save
+	events := order.DomainEvents()
+
+	// Save the updated order
+	if err := s.orderRepo.Save(ctx, order); err != nil {
+		s.logger.WithError(err).Error("Failed to save order", "orderId", cmd.OrderID)
+		return nil, fmt.Errorf("failed to save order: %w", err)
+	}
+
+	// Update CQRS projections
+	s.updateProjections(ctx, events)
+
+	// Log business event: order packed
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "order.packed",
+		EntityType: "order",
+		EntityID:   cmd.OrderID,
+		Action:     "packed",
+	})
+
 	return ToOrderDTO(order), nil
 }
 

@@ -15,6 +15,10 @@ paths:
     post:
       summary: Create consolidation
       tags: [Consolidation]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
       requestBody:
         required: true
         content:
@@ -39,6 +43,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsolidationResponse'
+
+  /consolidations/{consolidationId}:
+    get:
+      summary: Get consolidation by ID
+      tags: [Consolidation]
+      parameters:
+        - name: consolidationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consolidation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsolidationResponse'
+        '404':
+          description: Consolidation not found
 
   /consolidations/{consolidationId}/consolidate:
     post:
@@ -125,3 +149,32 @@ components:
                 type: integer
               consolidated:
                 type: boolean
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

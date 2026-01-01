@@ -47,6 +47,30 @@ type Metrics struct {
 	// Circuit breaker metrics
 	CircuitBreakerState   *prometheus.GaugeVec
 	CircuitBreakerTrips   *prometheus.CounterVec
+
+	// Outbox metrics
+	OutboxEventsPublished *prometheus.CounterVec
+	OutboxEventsFailed    *prometheus.CounterVec
+	OutboxEventsRetried   *prometheus.CounterVec
+	OutboxEventsPending   *prometheus.GaugeVec
+	OutboxPublishDuration *prometheus.HistogramVec
+
+	// Failure metrics
+	OrderFailures      *prometheus.CounterVec
+	OrderRetryAttempts *prometheus.CounterVec
+	OrderRetryOutcome  *prometheus.CounterVec
+	RetryDuration      *prometheus.HistogramVec
+
+	// Dead Letter Queue metrics
+	DLQEntriesTotal   *prometheus.CounterVec
+	DLQEntriesPending *prometheus.GaugeVec
+	DLQResolutions    *prometheus.CounterVec
+	DLQAgeSeconds     *prometheus.HistogramVec
+
+	// Workflow failure breakdown metrics
+	WorkflowFailures    *prometheus.CounterVec
+	WorkflowRetries     *prometheus.CounterVec
+	ReprocessingBatches *prometheus.CounterVec
 }
 
 // Config holds metrics configuration
@@ -288,6 +312,157 @@ func New(config *Config) *Metrics {
 		[]string{"service", "name"},
 	)
 
+	// Outbox metrics
+	m.OutboxEventsPublished = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "outbox_events_published_total",
+			Help:      "Total number of events published from the outbox",
+		},
+		[]string{"service", "event_type", "status"},
+	)
+
+	m.OutboxEventsFailed = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "outbox_events_failed_total",
+			Help:      "Total number of events that failed to publish from the outbox",
+		},
+		[]string{"service", "event_type"},
+	)
+
+	m.OutboxEventsRetried = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "outbox_events_retried_total",
+			Help:      "Total number of outbox event retries",
+		},
+		[]string{"service", "event_type"},
+	)
+
+	m.OutboxEventsPending = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: config.Namespace,
+			Name:      "outbox_events_pending",
+			Help:      "Number of pending events in the outbox waiting to be published",
+		},
+		[]string{"service"},
+	)
+
+	m.OutboxPublishDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: config.Namespace,
+			Name:      "outbox_publish_duration_seconds",
+			Help:      "Duration of outbox event publishing in seconds",
+			Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1},
+		},
+		[]string{"service", "event_type"},
+	)
+
+	// Failure metrics
+	m.OrderFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "order_failures_total",
+			Help:      "Total number of order failures by failure type",
+		},
+		[]string{"service", "failure_type", "priority"},
+	)
+
+	m.OrderRetryAttempts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "order_retry_attempts_total",
+			Help:      "Total number of retry attempts for orders",
+		},
+		[]string{"service", "failure_type", "attempt_number"},
+	)
+
+	m.OrderRetryOutcome = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "order_retry_outcome_total",
+			Help:      "Outcomes of order retry attempts",
+		},
+		[]string{"service", "outcome"},
+	)
+
+	m.RetryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: config.Namespace,
+			Name:      "order_retry_duration_seconds",
+			Help:      "Duration between failure and retry attempt",
+			Buckets:   []float64{30, 60, 120, 300, 600, 1800, 3600},
+		},
+		[]string{"service", "failure_type"},
+	)
+
+	// Dead Letter Queue metrics
+	m.DLQEntriesTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "dlq_entries_total",
+			Help:      "Total number of orders moved to dead letter queue",
+		},
+		[]string{"service", "failure_type"},
+	)
+
+	m.DLQEntriesPending = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: config.Namespace,
+			Name:      "dlq_entries_pending",
+			Help:      "Current number of unresolved entries in dead letter queue",
+		},
+		[]string{"service", "failure_type"},
+	)
+
+	m.DLQResolutions = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "dlq_resolutions_total",
+			Help:      "Total number of DLQ resolutions by resolution type",
+		},
+		[]string{"service", "resolution_type"},
+	)
+
+	m.DLQAgeSeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: config.Namespace,
+			Name:      "dlq_age_seconds",
+			Help:      "Age of DLQ entries when resolved (in seconds)",
+			Buckets:   []float64{300, 900, 3600, 14400, 43200, 86400, 259200},
+		},
+		[]string{"service"},
+	)
+
+	// Workflow failure breakdown metrics
+	m.WorkflowFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "workflow_failures_total",
+			Help:      "Total workflow failures by workflow type and stage",
+		},
+		[]string{"service", "workflow_type", "stage", "failure_type"},
+	)
+
+	m.WorkflowRetries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "workflow_retries_total",
+			Help:      "Total workflow retry attempts",
+		},
+		[]string{"service", "workflow_type"},
+	)
+
+	m.ReprocessingBatches = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: config.Namespace,
+			Name:      "reprocessing_batches_total",
+			Help:      "Total reprocessing batch runs by outcome",
+		},
+		[]string{"service", "outcome"},
+	)
+
 	// Register all metrics
 	registry.MustRegister(
 		m.HTTPRequestsTotal,
@@ -312,6 +487,25 @@ func New(config *Config) *Metrics {
 		m.PackagesShipped,
 		m.CircuitBreakerState,
 		m.CircuitBreakerTrips,
+		m.OutboxEventsPublished,
+		m.OutboxEventsFailed,
+		m.OutboxEventsRetried,
+		m.OutboxEventsPending,
+		m.OutboxPublishDuration,
+		// Failure metrics
+		m.OrderFailures,
+		m.OrderRetryAttempts,
+		m.OrderRetryOutcome,
+		m.RetryDuration,
+		// DLQ metrics
+		m.DLQEntriesTotal,
+		m.DLQEntriesPending,
+		m.DLQResolutions,
+		m.DLQAgeSeconds,
+		// Workflow failure metrics
+		m.WorkflowFailures,
+		m.WorkflowRetries,
+		m.ReprocessingBatches,
 	)
 
 	return m
@@ -443,4 +637,80 @@ func (m *Metrics) IncrementHTTPRequestsInFlight() {
 // DecrementHTTPRequestsInFlight decrements in-flight requests
 func (m *Metrics) DecrementHTTPRequestsInFlight() {
 	m.HTTPRequestsInFlight.Dec()
+}
+
+// RecordOutboxPublish records an outbox publish event
+func (m *Metrics) RecordOutboxPublish(eventType string, success bool, duration time.Duration) {
+	status := "success"
+	if !success {
+		status = "error"
+		m.OutboxEventsFailed.WithLabelValues(m.serviceName, eventType).Inc()
+	}
+	m.OutboxEventsPublished.WithLabelValues(m.serviceName, eventType, status).Inc()
+	m.OutboxPublishDuration.WithLabelValues(m.serviceName, eventType).Observe(duration.Seconds())
+}
+
+// RecordOutboxRetry records an outbox retry event
+func (m *Metrics) RecordOutboxRetry(eventType string) {
+	m.OutboxEventsRetried.WithLabelValues(m.serviceName, eventType).Inc()
+}
+
+// SetOutboxPending sets the number of pending outbox events
+func (m *Metrics) SetOutboxPending(count int) {
+	m.OutboxEventsPending.WithLabelValues(m.serviceName).Set(float64(count))
+}
+
+// RecordOrderFailure records an order failure
+func (m *Metrics) RecordOrderFailure(failureType, priority string) {
+	m.OrderFailures.WithLabelValues(m.serviceName, failureType, priority).Inc()
+}
+
+// RecordOrderRetryAttempt records a retry attempt for an order
+func (m *Metrics) RecordOrderRetryAttempt(failureType string, attemptNumber int) {
+	m.OrderRetryAttempts.WithLabelValues(m.serviceName, failureType, strconv.Itoa(attemptNumber)).Inc()
+}
+
+// RecordOrderRetryOutcome records the outcome of a retry attempt
+func (m *Metrics) RecordOrderRetryOutcome(outcome string) {
+	m.OrderRetryOutcome.WithLabelValues(m.serviceName, outcome).Inc()
+}
+
+// RecordRetryDuration records the duration between failure and retry
+func (m *Metrics) RecordRetryDuration(failureType string, duration time.Duration) {
+	m.RetryDuration.WithLabelValues(m.serviceName, failureType).Observe(duration.Seconds())
+}
+
+// RecordDLQEntry records an entry added to the dead letter queue
+func (m *Metrics) RecordDLQEntry(failureType string) {
+	m.DLQEntriesTotal.WithLabelValues(m.serviceName, failureType).Inc()
+}
+
+// SetDLQPending sets the number of pending DLQ entries by failure type
+func (m *Metrics) SetDLQPending(failureType string, count int) {
+	m.DLQEntriesPending.WithLabelValues(m.serviceName, failureType).Set(float64(count))
+}
+
+// RecordDLQResolution records a DLQ entry resolution
+func (m *Metrics) RecordDLQResolution(resolutionType string) {
+	m.DLQResolutions.WithLabelValues(m.serviceName, resolutionType).Inc()
+}
+
+// RecordDLQAge records the age of a DLQ entry when resolved
+func (m *Metrics) RecordDLQAge(ageSeconds float64) {
+	m.DLQAgeSeconds.WithLabelValues(m.serviceName).Observe(ageSeconds)
+}
+
+// RecordWorkflowFailure records a workflow failure with stage information
+func (m *Metrics) RecordWorkflowFailure(workflowType, stage, failureType string) {
+	m.WorkflowFailures.WithLabelValues(m.serviceName, workflowType, stage, failureType).Inc()
+}
+
+// RecordWorkflowRetry records a workflow retry attempt
+func (m *Metrics) RecordWorkflowRetry(workflowType string) {
+	m.WorkflowRetries.WithLabelValues(m.serviceName, workflowType).Inc()
+}
+
+// RecordReprocessingBatch records a reprocessing batch outcome
+func (m *Metrics) RecordReprocessingBatch(outcome string) {
+	m.ReprocessingBatches.WithLabelValues(m.serviceName, outcome).Inc()
 }

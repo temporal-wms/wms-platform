@@ -44,12 +44,13 @@ func (a *RoutingActivities) CalculateRoute(ctx context.Context, input map[string
 	routeID := "RT-" + uuid.New().String()[:8]
 
 	// Call routing-service to calculate route
+	// Valid strategies: return, s_shape, largest_gap, combined, nearest
 	route, err := a.clients.CalculateRoute(ctx, &clients.CalculateRouteRequest{
 		RouteID:  routeID,
 		OrderID:  orderID,
 		WaveID:   waveID,
 		Items:    items,
-		Strategy: "shortest_path",
+		Strategy: "s_shape",
 	})
 	if err != nil {
 		logger.Error("Failed to calculate route", "orderId", orderID, "error", err)

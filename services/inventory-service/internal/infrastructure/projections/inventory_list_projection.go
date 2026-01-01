@@ -35,6 +35,11 @@ type InventoryListProjection struct {
 	LastAdjusted   *time.Time `bson:"lastAdjusted,omitempty"`
 	LastCycleCount *time.Time `bson:"lastCycleCount,omitempty"`
 
+	// Shortage and discrepancy tracking
+	LastShortage        *time.Time `bson:"lastShortage,omitempty"`
+	LastDiscrepancy     *time.Time `bson:"lastDiscrepancy,omitempty"`
+	LastDiscrepancyType string     `bson:"lastDiscrepancyType,omitempty"` // shortage, overage
+
 	// Timestamps
 	CreatedAt time.Time `bson:"createdAt"`
 	UpdatedAt time.Time `bson:"updatedAt"`

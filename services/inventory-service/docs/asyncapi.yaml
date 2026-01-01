@@ -1,0 +1,198 @@
+asyncapi: 3.0.0
+info:
+  title: Inventory Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Inventory Service.
+
+    This service publishes events related to inventory management including
+    stock receipts, reservations, releases, adjustments, and low stock alerts.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.inventory.events:
+    address: wms.inventory.events
+    messages:
+      InventoryReceived:
+        $ref: '#/components/messages/InventoryReceived'
+      InventoryReserved:
+        $ref: '#/components/messages/InventoryReserved'
+      InventoryReleased:
+        $ref: '#/components/messages/InventoryReleased'
+      InventoryAdjusted:
+        $ref: '#/components/messages/InventoryAdjusted'
+      LowStockAlert:
+        $ref: '#/components/messages/LowStockAlert'
+    description: Inventory management events
+
+operations:
+  publishInventoryReserved:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/InventoryReserved'
+    description: Published when inventory is reserved for an order
+
+  publishLowStockAlert:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/LowStockAlert'
+    description: Published when stock falls below reorder point
+
+components:
+  messages:
+    InventoryReceived:
+      name: InventoryReceived
+      title: Inventory Received Event
+      summary: Published when new inventory is received
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryReceivedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    InventoryReserved:
+      name: InventoryReserved
+      title: Inventory Reserved Event
+      summary: Published when inventory is reserved for an order
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryReservedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    InventoryReleased:
+      name: InventoryReleased
+      title: Inventory Released Event
+      summary: Published when reserved inventory is released
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryReleasedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    InventoryAdjusted:
+      name: InventoryAdjusted
+      title: Inventory Adjusted Event
+      summary: Published when inventory quantities are adjusted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryAdjustedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    LowStockAlert:
+      name: LowStockAlert
+      title: Low Stock Alert Event
+      summary: Published when inventory falls below reorder point
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/LowStockAlertPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    InventoryReceivedPayload:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        locationId:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+
+    InventoryReservedPayload:
+      type: object
+      properties:
+        reservationId:
+          type: string
+        orderId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        reservedAt:
+          type: string
+          format: date-time
+
+    InventoryReleasedPayload:
+      type: object
+      properties:
+        reservationId:
+          type: string
+        orderId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        releasedAt:
+          type: string
+          format: date-time
+
+    InventoryAdjustedPayload:
+      type: object
+      properties:
+        adjustmentId:
+          type: string
+        sku:
+          type: string
+        quantityChange:
+          type: integer
+        reason:
+          type: string
+        adjustedAt:
+          type: string
+          format: date-time
+
+    LowStockAlertPayload:
+      type: object
+      properties:
+        sku:
+          type: string
+        currentQuantity:
+          type: integer
+        reorderPoint:
+          type: integer
+        alertedAt:
+          type: string
+          format: date-time

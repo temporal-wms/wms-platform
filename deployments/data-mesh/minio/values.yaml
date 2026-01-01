@@ -1,0 +1,79 @@
+# MinIO Helm Values for Data Mesh Lakehouse
+# Chart: minio/minio
+
+mode: standalone
+
+replicas: 1
+
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: ""
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 2Gi
+    cpu: 1000m
+
+# Root credentials - change in production
+rootUser: admin
+rootPassword: minio123456
+
+# Console configuration
+consoleService:
+  type: NodePort
+  nodePort: 30900
+
+service:
+  type: NodePort
+  nodePort: 30901
+
+# Buckets for Data Lakehouse
+buckets:
+  - name: wms-bronze
+    policy: none
+    purge: false
+  - name: wms-silver
+    policy: none
+    purge: false
+  - name: wms-gold
+    policy: none
+    purge: false
+  - name: wms-checkpoints
+    policy: none
+    purge: false
+  - name: iceberg-warehouse
+    policy: none
+    purge: false
+
+# Service account for data mesh components
+users:
+  - accessKey: datamesh
+    secretKey: datamesh123456
+    policy: readwrite
+
+policies:
+  - name: readwrite
+    statements:
+      - resources:
+          - "arn:aws:s3:::wms-*"
+          - "arn:aws:s3:::wms-*/*"
+          - "arn:aws:s3:::iceberg-*"
+          - "arn:aws:s3:::iceberg-*/*"
+        actions:
+          - "s3:*"
+
+# Metrics for Prometheus (disabled - enable if Prometheus Operator is installed)
+metrics:
+  serviceMonitor:
+    enabled: false
+    # namespace: observability
+    # additionalLabels:
+    #   release: prometheus
+
+# Environment variables
+environment:
+  MINIO_BROWSER_REDIRECT_URL: http://localhost:30900

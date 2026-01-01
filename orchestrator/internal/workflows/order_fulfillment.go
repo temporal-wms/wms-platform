@@ -254,6 +254,13 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	result.WaveID = waveAssignment.WaveID
 	logger.Info("Order assigned to wave", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
 
+	// Update order status to wave_assigned
+	err = workflow.ExecuteActivity(ctx, "AssignToWave", input.OrderID, waveAssignment.WaveID).Get(ctx, nil)
+	if err != nil {
+		logger.Warn("Failed to update order status to wave_assigned", "orderId", input.OrderID, "error", err)
+		// Non-fatal: continue with workflow - order status can be reconciled later
+	}
+
 	// ========================================
 	// Step 4: Calculate Route
 	// ========================================

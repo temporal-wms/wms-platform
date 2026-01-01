@@ -96,3 +96,47 @@ type InventoryReturnedToShelfEvent struct {
 
 func (e *InventoryReturnedToShelfEvent) EventType() string     { return "wms.inventory.returned-to-shelf" }
 func (e *InventoryReturnedToShelfEvent) OccurredAt() time.Time { return e.ReturnedAt }
+
+// StockShortageEvent is published when a confirmed shortage is discovered during picking
+type StockShortageEvent struct {
+	SKU              string    `json:"sku"`
+	LocationID       string    `json:"locationId"`
+	OrderID          string    `json:"orderId"`
+	ExpectedQuantity int       `json:"expectedQuantity"`
+	ActualQuantity   int       `json:"actualQuantity"`
+	ShortageQuantity int       `json:"shortageQuantity"`
+	ReportedBy       string    `json:"reportedBy"`
+	Reason           string    `json:"reason"` // not_found, damaged, quantity_mismatch
+	OccurredAt_      time.Time `json:"occurredAt"`
+}
+
+func (e *StockShortageEvent) EventType() string     { return "wms.inventory.stock-shortage" }
+func (e *StockShortageEvent) OccurredAt() time.Time { return e.OccurredAt_ }
+
+// InventoryDiscrepancyEvent is published for audit trail when actual != expected
+type InventoryDiscrepancyEvent struct {
+	SKU             string    `json:"sku"`
+	LocationID      string    `json:"locationId"`
+	SystemQuantity  int       `json:"systemQuantity"`
+	ActualQuantity  int       `json:"actualQuantity"`
+	DiscrepancyType string    `json:"discrepancyType"` // shortage, overage
+	Source          string    `json:"source"`          // picking, cycle_count, receiving
+	ReferenceID     string    `json:"referenceId"`     // orderId, countId, etc.
+	DetectedAt      time.Time `json:"detectedAt"`
+}
+
+func (e *InventoryDiscrepancyEvent) EventType() string     { return "wms.inventory.discrepancy" }
+func (e *InventoryDiscrepancyEvent) OccurredAt() time.Time { return e.DetectedAt }
+
+// BackorderCreatedEvent is published when a backorder is created for shortage items
+type BackorderCreatedEvent struct {
+	BackorderID     string    `json:"backorderId"`
+	OriginalOrderID string    `json:"originalOrderId"`
+	SKU             string    `json:"sku"`
+	Quantity        int       `json:"quantity"`
+	Priority        int       `json:"priority"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+func (e *BackorderCreatedEvent) EventType() string     { return "wms.inventory.backorder-created" }
+func (e *BackorderCreatedEvent) OccurredAt() time.Time { return e.CreatedAt }

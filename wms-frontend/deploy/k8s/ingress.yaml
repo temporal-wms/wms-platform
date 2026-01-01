@@ -1,0 +1,88 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wms-frontend-ingress
+  namespace: wms-frontend
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: wms.local
+      http:
+        paths:
+          # Shell (main application)
+          - path: /(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-shell
+                port:
+                  number: 80
+          # Orders microfrontend assets
+          - path: /mf/orders/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-orders-mf
+                port:
+                  number: 80
+          # Waves microfrontend assets
+          - path: /mf/waves/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-waves-mf
+                port:
+                  number: 80
+          # Inventory microfrontend assets
+          - path: /mf/inventory/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-inventory-mf
+                port:
+                  number: 80
+          # Picking microfrontend assets
+          - path: /mf/picking/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-picking-mf
+                port:
+                  number: 80
+          # Packing microfrontend assets
+          - path: /mf/packing/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-packing-mf
+                port:
+                  number: 80
+          # Shipping microfrontend assets
+          - path: /mf/shipping/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-shipping-mf
+                port:
+                  number: 80
+          # Labor microfrontend assets
+          - path: /mf/labor/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-labor-mf
+                port:
+                  number: 80
+          # Dashboard microfrontend assets
+          - path: /mf/dashboard/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: wms-dashboard-mf
+                port:
+                  number: 80

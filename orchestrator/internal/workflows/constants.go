@@ -22,3 +22,25 @@ const (
 	WaveTimeoutNextDay time.Duration = 2 * time.Hour
 	WaveTimeoutDefault time.Duration = 4 * time.Hour
 )
+
+// Reprocessing configuration
+const (
+	// MaxReprocessingRetries is the maximum number of retry attempts before moving to DLQ
+	MaxReprocessingRetries = 5
+
+	// ReprocessingBatchInterval is how often the reprocessing batch job runs
+	ReprocessingBatchInterval time.Duration = 5 * time.Minute
+
+	// ReprocessingBatchSize is the maximum number of orders to process per batch
+	ReprocessingBatchSize = 100
+
+	// ReprocessingScheduleID is the ID for the Temporal schedule
+	ReprocessingScheduleID = "order-reprocessing-schedule"
+)
+
+// ReprocessableStatuses are the failure statuses that can be retried
+// Only transient/timeout failures are eligible for automatic retry
+var ReprocessableStatuses = []string{
+	"wave_timeout",
+	"pick_timeout",
+}

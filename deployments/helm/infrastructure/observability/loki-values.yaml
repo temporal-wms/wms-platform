@@ -1,0 +1,98 @@
+# Loki Helm Chart Values
+# Chart: grafana/loki
+#
+# Install:
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm install loki grafana/loki \
+#     -n observability --create-namespace -f loki-values.yaml
+
+# Deployment mode (SingleBinary for Kind/dev, distributed for prod)
+deploymentMode: SingleBinary
+
+# Loki configuration
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+    bucketNames:
+      chunks: chunks
+      ruler: ruler
+      admin: admin
+  schemaConfig:
+    configs:
+      - from: 2024-01-01
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    retention_period: 168h
+    ingestion_rate_mb: 10
+    ingestion_burst_size_mb: 20
+    max_streams_per_user: 10000
+    max_entries_limit_per_query: 5000
+  querier:
+    max_concurrent: 20
+  storage_config:
+    filesystem:
+      directory: /var/loki/chunks
+
+# Use test schema for simplified setup
+test:
+  enabled: false
+
+# Single Binary mode
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+
+# Disable distributed components
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Gateway configuration
+gateway:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 100m
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30310
+
+# Disable caches for development
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Monitoring
+monitoring:
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false

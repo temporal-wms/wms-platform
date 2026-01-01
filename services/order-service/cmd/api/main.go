@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -91,6 +92,11 @@ func main() {
 	// Initialize repositories with instrumented client and event factory
 	orderRepo := mongoRepo.NewOrderRepository(instrumentedMongo.Database(), eventFactory)
 
+	// Initialize reprocessing repositories
+	retryMetadataRepo := mongoRepo.NewRetryMetadataRepository(instrumentedMongo.Database())
+	deadLetterRepo := mongoRepo.NewDeadLetterRepository(instrumentedMongo.Database())
+	logger.Info("Reprocessing repositories initialized")
+
 	// Initialize CQRS read model repository and projector
 	projectionRepo := projections.NewMongoOrderListProjectionRepository(instrumentedMongo.Database())
 	orderProjector := projections.NewOrderProjector(projectionRepo, orderRepo, logger)
@@ -126,6 +132,9 @@ func main() {
 	// Initialize business metrics helper
 	businessMetrics := middleware.NewBusinessMetrics(m)
 
+	// Initialize failure metrics helper
+	failureMetrics := middleware.NewFailureMetrics(m)
+
 	// Initialize application service (write side)
 	orderService := application.NewOrderApplicationService(
 		orderRepo,
@@ -141,6 +150,15 @@ func main() {
 	orderQueryService := application.NewOrderQueryService(
 		projectionRepo,
 		logger,
+	)
+
+	// Initialize reprocessing service
+	reprocessingService := application.NewReprocessingService(
+		orderRepo,
+		retryMetadataRepo,
+		deadLetterRepo,
+		logger,
+		failureMetrics,
 	)
 
 	// Setup Gin router with middleware
@@ -178,12 +196,38 @@ func main() {
 			orders.POST("", createOrderHandler(orderService, logger))
 			orders.PUT("/:orderId/validate", validateOrderHandler(orderService, logger))
 			orders.PUT("/:orderId/cancel", cancelOrderHandler(orderService, logger))
+			orders.PUT("/:orderId/assign-wave", assignWaveHandler(orderService, logger))
+			orders.PUT("/:orderId/start-picking", startPickingHandler(orderService, logger))
+			orders.PUT("/:orderId/mark-consolidated", markConsolidatedHandler(orderService, logger))
+			orders.PUT("/:orderId/mark-packed", markPackedHandler(orderService, logger))
 
 			// Query handlers (read side - CQRS)
 			orders.GET("/:orderId", getOrderHandler(orderService, logger))
 			orders.GET("", listOrdersHandler(orderQueryService, logger))
 			orders.GET("/status/:status", listOrdersByStatusHandler(orderQueryService, logger))
 			orders.GET("/customer/:customerId", listOrdersByCustomerHandler(orderQueryService, logger))
+		}
+
+		// Reprocessing endpoints (for orchestrator activities)
+		reprocessing := v1.Group("/reprocessing")
+		{
+			// Get orders eligible for retry
+			reprocessing.GET("/eligible", getEligibleOrdersHandler(reprocessingService, logger))
+
+			// Order-specific retry operations
+			reprocessing.GET("/orders/:orderId/retry-count", getRetryMetadataHandler(reprocessingService, logger))
+			reprocessing.POST("/orders/:orderId/retry-count", incrementRetryCountHandler(reprocessingService, logger))
+			reprocessing.POST("/orders/:orderId/reset", resetOrderForRetryHandler(reprocessingService, logger))
+			reprocessing.POST("/orders/:orderId/dlq", moveToDeadLetterHandler(reprocessingService, logger))
+		}
+
+		// Dead Letter Queue endpoints
+		dlq := v1.Group("/dead-letter-queue")
+		{
+			dlq.GET("", listDeadLetterQueueHandler(reprocessingService, logger))
+			dlq.GET("/stats", getDLQStatsHandler(reprocessingService, logger))
+			dlq.GET("/:orderId", getDeadLetterEntryHandler(reprocessingService, logger))
+			dlq.PATCH("/:orderId/resolve", resolveDLQEntryHandler(reprocessingService, logger))
 		}
 	}
 
@@ -272,6 +316,11 @@ type CreateOrderRequest struct {
 // CancelOrderRequest is the request body for cancelling an order
 type CancelOrderRequest struct {
 	Reason string `json:"reason" binding:"required"`
+}
+
+// AssignWaveRequest is the request body for assigning an order to a wave
+type AssignWaveRequest struct {
+	WaveID string `json:"waveId" binding:"required"`
 }
 
 func createOrderHandler(service *application.OrderApplicationService, logger *logging.Logger) gin.HandlerFunc {
@@ -391,6 +440,118 @@ func cancelOrderHandler(service *application.OrderApplicationService, logger *lo
 		})
 
 		order, err := service.CancelOrder(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, order)
+	}
+}
+
+func assignWaveHandler(service *application.OrderApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req AssignWaveRequest
+		if appErr := middleware.BindAndValidate(c, &req); appErr != nil {
+			responder.RespondWithAppError(appErr)
+			return
+		}
+
+		cmd := application.AssignToWaveCommand{
+			OrderID: c.Param("orderId"),
+			WaveID:  req.WaveID,
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id": cmd.OrderID,
+			"wave.id":  cmd.WaveID,
+		})
+
+		order, err := service.AssignToWave(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, order)
+	}
+}
+
+func startPickingHandler(service *application.OrderApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		cmd := application.StartPickingCommand{
+			OrderID: c.Param("orderId"),
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id": cmd.OrderID,
+		})
+
+		order, err := service.StartPicking(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, order)
+	}
+}
+
+func markConsolidatedHandler(service *application.OrderApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		cmd := application.MarkConsolidatedCommand{
+			OrderID: c.Param("orderId"),
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id": cmd.OrderID,
+		})
+
+		order, err := service.MarkConsolidated(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, order)
+	}
+}
+
+func markPackedHandler(service *application.OrderApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		cmd := application.MarkPackedCommand{
+			OrderID: c.Param("orderId"),
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id": cmd.OrderID,
+		})
+
+		order, err := service.MarkPacked(c.Request.Context(), cmd)
 		if err != nil {
 			if appErr, ok := err.(*errors.AppError); ok {
 				responder.RespondWithAppError(appErr)
@@ -560,5 +721,312 @@ func toAddressInput(address domain.Address) application.AddressInput {
 		State:   address.State,
 		ZipCode: address.ZipCode,
 		Country: address.Country,
+	}
+}
+
+// --- Reprocessing Handlers ---
+
+// IncrementRetryCountRequest is the request body for incrementing retry count
+type IncrementRetryCountRequest struct {
+	FailureStatus string `json:"failureStatus" binding:"required"`
+	FailureReason string `json:"failureReason"`
+	WorkflowID    string `json:"workflowId"`
+	RunID         string `json:"runId"`
+}
+
+// MoveToDLQRequest is the request body for moving an order to DLQ
+type MoveToDLQRequest struct {
+	FailureStatus string `json:"failureStatus" binding:"required"`
+	FailureReason string `json:"failureReason"`
+	RetryCount    int    `json:"retryCount"`
+	WorkflowID    string `json:"workflowId"`
+	RunID         string `json:"runId"`
+}
+
+// ResolveDLQRequest is the request body for resolving a DLQ entry
+type ResolveDLQRequest struct {
+	Resolution string `json:"resolution" binding:"required,oneof=manual_retry cancelled escalated"`
+	Notes      string `json:"notes"`
+	ResolvedBy string `json:"resolvedBy"`
+}
+
+func getEligibleOrdersHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		// Parse query parameters
+		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+		maxRetries, _ := strconv.Atoi(c.DefaultQuery("maxRetries", "5"))
+
+		// Parse status array
+		var failureStatuses []string
+		if statuses := c.QueryArray("status"); len(statuses) > 0 {
+			failureStatuses = statuses
+		}
+
+		query := application.GetEligibleOrdersQuery{
+			FailureStatuses: failureStatuses,
+			MaxRetries:      maxRetries,
+			Limit:           limit,
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"query.limit":      limit,
+			"query.maxRetries": maxRetries,
+		})
+
+		result, err := service.GetEligibleOrders(c.Request.Context(), query)
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
+	}
+}
+
+func getRetryMetadataHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+		orderID := c.Param("orderId")
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id": orderID,
+		})
+
+		result, err := service.GetRetryMetadata(c.Request.Context(), orderID)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"data": result})
+	}
+}
+
+func incrementRetryCountHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+		orderID := c.Param("orderId")
+
+		var req IncrementRetryCountRequest
+		if appErr := middleware.BindAndValidate(c, &req); appErr != nil {
+			responder.RespondWithAppError(appErr)
+			return
+		}
+
+		cmd := application.IncrementRetryCountCommand{
+			OrderID:       orderID,
+			FailureStatus: req.FailureStatus,
+			FailureReason: req.FailureReason,
+			WorkflowID:    req.WorkflowID,
+			RunID:         req.RunID,
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id":       orderID,
+			"failure.status": req.FailureStatus,
+		})
+
+		if err := service.IncrementRetryCount(c.Request.Context(), cmd); err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "Retry count incremented",
+		})
+	}
+}
+
+func resetOrderForRetryHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+		orderID := c.Param("orderId")
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id": orderID,
+		})
+
+		result, err := service.ResetOrderForRetry(c.Request.Context(), orderID)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    result,
+		})
+	}
+}
+
+func moveToDeadLetterHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+		orderID := c.Param("orderId")
+
+		var req MoveToDLQRequest
+		if appErr := middleware.BindAndValidate(c, &req); appErr != nil {
+			responder.RespondWithAppError(appErr)
+			return
+		}
+
+		cmd := application.MoveToDLQCommand{
+			OrderID:       orderID,
+			FailureStatus: req.FailureStatus,
+			FailureReason: req.FailureReason,
+			RetryCount:    req.RetryCount,
+			WorkflowID:    req.WorkflowID,
+			RunID:         req.RunID,
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id":       orderID,
+			"failure.status": req.FailureStatus,
+			"retry.count":    req.RetryCount,
+		})
+
+		if err := service.MoveToDeadLetterQueue(c.Request.Context(), cmd); err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusCreated, gin.H{
+			"success": true,
+			"message": "Order moved to dead letter queue",
+		})
+	}
+}
+
+// --- Dead Letter Queue Handlers ---
+
+func listDeadLetterQueueHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		// Parse query parameters
+		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+		query := application.ListDLQQuery{
+			Limit:  limit,
+			Offset: offset,
+		}
+
+		// Optional filters
+		if resolved := c.Query("resolved"); resolved != "" {
+			r := strings.ToLower(resolved) == "true"
+			query.Resolved = &r
+		}
+		if status := c.Query("failureStatus"); status != "" {
+			query.FailureStatus = &status
+		}
+		if customerID := c.Query("customerId"); customerID != "" {
+			query.CustomerID = &customerID
+		}
+		if hours := c.Query("olderThanHours"); hours != "" {
+			if h, err := strconv.ParseFloat(hours, 64); err == nil {
+				query.OlderThanHours = &h
+			}
+		}
+
+		result, err := service.ListDeadLetterQueue(c.Request.Context(), query)
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
+	}
+}
+
+func getDLQStatsHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		stats, err := service.GetDLQStats(c.Request.Context())
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"data": stats})
+	}
+}
+
+func getDeadLetterEntryHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+		orderID := c.Param("orderId")
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id": orderID,
+		})
+
+		result, err := service.GetDeadLetterEntry(c.Request.Context(), orderID)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"data": result})
+	}
+}
+
+func resolveDLQEntryHandler(service *application.ReprocessingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+		orderID := c.Param("orderId")
+
+		var req ResolveDLQRequest
+		if appErr := middleware.BindAndValidate(c, &req); appErr != nil {
+			responder.RespondWithAppError(appErr)
+			return
+		}
+
+		cmd := application.ResolveDLQCommand{
+			OrderID:    orderID,
+			Resolution: req.Resolution,
+			Notes:      req.Notes,
+			ResolvedBy: req.ResolvedBy,
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id":   orderID,
+			"resolution": req.Resolution,
+		})
+
+		if err := service.ResolveDLQEntry(c.Request.Context(), cmd); err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":    true,
+			"message":    "Dead letter entry resolved",
+			"resolution": req.Resolution,
+		})
 	}
 }

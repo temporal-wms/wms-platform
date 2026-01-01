@@ -81,3 +81,24 @@ type WaveListDTO struct {
 	CreatedAt       time.Time  `json:"createdAt"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
 }
+
+// CreateWaveFromOrdersRequest is the API request for creating a wave from order IDs
+type CreateWaveFromOrdersRequest struct {
+	OrderIDs        []string             `json:"orderIds" binding:"required,min=1"`
+	WaveType        string               `json:"waveType" binding:"required"`
+	FulfillmentMode string               `json:"fulfillmentMode"`
+	Zone            string               `json:"zone"`
+	Configuration   WaveConfigurationDTO `json:"configuration"`
+}
+
+// CreateWaveFromOrdersResponse is the API response for creating a wave from order IDs
+type CreateWaveFromOrdersResponse struct {
+	Wave         WaveDTO  `json:"wave"`
+	FailedOrders []string `json:"failedOrders,omitempty"`
+}
+
+// WaveAssignedSignal is the payload for the waveAssigned Temporal signal
+type WaveAssignedSignal struct {
+	WaveID         string    `json:"waveId"`
+	ScheduledStart time.Time `json:"scheduledStart"`
+}

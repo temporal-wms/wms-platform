@@ -141,6 +141,13 @@ func (c *ServiceClients) MarkPacked(ctx context.Context, orderID string) error {
 	return c.doRequest(ctx, http.MethodPut, url, nil, nil)
 }
 
+// AssignToWave assigns an order to a wave (updates order status to wave_assigned)
+func (c *ServiceClients) AssignToWave(ctx context.Context, orderID, waveID string) error {
+	url := fmt.Sprintf("%s/api/v1/orders/%s/assign-wave", c.config.OrderServiceURL, orderID)
+	body := map[string]string{"waveId": waveID}
+	return c.doRequest(ctx, http.MethodPut, url, body, nil)
+}
+
 // InventoryService methods
 
 // ReserveInventory reserves inventory for an order
@@ -182,6 +189,12 @@ func (c *ServiceClients) ShipInventory(ctx context.Context, sku string, req *Shi
 // ReturnInventoryToShelf returns hard allocated inventory back to shelf
 func (c *ServiceClients) ReturnInventoryToShelf(ctx context.Context, sku string, req *ReturnToShelfRequest) error {
 	url := fmt.Sprintf("%s/api/v1/inventory/%s/return-to-shelf", c.config.InventoryServiceURL, sku)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// RecordStockShortage records a confirmed stock shortage discovered during picking
+func (c *ServiceClients) RecordStockShortage(ctx context.Context, sku string, req *RecordShortageRequest) error {
+	url := fmt.Sprintf("%s/api/v1/inventory/%s/shortage", c.config.InventoryServiceURL, sku)
 	return c.doRequest(ctx, http.MethodPost, url, req, nil)
 }
 

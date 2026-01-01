@@ -1,6 +1,12 @@
 {{- range $serviceName, $serviceConfig := .Values.services }}
 {{- if and $serviceConfig.enabled (ne $serviceConfig.type "worker") }}
-{{- if ne (dig "service" "enabled" true $serviceConfig) false }}
+{{- $serviceEnabled := true }}
+{{- if hasKey $serviceConfig "service" }}
+{{- if hasKey $serviceConfig.service "enabled" }}
+{{- $serviceEnabled = $serviceConfig.service.enabled }}
+{{- end }}
+{{- end }}
+{{- if $serviceEnabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -21,6 +27,9 @@ spec:
     port: {{ $serviceConfig.ports.http }}
     targetPort: http
     protocol: TCP
+    {{- if and (eq ($serviceConfig.service.type | default "ClusterIP") "NodePort") $serviceConfig.service.nodePort }}
+    nodePort: {{ $serviceConfig.service.nodePort }}
+    {{- end }}
   {{- if $serviceConfig.ports.grpc }}
   - name: grpc
     port: {{ $serviceConfig.ports.grpc }}

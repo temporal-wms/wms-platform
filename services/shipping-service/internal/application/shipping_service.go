@@ -56,7 +56,18 @@ func (s *ShippingApplicationService) CreateShipment(ctx context.Context, cmd Cre
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Created shipment", "shipmentId", cmd.ShipmentID, "orderId", cmd.OrderID)
+	// Log business event: shipment created
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "shipment.created",
+		EntityType: "shipment",
+		EntityID:   cmd.ShipmentID,
+		Action:     "created",
+		RelatedIDs: map[string]string{
+			"orderId":   cmd.OrderID,
+			"packageId": cmd.PackageID,
+		},
+	})
+
 	return ToShipmentDTO(shipment), nil
 }
 
@@ -102,7 +113,17 @@ func (s *ShippingApplicationService) GenerateLabel(ctx context.Context, cmd Gene
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Generated label for shipment", "shipmentId", cmd.ShipmentID, "trackingNumber", label.TrackingNumber)
+	// Log business event: label generated
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "shipment.label_generated",
+		EntityType: "shipment",
+		EntityID:   cmd.ShipmentID,
+		Action:     "label_generated",
+		RelatedIDs: map[string]string{
+			"trackingNumber": label.TrackingNumber,
+		},
+	})
+
 	return ToShipmentDTO(shipment), nil
 }
 
@@ -160,7 +181,14 @@ func (s *ShippingApplicationService) ConfirmShipment(ctx context.Context, cmd Co
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Confirmed shipment", "shipmentId", cmd.ShipmentID)
+	// Log business event: shipment confirmed
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "shipment.confirmed",
+		EntityType: "shipment",
+		EntityID:   cmd.ShipmentID,
+		Action:     "confirmed",
+	})
+
 	return ToShipmentDTO(shipment), nil
 }
 

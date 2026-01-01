@@ -80,6 +80,23 @@ func TracingMiddleware(config *TracingConfig) gin.HandlerFunc {
 			span.SetAttributes(attribute.String("correlation.id", correlationID.(string)))
 		}
 
+		// Add WMS CloudEvents extension attributes
+		if wmsCorrelationID, exists := c.Get(ContextKeyWMSCorrelationID); exists {
+			if id, ok := wmsCorrelationID.(string); ok && id != "" {
+				span.SetAttributes(attribute.String("wms.correlation_id", id))
+			}
+		}
+		if wmsWaveNumber, exists := c.Get(ContextKeyWMSWaveNumber); exists {
+			if id, ok := wmsWaveNumber.(string); ok && id != "" {
+				span.SetAttributes(attribute.String("wms.wave_number", id))
+			}
+		}
+		if wmsWorkflowID, exists := c.Get(ContextKeyWMSWorkflowID); exists {
+			if id, ok := wmsWorkflowID.(string); ok && id != "" {
+				span.SetAttributes(attribute.String("wms.workflow_id", id))
+			}
+		}
+
 		// Set trace ID in context for logging
 		c.Set("traceId", span.SpanContext().TraceID().String())
 		c.Set("spanId", span.SpanContext().SpanID().String())

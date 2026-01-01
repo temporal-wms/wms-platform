@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wms-frontend-config
+  namespace: wms-frontend
+data:
+  # API Configuration
+  VITE_API_BASE_URL: "http://wms-api-gateway.wms-platform-dev.svc.cluster.local:8080"
+
+  # WebSocket Configuration
+  VITE_WS_ENABLED: "true"
+  VITE_WS_BASE_URL: "ws://wms-api-gateway.wms-platform-dev.svc.cluster.local:8080"
+
+  # Service URLs (for direct access if needed)
+  VITE_ORDER_SERVICE_URL: "http://order-service.wms-platform-dev.svc.cluster.local:8001"
+  VITE_WAVE_SERVICE_URL: "http://waving-service.wms-platform-dev.svc.cluster.local:8002"
+  VITE_PICKING_SERVICE_URL: "http://picking-service.wms-platform-dev.svc.cluster.local:8004"
+  VITE_PACKING_SERVICE_URL: "http://packing-service.wms-platform-dev.svc.cluster.local:8006"
+  VITE_SHIPPING_SERVICE_URL: "http://shipping-service.wms-platform-dev.svc.cluster.local:8007"
+  VITE_INVENTORY_SERVICE_URL: "http://inventory-service.wms-platform-dev.svc.cluster.local:8008"
+  VITE_LABOR_SERVICE_URL: "http://labor-service.wms-platform-dev.svc.cluster.local:8009"
+
+  # Feature Flags
+  VITE_FEATURE_REALTIME: "true"
+  VITE_DEBUG: "false"
+
+  # Microfrontend URLs (for shell to load remotes)
+  VITE_ORDERS_URL: "http://wms-orders-mf.wms-frontend.svc.cluster.local"
+  VITE_WAVES_URL: "http://wms-waves-mf.wms-frontend.svc.cluster.local"
+  VITE_INVENTORY_URL: "http://wms-inventory-mf.wms-frontend.svc.cluster.local"
+  VITE_PICKING_URL: "http://wms-picking-mf.wms-frontend.svc.cluster.local"
+  VITE_PACKING_URL: "http://wms-packing-mf.wms-frontend.svc.cluster.local"
+  VITE_SHIPPING_URL: "http://wms-shipping-mf.wms-frontend.svc.cluster.local"
+  VITE_LABOR_URL: "http://wms-labor-mf.wms-frontend.svc.cluster.local"
+  VITE_DASHBOARD_URL: "http://wms-dashboard-mf.wms-frontend.svc.cluster.local"

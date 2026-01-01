@@ -53,7 +53,18 @@ func (s *RoutingApplicationService) CalculateRoute(ctx context.Context, cmd Calc
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Created route", "routeId", route.RouteID, "orderId", cmd.RouteRequest.OrderID)
+	// Log business event: route created
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "route.created",
+		EntityType: "route",
+		EntityID:   route.RouteID,
+		Action:     "created",
+		RelatedIDs: map[string]string{
+			"orderId": cmd.RouteRequest.OrderID,
+			"waveId":  cmd.RouteRequest.WaveID,
+		},
+	})
+
 	return ToPickRouteDTO(route), nil
 }
 
@@ -185,7 +196,17 @@ func (s *RoutingApplicationService) CompleteRoute(ctx context.Context, cmd Compl
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Completed route", "routeId", cmd.RouteID)
+	// Log business event: route completed
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "route.completed",
+		EntityType: "route",
+		EntityID:   cmd.RouteID,
+		Action:     "completed",
+		RelatedIDs: map[string]string{
+			"orderId": route.OrderID,
+		},
+	})
+
 	return ToPickRouteDTO(route), nil
 }
 

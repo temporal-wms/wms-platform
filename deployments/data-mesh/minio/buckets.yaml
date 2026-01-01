@@ -1,0 +1,89 @@
+---
+# Lifecycle policies for data lakehouse buckets
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-bucket-policies
+  namespace: data-mesh
+data:
+  bronze-lifecycle.json: |
+    {
+      "Rules": [
+        {
+          "ID": "ExpireOldData",
+          "Status": "Enabled",
+          "Filter": {
+            "Prefix": ""
+          },
+          "Expiration": {
+            "Days": 90
+          }
+        }
+      ]
+    }
+  silver-lifecycle.json: |
+    {
+      "Rules": [
+        {
+          "ID": "ExpireOldData",
+          "Status": "Enabled",
+          "Filter": {
+            "Prefix": ""
+          },
+          "Expiration": {
+            "Days": 365
+          }
+        }
+      ]
+    }
+  gold-lifecycle.json: |
+    {
+      "Rules": [
+        {
+          "ID": "ArchiveOldData",
+          "Status": "Enabled",
+          "Filter": {
+            "Prefix": ""
+          },
+          "Transition": {
+            "Days": 365,
+            "StorageClass": "GLACIER"
+          }
+        }
+      ]
+    }
+---
+# Job to create buckets and set lifecycle policies
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-bucket-setup
+  namespace: data-mesh
+spec:
+  template:
+    spec:
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Configure MinIO client
+              mc alias set myminio http://minio.data-mesh.svc.cluster.local:9000 admin minio123456
+
+              # Create buckets
+              mc mb myminio/wms-bronze --ignore-existing
+              mc mb myminio/wms-silver --ignore-existing
+              mc mb myminio/wms-gold --ignore-existing
+              mc mb myminio/wms-checkpoints --ignore-existing
+              mc mb myminio/iceberg-warehouse --ignore-existing
+
+              # Set anonymous access for internal use
+              mc anonymous set download myminio/wms-bronze
+              mc anonymous set download myminio/wms-silver
+              mc anonymous set download myminio/wms-gold
+
+              echo "Buckets created successfully"
+      restartPolicy: Never
+  backoffLimit: 3

@@ -3,21 +3,26 @@ package application
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/wms-platform/shared/pkg/cloudevents"
 	"github.com/wms-platform/shared/pkg/errors"
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/temporal"
 
 	"github.com/wms-platform/waving-service/internal/domain"
+	"github.com/wms-platform/waving-service/internal/infrastructure/clients"
 )
 
 // WavingApplicationService handles wave-related use cases
 type WavingApplicationService struct {
-	repo         domain.WaveRepository
-	producer     *kafka.InstrumentedProducer
-	eventFactory *cloudevents.EventFactory
-	logger       *logging.Logger
+	repo           domain.WaveRepository
+	producer       *kafka.InstrumentedProducer
+	eventFactory   *cloudevents.EventFactory
+	logger         *logging.Logger
+	orderClient    *clients.OrderServiceClient
+	temporalClient *temporal.Client
 }
 
 // NewWavingApplicationService creates a new WavingApplicationService
@@ -26,12 +31,16 @@ func NewWavingApplicationService(
 	producer *kafka.InstrumentedProducer,
 	eventFactory *cloudevents.EventFactory,
 	logger *logging.Logger,
+	orderClient *clients.OrderServiceClient,
+	temporalClient *temporal.Client,
 ) *WavingApplicationService {
 	return &WavingApplicationService{
-		repo:         repo,
-		producer:     producer,
-		eventFactory: eventFactory,
-		logger:       logger,
+		repo:           repo,
+		producer:       producer,
+		eventFactory:   eventFactory,
+		logger:         logger,
+		orderClient:    orderClient,
+		temporalClient: temporalClient,
 	}
 }
 
@@ -60,7 +69,18 @@ func (s *WavingApplicationService) CreateWave(ctx context.Context, cmd CreateWav
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Created wave", "waveId", waveID, "waveType", cmd.WaveType)
+	// Log business event: wave created
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "wave.created",
+		EntityType: "wave",
+		EntityID:   waveID,
+		Action:     "created",
+		RelatedIDs: map[string]string{
+			"waveType": cmd.WaveType,
+			"zone":     cmd.Zone,
+		},
+	})
+
 	return ToWaveDTO(wave), nil
 }
 
@@ -233,7 +253,17 @@ func (s *WavingApplicationService) ReleaseWave(ctx context.Context, cmd ReleaseW
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Released wave", "waveId", cmd.WaveID)
+	// Log business event: wave released
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "wave.released",
+		EntityType: "wave",
+		EntityID:   cmd.WaveID,
+		Action:     "released",
+		RelatedIDs: map[string]string{
+			"orderCount": fmt.Sprintf("%d", wave.GetOrderCount()),
+		},
+	})
+
 	return ToWaveDTO(wave), nil
 }
 
@@ -260,7 +290,17 @@ func (s *WavingApplicationService) CancelWave(ctx context.Context, cmd CancelWav
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Cancelled wave", "waveId", cmd.WaveID, "reason", cmd.Reason)
+	// Log business event: wave cancelled
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "wave.cancelled",
+		EntityType: "wave",
+		EntityID:   cmd.WaveID,
+		Action:     "cancelled",
+		RelatedIDs: map[string]string{
+			"reason": cmd.Reason,
+		},
+	})
+
 	return ToWaveDTO(wave), nil
 }
 
@@ -311,5 +351,121 @@ func (s *WavingApplicationService) GetReadyForRelease(ctx context.Context) ([]Wa
 	}
 
 	return ToWaveDTOs(waves), nil
+}
+
+// CreateWaveFromOrders creates a wave from a list of order IDs
+func (s *WavingApplicationService) CreateWaveFromOrders(ctx context.Context, cmd CreateWaveFromOrdersCommand) (*CreateWaveFromOrdersResponse, error) {
+	if len(cmd.OrderIDs) == 0 {
+		return nil, errors.ErrValidation("at least one order ID is required")
+	}
+
+	// Generate wave ID and create wave
+	waveType := domain.WaveType(cmd.WaveType)
+	mode := domain.FulfillmentModeWave
+	if cmd.FulfillmentMode != "" {
+		mode = domain.FulfillmentMode(cmd.FulfillmentMode)
+	}
+
+	waveID := generateWaveID(waveType)
+	wave, err := domain.NewWave(waveID, waveType, mode, cmd.Configuration)
+	if err != nil {
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	if cmd.Zone != "" {
+		wave.SetZone(cmd.Zone)
+	}
+
+	// Track failed orders
+	var failedOrders []string
+	scheduledStart := time.Now().Add(30 * time.Minute)
+
+	// Fetch and add each order
+	for _, orderID := range cmd.OrderIDs {
+		// Fetch order from order-service
+		order, err := s.orderClient.GetOrder(ctx, orderID)
+		if err != nil {
+			s.logger.WithError(err).Warn("Failed to fetch order", "orderId", orderID)
+			failedOrders = append(failedOrders, orderID)
+			continue
+		}
+
+		// Validate order is in correct status
+		if order.Status != "validated" {
+			s.logger.Warn("Order not in validated status", "orderId", orderID, "status", order.Status)
+			failedOrders = append(failedOrders, orderID)
+			continue
+		}
+
+		// Convert to WaveOrder
+		waveOrder := domain.WaveOrder{
+			OrderID:            order.OrderID,
+			CustomerID:         order.CustomerID,
+			Priority:           order.Priority,
+			ItemCount:          order.TotalItems,
+			TotalWeight:        order.TotalWeight,
+			PromisedDeliveryAt: order.PromisedDeliveryAt,
+			CarrierCutoff:      order.PromisedDeliveryAt.Add(-4 * time.Hour),
+			Zone:               cmd.Zone,
+			Status:             "pending",
+		}
+
+		if err := wave.AddOrder(waveOrder); err != nil {
+			s.logger.WithError(err).Warn("Failed to add order to wave", "orderId", orderID)
+			failedOrders = append(failedOrders, orderID)
+			continue
+		}
+	}
+
+	// Validate we have at least one order
+	if wave.GetOrderCount() == 0 {
+		return nil, errors.ErrValidation("no valid orders to add to wave")
+	}
+
+	// Save the wave
+	if err := s.repo.Save(ctx, wave); err != nil {
+		s.logger.WithError(err).Error("Failed to save wave", "waveId", waveID)
+		return nil, fmt.Errorf("failed to save wave: %w", err)
+	}
+
+	// Signal each order's Temporal workflow with waveAssigned
+	if s.temporalClient != nil {
+		for _, order := range wave.Orders {
+			workflowID := "order-fulfillment-" + order.OrderID
+			signalPayload := WaveAssignedSignal{
+				WaveID:         waveID,
+				ScheduledStart: scheduledStart,
+			}
+
+			err := s.temporalClient.SignalWorkflow(ctx, workflowID, "", "waveAssigned", signalPayload)
+			if err != nil {
+				s.logger.WithError(err).Warn("Failed to signal workflow",
+					"orderId", order.OrderID,
+					"workflowId", workflowID)
+				// Continue - don't fail the whole operation for signal failures
+			} else {
+				s.logger.Info("Signaled workflow", "orderId", order.OrderID, "waveId", waveID)
+			}
+		}
+	}
+
+	// Log business event: wave created from orders
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "wave.created",
+		EntityType: "wave",
+		EntityID:   waveID,
+		Action:     "created",
+		RelatedIDs: map[string]string{
+			"waveType":    cmd.WaveType,
+			"zone":        cmd.Zone,
+			"orderCount":  fmt.Sprintf("%d", wave.GetOrderCount()),
+			"failedCount": fmt.Sprintf("%d", len(failedOrders)),
+		},
+	})
+
+	return &CreateWaveFromOrdersResponse{
+		Wave:         *ToWaveDTO(wave),
+		FailedOrders: failedOrders,
+	}, nil
 }
 

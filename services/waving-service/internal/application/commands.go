@@ -75,3 +75,12 @@ type GetWavesByZoneQuery struct {
 type GetWaveByOrderQuery struct {
 	OrderID string
 }
+
+// CreateWaveFromOrdersCommand represents the command to create a wave from a list of order IDs
+type CreateWaveFromOrdersCommand struct {
+	OrderIDs        []string
+	WaveType        string
+	FulfillmentMode string
+	Zone            string
+	Configuration   domain.WaveConfiguration
+}

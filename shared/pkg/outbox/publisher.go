@@ -131,6 +131,11 @@ func (p *Publisher) processEvents(ctx context.Context) {
 		return
 	}
 
+	// Record pending events count
+	if p.metrics != nil {
+		p.metrics.SetOutboxPending(len(events))
+	}
+
 	if len(events) == 0 {
 		return
 	}
@@ -138,7 +143,8 @@ func (p *Publisher) processEvents(ctx context.Context) {
 	p.logger.Info("Processing outbox events", "count", len(events))
 
 	for _, event := range events {
-		if err := p.publishEvent(ctx, event); err != nil {
+		duration, err := p.publishEvent(ctx, event)
+		if err != nil {
 			p.logger.WithError(err).Error("Failed to publish event",
 				"eventId", event.ID,
 				"eventType", event.EventType,
@@ -146,12 +152,27 @@ func (p *Publisher) processEvents(ctx context.Context) {
 			)
 			p.failedCnt++
 
+			// Record failed publish metric
+			if p.metrics != nil {
+				p.metrics.RecordOutboxPublish(event.EventType, false, duration)
+			}
+
 			// Increment retry count
 			if err := p.repo.IncrementRetry(ctx, event.ID, err.Error()); err != nil {
 				p.logger.WithError(err).Error("Failed to increment retry count", "eventId", event.ID)
 			}
+
+			// Record retry metric
+			if p.metrics != nil {
+				p.metrics.RecordOutboxRetry(event.EventType)
+			}
 		} else {
 			p.publishedCnt++
+
+			// Record successful publish metric
+			if p.metrics != nil {
+				p.metrics.RecordOutboxPublish(event.EventType, true, duration)
+			}
 
 			// Mark as published
 			if err := p.repo.MarkPublished(ctx, event.ID); err != nil {
@@ -159,32 +180,34 @@ func (p *Publisher) processEvents(ctx context.Context) {
 			}
 		}
 	}
-
-	// TODO: Add outbox-specific metrics to the Metrics package
-	// For now, metrics are logged only
 }
 
-// publishEvent publishes a single event to Kafka
-func (p *Publisher) publishEvent(ctx context.Context, event *OutboxEvent) error {
+// publishEvent publishes a single event to Kafka and returns the duration
+func (p *Publisher) publishEvent(ctx context.Context, event *OutboxEvent) (time.Duration, error) {
+	start := time.Now()
+
 	// Convert to CloudEvent
 	cloudEvent, err := event.ToCloudEvent()
 	if err != nil {
-		return fmt.Errorf("failed to convert to CloudEvent: %w", err)
+		return time.Since(start), fmt.Errorf("failed to convert to CloudEvent: %w", err)
 	}
 
 	// Publish to Kafka
 	if err := p.producer.PublishEvent(ctx, event.Topic, cloudEvent); err != nil {
-		return fmt.Errorf("failed to publish to Kafka: %w", err)
+		return time.Since(start), fmt.Errorf("failed to publish to Kafka: %w", err)
 	}
+
+	duration := time.Since(start)
 
 	p.logger.Info("Published event from outbox",
 		"eventId", event.ID,
 		"eventType", event.EventType,
 		"topic", event.Topic,
 		"aggregateId", event.AggregateID,
+		"duration", duration,
 	)
 
-	return nil
+	return duration, nil
 }
 
 // IsRunning returns whether the publisher is running

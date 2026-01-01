@@ -78,3 +78,11 @@ type GetPendingTasksQuery struct {
 	Zone  string
 	Limit int
 }
+
+// ListTasksQuery represents the query to list tasks with optional filters
+type ListTasksQuery struct {
+	Status string
+	Zone   string
+	Limit  int
+	Offset int
+}

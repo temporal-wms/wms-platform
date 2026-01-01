@@ -19,7 +19,8 @@ func ConsolidationWorkflow(ctx workflow.Context, input map[string]interface{}) e
 	logger := workflow.GetLogger(ctx)
 
 	orderID, _ := input["orderId"].(string)
-	logger.Info("Starting consolidation workflow", "orderId", orderID)
+	waveID, _ := input["waveId"].(string)
+	logger.Info("Starting consolidation workflow", "orderId", orderID, "waveId", waveID)
 
 	// Activity options
 	ao := workflow.ActivityOptions{
@@ -34,10 +35,11 @@ func ConsolidationWorkflow(ctx workflow.Context, input map[string]interface{}) e
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
 	// Step 1: Create consolidation unit
-	logger.Info("Creating consolidation unit", "orderId", orderID)
+	logger.Info("Creating consolidation unit", "orderId", orderID, "waveId", waveID)
 	var consolidationID string
 	err := workflow.ExecuteActivity(ctx, "CreateConsolidationUnit", map[string]interface{}{
 		"orderId":     orderID,
+		"waveId":      waveID,
 		"pickedItems": input["pickedItems"],
 	}).Get(ctx, &consolidationID)
 	if err != nil {

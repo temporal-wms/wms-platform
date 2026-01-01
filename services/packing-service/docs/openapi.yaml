@@ -15,6 +15,10 @@ paths:
     post:
       summary: Create pack task
       tags: [Packing]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
       requestBody:
         required: true
         content:
@@ -137,6 +141,29 @@ paths:
         '200':
           description: Label applied
 
+  /tasks/{taskId}/complete:
+    post:
+      summary: Complete pack task
+      description: Mark the packing task as completed
+      tags: [Packing]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pack task completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
+        '404':
+          description: Task not found
+        '400':
+          description: Task cannot be completed (not all items verified)
+
   /health:
     get:
       summary: Health check
@@ -170,3 +197,32 @@ components:
           type: string
         labelId:
           type: string
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

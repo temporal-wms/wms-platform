@@ -4,22 +4,46 @@ info:
   version: 1.0.0
   description: |
     The WMS (Warehouse Management System) Platform uses an event-driven architecture with Apache Kafka.
-    This document describes all domain events published and consumed across the 9 microservices.
+    This document provides a consolidated view of all domain events published and consumed across the 9 microservices.
 
     ## Event Flow
 
     Order → Wave → Route → Pick → Consolidate → Pack → Ship
 
-    ## Services
-    - **order-service**: Order lifecycle management
-    - **waving-service**: Wave planning and execution
-    - **routing-service**: Pick route calculation
-    - **picking-service**: Pick task management
-    - **consolidation-service**: Multi-item order consolidation
-    - **packing-service**: Packing task management
-    - **shipping-service**: Shipment and carrier integration
-    - **inventory-service**: Inventory management
-    - **labor-service**: Worker and shift management
+    ## Kafka Topics (Channels)
+
+    | Topic | Service | Description |
+    |-------|---------|-------------|
+    | `wms.orders.events` | order-service | Order lifecycle events |
+    | `wms.waves.events` | waving-service | Wave management events |
+    | `wms.routing.events` | routing-service | Route calculation events |
+    | `wms.picking.events` | picking-service | Pick task events |
+    | `wms.consolidation.events` | consolidation-service | Consolidation events |
+    | `wms.packing.events` | packing-service | Packing events |
+    | `wms.shipping.events` | shipping-service | Shipping events |
+    | `wms.inventory.events` | inventory-service | Inventory events |
+    | `wms.labor.events` | labor-service | Labor/workforce events |
+
+    ## Per-Service AsyncAPI Specifications
+
+    Each service has its own AsyncAPI specification with detailed event documentation:
+
+    - `services/order-service/docs/asyncapi.yaml`
+    - `services/waving-service/docs/asyncapi.yaml`
+    - `services/routing-service/docs/asyncapi.yaml`
+    - `services/picking-service/docs/asyncapi.yaml`
+    - `services/consolidation-service/docs/asyncapi.yaml`
+    - `services/packing-service/docs/asyncapi.yaml`
+    - `services/shipping-service/docs/asyncapi.yaml`
+    - `services/inventory-service/docs/asyncapi.yaml`
+    - `services/labor-service/docs/asyncapi.yaml`
+
+    ## CloudEvents Format
+
+    All events use the CloudEvents specification (v1.0) with the following WMS-specific extensions:
+    - `ce-wmscorrelationid`: Distributed tracing correlation ID
+    - `ce-wmswavenumber`: Wave number for wave-related operations
+    - `ce-wmsworkflowid`: Temporal workflow ID
 
   contact:
     name: WMS Platform Team
@@ -121,6 +145,60 @@ channels:
       TaskCompleted:
         $ref: '#/components/messages/TaskCompleted'
     description: Labor and workforce events
+
+  wms.routing.events:
+    address: wms.routing.events
+    messages:
+      RouteCreated:
+        $ref: '#/components/messages/RouteCreated'
+      RouteStarted:
+        $ref: '#/components/messages/RouteStarted'
+      StopCompleted:
+        $ref: '#/components/messages/StopCompleted'
+      RouteCompleted:
+        $ref: '#/components/messages/RouteCompleted'
+      RouteCancelled:
+        $ref: '#/components/messages/RouteCancelled'
+    description: Route calculation and execution events
+
+  wms.consolidation.events:
+    address: wms.consolidation.events
+    messages:
+      ConsolidationStarted:
+        $ref: '#/components/messages/ConsolidationStarted'
+      ItemConsolidated:
+        $ref: '#/components/messages/ItemConsolidated'
+      ConsolidationCompleted:
+        $ref: '#/components/messages/ConsolidationCompleted'
+    description: Order consolidation events for multi-item orders
+
+  wms.packing.events:
+    address: wms.packing.events
+    messages:
+      PackTaskCreated:
+        $ref: '#/components/messages/PackTaskCreated'
+      PackagingSuggested:
+        $ref: '#/components/messages/PackagingSuggested'
+      PackageSealed:
+        $ref: '#/components/messages/PackageSealed'
+      LabelApplied:
+        $ref: '#/components/messages/LabelApplied'
+      PackTaskCompleted:
+        $ref: '#/components/messages/PackTaskCompleted'
+    description: Packing and packaging events
+
+  wms.shipping.events:
+    address: wms.shipping.events
+    messages:
+      ShipmentCreated:
+        $ref: '#/components/messages/ShipmentCreated'
+      LabelGenerated:
+        $ref: '#/components/messages/LabelGenerated'
+      ShipmentManifested:
+        $ref: '#/components/messages/ShipmentManifested'
+      ShipConfirmed:
+        $ref: '#/components/messages/ShipConfirmed'
+    description: Shipping and carrier integration events
 
 operations:
   publishOrderReceived:
@@ -423,6 +501,180 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: '#/components/schemas/TaskCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    # Routing Events
+    RouteCreated:
+      name: RouteCreated
+      title: Route Created Event
+      summary: Published when a pick route is calculated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RouteCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    RouteStarted:
+      name: RouteStarted
+      title: Route Started Event
+      summary: Published when a picker starts a route
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RouteStartedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    StopCompleted:
+      name: StopCompleted
+      title: Stop Completed Event
+      summary: Published when a picker completes a stop on the route
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StopCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    RouteCompleted:
+      name: RouteCompleted
+      title: Route Completed Event
+      summary: Published when a picker completes all stops on a route
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RouteCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    RouteCancelled:
+      name: RouteCancelled
+      title: Route Cancelled Event
+      summary: Published when a route is cancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RouteCancelledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    # Consolidation Events
+    ConsolidationStarted:
+      name: ConsolidationStarted
+      title: Consolidation Started Event
+      summary: Published when consolidation begins for a multi-item order
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ConsolidationStartedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ItemConsolidated:
+      name: ItemConsolidated
+      title: Item Consolidated Event
+      summary: Published when an item is added to consolidation
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ItemConsolidatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ConsolidationCompleted:
+      name: ConsolidationCompleted
+      title: Consolidation Completed Event
+      summary: Published when all items are consolidated for an order
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ConsolidationCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    # Packing Events
+    PackTaskCreated:
+      name: PackTaskCreated
+      title: Pack Task Created Event
+      summary: Published when a packing task is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackTaskCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PackagingSuggested:
+      name: PackagingSuggested
+      title: Packaging Suggested Event
+      summary: Published when packaging type is suggested for an order
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackagingSuggestedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PackageSealed:
+      name: PackageSealed
+      title: Package Sealed Event
+      summary: Published when a package is sealed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackageSealedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    LabelApplied:
+      name: LabelApplied
+      title: Label Applied Event
+      summary: Published when a shipping label is applied to a package
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/LabelAppliedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PackTaskCompleted:
+      name: PackTaskCompleted
+      title: Pack Task Completed Event
+      summary: Published when a packing task is completed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackTaskCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    # Shipping Events
+    ShipmentCreated:
+      name: ShipmentCreated
+      title: Shipment Created Event
+      summary: Published when a shipment record is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShipmentCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    LabelGenerated:
+      name: LabelGenerated
+      title: Label Generated Event
+      summary: Published when a shipping label is generated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/LabelGeneratedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ShipmentManifested:
+      name: ShipmentManifested
+      title: Shipment Manifested Event
+      summary: Published when a shipment is added to carrier manifest
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShipmentManifestedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ShipConfirmed:
+      name: ShipConfirmed
+      title: Ship Confirmed Event
+      summary: Published when carrier confirms shipment pickup
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShipConfirmedPayload'
       headers:
         $ref: '#/components/schemas/CloudEventsHeaders'
 
@@ -837,3 +1089,306 @@ components:
         duration:
           type: integer
           description: Task duration in seconds
+
+    # Routing Event Payloads
+    RouteCreatedPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+          description: Unique route identifier
+        waveId:
+          type: string
+          description: Wave this route belongs to
+        orderId:
+          type: string
+          description: Order this route fulfills
+        pickerId:
+          type: string
+          description: Assigned picker ID
+        strategy:
+          type: string
+          enum: [shortest_path, zone_based, priority_first, batch_pick]
+        stopsCount:
+          type: integer
+          description: Number of stops on the route
+        estimatedDistance:
+          type: number
+          description: Estimated total distance in meters
+        estimatedTimeMinutes:
+          type: integer
+          description: Estimated completion time
+        createdAt:
+          type: string
+          format: date-time
+
+    RouteStartedPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        pickerId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+
+    StopCompletedPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        stopNumber:
+          type: integer
+        locationId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        actualQuantity:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+
+    RouteCompletedPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        pickerId:
+          type: string
+        stopsCompleted:
+          type: integer
+        stopsSkipped:
+          type: integer
+        actualTimeMinutes:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+
+    RouteCancelledPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+
+    # Consolidation Event Payloads
+    ConsolidationStartedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+          description: Unique consolidation identifier
+        orderId:
+          type: string
+          description: Order being consolidated
+        waveId:
+          type: string
+          description: Wave the order belongs to
+        expectedItemCount:
+          type: integer
+          description: Number of items expected
+        startedAt:
+          type: string
+          format: date-time
+
+    ItemConsolidatedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+        orderId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        toteId:
+          type: string
+          description: Source tote ID
+        consolidatedAt:
+          type: string
+          format: date-time
+
+    ConsolidationCompletedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+        orderId:
+          type: string
+        waveId:
+          type: string
+        totalItems:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+
+    # Packing Event Payloads
+    PackTaskCreatedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+          description: Unique pack task identifier
+        orderId:
+          type: string
+        consolidationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PackagingSuggestedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        suggestedPackageType:
+          type: string
+          enum: [small_box, medium_box, large_box, envelope, padded_envelope, custom]
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        suggestedAt:
+          type: string
+          format: date-time
+
+    PackageSealedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        packageId:
+          type: string
+        packageType:
+          type: string
+        weight:
+          type: number
+          description: Package weight in kg
+        sealedAt:
+          type: string
+          format: date-time
+
+    LabelAppliedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        packageId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        appliedAt:
+          type: string
+          format: date-time
+
+    PackTaskCompletedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        packageId:
+          type: string
+        workerId:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+
+    # Shipping Event Payloads
+    ShipmentCreatedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          description: Unique shipment identifier
+        orderId:
+          type: string
+        packageId:
+          type: string
+        carrier:
+          type: string
+          enum: [ups, fedex, usps, dhl]
+        serviceLevel:
+          type: string
+          enum: [ground, express, overnight, two_day]
+        createdAt:
+          type: string
+          format: date-time
+
+    LabelGeneratedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        labelUrl:
+          type: string
+          description: URL to download label PDF
+        generatedAt:
+          type: string
+          format: date-time
+
+    ShipmentManifestedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        manifestId:
+          type: string
+        carrier:
+          type: string
+        expectedPickupAt:
+          type: string
+          format: date-time
+        manifestedAt:
+          type: string
+          format: date-time
+
+    ShipConfirmedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time

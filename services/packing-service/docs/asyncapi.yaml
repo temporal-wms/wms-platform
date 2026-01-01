@@ -1,0 +1,212 @@
+asyncapi: 3.0.0
+info:
+  title: Packing Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Packing Service.
+
+    This service publishes events related to packing operations including
+    task creation, packaging selection, sealing, and label application.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.packing.events:
+    address: wms.packing.events
+    messages:
+      PackTaskCreated:
+        $ref: '#/components/messages/PackTaskCreated'
+      PackagingSuggested:
+        $ref: '#/components/messages/PackagingSuggested'
+      PackageSealed:
+        $ref: '#/components/messages/PackageSealed'
+      LabelApplied:
+        $ref: '#/components/messages/LabelApplied'
+      PackTaskCompleted:
+        $ref: '#/components/messages/PackTaskCompleted'
+    description: Packing and packaging events
+
+operations:
+  publishPackTaskCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/PackTaskCreated'
+    description: Published when a packing task is created
+
+  publishPackTaskCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/PackTaskCompleted'
+    description: Published when a packing task is completed
+
+components:
+  messages:
+    PackTaskCreated:
+      name: PackTaskCreated
+      title: Pack Task Created Event
+      summary: Published when a packing task is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackTaskCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PackagingSuggested:
+      name: PackagingSuggested
+      title: Packaging Suggested Event
+      summary: Published when packaging type is suggested for an order
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackagingSuggestedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PackageSealed:
+      name: PackageSealed
+      title: Package Sealed Event
+      summary: Published when a package is sealed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackageSealedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    LabelApplied:
+      name: LabelApplied
+      title: Label Applied Event
+      summary: Published when a shipping label is applied to a package
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/LabelAppliedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PackTaskCompleted:
+      name: PackTaskCompleted
+      title: Pack Task Completed Event
+      summary: Published when a packing task is completed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackTaskCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        ce-wmsworkflowid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    PackTaskCreatedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        consolidationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PackagingSuggestedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        suggestedPackageType:
+          type: string
+          enum: [small_box, medium_box, large_box, envelope, padded_envelope, custom]
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        suggestedAt:
+          type: string
+          format: date-time
+
+    PackageSealedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        packageId:
+          type: string
+        packageType:
+          type: string
+        weight:
+          type: number
+        sealedAt:
+          type: string
+          format: date-time
+
+    LabelAppliedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        packageId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        appliedAt:
+          type: string
+          format: date-time
+
+    PackTaskCompletedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        packageId:
+          type: string
+        workerId:
+          type: string
+        completedAt:
+          type: string
+          format: date-time

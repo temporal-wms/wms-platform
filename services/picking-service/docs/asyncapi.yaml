@@ -1,0 +1,197 @@
+asyncapi: 3.0.0
+info:
+  title: Picking Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Picking Service.
+
+    This service publishes events related to pick task management including
+    task creation, assignment, execution, and completion.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.picking.events:
+    address: wms.picking.events
+    messages:
+      PickTaskCreated:
+        $ref: '#/components/messages/PickTaskCreated'
+      PickTaskAssigned:
+        $ref: '#/components/messages/PickTaskAssigned'
+      PickTaskStarted:
+        $ref: '#/components/messages/PickTaskStarted'
+      PickTaskCompleted:
+        $ref: '#/components/messages/PickTaskCompleted'
+      PickTaskCancelled:
+        $ref: '#/components/messages/PickTaskCancelled'
+    description: Picking task events
+
+operations:
+  publishPickTaskCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.picking.events'
+    messages:
+      - $ref: '#/channels/wms.picking.events/messages/PickTaskCreated'
+    description: Published when a pick task is created
+
+  publishPickTaskCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.picking.events'
+    messages:
+      - $ref: '#/channels/wms.picking.events/messages/PickTaskCompleted'
+    description: Published when a pick task is completed
+
+components:
+  messages:
+    PickTaskCreated:
+      name: PickTaskCreated
+      title: Pick Task Created Event
+      summary: Published when a pick task is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PickTaskAssigned:
+      name: PickTaskAssigned
+      title: Pick Task Assigned Event
+      summary: Published when a pick task is assigned to a worker
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskAssignedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PickTaskStarted:
+      name: PickTaskStarted
+      title: Pick Task Started Event
+      summary: Published when a worker starts a pick task
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskStartedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PickTaskCompleted:
+      name: PickTaskCompleted
+      title: Pick Task Completed Event
+      summary: Published when a pick task is completed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PickTaskCancelled:
+      name: PickTaskCancelled
+      title: Pick Task Cancelled Event
+      summary: Published when a pick task is cancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PickTaskCancelledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        ce-wmswavenumber:
+          type: string
+        ce-wmsworkflowid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    PickTaskCreatedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        waveId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PickTaskAssignedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        workerId:
+          type: string
+        assignedAt:
+          type: string
+          format: date-time
+
+    PickTaskStartedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        workerId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+
+    PickTaskCompletedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        workerId:
+          type: string
+        pickedItems:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              quantity:
+                type: integer
+              locationId:
+                type: string
+        completedAt:
+          type: string
+          format: date-time
+
+    PickTaskCancelledPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time

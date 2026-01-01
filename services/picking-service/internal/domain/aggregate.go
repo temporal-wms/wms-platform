@@ -108,9 +108,9 @@ func NewPickTask(taskID, orderID, waveID, routeID string, method PickMethod, ite
 
 	now := time.Now()
 	totalItems := 0
-	for _, item := range items {
-		totalItems += item.Quantity
-		item.Status = "pending"
+	for i := range items {
+		totalItems += items[i].Quantity
+		items[i].Status = "pending"
 	}
 
 	// Determine zone from first item
@@ -192,7 +192,10 @@ func (t *PickTask) ConfirmPick(sku string, locationID string, pickedQty int, tot
 	}
 
 	for i := range t.Items {
-		if t.Items[i].SKU == sku && t.Items[i].Location.LocationID == locationID {
+		// Match by SKU, and either locationID matches or task item has no location set
+		itemLocationID := t.Items[i].Location.LocationID
+		locationMatches := itemLocationID == locationID || itemLocationID == ""
+		if t.Items[i].SKU == sku && locationMatches {
 			now := time.Now()
 			t.Items[i].PickedQty = pickedQty
 			t.Items[i].ToteID = toteID

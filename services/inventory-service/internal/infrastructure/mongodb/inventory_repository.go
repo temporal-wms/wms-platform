@@ -156,6 +156,17 @@ func (r *InventoryRepository) FindByZone(ctx context.Context, zone string) ([]*d
 	return items, err
 }
 
+func (r *InventoryRepository) FindByOrderID(ctx context.Context, orderID string) ([]*domain.InventoryItem, error) {
+	cursor, err := r.collection.Find(ctx, bson.M{"reservations.orderId": orderID})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var items []*domain.InventoryItem
+	err = cursor.All(ctx, &items)
+	return items, err
+}
+
 func (r *InventoryRepository) FindLowStock(ctx context.Context) ([]*domain.InventoryItem, error) {
 	cursor, err := r.collection.Find(ctx, bson.M{
 		"$expr": bson.M{"$lte": []string{"$availableQuantity", "$reorderPoint"}},

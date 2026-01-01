@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: wms-frontend
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - shell-deployment.yaml
+  - orders-deployment.yaml
+  - waves-deployment.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: wms-platform
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: wms-platform/wms-shell
+    newTag: latest
+  - name: wms-platform/wms-orders
+    newTag: latest
+  - name: wms-platform/wms-waves
+    newTag: latest

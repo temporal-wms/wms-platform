@@ -39,6 +39,10 @@ spec:
         - name: metrics
           containerPort: {{ $serviceConfig.ports.metrics }}
           protocol: TCP
+        {{- else if eq $serviceConfig.type "frontend" }}
+        - name: http
+          containerPort: {{ $serviceConfig.ports.http }}
+          protocol: TCP
         {{- else }}
         - name: http
           containerPort: {{ $serviceConfig.ports.http }}

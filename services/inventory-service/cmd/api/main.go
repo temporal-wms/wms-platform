@@ -179,6 +179,9 @@ func main() {
 		api.POST("/:sku/pack", packHandler(inventoryService, logger))
 		api.POST("/:sku/ship", shipHandler(inventoryService, logger))
 		api.POST("/:sku/return-to-shelf", returnToShelfHandler(inventoryService, logger))
+
+		// Shortage handling routes
+		api.POST("/:sku/shortage", recordShortageHandler(inventoryService, logger))
 	}
 
 	// Start server
@@ -670,6 +673,48 @@ func returnToShelfHandler(service *application.InventoryApplicationService, logg
 		}
 
 		item, err := service.ReturnToShelf(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+// recordShortageHandler records a confirmed stock shortage discovered during picking
+func recordShortageHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			LocationID  string `json:"locationId" binding:"required"`
+			OrderID     string `json:"orderId" binding:"required"`
+			ExpectedQty int    `json:"expectedQty" binding:"required"`
+			ActualQty   int    `json:"actualQty" binding:"required"`
+			Reason      string `json:"reason" binding:"required"` // not_found, damaged, quantity_mismatch
+			ReportedBy  string `json:"reportedBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		cmd := application.RecordShortageCommand{
+			SKU:         c.Param("sku"),
+			LocationID:  req.LocationID,
+			OrderID:     req.OrderID,
+			ExpectedQty: req.ExpectedQty,
+			ActualQty:   req.ActualQty,
+			Reason:      req.Reason,
+			ReportedBy:  req.ReportedBy,
+		}
+
+		item, err := service.RecordShortage(c.Request.Context(), cmd)
 		if err != nil {
 			if appErr, ok := err.(*errors.AppError); ok {
 				responder.RespondWithAppError(appErr)

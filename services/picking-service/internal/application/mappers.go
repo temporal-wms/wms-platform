@@ -9,8 +9,19 @@ func ToPickTaskDTO(task *domain.PickTask) *PickTaskDTO {
 	}
 
 	items := make([]PickItemDTO, 0, len(task.Items))
+	pickedItems := make([]PickedItemDTO, 0)
 	for _, item := range task.Items {
 		items = append(items, ToPickItemDTO(item))
+		// Extract picked items (items with PickedQty > 0)
+		if item.PickedQty > 0 && item.PickedAt != nil {
+			pickedItems = append(pickedItems, PickedItemDTO{
+				SKU:        item.SKU,
+				Quantity:   item.PickedQty,
+				LocationID: item.Location.LocationID,
+				ToteID:     item.ToteID,
+				PickedAt:   *item.PickedAt,
+			})
+		}
 	}
 
 	exceptions := make([]PickExceptionDTO, 0, len(task.Exceptions))
@@ -19,25 +30,26 @@ func ToPickTaskDTO(task *domain.PickTask) *PickTaskDTO {
 	}
 
 	return &PickTaskDTO{
-		TaskID:      task.TaskID,
-		OrderID:     task.OrderID,
-		WaveID:      task.WaveID,
-		RouteID:     task.RouteID,
-		PickerID:    task.PickerID,
-		Status:      string(task.Status),
-		Method:      string(task.Method),
-		Items:       items,
-		ToteID:      task.ToteID,
-		Zone:        task.Zone,
-		Priority:    task.Priority,
-		TotalItems:  task.TotalItems,
-		PickedItems: task.PickedItems,
-		Exceptions:  exceptions,
-		CreatedAt:   task.CreatedAt,
-		UpdatedAt:   task.UpdatedAt,
-		AssignedAt:  task.AssignedAt,
-		StartedAt:   task.StartedAt,
-		CompletedAt: task.CompletedAt,
+		TaskID:           task.TaskID,
+		OrderID:          task.OrderID,
+		WaveID:           task.WaveID,
+		RouteID:          task.RouteID,
+		PickerID:         task.PickerID,
+		Status:           string(task.Status),
+		Method:           string(task.Method),
+		Items:            items,
+		ToteID:           task.ToteID,
+		Zone:             task.Zone,
+		Priority:         task.Priority,
+		TotalItems:       task.TotalItems,
+		PickedItemsCount: task.PickedItems,
+		PickedItems:      pickedItems,
+		Exceptions:       exceptions,
+		CreatedAt:        task.CreatedAt,
+		UpdatedAt:        task.UpdatedAt,
+		AssignedAt:       task.AssignedAt,
+		StartedAt:        task.StartedAt,
+		CompletedAt:      task.CompletedAt,
 	}
 }
 

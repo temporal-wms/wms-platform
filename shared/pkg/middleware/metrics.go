@@ -121,6 +121,89 @@ func (t *TemporalMetrics) RecordActivityCompleted(activityType string, success b
 	t.metrics.RecordActivityCompleted(activityType, success, duration)
 }
 
+// FailureMetrics provides helpers for recording failure-related metrics
+type FailureMetrics struct {
+	metrics *metrics.Metrics
+}
+
+// NewFailureMetrics creates a new FailureMetrics helper
+func NewFailureMetrics(m *metrics.Metrics) *FailureMetrics {
+	return &FailureMetrics{metrics: m}
+}
+
+// RecordOrderFailure records an order failure
+func (f *FailureMetrics) RecordOrderFailure(failureType, priority string) {
+	f.metrics.RecordOrderFailure(failureType, priority)
+}
+
+// RecordRetryAttempt records a retry attempt for an order
+func (f *FailureMetrics) RecordRetryAttempt(failureType string, attemptNumber int) {
+	f.metrics.RecordOrderRetryAttempt(failureType, attemptNumber)
+}
+
+// RecordRetrySuccess records a successful retry outcome
+func (f *FailureMetrics) RecordRetrySuccess() {
+	f.metrics.RecordOrderRetryOutcome("success")
+}
+
+// RecordRetryFailure records a failed retry outcome
+func (f *FailureMetrics) RecordRetryFailure() {
+	f.metrics.RecordOrderRetryOutcome("failure")
+}
+
+// RecordMovedToDLQ records an order moved to dead letter queue
+func (f *FailureMetrics) RecordMovedToDLQ(failureType string) {
+	f.metrics.RecordDLQEntry(failureType)
+	f.metrics.RecordOrderRetryOutcome("dlq")
+}
+
+// RecordDLQResolution records a DLQ entry resolution with age
+func (f *FailureMetrics) RecordDLQResolution(resolutionType string, ageHours float64) {
+	f.metrics.RecordDLQResolution(resolutionType)
+	f.metrics.RecordDLQAge(ageHours * 3600) // Convert hours to seconds
+}
+
+// UpdateDLQPendingStats updates the pending DLQ entries gauge by failure type
+func (f *FailureMetrics) UpdateDLQPendingStats(statsByFailureType map[string]int) {
+	for failureType, count := range statsByFailureType {
+		f.metrics.SetDLQPending(failureType, count)
+	}
+}
+
+// RecordWorkflowFailure records a workflow failure with stage information
+func (f *FailureMetrics) RecordWorkflowFailure(workflowType, stage, failureType string) {
+	f.metrics.RecordWorkflowFailure(workflowType, stage, failureType)
+}
+
+// RecordWorkflowRetry records a workflow retry
+func (f *FailureMetrics) RecordWorkflowRetry(workflowType string) {
+	f.metrics.RecordWorkflowRetry(workflowType)
+}
+
+// RecordReprocessingBatchResult records the results of a reprocessing batch
+func (f *FailureMetrics) RecordReprocessingBatchResult(restarted, dlq, errors int) {
+	if restarted > 0 {
+		for i := 0; i < restarted; i++ {
+			f.metrics.RecordReprocessingBatch("restarted")
+		}
+	}
+	if dlq > 0 {
+		for i := 0; i < dlq; i++ {
+			f.metrics.RecordReprocessingBatch("dlq")
+		}
+	}
+	if errors > 0 {
+		for i := 0; i < errors; i++ {
+			f.metrics.RecordReprocessingBatch("error")
+		}
+	}
+}
+
+// RecordRetryDuration records the duration between failure and retry
+func (f *FailureMetrics) RecordRetryDuration(failureType string, duration time.Duration) {
+	f.metrics.RecordRetryDuration(failureType, duration)
+}
+
 // RequestMetrics extracts metrics from a gin context for custom recording
 type RequestMetrics struct {
 	Method     string

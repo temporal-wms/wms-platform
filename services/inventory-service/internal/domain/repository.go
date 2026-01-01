@@ -8,6 +8,7 @@ type InventoryRepository interface {
 	FindBySKU(ctx context.Context, sku string) (*InventoryItem, error)
 	FindByLocation(ctx context.Context, locationID string) ([]*InventoryItem, error)
 	FindByZone(ctx context.Context, zone string) ([]*InventoryItem, error)
+	FindByOrderID(ctx context.Context, orderID string) ([]*InventoryItem, error)
 	FindLowStock(ctx context.Context) ([]*InventoryItem, error)
 	FindAll(ctx context.Context, limit, offset int) ([]*InventoryItem, error)
 	Delete(ctx context.Context, sku string) error

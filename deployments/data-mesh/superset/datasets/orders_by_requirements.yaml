@@ -1,0 +1,83 @@
+# Superset Dataset Configuration for Orders by Requirements Bar Chart
+# This dataset connects to the Trino catalog to query the Gold layer
+
+dataset:
+  name: orders_by_requirements_daily
+  description: "Daily aggregation of orders by special requirements (gift wrap, multi-item, etc.)"
+  database: trino
+  schema: iceberg.gold
+  table_name: orders_by_requirements_daily
+
+  # Physical table columns
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      description: "Date of the orders"
+
+    - column_name: requirement
+      type: VARCHAR
+      description: "Requirement type (gift_wrap, multi_item, single_item, hazmat, fragile, oversized, cold_chain, high_value)"
+
+    - column_name: order_count
+      type: BIGINT
+      description: "Number of orders with this requirement"
+
+    - column_name: percentage_of_total
+      type: DOUBLE
+      description: "Percentage of total orders for the day"
+
+    - column_name: processing_time
+      type: TIMESTAMP
+      description: "When this record was last processed"
+
+  # Metrics for visualization
+  metrics:
+    - metric_name: total_orders
+      expression: SUM(order_count)
+      description: "Total count of orders"
+      verbose_name: "Total Orders"
+
+    - metric_name: avg_percentage
+      expression: AVG(percentage_of_total)
+      description: "Average percentage of orders"
+      verbose_name: "Avg Percentage"
+
+  # Default filters
+  default_filters:
+    - column: date
+      op: ">="
+      value: "{{ current_date - interval '7' day }}"
+
+# Chart Configuration for Orders Dashboard
+chart:
+  name: "Orders by Special Requirements"
+  description: "Bar chart showing distribution of orders by special requirements"
+  type: bar
+
+  configuration:
+    metric: total_orders
+    dimension: requirement
+    sort: descending
+    orientation: horizontal
+    show_legend: true
+    show_values: true
+
+    # Label mappings for display
+    label_mappings:
+      gift_wrap: "Gift Wrap"
+      multi_item: "Multi-Item"
+      single_item: "Single Item"
+      hazmat: "Hazmat"
+      fragile: "Fragile"
+      oversized: "Oversized"
+      cold_chain: "Cold Chain"
+      high_value: "High Value"
+
+    # Color scheme
+    color_scheme: supersetColors
+
+    # Time filter
+    time_column: date
+    time_grain: day
+    default_time_range: "Last 7 days"

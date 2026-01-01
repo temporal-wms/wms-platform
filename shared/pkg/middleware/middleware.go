@@ -10,23 +10,25 @@ import (
 
 // Config holds middleware configuration
 type Config struct {
-	Logger            *slog.Logger
-	ServiceName       string
-	EnableCORS        bool
-	EnableRateLimiter bool
-	RateLimitRPS      int
-	TrustedProxies    []string
+	Logger             *slog.Logger
+	ServiceName        string
+	EnableCORS         bool
+	EnableRateLimiter  bool
+	RateLimitRPS       int
+	TrustedProxies     []string
+	LoggerExcludePaths []string // Paths to exclude from request logging (e.g., /health, /ready, /metrics)
 }
 
 // DefaultConfig returns a default middleware configuration
 func DefaultConfig(serviceName string, logger *slog.Logger) *Config {
 	return &Config{
-		Logger:            logger,
-		ServiceName:       serviceName,
-		EnableCORS:        true,
-		EnableRateLimiter: false,
-		RateLimitRPS:      100,
-		TrustedProxies:    nil,
+		Logger:             logger,
+		ServiceName:        serviceName,
+		EnableCORS:         true,
+		EnableRateLimiter:  false,
+		RateLimitRPS:       100,
+		TrustedProxies:     nil,
+		LoggerExcludePaths: []string{"/health", "/ready", "/metrics"},
 	}
 }
 
@@ -44,7 +46,14 @@ func Setup(router *gin.Engine, config *Config) {
 	router.Use(Recovery(config.Logger))
 	router.Use(RequestID())
 	router.Use(CorrelationID())
-	router.Use(Logger(config.Logger))
+
+	// Use LoggerWithConfig for path exclusion support
+	loggerConfig := &LoggerConfig{
+		Logger:       config.Logger,
+		ExcludePaths: config.LoggerExcludePaths,
+	}
+	router.Use(LoggerWithConfig(loggerConfig))
+
 	router.Use(InputSanitizer())
 
 	if config.EnableCORS {

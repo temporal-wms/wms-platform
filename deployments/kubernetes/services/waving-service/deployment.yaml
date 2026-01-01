@@ -62,6 +62,8 @@ spec:
           value: "http://jaeger-collector.observability.svc.cluster.local:4317"
         - name: TRACING_ENABLED
           value: "true"
+        - name: CONTINUOUS_WAVING_ENABLED
+          value: "true"
         resources:
           requests:
             memory: "256Mi"

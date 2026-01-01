@@ -16,6 +16,8 @@ var (
 	ErrAlreadyHardAllocated        = errors.New("reservation already hard allocated")
 	ErrCannotReleaseHardAllocation = errors.New("cannot release hard allocation without physical return")
 	ErrInvalidAllocationStatus     = errors.New("invalid allocation status")
+	ErrLocationNotFound            = errors.New("location not found")
+	ErrNoShortageToRecord          = errors.New("actual quantity >= expected quantity, no shortage")
 )
 
 // InventoryItem is the aggregate root for the Inventory bounded context
@@ -624,4 +626,101 @@ func (i *InventoryItem) GetActiveHardAllocations() []HardAllocation {
 		}
 	}
 	return active
+}
+
+// RecordShortage records a confirmed stock shortage discovered during picking
+// This adjusts inventory to match reality and emits events for audit/compensation
+func (i *InventoryItem) RecordShortage(locationID, orderID string, expectedQty, actualQty int, reason, reportedBy string) error {
+	// Find the location
+	var loc *StockLocation
+	var locIdx int
+	for idx := range i.Locations {
+		if i.Locations[idx].LocationID == locationID {
+			loc = &i.Locations[idx]
+			locIdx = idx
+			break
+		}
+	}
+
+	if loc == nil {
+		return ErrLocationNotFound
+	}
+
+	shortageQty := expectedQty - actualQty
+	if shortageQty <= 0 {
+		return ErrNoShortageToRecord
+	}
+
+	// Record what the system thought was there
+	systemQuantity := loc.Quantity
+
+	// Adjust the location quantity to match reality
+	// We reduce total by shortage amount (the missing inventory)
+	i.Locations[locIdx].Quantity -= shortageQty
+	i.Locations[locIdx].Available -= shortageQty
+	if i.Locations[locIdx].Available < 0 {
+		// If we had reserved more than actually exists, adjust reserved too
+		overReserved := -i.Locations[locIdx].Available
+		i.Locations[locIdx].Reserved -= overReserved
+		i.Locations[locIdx].Available = 0
+		i.ReservedQuantity -= overReserved
+	}
+
+	// Update aggregate totals
+	i.TotalQuantity -= shortageQty
+	i.AvailableQuantity -= shortageQty
+	if i.AvailableQuantity < 0 {
+		i.AvailableQuantity = 0
+	}
+
+	i.UpdatedAt = time.Now()
+
+	// Record transaction for audit trail
+	i.Transactions = append(i.Transactions, InventoryTransaction{
+		TransactionID: generateTransactionID(),
+		Type:          "shortage",
+		Quantity:      -shortageQty,
+		LocationID:    locationID,
+		ReferenceID:   orderID,
+		Reason:        reason,
+		CreatedAt:     time.Now(),
+		CreatedBy:     reportedBy,
+	})
+
+	// Emit stock shortage event
+	i.AddDomainEvent(&StockShortageEvent{
+		SKU:              i.SKU,
+		LocationID:       locationID,
+		OrderID:          orderID,
+		ExpectedQuantity: expectedQty,
+		ActualQuantity:   actualQty,
+		ShortageQuantity: shortageQty,
+		ReportedBy:       reportedBy,
+		Reason:           reason,
+		OccurredAt_:      time.Now(),
+	})
+
+	// Emit discrepancy event for audit/reporting
+	i.AddDomainEvent(&InventoryDiscrepancyEvent{
+		SKU:             i.SKU,
+		LocationID:      locationID,
+		SystemQuantity:  systemQuantity,
+		ActualQuantity:  actualQty,
+		DiscrepancyType: "shortage",
+		Source:          "picking",
+		ReferenceID:     orderID,
+		DetectedAt:      time.Now(),
+	})
+
+	// Check if we need to trigger low stock alert
+	if i.AvailableQuantity <= i.ReorderPoint {
+		i.AddDomainEvent(&LowStockAlertEvent{
+			SKU:             i.SKU,
+			CurrentQuantity: i.AvailableQuantity,
+			ReorderPoint:    i.ReorderPoint,
+			AlertedAt:       time.Now(),
+		})
+	}
+
+	return nil
 }

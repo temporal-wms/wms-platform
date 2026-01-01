@@ -274,6 +274,61 @@ components:
         default: desc
       example: "desc"
 
+  headers:
+    # CloudEvents WMS-specific extension headers
+    X-WMS-Correlation-ID:
+      description: |
+        CloudEvents extension for distributed tracing and correlation across WMS services.
+        This ID should be propagated through all service calls within a single business transaction.
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    X-WMS-Wave-Number:
+      description: |
+        CloudEvents extension for wave-based processing correlation.
+        Used to group related orders and tasks within a picking wave.
+      required: false
+      schema:
+        type: string
+        pattern: "^WAVE-[0-9]{4}-[0-9]+$"
+      example: "WAVE-2024-00123"
+
+    X-WMS-Workflow-ID:
+      description: |
+        CloudEvents extension for Temporal workflow correlation.
+        Identifies the order fulfillment workflow instance handling this request.
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"
+
+    # Standard correlation headers
+    X-Request-ID:
+      description: Unique identifier for this HTTP request
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+
+    X-Correlation-ID:
+      description: Correlation ID for distributed tracing
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "d85e2d72-0c45-4b89-9f89-98e16b234f61"
+
+    X-Trace-ID:
+      description: OpenTelemetry trace ID for distributed tracing
+      required: false
+      schema:
+        type: string
+      example: "4bf92f3577b34da6a3ce929d0e0e4736"
+
   securitySchemes:
     # Bearer token authentication
     bearerAuth:

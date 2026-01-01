@@ -180,12 +180,46 @@ All services have complete production infrastructure:
    - Carrier integration
    - Customer notification
 
-### Activities Implemented
+### Activities Implemented (25 Total)
+
+**Order Activities:**
 - `ValidateOrder` ✅
 - `CancelOrder` ✅
 - `NotifyCustomerCancellation` ✅
-- `CalculateRoute` ✅
+
+**Inventory Activities:**
 - `ReleaseInventoryReservation` ✅
+
+**Routing Activities:**
+- `CalculateRoute` ✅
+
+**Picking Activities:**
+- `CreatePickTask` ✅
+- `AssignPickerToTask` ✅
+
+**Consolidation Activities:**
+- `CreateConsolidationUnit` ✅
+- `ConsolidateItems` ✅
+- `VerifyConsolidation` ✅
+- `CompleteConsolidation` ✅
+
+**Packing Activities:**
+- `CreatePackTask` ✅
+- `SelectPackagingMaterials` ✅
+- `PackItems` ✅
+- `WeighPackage` ✅
+- `GenerateShippingLabel` ✅
+- `ApplyLabelToPackage` ✅
+- `SealPackage` ✅
+
+**Shipping Activities:**
+- `CreateShipment` ✅
+- `ScanPackage` ✅
+- `VerifyShippingLabel` ✅
+- `PlaceOnOutboundDock` ✅
+- `AddToCarrierManifest` ✅
+- `MarkOrderShipped` ✅
+- `NotifyCustomerShipped` ✅
 
 ### Service Clients
 HTTP clients for all 9 services with 30s timeout and proper error handling.

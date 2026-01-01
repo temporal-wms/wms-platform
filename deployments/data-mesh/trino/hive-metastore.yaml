@@ -1,0 +1,167 @@
+---
+# Hive Metastore for Iceberg table metadata
+# Required for Trino to query Iceberg tables
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hive-metastore
+  namespace: data-mesh
+  labels:
+    app: hive-metastore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hive-metastore
+  template:
+    metadata:
+      labels:
+        app: hive-metastore
+    spec:
+      containers:
+        - name: hive-metastore
+          image: apache/hive:4.0.0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              # Initialize schema if not done
+              if [ ! -f /opt/hive/data/metastore_db/seg0 ]; then
+                echo "Initializing Hive Metastore schema..."
+                cd /opt/hive/data
+                /opt/hive/bin/schematool -dbType derby -initSchema
+              fi
+              echo "Starting Hive Metastore..."
+              cd /opt/hive/data
+              exec /opt/hive/bin/hive --service metastore
+          ports:
+            - containerPort: 9083
+              name: thrift
+          env:
+            - name: SERVICE_NAME
+              value: "metastore"
+            - name: AWS_ACCESS_KEY_ID
+              value: "datamesh"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "datamesh123456"
+            - name: S3_ENDPOINT
+              value: "http://minio.data-mesh.svc.cluster.local:9000"
+            - name: HIVE_CUSTOM_CONF_DIR
+              value: "/opt/hive/conf"
+          volumeMounts:
+            - name: hive-config
+              mountPath: /opt/hive/conf
+            - name: hive-data
+              mountPath: /opt/hive/data
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+      volumes:
+        - name: hive-config
+          configMap:
+            name: hive-metastore-config
+        - name: hive-data
+          persistentVolumeClaim:
+            claimName: hive-metastore-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-metastore
+  namespace: data-mesh
+spec:
+  selector:
+    app: hive-metastore
+  ports:
+    - port: 9083
+      targetPort: 9083
+      name: thrift
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hive-metastore-pvc
+  namespace: data-mesh
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-metastore-config
+  namespace: data-mesh
+data:
+  hive-site.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <property>
+        <name>metastore.thrift.uris</name>
+        <value>thrift://0.0.0.0:9083</value>
+      </property>
+      <property>
+        <name>metastore.task.threads.always</name>
+        <value>org.apache.hadoop.hive.metastore.events.EventCleanerTask</value>
+      </property>
+      <property>
+        <name>metastore.expression.proxy</name>
+        <value>org.apache.hadoop.hive.metastore.DefaultPartitionExpressionProxy</value>
+      </property>
+      <!-- S3 (MinIO) Configuration -->
+      <property>
+        <name>fs.s3a.endpoint</name>
+        <value>http://minio.data-mesh.svc.cluster.local:9000</value>
+      </property>
+      <property>
+        <name>fs.s3a.access.key</name>
+        <value>datamesh</value>
+      </property>
+      <property>
+        <name>fs.s3a.secret.key</name>
+        <value>datamesh123456</value>
+      </property>
+      <property>
+        <name>fs.s3a.path.style.access</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>fs.s3a.impl</name>
+        <value>org.apache.hadoop.fs.s3a.S3AFileSystem</value>
+      </property>
+      <!-- Iceberg Configuration -->
+      <property>
+        <name>iceberg.catalog.default.warehouse</name>
+        <value>s3a://iceberg-warehouse/</value>
+      </property>
+    </configuration>
+  core-site.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <property>
+        <name>fs.s3a.endpoint</name>
+        <value>http://minio.data-mesh.svc.cluster.local:9000</value>
+      </property>
+      <property>
+        <name>fs.s3a.access.key</name>
+        <value>datamesh</value>
+      </property>
+      <property>
+        <name>fs.s3a.secret.key</name>
+        <value>datamesh123456</value>
+      </property>
+      <property>
+        <name>fs.s3a.path.style.access</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>fs.s3a.impl</name>
+        <value>org.apache.hadoop.fs.s3a.S3AFileSystem</value>
+      </property>
+    </configuration>

@@ -8,6 +8,7 @@ import (
 
 	"github.com/segmentio/kafka-go"
 	"github.com/wms-platform/shared/pkg/cloudevents"
+	"github.com/wms-platform/shared/pkg/logging"
 )
 
 // EventHandler is a function that handles a CloudEvent
@@ -154,6 +155,14 @@ func (c *Consumer) handleEvent(ctx context.Context, topic string, event *cloudev
 	if !exists {
 		return fmt.Errorf("no handlers registered for topic %s", topic)
 	}
+
+	// Enrich context with CloudEvents WMS extensions for logging
+	ctx = logging.ContextWithCloudEventExtensions(
+		ctx,
+		event.CorrelationID,
+		event.WaveNumber,
+		event.WorkflowID,
+	)
 
 	// Try specific handler first
 	if handler, exists := handlers[event.Type]; exists {

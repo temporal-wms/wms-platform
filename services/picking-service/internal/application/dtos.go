@@ -4,25 +4,26 @@ import "time"
 
 // PickTaskDTO represents a pick task in responses
 type PickTaskDTO struct {
-	TaskID      string             `json:"taskId"`
-	OrderID     string             `json:"orderId"`
-	WaveID      string             `json:"waveId"`
-	RouteID     string             `json:"routeId"`
-	PickerID    string             `json:"pickerId,omitempty"`
-	Status      string             `json:"status"`
-	Method      string             `json:"method"`
-	Items       []PickItemDTO      `json:"items"`
-	ToteID      string             `json:"toteId,omitempty"`
-	Zone        string             `json:"zone"`
-	Priority    int                `json:"priority"`
-	TotalItems  int                `json:"totalItems"`
-	PickedItems int                `json:"pickedItems"`
-	Exceptions  []PickExceptionDTO `json:"exceptions,omitempty"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	UpdatedAt   time.Time          `json:"updatedAt"`
-	AssignedAt  *time.Time         `json:"assignedAt,omitempty"`
-	StartedAt   *time.Time         `json:"startedAt,omitempty"`
-	CompletedAt *time.Time         `json:"completedAt,omitempty"`
+	TaskID           string             `json:"taskId"`
+	OrderID          string             `json:"orderId"`
+	WaveID           string             `json:"waveId"`
+	RouteID          string             `json:"routeId"`
+	PickerID         string             `json:"pickerId,omitempty"`
+	Status           string             `json:"status"`
+	Method           string             `json:"method"`
+	Items            []PickItemDTO      `json:"items"`
+	ToteID           string             `json:"toteId,omitempty"`
+	Zone             string             `json:"zone"`
+	Priority         int                `json:"priority"`
+	TotalItems       int                `json:"totalItems"`
+	PickedItemsCount int                `json:"pickedItemsCount"`
+	PickedItems      []PickedItemDTO    `json:"pickedItems,omitempty"`
+	Exceptions       []PickExceptionDTO `json:"exceptions,omitempty"`
+	CreatedAt        time.Time          `json:"createdAt"`
+	UpdatedAt        time.Time          `json:"updatedAt"`
+	AssignedAt       *time.Time         `json:"assignedAt,omitempty"`
+	StartedAt        *time.Time         `json:"startedAt,omitempty"`
+	CompletedAt      *time.Time         `json:"completedAt,omitempty"`
 }
 
 // PickItemDTO represents an item to be picked
@@ -60,4 +61,13 @@ type PickExceptionDTO struct {
 	Resolution   string     `json:"resolution,omitempty"`
 	ResolvedAt   *time.Time `json:"resolvedAt,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
+}
+
+// PickedItemDTO represents a picked item in the response
+type PickedItemDTO struct {
+	SKU        string    `json:"sku"`
+	Quantity   int       `json:"quantity"`
+	LocationID string    `json:"locationId"`
+	ToteID     string    `json:"toteId"`
+	PickedAt   time.Time `json:"pickedAt"`
 }

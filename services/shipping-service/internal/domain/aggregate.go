@@ -193,10 +193,16 @@ func (s *Shipment) ConfirmShipment(estimatedDelivery *time.Time) error {
 	s.EstimatedDelivery = estimatedDelivery
 	s.UpdatedAt = now
 
+	// Safely get tracking number - label might be nil if generated separately
+	trackingNumber := ""
+	if s.Label != nil {
+		trackingNumber = s.Label.TrackingNumber
+	}
+
 	s.AddDomainEvent(&ShipConfirmedEvent{
 		ShipmentID:        s.ShipmentID,
 		OrderID:           s.OrderID,
-		TrackingNumber:    s.Label.TrackingNumber,
+		TrackingNumber:    trackingNumber,
 		Carrier:           s.Carrier.Code,
 		EstimatedDelivery: estimatedDelivery,
 		ShippedAt:         now,

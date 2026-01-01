@@ -98,6 +98,16 @@ type ReturnToShelfRequest struct {
 	Reason       string `json:"reason"`
 }
 
+// RecordShortageRequest represents a request to record a stock shortage
+type RecordShortageRequest struct {
+	LocationID  string `json:"locationId"`
+	OrderID     string `json:"orderId"`
+	ExpectedQty int    `json:"expectedQty"`
+	ActualQty   int    `json:"actualQty"`
+	Reason      string `json:"reason"`
+	ReportedBy  string `json:"reportedBy"`
+}
+
 // Route represents a pick route
 type Route struct {
 	RouteID           string      `json:"routeId"`

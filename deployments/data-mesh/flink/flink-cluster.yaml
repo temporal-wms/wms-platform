@@ -1,0 +1,81 @@
+---
+# Flink Kubernetes Operator Deployment
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: wms-flink-cluster
+  namespace: data-mesh
+spec:
+  image: flink:1.18-java17
+  flinkVersion: v1_18
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "4"
+    state.backend: rocksdb
+    state.checkpoints.dir: s3://wms-checkpoints/flink/checkpoints
+    state.savepoints.dir: s3://wms-checkpoints/flink/savepoints
+    s3.endpoint: http://minio.data-mesh.svc.cluster.local:9000
+    s3.path-style-access: "true"
+    s3.access-key: datamesh
+    s3.secret-key: datamesh123456
+    execution.checkpointing.interval: "60000"
+    execution.checkpointing.mode: EXACTLY_ONCE
+    restart-strategy: fixed-delay
+    restart-strategy.fixed-delay.attempts: "3"
+    restart-strategy.fixed-delay.delay: "10s"
+  serviceAccount: flink
+  jobManager:
+    resource:
+      memory: "1024m"
+      cpu: 0.5
+  taskManager:
+    replicas: 2
+    resource:
+      memory: "2048m"
+      cpu: 1
+  podTemplate:
+    spec:
+      containers:
+        - name: flink-main-container
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+            - name: MINIO_ENDPOINT
+              value: "http://minio.data-mesh.svc.cluster.local:9000"
+            - name: MINIO_ACCESS_KEY
+              value: "datamesh"
+            - name: MINIO_SECRET_KEY
+              value: "datamesh123456"
+---
+# Flink Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flink
+  namespace: data-mesh
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flink-role
+  namespace: data-mesh
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flink-role-binding
+  namespace: data-mesh
+subjects:
+  - kind: ServiceAccount
+    name: flink
+    namespace: data-mesh
+roleRef:
+  kind: Role
+  name: flink-role
+  apiGroup: rbac.authorization.k8s.io

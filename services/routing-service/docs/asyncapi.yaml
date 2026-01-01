@@ -1,0 +1,211 @@
+asyncapi: 3.0.0
+info:
+  title: Routing Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Routing Service.
+
+    This service publishes events related to pick route calculation and execution
+    including route creation, progress updates, and completion.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.routing.events:
+    address: wms.routing.events
+    messages:
+      RouteCreated:
+        $ref: '#/components/messages/RouteCreated'
+      RouteStarted:
+        $ref: '#/components/messages/RouteStarted'
+      StopCompleted:
+        $ref: '#/components/messages/StopCompleted'
+      RouteCompleted:
+        $ref: '#/components/messages/RouteCompleted'
+      RouteCancelled:
+        $ref: '#/components/messages/RouteCancelled'
+    description: Route calculation and execution events
+
+operations:
+  publishRouteCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.routing.events'
+    messages:
+      - $ref: '#/channels/wms.routing.events/messages/RouteCreated'
+    description: Published when a pick route is calculated
+
+  publishRouteCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.routing.events'
+    messages:
+      - $ref: '#/channels/wms.routing.events/messages/RouteCompleted'
+    description: Published when a route is completed
+
+components:
+  messages:
+    RouteCreated:
+      name: RouteCreated
+      title: Route Created Event
+      summary: Published when a pick route is calculated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RouteCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    RouteStarted:
+      name: RouteStarted
+      title: Route Started Event
+      summary: Published when a picker starts a route
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RouteStartedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    StopCompleted:
+      name: StopCompleted
+      title: Stop Completed Event
+      summary: Published when a picker completes a stop on the route
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/StopCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    RouteCompleted:
+      name: RouteCompleted
+      title: Route Completed Event
+      summary: Published when a picker completes all stops on a route
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RouteCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    RouteCancelled:
+      name: RouteCancelled
+      title: Route Cancelled Event
+      summary: Published when a route is cancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RouteCancelledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        ce-wmswavenumber:
+          type: string
+        ce-wmsworkflowid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    RouteCreatedPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        waveId:
+          type: string
+        orderId:
+          type: string
+        pickerId:
+          type: string
+        strategy:
+          type: string
+          enum: [shortest_path, zone_based, priority_first, batch_pick]
+        stopsCount:
+          type: integer
+        estimatedDistance:
+          type: number
+        estimatedTimeMinutes:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    RouteStartedPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        pickerId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+
+    StopCompletedPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        stopNumber:
+          type: integer
+        locationId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        actualQuantity:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+
+    RouteCompletedPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        pickerId:
+          type: string
+        stopsCompleted:
+          type: integer
+        stopsSkipped:
+          type: integer
+        actualTimeMinutes:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+
+    RouteCancelledPayload:
+      type: object
+      properties:
+        routeId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time

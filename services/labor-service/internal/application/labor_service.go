@@ -86,7 +86,18 @@ func (s *LaborApplicationService) StartShift(ctx context.Context, cmd StartShift
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Started shift", "workerId", cmd.WorkerID, "shiftId", cmd.ShiftID)
+	// Log business event: shift started
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "shift.started",
+		EntityType: "worker",
+		EntityID:   cmd.WorkerID,
+		Action:     "shift_started",
+		RelatedIDs: map[string]string{
+			"shiftId": cmd.ShiftID,
+			"zone":    cmd.Zone,
+		},
+	})
+
 	return ToWorkerDTO(worker), nil
 }
 
@@ -113,7 +124,17 @@ func (s *LaborApplicationService) EndShift(ctx context.Context, cmd EndShiftComm
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Ended shift", "workerId", cmd.WorkerID)
+	// Log business event: shift ended
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "shift.ended",
+		EntityType: "worker",
+		EntityID:   cmd.WorkerID,
+		Action:     "shift_ended",
+		RelatedIDs: map[string]string{
+			"shiftId": worker.CurrentShift.ShiftID,
+		},
+	})
+
 	return ToWorkerDTO(worker), nil
 }
 
@@ -190,7 +211,18 @@ func (s *LaborApplicationService) AssignTask(ctx context.Context, cmd AssignTask
 
 	// Events are saved to outbox by repository in transaction
 
-	s.logger.Info("Assigned task", "workerId", cmd.WorkerID, "taskId", cmd.TaskID)
+	// Log business event: task assigned
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "labor.task_assigned",
+		EntityType: "worker",
+		EntityID:   cmd.WorkerID,
+		Action:     "task_assigned",
+		RelatedIDs: map[string]string{
+			"taskId":   cmd.TaskID,
+			"taskType": string(cmd.TaskType),
+		},
+	})
+
 	return ToWorkerDTO(worker), nil
 }
 

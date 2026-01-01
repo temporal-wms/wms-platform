@@ -1,0 +1,125 @@
+# Apache Superset Helm values for WMS Data Mesh
+# Provides BI/search interface for order lookup and analytics
+
+# Image configuration
+image:
+  repository: apache/superset
+  tag: "3.1.0"
+  pullPolicy: IfNotPresent
+
+# Replica count
+replicaCount: 1
+
+# Service configuration
+service:
+  type: NodePort
+  port: 8088
+  nodePort:
+    http: 30089
+
+# Resource limits
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+# Superset configuration
+configOverrides:
+  secret: |
+    SECRET_KEY = 'wms-superset-secret-key-change-in-prod'
+
+  # Enable Trino support
+  feature_flags: |
+    FEATURE_FLAGS = {
+        "ENABLE_TEMPLATE_PROCESSING": True,
+        "DASHBOARD_NATIVE_FILTERS": True,
+        "DASHBOARD_CROSS_FILTERS": True,
+        "DASHBOARD_NATIVE_FILTERS_SET": True,
+        "ENABLE_FILTER_BOX_MIGRATION": True,
+    }
+
+# Bootstrap script to create admin user and configure database
+bootstrapScript: |
+  #!/bin/bash
+  pip install trino sqlalchemy-trino --quiet
+  superset fab create-admin \
+    --username admin \
+    --firstname Admin \
+    --lastname User \
+    --email admin@wms.local \
+    --password admin || true
+  superset db upgrade
+  superset init
+
+# Init containers to wait for dependencies
+init:
+  loadExamples: false
+  createAdmin: true
+  adminUser:
+    username: admin
+    firstname: Admin
+    lastname: User
+    email: admin@wms.local
+    password: admin
+
+# PostgreSQL for metadata (bundled)
+postgresql:
+  enabled: true
+  image:
+    registry: registry-1.docker.io
+    repository: bitnami/postgresql
+    tag: "latest"
+  auth:
+    username: superset
+    password: superset
+    database: superset
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+# Redis for caching (bundled)
+redis:
+  enabled: true
+  image:
+    registry: registry-1.docker.io
+    repository: bitnami/redis
+    tag: "latest"
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: false
+
+# Extra environment variables
+extraEnv:
+  - name: SUPERSET_LOAD_EXAMPLES
+    value: "no"
+
+# Extra pip packages for Trino support
+extraPipPackages:
+  - trino
+  - sqlalchemy-trino
+
+# Superset node configuration
+supersetNode:
+  replicaCount: 1
+
+# Superset worker configuration
+supersetWorker:
+  replicaCount: 1
+
+# Superset Celery beat
+supersetCeleryBeat:
+  enabled: false
+
+# Superset Celery flower
+supersetCeleryFlower:
+  enabled: false
+
+# Ingress (disabled - using NodePort)
+ingress:
+  enabled: false

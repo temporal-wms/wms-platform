@@ -75,11 +75,44 @@ func CorrelationID() gin.HandlerFunc {
 	}
 }
 
+// LoggerConfig holds logger middleware configuration
+type LoggerConfig struct {
+	Logger       *slog.Logger
+	ExcludePaths []string // Paths to exclude from logging (e.g., /health, /ready, /metrics)
+}
+
+// DefaultLoggerConfig returns default logger configuration with common health/metrics paths excluded
+func DefaultLoggerConfig(logger *slog.Logger) *LoggerConfig {
+	return &LoggerConfig{
+		Logger:       logger,
+		ExcludePaths: []string{"/health", "/ready", "/metrics"},
+	}
+}
+
 // Logger middleware adds structured logging with correlation context
+// Deprecated: Use LoggerWithConfig for path exclusion support
 func Logger(logger *slog.Logger) gin.HandlerFunc {
+	return LoggerWithConfig(DefaultLoggerConfig(logger))
+}
+
+// LoggerWithConfig middleware adds structured logging with correlation context and path exclusion
+func LoggerWithConfig(config *LoggerConfig) gin.HandlerFunc {
+	// Build skip map for O(1) lookup
+	skipMap := make(map[string]bool)
+	for _, path := range config.ExcludePaths {
+		skipMap[path] = true
+	}
+
 	return func(c *gin.Context) {
-		start := time.Now()
 		path := c.Request.URL.Path
+
+		// Skip logging for excluded paths
+		if skipMap[path] {
+			c.Next()
+			return
+		}
+
+		start := time.Now()
 		query := c.Request.URL.RawQuery
 
 		c.Next()
@@ -118,11 +151,11 @@ func Logger(logger *slog.Logger) gin.HandlerFunc {
 		// Log level based on status code
 		switch {
 		case status >= 500:
-			logger.Error("HTTP request", attrs...)
+			config.Logger.Error("HTTP request", attrs...)
 		case status >= 400:
-			logger.Warn("HTTP request", attrs...)
+			config.Logger.Warn("HTTP request", attrs...)
 		default:
-			logger.Info("HTTP request", attrs...)
+			config.Logger.Info("HTTP request", attrs...)
 		}
 	}
 }

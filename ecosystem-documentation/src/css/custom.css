@@ -1,0 +1,103 @@
+/**
+ * WMS Platform Documentation - Custom CSS
+ */
+
+:root {
+  --ifm-color-primary: #2563eb;
+  --ifm-color-primary-dark: #1d4ed8;
+  --ifm-color-primary-darker: #1e40af;
+  --ifm-color-primary-darkest: #1e3a8a;
+  --ifm-color-primary-light: #3b82f6;
+  --ifm-color-primary-lighter: #60a5fa;
+  --ifm-color-primary-lightest: #93c5fd;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #3b82f6;
+  --ifm-color-primary-dark: #2563eb;
+  --ifm-color-primary-darker: #1d4ed8;
+  --ifm-color-primary-darkest: #1e40af;
+  --ifm-color-primary-light: #60a5fa;
+  --ifm-color-primary-lighter: #93c5fd;
+  --ifm-color-primary-lightest: #bfdbfe;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Mermaid diagram styling */
+.mermaid {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+/* Architecture diagram containers */
+.architecture-diagram {
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+/* Service cards */
+.service-card {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  background: var(--ifm-background-surface-color);
+}
+
+.service-card h3 {
+  margin-top: 0;
+  color: var(--ifm-color-primary);
+}
+
+/* DDD styling */
+.aggregate-root {
+  border-left: 4px solid var(--ifm-color-primary);
+  padding-left: 1rem;
+  margin: 1rem 0;
+}
+
+.domain-event {
+  background: var(--ifm-color-emphasis-100);
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  margin: 0.5rem 0;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.9rem;
+}
+
+/* Bounded context colors */
+.context-order { border-color: #3b82f6; }
+.context-waving { border-color: #8b5cf6; }
+.context-routing { border-color: #06b6d4; }
+.context-picking { border-color: #10b981; }
+.context-consolidation { border-color: #f59e0b; }
+.context-packing { border-color: #ef4444; }
+.context-shipping { border-color: #ec4899; }
+.context-inventory { border-color: #6366f1; }
+.context-labor { border-color: #84cc16; }
+
+/* Table styling */
+table {
+  display: table;
+  width: 100%;
+}
+
+/* Status badges */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-success { background: #10b981; color: white; }
+.badge-warning { background: #f59e0b; color: white; }
+.badge-danger { background: #ef4444; color: white; }
+.badge-info { background: #3b82f6; color: white; }

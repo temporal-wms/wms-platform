@@ -349,3 +349,52 @@ func (a *InventoryActivities) ReturnInventoryToShelf(ctx context.Context, input 
 
 	return nil
 }
+
+// RecordStockShortageInput holds the input for recording a stock shortage
+type RecordStockShortageInput struct {
+	SKU         string `json:"sku"`
+	LocationID  string `json:"locationId"`
+	OrderID     string `json:"orderId"`
+	ExpectedQty int    `json:"expectedQty"`
+	ActualQty   int    `json:"actualQty"`
+	Reason      string `json:"reason"`
+	ReportedBy  string `json:"reportedBy"`
+}
+
+// RecordStockShortage records a confirmed stock shortage discovered during picking
+func (a *InventoryActivities) RecordStockShortage(ctx context.Context, input RecordStockShortageInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Recording stock shortage",
+		"sku", input.SKU,
+		"orderId", input.OrderID,
+		"expectedQty", input.ExpectedQty,
+		"actualQty", input.ActualQty,
+		"shortageQty", input.ExpectedQty-input.ActualQty,
+	)
+
+	req := &clients.RecordShortageRequest{
+		LocationID:  input.LocationID,
+		OrderID:     input.OrderID,
+		ExpectedQty: input.ExpectedQty,
+		ActualQty:   input.ActualQty,
+		Reason:      input.Reason,
+		ReportedBy:  input.ReportedBy,
+	}
+
+	err := a.clients.RecordStockShortage(ctx, input.SKU, req)
+	if err != nil {
+		logger.Error("Failed to record stock shortage",
+			"sku", input.SKU,
+			"orderId", input.OrderID,
+			"error", err,
+		)
+		return fmt.Errorf("failed to record stock shortage: %w", err)
+	}
+
+	logger.Info("Stock shortage recorded successfully",
+		"sku", input.SKU,
+		"orderId", input.OrderID,
+		"shortageQty", input.ExpectedQty-input.ActualQty,
+	)
+	return nil
+}

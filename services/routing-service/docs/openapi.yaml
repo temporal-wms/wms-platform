@@ -1,35 +1,46 @@
 openapi: 3.0.3
 info:
   title: Routing Service API
-  description: REST API for pick route optimization and management
+  description: |
+    REST API for pick route optimization and management in the WMS platform.
+
+    This service handles:
+    - Route calculation with multiple strategies
+    - Route lifecycle management
+    - Route analysis and optimization suggestions
+    - Picker route assignments
   version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
 
 servers:
   - url: http://localhost:8003/api/v1
+    description: Development server
 
 tags:
   - name: Routes
+    description: Route management operations
+  - name: Analysis
+    description: Route analysis and optimization
+  - name: Health
+    description: Service health and readiness
 
 paths:
   /routes:
     post:
       summary: Calculate optimal route
       tags: [Routes]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [waveId, pickerId]
-              properties:
-                waveId:
-                  type: string
-                pickerId:
-                  type: string
-                strategy:
-                  type: string
-                  enum: [shortest_path, zone_based, priority_first]
+              $ref: '#/components/schemas/CreateRouteRequest'
             examples:
               shortestPath:
                 value:
@@ -43,25 +54,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RouteResponse'
-              examples:
-                route:
-                  value:
-                    routeId: "ROUTE-001"
-                    waveId: "WAVE-001"
-                    pickerId: "PICKER-123"
-                    status: "calculated"
-                    strategy: "shortest_path"
-                    totalDistance: 125.5
-                    estimatedTime: 45
-                    stops:
-                      - sequence: 1
-                        locationId: "A-1-2-3"
-                        sku: "WIDGET-001"
-                        quantity: 2
-                      - sequence: 2
-                        locationId: "A-2-1-4"
-                        sku: "GADGET-002"
-                        quantity: 1
 
   /routes/{routeId}:
     get:
@@ -80,6 +72,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RouteResponse'
+        '404':
+          description: Route not found
+
+    delete:
+      summary: Delete route
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Route deleted
+        '404':
+          description: Route not found
 
   /routes/{routeId}/start:
     post:
@@ -94,8 +103,12 @@ paths:
       responses:
         '200':
           description: Route started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
 
-  /routes/{routeId}/stops/{stopSequence}/complete:
+  /routes/{routeId}/stops/{stopNumber}/complete:
     post:
       summary: Complete a stop
       tags: [Routes]
@@ -105,14 +118,197 @@ paths:
           required: true
           schema:
             type: string
-        - name: stopSequence
+        - name: stopNumber
           in: path
           required: true
           schema:
             type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actualQuantity:
+                  type: integer
+                notes:
+                  type: string
       responses:
         '200':
           description: Stop completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+
+  /routes/{routeId}/stops/{stopNumber}/skip:
+    post:
+      summary: Skip a stop
+      description: Skip a stop due to unavailability or other issues
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: stopNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  enum: [out_of_stock, location_blocked, item_damaged, other]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Stop skipped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+
+  /routes/{routeId}/complete:
+    post:
+      summary: Complete route
+      description: Mark a route as completed
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Route completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+
+  /routes/{routeId}/pause:
+    post:
+      summary: Pause route
+      description: Pause an in-progress route
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Route paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+
+  /routes/{routeId}/cancel:
+    post:
+      summary: Cancel route
+      description: Cancel a route that hasn't been completed
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Route cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+
+  /routes/order/{orderId}:
+    get:
+      summary: Get routes by order
+      tags: [Routes]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Routes for order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RouteResponse'
+
+  /routes/wave/{waveId}:
+    get:
+      summary: Get routes by wave
+      tags: [Routes]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Routes for wave
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RouteResponse'
+
+  /routes/picker/{pickerId}:
+    get:
+      summary: Get routes by picker
+      tags: [Routes]
+      parameters:
+        - name: pickerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Routes for picker
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RouteResponse'
 
   /routes/picker/{pickerId}/active:
     get:
@@ -126,17 +322,165 @@ paths:
             type: string
       responses:
         '200':
-          description: Active route
+          description: Active route for picker
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '404':
+          description: No active route found
+
+  /routes/status/{status}:
+    get:
+      summary: Get routes by status
+      tags: [Routes]
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [calculated, in_progress, paused, completed, cancelled]
+      responses:
+        '200':
+          description: Routes with specified status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RouteResponse'
+
+  /routes/pending:
+    get:
+      summary: Get pending routes
+      description: Get routes that are calculated but not yet started
+      tags: [Routes]
+      responses:
+        '200':
+          description: Pending routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RouteResponse'
+
+  # Analysis Endpoints
+  /analysis/route/{routeId}:
+    get:
+      summary: Analyze route
+      description: Get efficiency analysis for a completed route
+      tags: [Analysis]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Route analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteAnalysis'
+        '404':
+          description: Route not found
+
+  /analysis/suggest-strategy:
+    post:
+      summary: Suggest routing strategy
+      description: Suggest the best routing strategy for a set of items
+      tags: [Analysis]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                      locationId:
+                        type: string
+                      quantity:
+                        type: integer
+                pickerId:
+                  type: string
+                constraints:
+                  type: object
+                  properties:
+                    maxDistance:
+                      type: number
+                    maxTime:
+                      type: integer
+      responses:
+        '200':
+          description: Strategy suggestion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategySuggestion'
 
   /health:
     get:
       summary: Health check
+      tags: [Health]
       responses:
         '200':
-          description: Healthy
+          description: Service is healthy
+
+  /ready:
+    get:
+      summary: Readiness check
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      tags: [Health]
+      responses:
+        '200':
+          description: Prometheus metrics
 
 components:
   schemas:
+    CreateRouteRequest:
+      type: object
+      required: [waveId, pickerId]
+      properties:
+        waveId:
+          type: string
+        orderId:
+          type: string
+        pickerId:
+          type: string
+        strategy:
+          type: string
+          enum: [shortest_path, zone_based, priority_first, batch_pick]
+          default: shortest_path
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              locationId:
+                type: string
+              quantity:
+                type: integer
+
     RouteResponse:
       type: object
       properties:
@@ -144,20 +488,44 @@ components:
           type: string
         waveId:
           type: string
+        orderId:
+          type: string
         pickerId:
           type: string
         status:
           type: string
+          enum: [calculated, in_progress, paused, completed, cancelled]
         strategy:
           type: string
+          enum: [shortest_path, zone_based, priority_first, batch_pick]
         totalDistance:
           type: number
-        estimatedTime:
+        estimatedTimeMinutes:
+          type: integer
+        actualTimeMinutes:
+          type: integer
+        stopsTotal:
+          type: integer
+        stopsCompleted:
+          type: integer
+        stopsSkipped:
           type: integer
         stops:
           type: array
           items:
             $ref: '#/components/schemas/RouteStop'
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
     RouteStop:
       type: object
@@ -166,9 +534,113 @@ components:
           type: integer
         locationId:
           type: string
+        zone:
+          type: string
+        aisle:
+          type: string
+        bay:
+          type: string
+        level:
+          type: string
         sku:
           type: string
         quantity:
           type: integer
-        completed:
-          type: boolean
+        actualQuantity:
+          type: integer
+        status:
+          type: string
+          enum: [pending, completed, skipped]
+        skipReason:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+
+    RouteAnalysis:
+      type: object
+      properties:
+        routeId:
+          type: string
+        efficiency:
+          type: number
+          description: Efficiency score 0-100
+        estimatedVsActualTime:
+          type: object
+          properties:
+            estimatedMinutes:
+              type: integer
+            actualMinutes:
+              type: integer
+            variance:
+              type: number
+        distanceMetrics:
+          type: object
+          properties:
+            totalDistance:
+              type: number
+            averagePerStop:
+              type: number
+        completionRate:
+          type: number
+        skippedStops:
+          type: integer
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    StrategySuggestion:
+      type: object
+      properties:
+        recommendedStrategy:
+          type: string
+          enum: [shortest_path, zone_based, priority_first, batch_pick]
+        confidence:
+          type: number
+        estimatedDistance:
+          type: number
+        estimatedTimeMinutes:
+          type: integer
+        alternatives:
+          type: array
+          items:
+            type: object
+            properties:
+              strategy:
+                type: string
+              estimatedDistance:
+                type: number
+              estimatedTimeMinutes:
+                type: integer
+        reasoning:
+          type: string
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"
