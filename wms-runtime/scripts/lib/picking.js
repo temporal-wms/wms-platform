@@ -4,6 +4,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PICKER_CONFIG } from './config.js';
+import { pickStock, getInventoryItem } from './inventory.js';
 
 /**
  * Discovers pending pick tasks from the picking service
@@ -192,8 +193,19 @@ export function simulatePickingTask(task) {
     // Simulate picking delay
     sleep(PICKER_CONFIG.simulationDelayMs / 1000);
 
-    // Use the exact locationId from the task item (may be empty)
-    const locationId = item.location?.locationId || item.locationId || '';
+    // Get locationId from task item, or look up from inventory if empty
+    let locationId = item.location?.locationId || item.locationId || '';
+
+    if (!locationId) {
+      // Look up location from inventory service
+      const invResult = getInventoryItem(item.sku);
+      if (invResult.success && invResult.body?.locations?.length > 0) {
+        // Use first available location with stock
+        const availableLoc = invResult.body.locations.find(loc => loc.available > 0)
+          || invResult.body.locations[0];
+        locationId = availableLoc.locationId;
+      }
+    }
 
     // Confirm the pick (with required toteId)
     const success = confirmPick(
@@ -205,6 +217,14 @@ export function simulatePickingTask(task) {
     );
 
     if (success) {
+      // Decrement inventory by calling pickStock on the inventory service
+      const pickResult = pickStock(item.sku, task.orderId, locationId, item.quantity, 'k6-picker');
+      if (pickResult.success) {
+        console.log(`Inventory decremented: ${item.sku} x${item.quantity} from ${locationId}`);
+      } else {
+        console.warn(`Failed to decrement inventory for ${item.sku}: ${pickResult.status}`);
+      }
+
       pickedItems.push({
         sku: item.sku,
         quantity: item.quantity,

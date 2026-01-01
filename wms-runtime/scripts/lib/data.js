@@ -1,4 +1,5 @@
 // Data generators for WMS Platform load testing
+import { ORDER_CONFIG } from './config.js';
 
 // Load static data
 const skusData = JSON.parse(open('../../data/skus.json'));
@@ -6,6 +7,7 @@ const locationsData = JSON.parse(open('../../data/locations.json'));
 const workersData = JSON.parse(open('../../data/workers.json'));
 
 export const products = skusData.products;
+export const requirementDefinitions = skusData.requirementDefinitions || {};
 export const zones = locationsData.zones;
 export const stockSetup = locationsData.stockSetup;
 export const workers = workersData.workers;
@@ -198,4 +200,191 @@ export function getRandomLocation(zone) {
   }
   const allLocations = zones.flatMap(z => z.locations);
   return randomElement(allLocations);
+}
+
+// ============================================================================
+// Order Type and Requirement-Based Generation
+// ============================================================================
+
+/**
+ * Get item count based on order type configuration
+ * @param {string|null} orderType - 'single', 'multi', or null for random distribution
+ * @returns {number} Number of items for the order
+ */
+export function getOrderItemCount(orderType = null) {
+  // Check for forced order type from config
+  const effectiveType = orderType || ORDER_CONFIG.forceOrderType;
+
+  if (effectiveType === 'single') {
+    return 1;
+  }
+  if (effectiveType === 'multi') {
+    return randomInt(2, ORDER_CONFIG.maxItemsPerOrder);
+  }
+
+  // Random distribution based on configured ratios
+  if (Math.random() < ORDER_CONFIG.singleItemRatio) {
+    return 1;
+  }
+  return randomInt(2, ORDER_CONFIG.maxItemsPerOrder);
+}
+
+/**
+ * Shuffle array and take first N elements
+ * @param {Array} array - Array to shuffle
+ * @param {number} count - Number of elements to take
+ * @returns {Array} Shuffled subset
+ */
+function shuffleAndTake(array, count) {
+  const shuffled = [...array].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
+/**
+ * Select products that have a specific requirement
+ * @param {string} requirement - Requirement to filter by (hazmat, fragile, etc.)
+ * @param {number} count - Number of products to select
+ * @returns {Array} Products with the specified requirement
+ */
+export function selectProductsWithRequirement(requirement, count = 1) {
+  const matching = products.filter(p =>
+    p.requirements && p.requirements.includes(requirement)
+  );
+
+  if (matching.length === 0) {
+    console.warn(`No products found with requirement: ${requirement}`);
+    return selectRandomProducts(count);
+  }
+
+  return shuffleAndTake(matching, count);
+}
+
+/**
+ * Select products by category
+ * @param {string} category - Category to filter by
+ * @param {number} count - Number of products to select
+ * @returns {Array} Products in the specified category
+ */
+export function selectProductsByCategory(category, count = 1) {
+  const matching = products.filter(p => p.category === category);
+
+  if (matching.length === 0) {
+    console.warn(`No products found in category: ${category}`);
+    return selectRandomProducts(count);
+  }
+
+  return shuffleAndTake(matching, count);
+}
+
+/**
+ * Aggregate requirements from order items
+ * @param {Array} items - Order items with sku property
+ * @returns {Array} Unique requirements from all items
+ */
+export function aggregateOrderRequirements(items) {
+  const requirements = new Set();
+
+  for (const item of items) {
+    const product = products.find(p => p.sku === item.sku);
+    if (product?.requirements) {
+      product.requirements.forEach(r => requirements.add(r));
+    }
+  }
+
+  return Array.from(requirements);
+}
+
+/**
+ * Generate order items with at least one product having the specified requirement
+ * @param {string} requirement - Required requirement for at least one item
+ * @param {number} count - Total number of items
+ * @returns {Array} Order items
+ */
+export function generateOrderItemsWithRequirement(requirement, count = 1) {
+  // Ensure at least one item has the requirement
+  const requiredProducts = selectProductsWithRequirement(requirement, 1);
+
+  if (count === 1) {
+    return requiredProducts.map(product => ({
+      sku: product.sku,
+      name: product.productName,
+      quantity: randomInt(1, 3),
+      weight: product.weight,
+    }));
+  }
+
+  // For multi-item orders, add more products (can be any)
+  const remainingCount = count - 1;
+  const additionalProducts = selectRandomProducts(remainingCount);
+  const allProducts = [...requiredProducts, ...additionalProducts];
+
+  return allProducts.map(product => ({
+    sku: product.sku,
+    name: product.productName,
+    quantity: randomInt(1, 3),
+    weight: product.weight,
+  }));
+}
+
+/**
+ * Generate an order with specific type and optional requirement
+ * @param {string|null} orderType - 'single', 'multi', or null for random
+ * @param {string|null} forceRequirement - Force a specific requirement
+ * @returns {Object} Generated order with requirements
+ */
+export function generateOrderWithType(orderType = null, forceRequirement = null) {
+  const customerId = generateCustomerId();
+  const priority = selectPriority();
+  const itemCount = getOrderItemCount(orderType);
+
+  // Determine effective requirement
+  const effectiveRequirement = forceRequirement || ORDER_CONFIG.forceRequirement;
+
+  // Generate items
+  let items;
+  if (effectiveRequirement) {
+    items = generateOrderItemsWithRequirement(effectiveRequirement, itemCount);
+  } else {
+    items = generateOrderItems(itemCount);
+  }
+
+  // Aggregate requirements from all items
+  const requirements = aggregateOrderRequirements(items);
+
+  const address = generateAddress();
+  const promisedDeliveryAt = generatePromisedDeliveryDate(priority);
+
+  return {
+    customerId,
+    items,
+    shippingAddress: address,
+    priority,
+    promisedDeliveryAt,
+    requirements,                                          // Order-level requirements
+    orderType: itemCount === 1 ? 'single_item' : 'multi_item',  // Order type indicator
+  };
+}
+
+/**
+ * Get available requirements from the loaded data
+ * @returns {Array} List of valid requirements
+ */
+export function getAvailableRequirements() {
+  return Object.keys(requirementDefinitions);
+}
+
+/**
+ * Get products count by requirement
+ * @returns {Object} Map of requirement to product count
+ */
+export function getProductCountByRequirement() {
+  const counts = {};
+
+  for (const req of ORDER_CONFIG.validRequirements) {
+    counts[req] = products.filter(p =>
+      p.requirements && p.requirements.includes(req)
+    ).length;
+  }
+
+  return counts;
 }

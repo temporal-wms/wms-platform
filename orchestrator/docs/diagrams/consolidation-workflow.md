@@ -151,6 +151,7 @@ graph TD
 
 ## Related Diagrams
 
+- [Order Fulfillment Flow](order-fulfillment.md) - Parent workflow
 - [Picking Workflow](picking-workflow.md) - Previous step
 - [Packing Workflow](packing-workflow.md) - Next step
-- [Order Fulfillment Flow](../../../docs/diagrams/order-fulfillment-flow.md) - Parent workflow
+- [Gift Wrap Workflow](giftwrap-workflow.md) - Alternative next step (if gift wrap required)

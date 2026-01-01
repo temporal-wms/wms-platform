@@ -25,6 +25,7 @@ sequenceDiagram
     participant Shipping as ShippingWorkflow
     participant ShippingSvc as Shipping Service
     participant OrderSvc as Order Service
+    participant InventorySvc as Inventory Service
     participant Worker as Shipping Worker
     participant Scanner as Barcode Scanner
     participant Carrier as Carrier System
@@ -83,8 +84,19 @@ sequenceDiagram
         OrderSvc-->>Shipping: Order Updated
     end
 
+    rect rgb(255, 245, 230)
+        Note over Shipping,InventorySvc: Step 7: Ship Inventory (if allocations)
+        alt Has AllocationIDs
+            Shipping->>InventorySvc: ShipInventory Activity
+            Note right of Shipping: Finalize hard allocation - remove from system
+            InventorySvc->>InventorySvc: POST /inventory/ship
+            InventorySvc->>InventorySvc: Remove items from inventory
+            InventorySvc-->>Shipping: Inventory Shipped
+        end
+    end
+
     rect rgb(224, 247, 250)
-        Note over Shipping,Customer: Step 7: Notify Customer (Best Effort)
+        Note over Shipping,Customer: Step 8: Notify Customer (Best Effort)
         Shipping->>ShippingSvc: NotifyCustomerShipped Activity
         ShippingSvc->>Customer: Email: Tracking Number
         Note right of Customer: Non-critical step
@@ -219,6 +231,6 @@ flowchart TD
 
 ## Related Diagrams
 
+- [Order Fulfillment Flow](order-fulfillment.md) - Parent workflow
 - [Packing Workflow](packing-workflow.md) - Previous step
-- [Order Fulfillment Flow](../../../docs/diagrams/order-fulfillment-flow.md) - Parent workflow
-- [Domain Events](../../../docs/diagrams/ddd/domain-events.md) - ShipConfirmedEvent
+- [Cancellation Workflow](cancellation-workflow.md) - Compensation workflow

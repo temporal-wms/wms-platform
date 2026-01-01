@@ -12,6 +12,7 @@ sequenceDiagram
     participant PackingSvc as Packing Service
     participant LaborSvc as Labor Service
     participant ShippingSvc as Shipping Service
+    participant InventorySvc as Inventory Service
     participant Packer as Warehouse Packer
     participant Scale as Weighing Scale
     participant Printer as Label Printer
@@ -83,6 +84,17 @@ sequenceDiagram
         Packer->>Packer: Seal with tape/adhesive
         PackingSvc->>PackingSvc: Mark task complete
         PackingSvc-->>Packing: Package Sealed
+    end
+
+    rect rgb(255, 248, 230)
+        Note over Packing,InventorySvc: Step 8: Mark Inventory as Packed (if allocations)
+        alt Has AllocationIDs
+            Packing->>InventorySvc: PackInventory Activity
+            Note right of Packing: Update hard allocation status
+            InventorySvc->>InventorySvc: POST /inventory/pack
+            InventorySvc->>InventorySvc: Mark allocations as packed
+            InventorySvc-->>Packing: Pack confirmed
+        end
     end
 
     Packing-->>Parent: PackResult
@@ -195,7 +207,8 @@ graph LR
 
 ## Related Diagrams
 
+- [Order Fulfillment Flow](order-fulfillment.md) - Parent workflow
 - [Consolidation Workflow](consolidation-workflow.md) - Previous step (multi-item)
+- [Gift Wrap Workflow](giftwrap-workflow.md) - Previous step (if gift wrap)
 - [Picking Workflow](picking-workflow.md) - Previous step (single item)
 - [Shipping Workflow](shipping-workflow.md) - Next step (SLAM)
-- [Order Fulfillment Flow](../../../docs/diagrams/order-fulfillment-flow.md) - Parent workflow

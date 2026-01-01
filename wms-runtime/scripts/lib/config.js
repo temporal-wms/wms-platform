@@ -63,10 +63,27 @@ export const GIFTWRAP_CONFIG = {
 
 // Full flow orchestrator configuration
 export const FLOW_CONFIG = {
-  stageDelayMs: parseInt(__ENV.STAGE_DELAY_MS || '2000'),
+  stageDelayMs: parseInt(__ENV.STAGE_DELAY_MS || '5000'),           // 5s between stages
   maxOrdersPerRun: parseInt(__ENV.MAX_ORDERS_PER_RUN || '10'),
-  waitForTasksTimeoutMs: parseInt(__ENV.WAIT_TIMEOUT_MS || '60000'),
-  pollIntervalMs: parseInt(__ENV.POLL_INTERVAL_MS || '3000'),
+  waitForTasksTimeoutMs: parseInt(__ENV.WAIT_TIMEOUT_MS || '300000'), // 5 minutes
+  pollIntervalMs: parseInt(__ENV.POLL_INTERVAL_MS || '5000'),         // 5 seconds
+  statusCheckTimeoutMs: parseInt(__ENV.STATUS_CHECK_TIMEOUT_MS || '120000'), // 2 min for status
+  statusCheckIntervalMs: parseInt(__ENV.STATUS_CHECK_INTERVAL_MS || '3000'), // 3s polling
+};
+
+// Order generation configuration
+export const ORDER_CONFIG = {
+  // Item count distribution (must sum to 1.0)
+  singleItemRatio: parseFloat(__ENV.SINGLE_ITEM_RATIO || '0.4'),   // 40% single-item orders
+  multiItemRatio: parseFloat(__ENV.MULTI_ITEM_RATIO || '0.6'),     // 60% multi-item orders
+  maxItemsPerOrder: parseInt(__ENV.MAX_ITEMS_PER_ORDER || '5'),    // Max items in multi-item orders
+
+  // Force specific order types for testing
+  forceOrderType: __ENV.FORCE_ORDER_TYPE || null,        // 'single', 'multi', or null
+  forceRequirement: __ENV.FORCE_REQUIREMENT || null,     // 'hazmat', 'fragile', 'oversized', 'heavy', 'high_value', or null
+
+  // Available requirements (for reference)
+  validRequirements: ['hazmat', 'fragile', 'oversized', 'heavy', 'high_value'],
 };
 
 export const ENDPOINTS = {

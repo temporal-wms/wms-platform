@@ -5,6 +5,8 @@
 // Usage:
 //   k6 run scripts/scenarios/full-flow-simulator.js
 //   k6 run -e MAX_ORDERS_PER_RUN=20 scripts/scenarios/full-flow-simulator.js
+//   k6 run -e FORCE_ORDER_TYPE=single scripts/scenarios/full-flow-simulator.js  # All single-item orders
+//   k6 run -e FORCE_REQUIREMENT=hazmat scripts/scenarios/full-flow-simulator.js # All hazmat orders
 //
 // Environment variables:
 //   ORDER_SERVICE_URL     - Order service URL (default: http://localhost:8001)
@@ -21,12 +23,19 @@
 //   POLL_INTERVAL_MS      - Polling interval in ms (default: 3000)
 //   GIFTWRAP_ORDER_RATIO  - Ratio of orders with gift wrap (default: 0.2)
 //   SKIP_FACILITY_SETUP   - Set to 'true' to skip facility setup phase
+//
+// Order Type Configuration:
+//   SINGLE_ITEM_RATIO     - Ratio of single-item orders (default: 0.4 = 40%)
+//   MULTI_ITEM_RATIO      - Ratio of multi-item orders (default: 0.6 = 60%)
+//   MAX_ITEMS_PER_ORDER   - Max items in multi-item orders (default: 5)
+//   FORCE_ORDER_TYPE      - Force all orders to be 'single' or 'multi' (default: null)
+//   FORCE_REQUIREMENT     - Force all orders to include a requirement: hazmat, fragile, oversized, heavy, high_value (default: null)
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend, Gauge } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
-import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, FLOW_CONFIG, GIFTWRAP_CONFIG } from '../lib/config.js';
+import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, FLOW_CONFIG, GIFTWRAP_CONFIG, ORDER_CONFIG } from '../lib/config.js';
 import {
   discoverReadyWaves,
   processWave,
@@ -62,8 +71,11 @@ import {
   addGiftWrapToOrder,
   shouldHaveGiftWrap,
   generateGiftWrapDetails,
+  getOrder,
+  waitForOrderStatus,
+  waitForAllOrdersStatus,
 } from '../lib/orders.js';
-import { generateOrder } from '../lib/data.js';
+import { generateOrder, generateOrderWithType, getProductCountByRequirement } from '../lib/data.js';
 
 // Load station test data for facility setup
 const stationData = new SharedArray('stations', function () {
@@ -96,6 +108,15 @@ const stageShippingProcessed = new Counter('flow_stage_shipping_processed');
 const facilityStationsCreated = new Counter('flow_facility_stations_created');
 const giftWrapOrdersCount = new Counter('flow_giftwrap_orders');
 
+// Order type and requirement metrics
+const singleItemOrders = new Counter('flow_single_item_orders');
+const multiItemOrders = new Counter('flow_multi_item_orders');
+const hazmatOrders = new Counter('flow_hazmat_orders');
+const fragileOrders = new Counter('flow_fragile_orders');
+const oversizedOrders = new Counter('flow_oversized_orders');
+const heavyOrders = new Counter('flow_heavy_orders');
+const highValueOrders = new Counter('flow_high_value_orders');
+
 // Stage constants for gauge
 const STAGE = {
   FACILITY_SETUP: 0,
@@ -108,6 +129,37 @@ const STAGE = {
   SHIPPING: 7,
   COMPLETE: 8,
 };
+
+/**
+ * Verify all orders have reached expected status before proceeding
+ * @param {Object[]} orders - Array of order objects with orderId
+ * @param {string|string[]} expectedStatus - Expected status(es)
+ * @param {string} stageName - Name of current stage for logging
+ * @returns {number} Number of orders that reached expected status
+ */
+function verifyOrdersReachedStatus(orders, expectedStatus, stageName) {
+  console.log(`\n[${stageName}] Verifying ${orders.length} orders reached status: ${expectedStatus}`);
+
+  const orderIds = orders.map(o => o.orderId);
+  const { allSuccess, results } = waitForAllOrdersStatus(
+    orderIds,
+    expectedStatus,
+    FLOW_CONFIG.statusCheckTimeoutMs || 120000,
+    FLOW_CONFIG.statusCheckIntervalMs || 3000
+  );
+
+  const successCount = results.filter(r => r.success).length;
+  console.log(`[${stageName}] ${successCount}/${orders.length} orders reached expected status`);
+
+  if (!allSuccess) {
+    const failed = results.filter(r => !r.success);
+    for (const f of failed) {
+      console.warn(`[${stageName}] Order ${f.orderId} stuck at status: ${f.finalStatus}`);
+    }
+  }
+
+  return successCount;
+}
 
 // Default options
 export const options = {
@@ -169,20 +221,53 @@ function setupFacilityStations(existingStationIds) {
 }
 
 /**
- * Creates test orders for the flow (with gift wrap support)
+ * Creates test orders for the flow (with typed orders and requirements)
  */
 function createTestOrders(count) {
   const orders = [];
   let giftWrapCount = 0;
+  let singleItemCount = 0;
+  let multiItemCount = 0;
+  const requirementCounts = {
+    hazmat: 0,
+    fragile: 0,
+    oversized: 0,
+    heavy: 0,
+    high_value: 0,
+  };
 
   for (let i = 0; i < count; i++) {
-    let order = generateOrder();
+    // Use typed order generation (respects FORCE_ORDER_TYPE and FORCE_REQUIREMENT)
+    let order = generateOrderWithType();
 
     // Randomly add gift wrap based on configured ratio
     const isGiftWrap = shouldHaveGiftWrap();
     if (isGiftWrap) {
       order = addGiftWrapToOrder(order);
       giftWrapCount++;
+    }
+
+    // Track order type
+    if (order.orderType === 'single_item') {
+      singleItemCount++;
+      singleItemOrders.add(1);
+    } else {
+      multiItemCount++;
+      multiItemOrders.add(1);
+    }
+
+    // Track requirements
+    if (order.requirements) {
+      for (const req of order.requirements) {
+        if (requirementCounts.hasOwnProperty(req)) {
+          requirementCounts[req]++;
+        }
+      }
+      if (order.requirements.includes('hazmat')) hazmatOrders.add(1);
+      if (order.requirements.includes('fragile')) fragileOrders.add(1);
+      if (order.requirements.includes('oversized')) oversizedOrders.add(1);
+      if (order.requirements.includes('heavy')) heavyOrders.add(1);
+      if (order.requirements.includes('high_value')) highValueOrders.add(1);
     }
 
     const orderPayload = JSON.stringify(order);
@@ -206,12 +291,15 @@ function createTestOrders(count) {
           workflowId: responseData.workflowId,
           giftWrap: isGiftWrap,
           giftWrapDetails: isGiftWrap ? order.giftWrapDetails : null,
+          orderType: order.orderType,
+          requirements: order.requirements || [],
         });
         flowOrdersCreated.add(1);
         if (isGiftWrap) {
           giftWrapOrdersCount.add(1);
         }
-        console.log(`Created order: ${orderId}${isGiftWrap ? ' (gift wrap)' : ''}`);
+        const reqStr = order.requirements?.length > 0 ? ` [${order.requirements.join(', ')}]` : '';
+        console.log(`Created ${order.orderType} order: ${orderId}${reqStr}${isGiftWrap ? ' (gift wrap)' : ''}`);
       } catch (e) {
         console.error(`Failed to parse order response: ${e.message}`);
       }
@@ -222,7 +310,12 @@ function createTestOrders(count) {
     sleep(0.2);  // Brief pause between order creation
   }
 
-  console.log(`Created ${orders.length} orders (${giftWrapCount} with gift wrap)`);
+  console.log(`Created ${orders.length} orders:`);
+  console.log(`  - Single-item: ${singleItemCount}`);
+  console.log(`  - Multi-item: ${multiItemCount}`);
+  console.log(`  - Gift wrap: ${giftWrapCount}`);
+  console.log(`  - Requirements: hazmat=${requirementCounts.hazmat}, fragile=${requirementCounts.fragile}, ` +
+              `oversized=${requirementCounts.oversized}, heavy=${requirementCounts.heavy}, high_value=${requirementCounts.high_value}`);
   return orders;
 }
 
@@ -375,6 +468,12 @@ export function setup() {
   console.log(`Wait timeout: ${FLOW_CONFIG.waitForTasksTimeoutMs}ms`);
   console.log(`Gift wrap ratio: ${GIFTWRAP_CONFIG.giftWrapOrderRatio * 100}%`);
   console.log(`Skip facility setup: ${__ENV.SKIP_FACILITY_SETUP === 'true'}`);
+  console.log('--- Order Configuration ---');
+  console.log(`Single-item ratio: ${ORDER_CONFIG.singleItemRatio * 100}%`);
+  console.log(`Multi-item ratio: ${ORDER_CONFIG.multiItemRatio * 100}%`);
+  console.log(`Max items per order: ${ORDER_CONFIG.maxItemsPerOrder}`);
+  console.log(`Force order type: ${ORDER_CONFIG.forceOrderType || 'none'}`);
+  console.log(`Force requirement: ${ORDER_CONFIG.forceRequirement || 'none'}`);
   console.log('='.repeat(60));
 
   // Health check all services
@@ -488,6 +587,9 @@ export default function (data) {
   }
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
 
+  // Verify orders have transitioned to wave_assigned status
+  verifyOrdersReachedStatus(orders, ['wave_assigned', 'picking', 'consolidated', 'packed', 'shipped'], 'WAVING');
+
   // Phase 3: Picking
   flowCurrentStage.add(STAGE.PICKING);
   console.log('\nPhase 3: Processing Pick Tasks');
@@ -500,6 +602,9 @@ export default function (data) {
   );
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
 
+  // Verify orders have progressed past picking
+  verifyOrdersReachedStatus(orders, ['picking', 'consolidated', 'packed', 'shipped'], 'PICKING');
+
   // Phase 4: Consolidation
   flowCurrentStage.add(STAGE.CONSOLIDATION);
   console.log('\nPhase 4: Processing Consolidations');
@@ -511,6 +616,9 @@ export default function (data) {
     orderIds
   );
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
+
+  // Verify multi-item orders have consolidated
+  verifyOrdersReachedStatus(orders, ['consolidated', 'packed', 'shipped'], 'CONSOLIDATION');
 
   // Phase 5: Gift Wrap (for orders with giftWrap=true)
   flowCurrentStage.add(STAGE.GIFT_WRAP);
@@ -529,6 +637,9 @@ export default function (data) {
     orderIds
   );
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
+
+  // Verify orders have been packed
+  verifyOrdersReachedStatus(orders, ['packed', 'shipped'], 'PACKING');
 
   // Phase 7: Shipping
   flowCurrentStage.add(STAGE.SHIPPING);
@@ -561,13 +672,32 @@ export default function (data) {
     flowSuccessRate.add(false);
   }
 
+  // Calculate order type stats
+  const singleItems = orders.filter(o => o.orderType === 'single_item').length;
+  const multiItems = orders.filter(o => o.orderType === 'multi_item').length;
+  const reqStats = {
+    hazmat: orders.filter(o => o.requirements?.includes('hazmat')).length,
+    fragile: orders.filter(o => o.requirements?.includes('fragile')).length,
+    oversized: orders.filter(o => o.requirements?.includes('oversized')).length,
+    heavy: orders.filter(o => o.requirements?.includes('heavy')).length,
+    high_value: orders.filter(o => o.requirements?.includes('high_value')).length,
+  };
+
   // Summary
   console.log('\n' + '='.repeat(60));
   console.log('Flow Complete - Summary');
   console.log('='.repeat(60));
   console.log(`Facility Stations Created: ${facilitySetup.created}`);
   console.log(`Orders Created: ${orders.length}`);
-  console.log(`  - Gift Wrap Orders: ${giftWrapOrders.length}`);
+  console.log(`  - Single-item: ${singleItems}`);
+  console.log(`  - Multi-item: ${multiItems}`);
+  console.log(`  - Gift Wrap: ${giftWrapOrders.length}`);
+  console.log(`  - Requirements:`);
+  console.log(`    - Hazmat: ${reqStats.hazmat}`);
+  console.log(`    - Fragile: ${reqStats.fragile}`);
+  console.log(`    - Oversized: ${reqStats.oversized}`);
+  console.log(`    - Heavy: ${reqStats.heavy}`);
+  console.log(`    - High Value: ${reqStats.high_value}`);
   console.log(`Waves Processed: ${wavingResults.processed}`);
   console.log(`Pick Tasks Processed: ${pickingResults.processed}`);
   console.log(`Consolidations Processed: ${consolidationResults.processed}`);

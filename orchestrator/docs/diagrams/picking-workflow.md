@@ -51,7 +51,27 @@ sequenceDiagram
         PickingSvc->>Picking: Signal: pickCompleted
     end
 
-    Picking-->>Parent: PickResult
+    rect rgb(255, 245, 238)
+        Note over Picking,InventorySvc: Step 4: Confirm Inventory Pick
+        Picking->>InventorySvc: ConfirmInventoryPick Activity
+        Note right of Picking: Decrement stock quantities
+        loop For Each Picked Item
+            InventorySvc->>InventorySvc: POST /inventory/{sku}/pick
+            InventorySvc->>InventorySvc: Decrement quantity at location
+        end
+        InventorySvc-->>Picking: Inventory Confirmed
+    end
+
+    rect rgb(230, 255, 230)
+        Note over Picking,InventorySvc: Step 5: Stage Inventory (Hard Allocation)
+        Picking->>InventorySvc: StageInventory Activity
+        Note right of Picking: Convert soft reservation to hard allocation
+        InventorySvc->>InventorySvc: POST /inventory/stage
+        InventorySvc->>InventorySvc: Create physical claim on items
+        InventorySvc-->>Picking: AllocationIDs
+    end
+
+    Picking-->>Parent: PickResult (includes AllocationIDs)
 
     Note over Parent: Continue to Consolidation/Packing
 ```
@@ -114,6 +134,7 @@ flowchart TD
 |-------|------|-------------|
 | TaskID | string | Completed task ID |
 | PickedItems | []PickedItem | Successfully picked items |
+| AllocationIDs | []string | Hard allocation IDs from staging |
 | Success | bool | Completion status |
 
 ### PickedItem
@@ -135,6 +156,6 @@ flowchart TD
 
 ## Related Diagrams
 
-- [Order Fulfillment Flow](../../../docs/diagrams/order-fulfillment-flow.md) - Parent workflow
+- [Order Fulfillment Flow](order-fulfillment.md) - Parent workflow
 - [Consolidation Workflow](consolidation-workflow.md) - Next step (multi-item)
 - [Packing Workflow](packing-workflow.md) - Next step (single item)

@@ -174,7 +174,9 @@ func (r *PickTaskRepository) FindByPickerID(ctx context.Context, pickerID string
 }
 
 func (r *PickTaskRepository) FindByStatus(ctx context.Context, status domain.PickTaskStatus) ([]*domain.PickTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status})
+	// Sort by createdAt descending so newest tasks appear first
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	cursor, err := r.collection.Find(ctx, bson.M{"status": status}, opts)
 	if err != nil {
 		return nil, err
 	}

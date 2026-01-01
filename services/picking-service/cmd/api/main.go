@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -143,18 +144,22 @@ func main() {
 	// API v1 routes
 	api := router.Group("/api/v1/tasks")
 	{
+		// List endpoint first (before :taskId wildcard)
+		api.GET("", listTasksHandler(pickingService, logger))
 		api.POST("", createTaskHandler(pickingService, logger))
+		// Static routes before wildcard
+		api.GET("/pending", getPendingTasksHandler(pickingService, logger))
+		api.GET("/order/:orderId", getTasksByOrderHandler(pickingService, logger))
+		api.GET("/wave/:waveId", getTasksByWaveHandler(pickingService, logger))
+		api.GET("/picker/:pickerId", getTasksByPickerHandler(pickingService, logger))
+		api.GET("/picker/:pickerId/active", getActiveTaskHandler(pickingService, logger))
+		// Wildcard routes after static routes
 		api.GET("/:taskId", getTaskHandler(pickingService, logger))
 		api.POST("/:taskId/assign", assignTaskHandler(pickingService, logger))
 		api.POST("/:taskId/start", startTaskHandler(pickingService, logger))
 		api.POST("/:taskId/pick", confirmPickHandler(pickingService, logger))
 		api.POST("/:taskId/exception", reportExceptionHandler(pickingService, logger))
 		api.POST("/:taskId/complete", completeTaskHandler(pickingService, logger))
-		api.GET("/order/:orderId", getTasksByOrderHandler(pickingService, logger))
-		api.GET("/wave/:waveId", getTasksByWaveHandler(pickingService, logger))
-		api.GET("/picker/:pickerId", getTasksByPickerHandler(pickingService, logger))
-		api.GET("/picker/:pickerId/active", getActiveTaskHandler(pickingService, logger))
-		api.GET("/pending", getPendingTasksHandler(pickingService, logger))
 	}
 
 	// Start server
@@ -378,7 +383,7 @@ func confirmPickHandler(service *application.PickingApplicationService, logger *
 
 		var req struct {
 			SKU        string `json:"sku" binding:"required"`
-			LocationID string `json:"locationId" binding:"required"`
+			LocationID string `json:"locationId"` // Optional - may be empty for tasks without location info
 			PickedQty  int    `json:"pickedQty" binding:"required"`
 			ToteID     string `json:"toteId" binding:"required"`
 		}
@@ -594,6 +599,47 @@ func getPendingTasksHandler(service *application.PickingApplicationService, logg
 		}
 
 		tasks, err := service.GetPendingTasks(c.Request.Context(), query)
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, tasks)
+	}
+}
+
+func listTasksHandler(service *application.PickingApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		status := c.Query("status")
+		zone := c.Query("zone")
+		limitStr := c.Query("limit")
+
+		// Default limit is 200, max is 1000
+		limit := 200
+		if limitStr != "" {
+			if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+				limit = parsedLimit
+				if limit > 1000 {
+					limit = 1000
+				}
+			}
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"status": status,
+			"zone":   zone,
+			"limit":  limit,
+		})
+
+		query := application.ListTasksQuery{
+			Status: status,
+			Zone:   zone,
+			Limit:  limit,
+		}
+
+		tasks, err := service.ListTasks(c.Request.Context(), query)
 		if err != nil {
 			responder.RespondInternalError(err)
 			return
