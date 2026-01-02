@@ -1,0 +1,481 @@
+openapi: 3.0.3
+info:
+  title: Sortation Service API
+  description: |
+    REST API for package sortation operations in the WMS platform.
+
+    This service handles:
+    - Sortation batch management
+    - Package-to-chute assignment
+    - Batch-based grouping by destination/carrier
+    - Dispatch coordination
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8012/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Batches
+    description: Sortation batch operations
+  - name: Packages
+    description: Package sortation operations
+  - name: Dispatch
+    description: Dispatch operations
+  - name: Queries
+    description: Batch query operations
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /batches:
+    post:
+      summary: Create a sortation batch
+      description: Create a new sortation batch for a destination/carrier combination
+      tags:
+        - Batches
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBatchRequest'
+            example:
+              sortationCenter: "MAIN-SORT"
+              destinationGroup: "945"
+              carrierId: "FEDEX"
+      responses:
+        '201':
+          description: Batch created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          description: Invalid request
+
+    get:
+      summary: List batches
+      description: Retrieve a list of sortation batches
+      tags:
+        - Batches
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of batches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BatchResponse'
+                  total:
+                    type: integer
+
+  /batches/status/{status}:
+    get:
+      summary: Get batches by status
+      tags:
+        - Queries
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/SortationStatus'
+      responses:
+        '200':
+          description: List of batches with status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BatchResponse'
+                  total:
+                    type: integer
+
+  /batches/ready:
+    get:
+      summary: Get ready batches
+      description: Retrieve batches ready for dispatch
+      tags:
+        - Queries
+      parameters:
+        - name: carrierId
+          in: query
+          schema:
+            type: string
+          description: Filter by carrier
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of ready batches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BatchResponse'
+                  total:
+                    type: integer
+
+  /batches/{batchId}:
+    get:
+      summary: Get batch by ID
+      tags:
+        - Batches
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Batch details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '404':
+          description: Batch not found
+
+  /batches/{batchId}/packages:
+    post:
+      summary: Add package to batch
+      description: Add a package to a sortation batch
+      tags:
+        - Packages
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddPackageRequest'
+            example:
+              packageId: "PKG-001234"
+              orderId: "ORD-001234"
+              trackingNumber: "794644790132"
+              destination: "94501"
+              carrierId: "FEDEX"
+              weight: 2.5
+      responses:
+        '200':
+          description: Package added to batch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          description: Invalid request or batch status
+
+  /batches/{batchId}/sort:
+    post:
+      summary: Sort package to chute
+      description: Record a package sorted to a chute
+      tags:
+        - Packages
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SortPackageRequest'
+            example:
+              packageId: "PKG-001234"
+              chuteId: "CHUTE-A01"
+              workerId: "WORKER-001"
+      responses:
+        '200':
+          description: Package sorted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          description: Invalid request or package already sorted
+
+  /batches/{batchId}/ready:
+    post:
+      summary: Mark batch as ready
+      description: Mark the batch as ready for dispatch
+      tags:
+        - Dispatch
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Batch marked as ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+
+  /batches/{batchId}/dispatch:
+    post:
+      summary: Dispatch batch
+      description: Dispatch the batch (assign trailer and dispatch)
+      tags:
+        - Dispatch
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DispatchBatchRequest'
+            example:
+              trailerId: "TRL-001"
+              dispatchDock: "DOCK-OUT-A1"
+      responses:
+        '200':
+          description: Batch dispatched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+
+  /health:
+    get:
+      summary: Health check
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+
+components:
+  schemas:
+    CreateBatchRequest:
+      type: object
+      required:
+        - sortationCenter
+        - destinationGroup
+        - carrierId
+      properties:
+        sortationCenter:
+          type: string
+          description: Sortation center identifier
+        destinationGroup:
+          type: string
+          description: Destination group (zip prefix or region)
+        carrierId:
+          type: string
+          description: Carrier identifier
+
+    AddPackageRequest:
+      type: object
+      required:
+        - packageId
+        - orderId
+        - destination
+      properties:
+        packageId:
+          type: string
+        orderId:
+          type: string
+        trackingNumber:
+          type: string
+        destination:
+          type: string
+          description: Destination zip code or region
+        carrierId:
+          type: string
+        weight:
+          type: number
+
+    SortPackageRequest:
+      type: object
+      required:
+        - packageId
+        - chuteId
+        - workerId
+      properties:
+        packageId:
+          type: string
+        chuteId:
+          type: string
+        workerId:
+          type: string
+
+    DispatchBatchRequest:
+      type: object
+      required:
+        - trailerId
+        - dispatchDock
+      properties:
+        trailerId:
+          type: string
+        dispatchDock:
+          type: string
+
+    BatchResponse:
+      type: object
+      properties:
+        batchId:
+          type: string
+        sortationCenter:
+          type: string
+        destinationGroup:
+          type: string
+        carrierId:
+          type: string
+        packages:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortedPackage'
+        assignedChute:
+          type: string
+        status:
+          $ref: '#/components/schemas/SortationStatus'
+        totalPackages:
+          type: integer
+        sortedCount:
+          type: integer
+        totalWeight:
+          type: number
+        trailerId:
+          type: string
+        dispatchDock:
+          type: string
+        scheduledDispatch:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        dispatchedAt:
+          type: string
+          format: date-time
+        sortingProgress:
+          type: number
+          description: Sorting progress percentage
+
+    SortedPackage:
+      type: object
+      properties:
+        packageId:
+          type: string
+        orderId:
+          type: string
+        trackingNumber:
+          type: string
+        destination:
+          type: string
+        carrierId:
+          type: string
+        weight:
+          type: number
+        assignedChute:
+          type: string
+        sortedAt:
+          type: string
+          format: date-time
+        sortedBy:
+          type: string
+        isSorted:
+          type: boolean
+
+    Chute:
+      type: object
+      properties:
+        chuteId:
+          type: string
+        chuteNumber:
+          type: integer
+        destination:
+          type: string
+        carrierId:
+          type: string
+        capacity:
+          type: integer
+        currentCount:
+          type: integer
+        status:
+          type: string
+          enum:
+            - active
+            - full
+            - maintenance
+
+    SortationStatus:
+      type: string
+      enum:
+        - receiving
+        - sorting
+        - ready
+        - dispatching
+        - dispatched
+        - cancelled
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing
+      required: false
+      schema:
+        type: string
+        format: uuid

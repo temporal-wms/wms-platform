@@ -1,0 +1,536 @@
+openapi: 3.0.3
+info:
+  title: Stow Service API
+  description: |
+    REST API for putaway task management in the WMS platform.
+
+    This service handles:
+    - Putaway task creation and management
+    - Storage strategy support (chaotic, directed, velocity, zone-based)
+    - Location assignment based on item constraints
+    - Worker task assignment
+    - Task lifecycle tracking
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8011/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Tasks
+    description: Putaway task operations
+  - name: Workflow
+    description: Task workflow operations
+  - name: Queries
+    description: Task query operations
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /tasks:
+    post:
+      summary: Create a putaway task
+      description: Create a new putaway task for received items
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+            example:
+              shipmentId: "SHIP-001234"
+              sku: "SKU-12345"
+              productName: "Widget A"
+              quantity: 100
+              sourceToteId: "TOTE-001"
+              sourceLocationId: "RCV-STAGE-01"
+              strategy: "chaotic"
+              constraints:
+                isHazmat: false
+                requiresColdChain: false
+                isOversized: false
+                weight: 0.5
+              priority: 1
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          description: Invalid request
+
+    get:
+      summary: List tasks
+      description: Retrieve a paginated list of putaway tasks
+      tags:
+        - Tasks
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskResponse'
+                  total:
+                    type: integer
+
+  /tasks/pending:
+    get:
+      summary: Get pending tasks
+      description: Retrieve tasks waiting for assignment
+      tags:
+        - Queries
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of pending tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/status/{status}:
+    get:
+      summary: Get tasks by status
+      tags:
+        - Queries
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/PutawayStatus'
+      responses:
+        '200':
+          description: List of tasks with status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/worker/{workerId}:
+    get:
+      summary: Get tasks by worker
+      description: Retrieve tasks assigned to a specific worker
+      tags:
+        - Queries
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of tasks for worker
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/shipment/{shipmentId}:
+    get:
+      summary: Get tasks by shipment
+      description: Retrieve all putaway tasks for a shipment
+      tags:
+        - Queries
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of tasks for shipment
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/{taskId}:
+    get:
+      summary: Get task by ID
+      tags:
+        - Tasks
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '404':
+          description: Task not found
+
+  /tasks/{taskId}/assign:
+    post:
+      summary: Assign task to worker
+      description: Assign a putaway task to a worker
+      tags:
+        - Workflow
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workerId
+              properties:
+                workerId:
+                  type: string
+                  example: "WORKER-001"
+      responses:
+        '200':
+          description: Task assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/{taskId}/start:
+    post:
+      summary: Start stow process
+      description: Begin the stow process for a task
+      tags:
+        - Workflow
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Stow process started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/{taskId}/stow:
+    post:
+      summary: Record stow progress
+      description: Record items stowed at location
+      tags:
+        - Workflow
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+                - locationId
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+                locationId:
+                  type: string
+            example:
+              quantity: 25
+              locationId: "A-01-02-03"
+      responses:
+        '200':
+          description: Stow progress recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/{taskId}/complete:
+    post:
+      summary: Complete task
+      description: Mark the putaway task as complete
+      tags:
+        - Workflow
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Task completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/{taskId}/fail:
+    post:
+      summary: Mark task as failed
+      description: Mark the putaway task as failed with reason
+      tags:
+        - Workflow
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+            example:
+              reason: "Location not accessible"
+      responses:
+        '200':
+          description: Task marked as failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+
+  /health:
+    get:
+      summary: Health check
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+
+components:
+  schemas:
+    CreateTaskRequest:
+      type: object
+      required:
+        - shipmentId
+        - sku
+        - productName
+        - quantity
+      properties:
+        shipmentId:
+          type: string
+        sku:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        sourceToteId:
+          type: string
+        sourceLocationId:
+          type: string
+        strategy:
+          $ref: '#/components/schemas/StorageStrategy'
+        constraints:
+          $ref: '#/components/schemas/ItemConstraints'
+        priority:
+          type: integer
+          minimum: 1
+          default: 5
+
+    ItemConstraints:
+      type: object
+      properties:
+        isHazmat:
+          type: boolean
+          default: false
+        requiresColdChain:
+          type: boolean
+          default: false
+        isOversized:
+          type: boolean
+          default: false
+        isFragile:
+          type: boolean
+          default: false
+        isHighValue:
+          type: boolean
+          default: false
+        weight:
+          type: number
+
+    StorageLocation:
+      type: object
+      properties:
+        locationId:
+          type: string
+        zone:
+          type: string
+        aisle:
+          type: string
+        rack:
+          type: string
+        level:
+          type: string
+        bin:
+          type: string
+        locationType:
+          $ref: '#/components/schemas/LocationType'
+        capacity:
+          type: number
+        currentOccupancy:
+          type: number
+
+    TaskResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        shipmentId:
+          type: string
+        sku:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+        sourceToteId:
+          type: string
+        sourceLocationId:
+          type: string
+        targetLocationId:
+          type: string
+        targetLocation:
+          $ref: '#/components/schemas/StorageLocation'
+        strategy:
+          $ref: '#/components/schemas/StorageStrategy'
+        constraints:
+          $ref: '#/components/schemas/ItemConstraints'
+        status:
+          $ref: '#/components/schemas/PutawayStatus'
+        assignedWorkerId:
+          type: string
+        priority:
+          type: integer
+        stowedQuantity:
+          type: integer
+        failureReason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    StorageStrategy:
+      type: string
+      enum:
+        - chaotic
+        - directed
+        - velocity
+        - zone_based
+      description: |
+        Storage placement strategy:
+        - chaotic: Random available location (Amazon-style)
+        - directed: System-assigned locations based on rules
+        - velocity: Places items based on pick frequency
+        - zone_based: Places items by product category
+
+    PutawayStatus:
+      type: string
+      enum:
+        - pending
+        - assigned
+        - in_progress
+        - completed
+        - cancelled
+        - failed
+
+    LocationType:
+      type: string
+      enum:
+        - pick_face
+        - reserve
+        - floor_stack
+        - pallet_rack
+        - cold_storage
+        - hazmat_zone
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing
+      required: false
+      schema:
+        type: string
+        format: uuid

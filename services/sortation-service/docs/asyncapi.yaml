@@ -1,0 +1,273 @@
+asyncapi: 3.0.0
+info:
+  title: Sortation Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Sortation Service.
+
+    This service publishes events related to package sortation including
+    batch creation, package sorting, batch readiness, and dispatch.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.sortation.events:
+    address: wms.sortation.events
+    messages:
+      SortationBatchCreated:
+        $ref: '#/components/messages/SortationBatchCreated'
+      PackageReceivedForSortation:
+        $ref: '#/components/messages/PackageReceivedForSortation'
+      PackageSorted:
+        $ref: '#/components/messages/PackageSorted'
+      BatchReady:
+        $ref: '#/components/messages/BatchReady'
+      BatchDispatched:
+        $ref: '#/components/messages/BatchDispatched'
+    description: Package sortation lifecycle events
+
+operations:
+  publishSortationBatchCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.sortation.events'
+    messages:
+      - $ref: '#/channels/wms.sortation.events/messages/SortationBatchCreated'
+    description: Published when a new sortation batch is created
+
+  publishPackageReceivedForSortation:
+    action: send
+    channel:
+      $ref: '#/channels/wms.sortation.events'
+    messages:
+      - $ref: '#/channels/wms.sortation.events/messages/PackageReceivedForSortation'
+    description: Published when a package is added to a sortation batch
+
+  publishPackageSorted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.sortation.events'
+    messages:
+      - $ref: '#/channels/wms.sortation.events/messages/PackageSorted'
+    description: Published when a package is sorted to a chute
+
+  publishBatchReady:
+    action: send
+    channel:
+      $ref: '#/channels/wms.sortation.events'
+    messages:
+      - $ref: '#/channels/wms.sortation.events/messages/BatchReady'
+    description: Published when a batch is ready for dispatch
+
+  publishBatchDispatched:
+    action: send
+    channel:
+      $ref: '#/channels/wms.sortation.events'
+    messages:
+      - $ref: '#/channels/wms.sortation.events/messages/BatchDispatched'
+    description: Published when a batch is dispatched
+
+components:
+  messages:
+    SortationBatchCreated:
+      name: SortationBatchCreated
+      title: Sortation Batch Created Event
+      summary: Published when a new sortation batch is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/SortationBatchCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PackageReceivedForSortation:
+      name: PackageReceivedForSortation
+      title: Package Received for Sortation Event
+      summary: Published when a package is added to a batch
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackageReceivedForSortationPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PackageSorted:
+      name: PackageSorted
+      title: Package Sorted Event
+      summary: Published when a package is sorted to a chute
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PackageSortedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    BatchReady:
+      name: BatchReady
+      title: Batch Ready Event
+      summary: Published when a batch is ready for dispatch
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/BatchReadyPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    BatchDispatched:
+      name: BatchDispatched
+      title: Batch Dispatched Event
+      summary: Published when a batch is dispatched
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/BatchDispatchedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+          description: Event type (e.g., sortation.batch.created)
+        ce-source:
+          type: string
+          description: Event source (e.g., /sortation-service)
+        ce-id:
+          type: string
+          description: Unique event identifier
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+          description: WMS correlation ID for distributed tracing
+        ce-wmsworkflowid:
+          type: string
+          description: Temporal workflow ID for workflow correlation
+
+    SortationBatchCreatedPayload:
+      type: object
+      properties:
+        batchId:
+          type: string
+          example: BATCH-945-FEDEX-001
+        sortationCenter:
+          type: string
+          example: MAIN-SORT
+        destinationGroup:
+          type: string
+          example: "945"
+          description: Zip code prefix or region
+        carrierId:
+          type: string
+          example: FEDEX
+        createdAt:
+          type: string
+          format: date-time
+
+    PackageReceivedForSortationPayload:
+      type: object
+      properties:
+        batchId:
+          type: string
+          example: BATCH-945-FEDEX-001
+        packageId:
+          type: string
+          example: PKG-001234
+        orderId:
+          type: string
+          example: ORD-001234
+        trackingNumber:
+          type: string
+          example: "794644790132"
+        destination:
+          type: string
+          example: "94501"
+        carrierId:
+          type: string
+          example: FEDEX
+        weight:
+          type: number
+          example: 2.5
+        receivedAt:
+          type: string
+          format: date-time
+
+    PackageSortedPayload:
+      type: object
+      properties:
+        batchId:
+          type: string
+          example: BATCH-945-FEDEX-001
+        packageId:
+          type: string
+          example: PKG-001234
+        chuteId:
+          type: string
+          example: CHUTE-A01
+        chuteNumber:
+          type: integer
+          example: 1
+        sortedBy:
+          type: string
+          example: WORKER-001
+        sortedAt:
+          type: string
+          format: date-time
+
+    BatchReadyPayload:
+      type: object
+      properties:
+        batchId:
+          type: string
+          example: BATCH-945-FEDEX-001
+        destinationGroup:
+          type: string
+          example: "945"
+        carrierId:
+          type: string
+          example: FEDEX
+        packageCount:
+          type: integer
+          example: 150
+        totalWeight:
+          type: number
+          example: 375.5
+        readyAt:
+          type: string
+          format: date-time
+
+    BatchDispatchedPayload:
+      type: object
+      properties:
+        batchId:
+          type: string
+          example: BATCH-945-FEDEX-001
+        trailerId:
+          type: string
+          example: TRL-001
+        dispatchDock:
+          type: string
+          example: DOCK-OUT-A1
+        carrierId:
+          type: string
+          example: FEDEX
+        destinationGroup:
+          type: string
+          example: "945"
+        packageCount:
+          type: integer
+          example: 150
+        totalWeight:
+          type: number
+          example: 375.5
+        dispatchedAt:
+          type: string
+          format: date-time
