@@ -244,3 +244,197 @@ func (s *Shipment) ClearDomainEvents() {
 func (s *Shipment) GetDomainEvents() []DomainEvent {
 	return s.DomainEvents
 }
+
+// ===== OutboundManifest Aggregate =====
+
+// ManifestStatus represents the status of an outbound manifest
+type ManifestStatus string
+
+const (
+	ManifestStatusOpen       ManifestStatus = "open"
+	ManifestStatusClosed     ManifestStatus = "closed"
+	ManifestStatusDispatched ManifestStatus = "dispatched"
+	ManifestStatusCancelled  ManifestStatus = "cancelled"
+)
+
+// ManifestPackage represents a package in the manifest
+type ManifestPackage struct {
+	PackageID      string    `bson:"packageId" json:"packageId"`
+	ShipmentID     string    `bson:"shipmentId" json:"shipmentId"`
+	OrderID        string    `bson:"orderId" json:"orderId"`
+	TrackingNumber string    `bson:"trackingNumber" json:"trackingNumber"`
+	Weight         float64   `bson:"weight" json:"weight"`
+	AddedAt        time.Time `bson:"addedAt" json:"addedAt"`
+}
+
+// OutboundManifest represents a carrier manifest for outbound shipments
+type OutboundManifest struct {
+	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	ManifestID      string             `bson:"manifestId" json:"manifestId"`
+	CarrierID       string             `bson:"carrierId" json:"carrierId"`
+	CarrierName     string             `bson:"carrierName" json:"carrierName"`
+	ServiceType     string             `bson:"serviceType" json:"serviceType"`
+	TrailerID       string             `bson:"trailerId,omitempty" json:"trailerId,omitempty"`
+	DispatchDock    string             `bson:"dispatchDock,omitempty" json:"dispatchDock,omitempty"`
+	Packages        []ManifestPackage  `bson:"packages" json:"packages"`
+	TotalPackages   int                `bson:"totalPackages" json:"totalPackages"`
+	TotalWeight     float64            `bson:"totalWeight" json:"totalWeight"`
+	Status          ManifestStatus     `bson:"status" json:"status"`
+	ScheduledPickup *time.Time         `bson:"scheduledPickup,omitempty" json:"scheduledPickup,omitempty"`
+	ClosedAt        *time.Time         `bson:"closedAt,omitempty" json:"closedAt,omitempty"`
+	DispatchedAt    *time.Time         `bson:"dispatchedAt,omitempty" json:"dispatchedAt,omitempty"`
+	CreatedAt       time.Time          `bson:"createdAt" json:"createdAt"`
+	UpdatedAt       time.Time          `bson:"updatedAt" json:"updatedAt"`
+	DomainEvents    []DomainEvent      `bson:"-" json:"-"`
+}
+
+// NewOutboundManifest creates a new OutboundManifest aggregate
+func NewOutboundManifest(manifestID, carrierID, carrierName, serviceType string) *OutboundManifest {
+	now := time.Now().UTC()
+	return &OutboundManifest{
+		ID:            primitive.NewObjectID(),
+		ManifestID:    manifestID,
+		CarrierID:     carrierID,
+		CarrierName:   carrierName,
+		ServiceType:   serviceType,
+		Packages:      make([]ManifestPackage, 0),
+		TotalPackages: 0,
+		TotalWeight:   0,
+		Status:        ManifestStatusOpen,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		DomainEvents:  make([]DomainEvent, 0),
+	}
+}
+
+// AddPackage adds a package to the manifest
+func (m *OutboundManifest) AddPackage(pkg ManifestPackage) error {
+	if m.Status != ManifestStatusOpen {
+		return errors.New("cannot add package to closed manifest")
+	}
+
+	pkg.AddedAt = time.Now().UTC()
+	m.Packages = append(m.Packages, pkg)
+	m.TotalPackages++
+	m.TotalWeight += pkg.Weight
+	m.UpdatedAt = time.Now().UTC()
+
+	return nil
+}
+
+// RemovePackage removes a package from the manifest
+func (m *OutboundManifest) RemovePackage(packageID string) error {
+	if m.Status != ManifestStatusOpen {
+		return errors.New("cannot remove package from closed manifest")
+	}
+
+	for i, pkg := range m.Packages {
+		if pkg.PackageID == packageID {
+			m.TotalWeight -= pkg.Weight
+			m.Packages = append(m.Packages[:i], m.Packages[i+1:]...)
+			m.TotalPackages--
+			m.UpdatedAt = time.Now().UTC()
+			return nil
+		}
+	}
+
+	return errors.New("package not found in manifest")
+}
+
+// Close closes the manifest for further additions
+func (m *OutboundManifest) Close() error {
+	if m.Status != ManifestStatusOpen {
+		return errors.New("manifest is not open")
+	}
+	if m.TotalPackages == 0 {
+		return errors.New("cannot close empty manifest")
+	}
+
+	now := time.Now().UTC()
+	m.Status = ManifestStatusClosed
+	m.ClosedAt = &now
+	m.UpdatedAt = now
+
+	m.addDomainEvent(&ManifestClosedEvent{
+		ManifestID:    m.ManifestID,
+		CarrierID:     m.CarrierID,
+		PackageCount:  m.TotalPackages,
+		TotalWeight:   m.TotalWeight,
+		ClosedAt:      now,
+	})
+
+	return nil
+}
+
+// AssignTrailer assigns a trailer and dispatch dock
+func (m *OutboundManifest) AssignTrailer(trailerID, dispatchDock string) error {
+	if m.Status != ManifestStatusClosed {
+		return errors.New("manifest must be closed before assigning trailer")
+	}
+
+	m.TrailerID = trailerID
+	m.DispatchDock = dispatchDock
+	m.UpdatedAt = time.Now().UTC()
+
+	return nil
+}
+
+// Dispatch dispatches the manifest
+func (m *OutboundManifest) Dispatch() error {
+	if m.Status != ManifestStatusClosed {
+		return errors.New("manifest must be closed before dispatch")
+	}
+
+	now := time.Now().UTC()
+	m.Status = ManifestStatusDispatched
+	m.DispatchedAt = &now
+	m.UpdatedAt = now
+
+	m.addDomainEvent(&ManifestDispatchedEvent{
+		ManifestID:   m.ManifestID,
+		CarrierID:    m.CarrierID,
+		TrailerID:    m.TrailerID,
+		DispatchDock: m.DispatchDock,
+		PackageCount: m.TotalPackages,
+		TotalWeight:  m.TotalWeight,
+		DispatchedAt: now,
+	})
+
+	return nil
+}
+
+// Cancel cancels the manifest
+func (m *OutboundManifest) Cancel(reason string) error {
+	if m.Status == ManifestStatusDispatched {
+		return errors.New("cannot cancel dispatched manifest")
+	}
+
+	m.Status = ManifestStatusCancelled
+	m.UpdatedAt = time.Now().UTC()
+
+	return nil
+}
+
+// GetPackageIDs returns all package IDs in the manifest
+func (m *OutboundManifest) GetPackageIDs() []string {
+	ids := make([]string, len(m.Packages))
+	for i, pkg := range m.Packages {
+		ids[i] = pkg.PackageID
+	}
+	return ids
+}
+
+// addDomainEvent adds a domain event
+func (m *OutboundManifest) addDomainEvent(event DomainEvent) {
+	m.DomainEvents = append(m.DomainEvents, event)
+}
+
+// GetManifestDomainEvents returns all domain events
+func (m *OutboundManifest) GetManifestDomainEvents() []DomainEvent {
+	return m.DomainEvents
+}
+
+// ClearManifestDomainEvents clears all domain events
+func (m *OutboundManifest) ClearManifestDomainEvents() {
+	m.DomainEvents = make([]DomainEvent, 0)
+}

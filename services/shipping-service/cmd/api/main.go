@@ -87,6 +87,7 @@ func main() {
 
 	// Initialize repositories with instrumented client and event factory
 	repo := mongoRepo.NewShipmentRepository(instrumentedMongo.Database(), eventFactory)
+	manifestRepo := mongoRepo.NewManifestRepository(instrumentedMongo.Database(), eventFactory)
 
 	// Initialize and start outbox publisher
 	outboxPublisher := outbox.NewPublisher(
@@ -106,9 +107,15 @@ func main() {
 	defer outboxPublisher.Stop()
 	logger.Info("Outbox publisher started")
 
-	// Initialize application service
+	// Initialize application services
 	shippingService := application.NewShippingApplicationService(
 		repo,
+		instrumentedProducer,
+		eventFactory,
+		logger,
+	)
+	manifestService := application.NewManifestApplicationService(
+		manifestRepo,
 		instrumentedProducer,
 		eventFactory,
 		logger,
@@ -140,7 +147,7 @@ func main() {
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// API v1 routes
+	// API v1 routes - Shipments
 	api := router.Group("/api/v1/shipments")
 	{
 		api.POST("", createShipmentHandler(shippingService, logger))
@@ -153,6 +160,21 @@ func main() {
 		api.GET("/status/:status", getByStatusHandler(shippingService, logger))
 		api.GET("/carrier/:carrierCode", getByCarrierHandler(shippingService, logger))
 		api.GET("/carrier/:carrierCode/pending", getPendingForManifestHandler(shippingService, logger))
+	}
+
+	// API v1 routes - Manifests
+	manifestAPI := router.Group("/api/v1/manifests")
+	{
+		manifestAPI.POST("", createManifestHandler(manifestService, logger))
+		manifestAPI.GET("/:manifestId", getManifestHandler(manifestService, logger))
+		manifestAPI.POST("/:manifestId/packages", addPackageToManifestHandler(manifestService, logger))
+		manifestAPI.POST("/:manifestId/close", closeManifestHandler(manifestService, logger))
+		manifestAPI.POST("/:manifestId/trailer", assignTrailerHandler(manifestService, logger))
+		manifestAPI.POST("/:manifestId/dispatch", dispatchManifestHandler(manifestService, logger))
+		manifestAPI.GET("/carrier/:carrierId", getManifestsByCarrierHandler(manifestService, logger))
+		manifestAPI.GET("/carrier/:carrierId/closed", getClosedManifestsByCarrierHandler(manifestService, logger))
+		manifestAPI.GET("/status/:status", getManifestsByStatusHandler(manifestService, logger))
+		manifestAPI.GET("/dispatched/today", getDispatchedTodayHandler(manifestService, logger))
 	}
 
 	// Start server
@@ -513,5 +535,249 @@ func getPendingForManifestHandler(service *application.ShippingApplicationServic
 		}
 
 		c.JSON(http.StatusOK, shipments)
+	}
+}
+
+// Manifest Handlers
+
+func createManifestHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var cmd application.CreateManifestCommand
+		if err := c.ShouldBindJSON(&cmd); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"carrier.id": cmd.CarrierID,
+		})
+
+		manifest, err := service.CreateManifest(c.Request.Context(), cmd)
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusCreated, manifest)
+	}
+}
+
+func getManifestHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		manifestID := c.Param("manifestId")
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"manifest.id": manifestID,
+		})
+
+		query := application.GetManifestQuery{ManifestID: manifestID}
+		manifest, err := service.GetManifest(c.Request.Context(), query)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, manifest)
+	}
+}
+
+func addPackageToManifestHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		manifestID := c.Param("manifestId")
+
+		var cmd application.AddPackageCommand
+		if err := c.ShouldBindJSON(&cmd); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		cmd.ManifestID = manifestID
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"manifest.id": manifestID,
+			"package.id":  cmd.PackageID,
+		})
+
+		manifest, err := service.AddPackage(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, manifest)
+	}
+}
+
+func closeManifestHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		manifestID := c.Param("manifestId")
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"manifest.id": manifestID,
+		})
+
+		cmd := application.CloseManifestCommand{ManifestID: manifestID}
+		manifest, err := service.CloseManifest(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, manifest)
+	}
+}
+
+func assignTrailerHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		manifestID := c.Param("manifestId")
+
+		var req struct {
+			TrailerID    string `json:"trailerId" binding:"required"`
+			DispatchDock string `json:"dispatchDock" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"manifest.id":   manifestID,
+			"trailer.id":    req.TrailerID,
+			"dispatch.dock": req.DispatchDock,
+		})
+
+		cmd := application.AssignTrailerCommand{
+			ManifestID:   manifestID,
+			TrailerID:    req.TrailerID,
+			DispatchDock: req.DispatchDock,
+		}
+
+		manifest, err := service.AssignTrailer(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, manifest)
+	}
+}
+
+func dispatchManifestHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		manifestID := c.Param("manifestId")
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"manifest.id": manifestID,
+		})
+
+		cmd := application.DispatchManifestCommand{ManifestID: manifestID}
+		manifest, err := service.DispatchManifest(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, manifest)
+	}
+}
+
+func getManifestsByCarrierHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		carrierID := c.Param("carrierId")
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"carrier.id": carrierID,
+		})
+
+		query := application.GetManifestsByCarrierQuery{CarrierID: carrierID}
+		manifests, err := service.GetByCarrier(c.Request.Context(), query)
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, manifests)
+	}
+}
+
+func getClosedManifestsByCarrierHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		carrierID := c.Param("carrierId")
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"carrier.id": carrierID,
+		})
+
+		manifests, err := service.GetClosedByCarrier(c.Request.Context(), carrierID)
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, manifests)
+	}
+}
+
+func getManifestsByStatusHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		status := c.Param("status")
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"manifest.status": status,
+		})
+
+		query := application.GetManifestsByStatusQuery{Status: status}
+		manifests, err := service.GetByStatus(c.Request.Context(), query)
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, manifests)
+	}
+}
+
+func getDispatchedTodayHandler(service *application.ManifestApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		manifests, err := service.GetDispatchedToday(c.Request.Context())
+		if err != nil {
+			responder.RespondInternalError(err)
+			return
+		}
+
+		c.JSON(http.StatusOK, manifests)
 	}
 }

@@ -72,6 +72,12 @@ var Topics = struct {
 	LaborEvents         string
 	FacilityEvents      string
 
+	// Amazon-aligned process topics
+	ReceivingEvents  string
+	StowEvents       string
+	SLAMEvents       string
+	SortationEvents  string
+
 	// Outbound topics
 	ShipmentsOutbound string
 }{
@@ -87,6 +93,12 @@ var Topics = struct {
 	InventoryEvents:     "wms.inventory.events",
 	LaborEvents:         "wms.labor.events",
 	FacilityEvents:      "wms.facility.events",
+
+	// Amazon-aligned process topics
+	ReceivingEvents:  "wms.receiving.events",
+	StowEvents:       "wms.stow.events",
+	SLAMEvents:       "wms.slam.events",
+	SortationEvents:  "wms.sortation.events",
 
 	ShipmentsOutbound: "wms.shipments.outbound",
 }
@@ -112,6 +124,11 @@ func DefaultTopicConfigs() []TopicConfig {
 		{Name: Topics.ShippingEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.InventoryEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.LaborEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
+		// Amazon-aligned process topics
+		{Name: Topics.ReceivingEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
+		{Name: Topics.StowEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
+		{Name: Topics.SLAMEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
+		{Name: Topics.SortationEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.ShipmentsOutbound, Partitions: 6, ReplicationFactor: 3, RetentionMs: 30 * 24 * 60 * 60 * 1000}, // 30 days
 	}
 }

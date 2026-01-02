@@ -140,3 +140,15 @@ type BackorderCreatedEvent struct {
 
 func (e *BackorderCreatedEvent) EventType() string     { return "wms.inventory.backorder-created" }
 func (e *BackorderCreatedEvent) OccurredAt() time.Time { return e.CreatedAt }
+
+// VelocityClassChangedEvent is published when an item's velocity class changes
+type VelocityClassChangedEvent struct {
+	SKU           string    `json:"sku"`
+	OldClass      string    `json:"oldClass"`      // A, B, or C
+	NewClass      string    `json:"newClass"`      // A, B, or C
+	PickFrequency int       `json:"pickFrequency"` // picks per week
+	ChangedAt     time.Time `json:"changedAt"`
+}
+
+func (e *VelocityClassChangedEvent) EventType() string     { return "wms.inventory.velocity-class-changed" }
+func (e *VelocityClassChangedEvent) OccurredAt() time.Time { return e.ChangedAt }

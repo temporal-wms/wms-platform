@@ -20,6 +20,51 @@ var (
 	ErrNoShortageToRecord          = errors.New("actual quantity >= expected quantity, no shortage")
 )
 
+// VelocityClass represents the pick frequency classification (ABC analysis)
+type VelocityClass string
+
+const (
+	VelocityA VelocityClass = "A" // High velocity (>50 picks/week)
+	VelocityB VelocityClass = "B" // Medium velocity (10-50 picks/week)
+	VelocityC VelocityClass = "C" // Low velocity (<10 picks/week)
+)
+
+// IsValid checks if the velocity class is valid
+func (v VelocityClass) IsValid() bool {
+	switch v {
+	case VelocityA, VelocityB, VelocityC:
+		return true
+	default:
+		return false
+	}
+}
+
+// StorageStrategy represents the storage placement strategy
+type StorageStrategy string
+
+const (
+	StorageChaotic  StorageStrategy = "chaotic"  // Random placement (Amazon-style)
+	StorageDirected StorageStrategy = "directed" // System-assigned locations
+	StorageVelocity StorageStrategy = "velocity" // Placement based on pick frequency
+)
+
+// IsValid checks if the storage strategy is valid
+func (s StorageStrategy) IsValid() bool {
+	switch s {
+	case StorageChaotic, StorageDirected, StorageVelocity:
+		return true
+	default:
+		return false
+	}
+}
+
+// VelocityThresholds for ABC classification
+const (
+	VelocityAThreshold = 50 // >50 picks per week = A class
+	VelocityBThreshold = 10 // 10-50 picks per week = B class
+	// <10 picks per week = C class
+)
+
 // InventoryItem is the aggregate root for the Inventory bounded context
 type InventoryItem struct {
 	ID                    primitive.ObjectID     `bson:"_id,omitempty"`
@@ -36,9 +81,15 @@ type InventoryItem struct {
 	HardAllocations       []HardAllocation       `bson:"hardAllocations"`
 	Transactions          []InventoryTransaction `bson:"transactions,omitempty"`
 	LastCycleCount        *time.Time             `bson:"lastCycleCount,omitempty"`
-	CreatedAt             time.Time              `bson:"createdAt"`
-	UpdatedAt             time.Time              `bson:"updatedAt"`
-	DomainEvents          []DomainEvent          `bson:"-"`
+	// Velocity and storage fields (Amazon-style optimization)
+	VelocityClass   VelocityClass   `bson:"velocityClass" json:"velocityClass"`
+	StorageStrategy StorageStrategy `bson:"storageStrategy" json:"storageStrategy"`
+	PickFrequency   int             `bson:"pickFrequency" json:"pickFrequency"`     // picks per week
+	LastStowedAt    *time.Time      `bson:"lastStowedAt,omitempty" json:"lastStowedAt,omitempty"`
+	LastPickedAt    *time.Time      `bson:"lastPickedAt,omitempty" json:"lastPickedAt,omitempty"`
+	CreatedAt       time.Time       `bson:"createdAt"`
+	UpdatedAt       time.Time       `bson:"updatedAt"`
+	DomainEvents    []DomainEvent   `bson:"-"`
 }
 
 // StockLocation represents inventory at a specific location
@@ -345,6 +396,76 @@ func (i *InventoryItem) GetAvailableLocations() []StockLocation {
 		}
 	}
 	return available
+}
+
+// UpdatePickFrequency updates the pick frequency and recalculates velocity class
+func (i *InventoryItem) UpdatePickFrequency(picksPerWeek int) {
+	i.PickFrequency = picksPerWeek
+	i.VelocityClass = i.CalculateVelocityClass()
+	now := time.Now()
+	i.LastPickedAt = &now
+	i.UpdatedAt = now
+}
+
+// CalculateVelocityClass determines the velocity class based on pick frequency
+func (i *InventoryItem) CalculateVelocityClass() VelocityClass {
+	if i.PickFrequency > VelocityAThreshold {
+		return VelocityA
+	} else if i.PickFrequency >= VelocityBThreshold {
+		return VelocityB
+	}
+	return VelocityC
+}
+
+// IncrementPickFrequency increments the pick counter and updates velocity
+func (i *InventoryItem) IncrementPickFrequency() {
+	i.PickFrequency++
+	oldClass := i.VelocityClass
+	i.VelocityClass = i.CalculateVelocityClass()
+	now := time.Now()
+	i.LastPickedAt = &now
+	i.UpdatedAt = now
+
+	// Emit event if velocity class changed
+	if oldClass != i.VelocityClass {
+		i.AddDomainEvent(&VelocityClassChangedEvent{
+			SKU:           i.SKU,
+			OldClass:      string(oldClass),
+			NewClass:      string(i.VelocityClass),
+			PickFrequency: i.PickFrequency,
+			ChangedAt:     now,
+		})
+	}
+}
+
+// SetStorageStrategy sets the storage strategy for this item
+func (i *InventoryItem) SetStorageStrategy(strategy StorageStrategy) {
+	if strategy.IsValid() {
+		i.StorageStrategy = strategy
+		i.UpdatedAt = time.Now()
+	}
+}
+
+// RecordStow records when an item was stowed
+func (i *InventoryItem) RecordStow() {
+	now := time.Now()
+	i.LastStowedAt = &now
+	i.UpdatedAt = now
+}
+
+// IsHighVelocity returns true if item is class A (high velocity)
+func (i *InventoryItem) IsHighVelocity() bool {
+	return i.VelocityClass == VelocityA
+}
+
+// IsMediumVelocity returns true if item is class B (medium velocity)
+func (i *InventoryItem) IsMediumVelocity() bool {
+	return i.VelocityClass == VelocityB
+}
+
+// IsLowVelocity returns true if item is class C (low velocity)
+func (i *InventoryItem) IsLowVelocity() bool {
+	return i.VelocityClass == VelocityC
 }
 
 // AddDomainEvent adds a domain event

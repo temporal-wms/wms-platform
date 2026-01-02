@@ -38,6 +38,15 @@ const (
 	ReprocessingScheduleID = "order-reprocessing-schedule"
 )
 
+// SLAM (Scan, Label, Apply, Manifest) configuration
+const (
+	// WeightToleranceThreshold is the maximum allowed weight variance percentage
+	WeightToleranceThreshold float64 = 5.0
+
+	// SLAMActivityTimeout is the timeout for SLAM activities
+	SLAMActivityTimeout time.Duration = 2 * time.Minute
+)
+
 // ReprocessableStatuses are the failure statuses that can be retried
 // Only transient/timeout failures are eligible for automatic retry
 var ReprocessableStatuses = []string{

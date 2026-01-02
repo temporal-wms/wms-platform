@@ -74,12 +74,18 @@ const (
 	StationTypeConsolidation StationType = "consolidation"
 	StationTypeShipping      StationType = "shipping"
 	StationTypeReceiving     StationType = "receiving"
+	// New station types for Amazon-aligned process
+	StationTypeStow          StationType = "stow"       // Putaway stations
+	StationTypeSLAM          StationType = "slam"       // Scan-Label-Apply-Manifest stations
+	StationTypeSortation     StationType = "sortation"  // Package sortation stations
+	StationTypeQC            StationType = "qc"         // Quality control/inspection stations
 )
 
 // IsValid checks if the station type is valid
 func (t StationType) IsValid() bool {
 	switch t {
-	case StationTypePacking, StationTypeConsolidation, StationTypeShipping, StationTypeReceiving:
+	case StationTypePacking, StationTypeConsolidation, StationTypeShipping, StationTypeReceiving,
+		StationTypeStow, StationTypeSLAM, StationTypeSortation, StationTypeQC:
 		return true
 	default:
 		return false

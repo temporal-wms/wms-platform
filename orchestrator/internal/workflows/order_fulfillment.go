@@ -10,18 +10,18 @@ import (
 
 // OrderFulfillmentInput represents the input for the order fulfillment workflow
 type OrderFulfillmentInput struct {
-	OrderID            string              `json:"orderId"`
-	CustomerID         string              `json:"customerId"`
-	Items              []Item              `json:"items"`
-	Priority           string              `json:"priority"`
-	PromisedDeliveryAt time.Time           `json:"promisedDeliveryAt"`
-	IsMultiItem        bool                `json:"isMultiItem"`
+	OrderID            string    `json:"orderId"`
+	CustomerID         string    `json:"customerId"`
+	Items              []Item    `json:"items"`
+	Priority           string    `json:"priority"`
+	PromisedDeliveryAt time.Time `json:"promisedDeliveryAt"`
+	IsMultiItem        bool      `json:"isMultiItem"`
 	// Process path fields
-	GiftWrap         bool                  `json:"giftWrap"`
-	GiftWrapDetails  *GiftWrapDetailsInput `json:"giftWrapDetails,omitempty"`
-	HazmatDetails    *HazmatDetailsInput   `json:"hazmatDetails,omitempty"`
+	GiftWrap         bool                   `json:"giftWrap"`
+	GiftWrapDetails  *GiftWrapDetailsInput  `json:"giftWrapDetails,omitempty"`
+	HazmatDetails    *HazmatDetailsInput    `json:"hazmatDetails,omitempty"`
 	ColdChainDetails *ColdChainDetailsInput `json:"coldChainDetails,omitempty"`
-	TotalValue       float64               `json:"totalValue"`
+	TotalValue       float64                `json:"totalValue"`
 }
 
 // Item represents an order item
@@ -101,18 +101,42 @@ type PickedItem struct {
 
 // PackResult represents the result of the packing workflow
 type PackResult struct {
-	PackageID      string `json:"packageId"`
-	TrackingNumber string `json:"trackingNumber"`
-	Carrier        string `json:"carrier"`
+	PackageID      string  `json:"packageId"`
+	TrackingNumber string  `json:"trackingNumber"`
+	Carrier        string  `json:"carrier"`
 	Weight         float64 `json:"weight"`
+}
+
+// SLAMResult represents the result of the SLAM process
+type SLAMResult struct {
+	TaskID                string  `json:"taskId"`
+	TrackingNumber        string  `json:"trackingNumber"`
+	ManifestID            string  `json:"manifestId"`
+	ActualWeight          float64 `json:"actualWeight"`
+	WeightVariancePercent float64 `json:"weightVariancePercent"`
+	BarcodeVerified       bool    `json:"barcodeVerified"`
+	LabelApplied          bool    `json:"labelApplied"`
+	Success               bool    `json:"success"`
+	CarrierID             string  `json:"carrierId"`
+	Destination           string  `json:"destination"` // Zip code for sortation
+}
+
+// SortationStepResult represents the result of sortation in the fulfillment workflow
+type SortationStepResult struct {
+	BatchID          string `json:"batchId"`
+	ChuteID          string `json:"chuteId"`
+	ChuteNumber      int    `json:"chuteNumber"`
+	Zone             string `json:"zone"`
+	DestinationGroup string `json:"destinationGroup"`
+	Success          bool   `json:"success"`
 }
 
 // RouteResult represents the result of route calculation
 type RouteResult struct {
-	RouteID           string     `json:"routeId"`
+	RouteID           string      `json:"routeId"`
 	Stops             []RouteStop `json:"stops"`
-	EstimatedDistance float64    `json:"estimatedDistance"`
-	Strategy          string     `json:"strategy"`
+	EstimatedDistance float64     `json:"estimatedDistance"`
+	Strategy          string      `json:"strategy"`
 }
 
 // RouteStop represents a stop in a pick route
@@ -439,9 +463,91 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	result.TrackingNumber = packResult.TrackingNumber
 
 	// ========================================
-	// Step 10: Shipping/SLAM (Child Workflow)
+	// Step 10: SLAM Process (Scan, Label, Apply, Manifest)
 	// ========================================
-	logger.Info("Step 10: Starting shipping workflow", "orderId", input.OrderID, "trackingNumber", packResult.TrackingNumber)
+	logger.Info("Step 10: Starting SLAM process", "orderId", input.OrderID, "packageId", packResult.PackageID)
+
+	var slamResult SLAMResult
+	err = workflow.ExecuteActivity(ctx, "ExecuteSLAM", map[string]interface{}{
+		"orderId":        input.OrderID,
+		"packageId":      packResult.PackageID,
+		"expectedWeight": packResult.Weight,
+		"carrier":        packResult.Carrier,
+	}).Get(ctx, &slamResult)
+	if err != nil {
+		result.Status = "slam_failed"
+		result.Error = fmt.Sprintf("SLAM process failed: %v", err)
+		return result, err
+	}
+
+	// Check weight verification - if out of tolerance, log warning but continue
+	if slamResult.WeightVariancePercent > WeightToleranceThreshold {
+		logger.Warn("Weight verification out of tolerance",
+			"orderId", input.OrderID,
+			"expectedWeight", packResult.Weight,
+			"actualWeight", slamResult.ActualWeight,
+			"variancePercent", slamResult.WeightVariancePercent,
+		)
+		// Could trigger investigation workflow here if needed
+	}
+
+	// Update tracking number from SLAM if different
+	if slamResult.TrackingNumber != "" {
+		result.TrackingNumber = slamResult.TrackingNumber
+	}
+
+	logger.Info("SLAM process completed",
+		"orderId", input.OrderID,
+		"trackingNumber", slamResult.TrackingNumber,
+		"manifestId", slamResult.ManifestID,
+	)
+
+	// ========================================
+	// Step 11: Sortation (Route to Destination Chute)
+	// ========================================
+	logger.Info("Step 11: Starting sortation workflow", "orderId", input.OrderID, "packageId", packResult.PackageID)
+
+	sortationChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID:               fmt.Sprintf("sortation-%s", input.OrderID),
+		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
+		RetryPolicy:              childOpts.RetryPolicy,
+	})
+
+	// Get destination from SLAM result or use a default
+	destination := slamResult.Destination
+	if destination == "" {
+		destination = "00000" // Default destination if not provided
+	}
+
+	sortationInput := SortationWorkflowInput{
+		OrderID:        input.OrderID,
+		PackageID:      packResult.PackageID,
+		TrackingNumber: result.TrackingNumber,
+		ManifestID:     slamResult.ManifestID,
+		CarrierID:      slamResult.CarrierID,
+		Destination:    destination,
+		Weight:         slamResult.ActualWeight,
+	}
+
+	var sortationResult *SortationWorkflowResult
+	err = workflow.ExecuteChildWorkflow(sortationChildCtx, SortationWorkflow, sortationInput).Get(ctx, &sortationResult)
+	if err != nil {
+		result.Status = "sortation_failed"
+		result.Error = fmt.Sprintf("sortation workflow failed: %v", err)
+		return result, err
+	}
+
+	logger.Info("Sortation completed",
+		"orderId", input.OrderID,
+		"batchId", sortationResult.BatchID,
+		"chuteId", sortationResult.ChuteID,
+		"zone", sortationResult.Zone,
+	)
+
+	// ========================================
+	// Step 12: Shipping (Carrier Handoff)
+	// ========================================
+	logger.Info("Step 12: Starting shipping workflow", "orderId", input.OrderID, "trackingNumber", result.TrackingNumber)
 
 	shippingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("shipping-%s", input.OrderID),
@@ -452,8 +558,11 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	err = workflow.ExecuteChildWorkflow(shippingChildCtx, "ShippingWorkflow", map[string]interface{}{
 		"orderId":        input.OrderID,
 		"packageId":      packResult.PackageID,
-		"trackingNumber": packResult.TrackingNumber,
+		"trackingNumber": result.TrackingNumber,
 		"carrier":        packResult.Carrier,
+		"manifestId":     slamResult.ManifestID,
+		"batchId":        sortationResult.BatchID,
+		"chuteId":        sortationResult.ChuteID,
 	}).Get(ctx, nil)
 	if err != nil {
 		result.Status = "shipping_failed"
@@ -488,11 +597,11 @@ func getWaveTimeout(priority string) time.Duration {
 
 // OrderCancellationInput holds optional input for order cancellation
 type OrderCancellationInput struct {
-	OrderID       string                       `json:"orderId"`
-	Reason        string                       `json:"reason"`
-	AllocationIDs []string                     `json:"allocationIds,omitempty"` // Hard allocations to return to shelf
-	PickedItems   []PickedItem                 `json:"pickedItems,omitempty"`   // Items that were picked (for return-to-shelf)
-	IsHardAllocated bool                       `json:"isHardAllocated"`         // Whether inventory has been staged
+	OrderID         string       `json:"orderId"`
+	Reason          string       `json:"reason"`
+	AllocationIDs   []string     `json:"allocationIds,omitempty"` // Hard allocations to return to shelf
+	PickedItems     []PickedItem `json:"pickedItems,omitempty"`   // Items that were picked (for return-to-shelf)
+	IsHardAllocated bool         `json:"isHardAllocated"`         // Whether inventory has been staged
 }
 
 // OrderCancellationWorkflow handles order cancellation with compensation

@@ -79,6 +79,12 @@ func main() {
 	processPathActivities := activities.NewProcessPathActivities(serviceClients, logger)
 	giftWrapActivities := activities.NewGiftWrapActivities(serviceClients)
 
+	// Create Amazon-aligned fulfillment activities
+	receivingActivities := activities.NewReceivingActivities()
+	stowActivities := activities.NewStowActivities()
+	slamActivities := activities.NewSLAMActivities()
+	sortationActivities := activities.NewSortationActivities()
+
 	// Create worker
 	workerOpts := temporal.DefaultWorkerOptions(temporal.TaskQueues.Orchestrator)
 	w := temporalClient.NewWorker(workerOpts)
@@ -96,6 +102,9 @@ func main() {
 	w.RegisterWorkflow(workflows.ReprocessingOrchestrationWorkflow)
 	w.RegisterWorkflow(workflows.StockShortageWorkflow)
 	w.RegisterWorkflow(workflows.BackorderFulfillmentWorkflow)
+	w.RegisterWorkflow(workflows.InboundFulfillmentWorkflow)
+	w.RegisterWorkflow(workflows.SortationWorkflow)
+	w.RegisterWorkflow(workflows.BatchSortationWorkflow)
 	logger.Info("Registered workflows", "workflows", []string{
 		"OrderFulfillmentWorkflow",
 		"OrderCancellationWorkflow",
@@ -108,6 +117,9 @@ func main() {
 		"ReprocessingOrchestrationWorkflow",
 		"StockShortageWorkflow",
 		"BackorderFulfillmentWorkflow",
+		"InboundFulfillmentWorkflow",
+		"SortationWorkflow",
+		"BatchSortationWorkflow",
 	})
 
 	// Register activities
@@ -172,6 +184,40 @@ func main() {
 	w.RegisterActivity(giftWrapActivities.ApplyGiftMessage)
 	w.RegisterActivity(giftWrapActivities.CompleteGiftWrapTask)
 
+	// Register receiving activities (Amazon-aligned inbound)
+	w.RegisterActivity(receivingActivities.ValidateASN)
+	w.RegisterActivity(receivingActivities.MarkShipmentArrived)
+	w.RegisterActivity(receivingActivities.PerformQualityInspection)
+	w.RegisterActivity(receivingActivities.CreatePutawayTasks)
+	w.RegisterActivity(receivingActivities.ConfirmInventoryReceipt)
+	w.RegisterActivity(receivingActivities.CompleteReceiving)
+	w.RegisterActivity(receivingActivities.ProcessReceiving)
+
+	// Register stow activities (chaotic storage)
+	w.RegisterActivity(stowActivities.FindStorageLocation)
+	w.RegisterActivity(stowActivities.AssignLocation)
+	w.RegisterActivity(stowActivities.ExecuteStow)
+	w.RegisterActivity(stowActivities.UpdateInventoryLocation)
+	w.RegisterActivity(stowActivities.ProcessStow)
+
+	// Register SLAM activities (Scan, Label, Apply, Manifest)
+	w.RegisterActivity(slamActivities.ScanPackage)
+	w.RegisterActivity(slamActivities.GenerateLabel)
+	w.RegisterActivity(slamActivities.ApplyLabel)
+	w.RegisterActivity(slamActivities.AddToManifest)
+	w.RegisterActivity(slamActivities.VerifyWeight)
+	w.RegisterActivity(slamActivities.ExecuteSLAM)
+
+	// Register sortation activities
+	w.RegisterActivity(sortationActivities.CreateSortationBatch)
+	w.RegisterActivity(sortationActivities.AddPackageToBatch)
+	w.RegisterActivity(sortationActivities.AssignChute)
+	w.RegisterActivity(sortationActivities.SortPackage)
+	w.RegisterActivity(sortationActivities.CloseBatch)
+	w.RegisterActivity(sortationActivities.DispatchBatch)
+	w.RegisterActivity(sortationActivities.ProcessSortation)
+	w.RegisterActivity(sortationActivities.NotifyCarrier)
+
 	logger.Info("Registered activities", "activities", []string{
 		"ValidateOrder",
 		"CancelOrder",
@@ -215,6 +261,36 @@ func main() {
 		"CheckGiftWrapStatus",
 		"ApplyGiftMessage",
 		"CompleteGiftWrapTask",
+		// Receiving activities
+		"ValidateASN",
+		"MarkShipmentArrived",
+		"PerformQualityInspection",
+		"CreatePutawayTasks",
+		"ConfirmInventoryReceipt",
+		"CompleteReceiving",
+		"ProcessReceiving",
+		// Stow activities
+		"FindStorageLocation",
+		"AssignLocation",
+		"ExecuteStow",
+		"UpdateInventoryLocation",
+		"ProcessStow",
+		// SLAM activities
+		"ScanPackage",
+		"GenerateLabel",
+		"ApplyLabel",
+		"AddToManifest",
+		"VerifyWeight",
+		"ExecuteSLAM",
+		// Sortation activities
+		"CreateSortationBatch",
+		"AddPackageToBatch",
+		"AssignChute",
+		"SortPackage",
+		"CloseBatch",
+		"DispatchBatch",
+		"ProcessSortation",
+		"NotifyCarrier",
 	})
 
 	// Create reprocessing schedule if enabled
@@ -496,6 +572,9 @@ type Config struct {
 	LaborServiceURL         string
 	WavingServiceURL        string
 	FacilityServiceURL      string
+	ReceivingServiceURL     string
+	StowServiceURL          string
+	SortationServiceURL     string
 }
 
 func loadConfig() *Config {
@@ -514,7 +593,10 @@ func loadConfig() *Config {
 		ShippingServiceURL:      getEnv("SHIPPING_SERVICE_URL", "http://localhost:8007"),
 		LaborServiceURL:         getEnv("LABOR_SERVICE_URL", "http://localhost:8009"),
 		WavingServiceURL:        getEnv("WAVING_SERVICE_URL", "http://localhost:8002"),
-		FacilityServiceURL:      getEnv("FACILITY_SERVICE_URL", "http://localhost:8010"),
+		FacilityServiceURL:      getEnv("FACILITY_SERVICE_URL", "http://localhost:8011"),
+		ReceivingServiceURL:     getEnv("RECEIVING_SERVICE_URL", "http://localhost:8010"),
+		StowServiceURL:          getEnv("STOW_SERVICE_URL", "http://localhost:8012"),
+		SortationServiceURL:     getEnv("SORTATION_SERVICE_URL", "http://localhost:8013"),
 	}
 }
 

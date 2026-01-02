@@ -53,3 +53,29 @@ type ShipConfirmedEvent struct {
 
 func (e *ShipConfirmedEvent) EventType() string    { return "wms.shipping.confirmed" }
 func (e *ShipConfirmedEvent) OccurredAt() time.Time { return e.ShippedAt }
+
+// ManifestClosedEvent is published when an outbound manifest is closed
+type ManifestClosedEvent struct {
+	ManifestID   string    `json:"manifestId"`
+	CarrierID    string    `json:"carrierId"`
+	PackageCount int       `json:"packageCount"`
+	TotalWeight  float64   `json:"totalWeight"`
+	ClosedAt     time.Time `json:"closedAt"`
+}
+
+func (e *ManifestClosedEvent) EventType() string     { return "wms.shipping.manifest-closed" }
+func (e *ManifestClosedEvent) OccurredAt() time.Time { return e.ClosedAt }
+
+// ManifestDispatchedEvent is published when an outbound manifest is dispatched
+type ManifestDispatchedEvent struct {
+	ManifestID   string    `json:"manifestId"`
+	CarrierID    string    `json:"carrierId"`
+	TrailerID    string    `json:"trailerId"`
+	DispatchDock string    `json:"dispatchDock"`
+	PackageCount int       `json:"packageCount"`
+	TotalWeight  float64   `json:"totalWeight"`
+	DispatchedAt time.Time `json:"dispatchedAt"`
+}
+
+func (e *ManifestDispatchedEvent) EventType() string     { return "wms.shipping.manifest-dispatched" }
+func (e *ManifestDispatchedEvent) OccurredAt() time.Time { return e.DispatchedAt }
