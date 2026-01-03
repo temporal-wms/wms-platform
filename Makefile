@@ -1,7 +1,7 @@
 .PHONY: all build test clean docker-build docker-up docker-down help
 
 # Variables
-SERVICES := order-service waving-service routing-service picking-service consolidation-service packing-service shipping-service inventory-service labor-service facility-service unit-service process-path-service
+SERVICES := order-service waving-service routing-service picking-service consolidation-service packing-service shipping-service inventory-service labor-service facility-service unit-service process-path-service walling-service wes-service
 GO := go
 DOCKER_COMPOSE := docker compose -f deployments/docker-compose.yml
 

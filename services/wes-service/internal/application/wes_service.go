@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -318,22 +319,14 @@ func (c *ProcessPathClient) DetermineProcessPath(ctx context.Context, orderID st
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/v1/process-paths/determine", nil)
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/v1/process-paths/determine", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Create a new request with body
-	req, err = http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/v1/process-paths/determine",
-		json.NewEncoder(nil))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	_ = body // Use body in actual implementation
-
 	// For now, return nil to indicate we should use defaults
 	// In production, this would make an actual HTTP call
+	_ = req
 	return nil, nil
 }

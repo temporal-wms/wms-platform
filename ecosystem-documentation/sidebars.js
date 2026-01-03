@@ -33,6 +33,8 @@ const sidebars = {
           items: [
             'architecture/sequence-diagrams/order-fulfillment',
             'architecture/sequence-diagrams/order-cancellation',
+            'architecture/sequence-diagrams/wes-execution',
+            'architecture/sequence-diagrams/walling-workflow',
             'architecture/sequence-diagrams/picking-workflow',
             'architecture/sequence-diagrams/packing-workflow',
             'architecture/sequence-diagrams/shipping-workflow',
@@ -54,6 +56,8 @@ const sidebars = {
           items: [
             'domain-driven-design/aggregates/order',
             'domain-driven-design/aggregates/wave',
+            'domain-driven-design/aggregates/task-route',
+            'domain-driven-design/aggregates/walling-task',
             'domain-driven-design/aggregates/pick-task',
             'domain-driven-design/aggregates/pick-route',
             'domain-driven-design/aggregates/consolidation-unit',
@@ -74,6 +78,8 @@ const sidebars = {
       items: [
         'services/order-service',
         'services/waving-service',
+        'services/wes-service',
+        'services/walling-service',
         'services/routing-service',
         'services/picking-service',
         'services/consolidation-service',

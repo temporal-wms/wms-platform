@@ -2,40 +2,57 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Copy go mod files
-COPY go.mod go.sum* ./
-COPY ../../shared ./shared
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Copy shared module and service go.mod first for better caching
+COPY shared/ ./shared/
+COPY services/wes-service/go.mod services/wes-service/go.sum* ./services/wes-service/
+
+WORKDIR /app/services/wes-service
 
 # Download dependencies
+ENV GOWORK=off
 RUN go mod download
 
 # Copy source code
-COPY . .
+COPY services/wes-service/ .
 
-# Build the API server and worker
-RUN CGO_ENABLED=0 GOOS=linux go build -o /wes-api ./cmd/api
-RUN CGO_ENABLED=0 GOOS=linux go build -o /wes-worker ./cmd/worker
+# Tidy dependencies and build
+RUN go mod tidy
 
-# API image
-FROM alpine:3.19 AS api
+# API application
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/bin/api ./cmd/api
 
-RUN apk --no-cache add ca-certificates
+# Worker application
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/bin/worker ./cmd/worker
+
+# Final stage
+FROM alpine:3.19
 
 WORKDIR /app
 
-COPY --from=builder /wes-api .
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
 
+# Copy binaries from builder
+COPY --from=builder /app/bin/api /app/api
+COPY --from=builder /app/bin/worker /app/worker
+
+# Create non-root user
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+# Set ownership
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
+# Expose port
 EXPOSE 8016
 
-CMD ["./wes-api"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8016/health || exit 1
 
-# Worker image
-FROM alpine:3.19 AS worker
-
-RUN apk --no-cache add ca-certificates
-
-WORKDIR /app
-
-COPY --from=builder /wes-worker .
-
-CMD ["./wes-worker"]
+CMD ["/app/api"]

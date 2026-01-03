@@ -178,6 +178,134 @@ graph LR
 }
 ```
 
+### WES Events
+
+| Event Type | Topic | Description |
+|------------|-------|-------------|
+| `wms.wes.route-created` | wms.wes.events | Task route created for order |
+| `wms.wes.stage-assigned` | wms.wes.events | Worker assigned to stage |
+| `wms.wes.stage-started` | wms.wes.events | Stage execution started |
+| `wms.wes.stage-completed` | wms.wes.events | Stage execution completed |
+| `wms.wes.stage-failed` | wms.wes.events | Stage execution failed |
+| `wms.wes.route-completed` | wms.wes.events | All stages completed |
+| `wms.wes.route-failed` | wms.wes.events | Route execution failed |
+
+```mermaid
+graph LR
+    RC[RouteCreated] --> SA[StageAssigned]
+    SA --> SS[StageStarted]
+    SS --> SC[StageCompleted]
+    SC --> SA
+    SC --> RCO[RouteCompleted]
+    SS -.->|failure| SF[StageFailed]
+    SF --> RF[RouteFailed]
+```
+
+#### RouteCreatedEvent
+
+```json
+{
+  "type": "wms.wes.route-created",
+  "data": {
+    "routeId": "RT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "waveId": "WAVE-2024-001",
+    "pathType": "pick_wall_pack",
+    "stages": ["picking", "walling", "packing"],
+    "createdAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+#### StageCompletedEvent
+
+```json
+{
+  "type": "wms.wes.stage-completed",
+  "data": {
+    "routeId": "RT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "stageType": "picking",
+    "stageIndex": 0,
+    "taskId": "PT-001",
+    "workerId": "WORKER-001",
+    "duration": "PT12M30S",
+    "completedAt": "2024-01-15T10:45:00Z"
+  }
+}
+```
+
+### Walling Events
+
+| Event Type | Topic | Description |
+|------------|-------|-------------|
+| `wms.walling.task-created` | wms.walling.events | Walling task created |
+| `wms.walling.task-assigned` | wms.walling.events | Walliner assigned to task |
+| `wms.walling.item-sorted` | wms.walling.events | Item sorted to bin |
+| `wms.walling.task-completed` | wms.walling.events | All items sorted |
+| `wms.walling.task-cancelled` | wms.walling.events | Walling task cancelled |
+
+```mermaid
+graph LR
+    WTC[TaskCreated] --> WTA[TaskAssigned]
+    WTA --> IS[ItemSorted]
+    IS --> IS
+    IS --> WCO[TaskCompleted]
+    WTA -.->|cancel| WCA[TaskCancelled]
+```
+
+#### WallingTaskCreatedEvent
+
+```json
+{
+  "type": "wms.walling.task-created",
+  "data": {
+    "taskId": "WT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "waveId": "WAVE-2024-001",
+    "routeId": "RT-xyz",
+    "putWallId": "PUTWALL-1",
+    "destinationBin": "BIN-A1",
+    "itemCount": 5,
+    "sourceTotes": ["TOTE-001", "TOTE-002"],
+    "createdAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+#### ItemSortedEvent
+
+```json
+{
+  "type": "wms.walling.item-sorted",
+  "data": {
+    "taskId": "WT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "sku": "SKU-001",
+    "quantity": 1,
+    "fromToteId": "TOTE-001",
+    "toBinId": "BIN-A1",
+    "sortedAt": "2024-01-15T10:35:00Z"
+  }
+}
+```
+
+#### WallingTaskCompletedEvent
+
+```json
+{
+  "type": "wms.walling.task-completed",
+  "data": {
+    "taskId": "WT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "routeId": "RT-xyz",
+    "itemsSorted": 5,
+    "duration": "PT8M15S",
+    "completedAt": "2024-01-15T10:38:15Z"
+  }
+}
+```
+
 ### Consolidation Events
 
 | Event Type | Topic | Description |
@@ -278,6 +406,8 @@ sequenceDiagram
 |-------|--------|-----------|
 | wms.orders.events | Order events | 7 days |
 | wms.waves.events | Wave events | 7 days |
+| wms.wes.events | WES execution events | 7 days |
+| wms.walling.events | Walling events | 7 days |
 | wms.routes.events | Routing events | 7 days |
 | wms.picking.events | Picking events | 7 days |
 | wms.consolidation.events | Consolidation events | 7 days |

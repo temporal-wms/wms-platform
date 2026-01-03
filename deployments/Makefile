@@ -23,7 +23,7 @@ KIND_CONFIG := ./kind/kind-config.yaml
 SERVICES := order-service inventory-service waving-service routing-service \
             picking-service consolidation-service packing-service \
             shipping-service labor-service facility-service unit-service \
-            process-path-service orchestrator
+            process-path-service walling-service wes-service orchestrator
 
 #------------------------------------------------------------------------------
 # Help

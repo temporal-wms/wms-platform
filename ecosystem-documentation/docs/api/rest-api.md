@@ -137,6 +137,161 @@ Request:
 }
 ```
 
+## WES Service API (Port 8016)
+
+The Warehouse Execution System coordinates order execution through configurable process paths.
+
+### Resolve Execution Plan
+
+```http
+POST /api/v1/execution-plans/resolve
+```
+
+Request:
+```json
+{
+  "itemCount": 8,
+  "multiZone": false
+}
+```
+
+Response (200):
+```json
+{
+  "templateId": "tpl-pick-wall-pack",
+  "pathType": "pick_wall_pack",
+  "stages": [
+    {"stageType": "picking", "sequence": 0},
+    {"stageType": "walling", "sequence": 1},
+    {"stageType": "packing", "sequence": 2}
+  ]
+}
+```
+
+### Create Task Route
+
+```http
+POST /api/v1/routes
+```
+
+Request:
+```json
+{
+  "orderId": "ORD-12345",
+  "waveId": "WAVE-001",
+  "templateId": "tpl-pick-wall-pack",
+  "specialHandling": ["fragile"]
+}
+```
+
+### Get Task Route
+
+```http
+GET /api/v1/routes/{routeId}
+GET /api/v1/routes/order/{orderId}
+```
+
+### Stage Operations
+
+```http
+POST /api/v1/routes/{routeId}/stages/current/assign
+POST /api/v1/routes/{routeId}/stages/current/start
+POST /api/v1/routes/{routeId}/stages/current/complete
+POST /api/v1/routes/{routeId}/stages/current/fail
+```
+
+Assign Worker Request:
+```json
+{
+  "workerId": "PICKER-001",
+  "taskId": "PT-12345"
+}
+```
+
+Fail Stage Request:
+```json
+{
+  "error": "Picker reported item shortage"
+}
+```
+
+### List Templates
+
+```http
+GET /api/v1/templates?activeOnly=true
+GET /api/v1/templates/{templateId}
+```
+
+## Walling Service API (Port 8017)
+
+The Walling Service manages put-wall sorting operations for medium-sized orders.
+
+### Create Walling Task
+
+```http
+POST /api/v1/tasks
+```
+
+Request:
+```json
+{
+  "orderId": "ORD-12345",
+  "waveId": "WAVE-001",
+  "routeId": "RT-xyz",
+  "putWallId": "PUTWALL-1",
+  "destinationBin": "BIN-A1",
+  "sourceTotes": [
+    {"toteId": "TOTE-001", "pickTaskId": "PT-001", "itemCount": 3}
+  ],
+  "itemsToSort": [
+    {"sku": "SKU-001", "quantity": 2, "fromToteId": "TOTE-001"}
+  ]
+}
+```
+
+### Get Tasks
+
+```http
+GET /api/v1/tasks/{taskId}
+GET /api/v1/tasks/pending?putWallId=PUTWALL-1&limit=10
+GET /api/v1/tasks/walliner/{wallinerId}/active
+```
+
+### Assign Walliner
+
+```http
+POST /api/v1/tasks/{taskId}/assign
+```
+
+Request:
+```json
+{
+  "wallinerId": "WALLINER-001",
+  "station": "STATION-1"
+}
+```
+
+### Sort Item
+
+```http
+POST /api/v1/tasks/{taskId}/sort
+```
+
+Request:
+```json
+{
+  "sku": "SKU-001",
+  "quantity": 1,
+  "fromToteId": "TOTE-001"
+}
+```
+
+### Complete Task
+
+```http
+POST /api/v1/tasks/{taskId}/complete
+```
+
 ## Waving Service API (Port 8002)
 
 ### Create Wave
