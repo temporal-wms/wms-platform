@@ -10,6 +10,9 @@ const (
 	ContextKeyWMSCorrelationID = "wmsCorrelationId"
 	ContextKeyWMSWaveNumber    = "wmsWaveNumber"
 	ContextKeyWMSWorkflowID    = "wmsWorkflowId"
+	ContextKeyWMSFacilityID    = "wmsFacilityId"
+	ContextKeyWMSWarehouseID   = "wmsWarehouseId"
+	ContextKeyWMSOrderID       = "wmsOrderId"
 )
 
 // CloudEvents WMS extension HTTP header names
@@ -17,6 +20,9 @@ const (
 	HeaderWMSCorrelationID = "X-WMS-Correlation-ID"
 	HeaderWMSWaveNumber    = "X-WMS-Wave-Number"
 	HeaderWMSWorkflowID    = "X-WMS-Workflow-ID"
+	HeaderWMSFacilityID    = "X-WMS-Facility-ID"
+	HeaderWMSWarehouseID   = "X-WMS-Warehouse-ID"
+	HeaderWMSOrderID       = "X-WMS-Order-ID"
 )
 
 // CloudEvents middleware extracts WMS CloudEvents extensions from HTTP headers
@@ -29,6 +35,9 @@ func CloudEvents() gin.HandlerFunc {
 		wmsCorrelationID := c.GetHeader(HeaderWMSCorrelationID)
 		wmsWaveNumber := c.GetHeader(HeaderWMSWaveNumber)
 		wmsWorkflowID := c.GetHeader(HeaderWMSWorkflowID)
+		wmsFacilityID := c.GetHeader(HeaderWMSFacilityID)
+		wmsWarehouseID := c.GetHeader(HeaderWMSWarehouseID)
+		wmsOrderID := c.GetHeader(HeaderWMSOrderID)
 
 		// Set in Gin context
 		if wmsCorrelationID != "" {
@@ -39,6 +48,15 @@ func CloudEvents() gin.HandlerFunc {
 		}
 		if wmsWorkflowID != "" {
 			c.Set(ContextKeyWMSWorkflowID, wmsWorkflowID)
+		}
+		if wmsFacilityID != "" {
+			c.Set(ContextKeyWMSFacilityID, wmsFacilityID)
+		}
+		if wmsWarehouseID != "" {
+			c.Set(ContextKeyWMSWarehouseID, wmsWarehouseID)
+		}
+		if wmsOrderID != "" {
+			c.Set(ContextKeyWMSOrderID, wmsOrderID)
 		}
 
 		// Set in Go context for logging package
@@ -52,6 +70,15 @@ func CloudEvents() gin.HandlerFunc {
 		if wmsWorkflowID != "" {
 			ctx = logging.ContextWithWMSWorkflowID(ctx, wmsWorkflowID)
 		}
+		if wmsFacilityID != "" {
+			ctx = logging.ContextWithWMSFacilityID(ctx, wmsFacilityID)
+		}
+		if wmsWarehouseID != "" {
+			ctx = logging.ContextWithWMSWarehouseID(ctx, wmsWarehouseID)
+		}
+		if wmsOrderID != "" {
+			ctx = logging.ContextWithWMSOrderID(ctx, wmsOrderID)
+		}
 		c.Request = c.Request.WithContext(ctx)
 
 		// Propagate headers in response (for tracing)
@@ -63,6 +90,15 @@ func CloudEvents() gin.HandlerFunc {
 		}
 		if wmsWorkflowID != "" {
 			c.Header(HeaderWMSWorkflowID, wmsWorkflowID)
+		}
+		if wmsFacilityID != "" {
+			c.Header(HeaderWMSFacilityID, wmsFacilityID)
+		}
+		if wmsWarehouseID != "" {
+			c.Header(HeaderWMSWarehouseID, wmsWarehouseID)
+		}
+		if wmsOrderID != "" {
+			c.Header(HeaderWMSOrderID, wmsOrderID)
 		}
 
 		c.Next()
@@ -99,11 +135,44 @@ func GetWMSWorkflowID(c *gin.Context) string {
 	return ""
 }
 
+// GetWMSFacilityID extracts WMS facility ID from Gin context
+func GetWMSFacilityID(c *gin.Context) string {
+	if val, exists := c.Get(ContextKeyWMSFacilityID); exists {
+		if id, ok := val.(string); ok {
+			return id
+		}
+	}
+	return ""
+}
+
+// GetWMSWarehouseID extracts WMS warehouse ID from Gin context
+func GetWMSWarehouseID(c *gin.Context) string {
+	if val, exists := c.Get(ContextKeyWMSWarehouseID); exists {
+		if id, ok := val.(string); ok {
+			return id
+		}
+	}
+	return ""
+}
+
+// GetWMSOrderID extracts WMS order ID from Gin context
+func GetWMSOrderID(c *gin.Context) string {
+	if val, exists := c.Get(ContextKeyWMSOrderID); exists {
+		if id, ok := val.(string); ok {
+			return id
+		}
+	}
+	return ""
+}
+
 // CloudEventExtensions holds all WMS CloudEvent extension values
 type CloudEventExtensions struct {
 	CorrelationID string
 	WaveNumber    string
 	WorkflowID    string
+	FacilityID    string
+	WarehouseID   string
+	OrderID       string
 }
 
 // GetCloudEventExtensions extracts all CloudEvent extensions from Gin context
@@ -112,6 +181,9 @@ func GetCloudEventExtensions(c *gin.Context) CloudEventExtensions {
 		CorrelationID: GetWMSCorrelationID(c),
 		WaveNumber:    GetWMSWaveNumber(c),
 		WorkflowID:    GetWMSWorkflowID(c),
+		FacilityID:    GetWMSFacilityID(c),
+		WarehouseID:   GetWMSWarehouseID(c),
+		OrderID:       GetWMSOrderID(c),
 	}
 }
 
@@ -121,6 +193,9 @@ func (ce CloudEventExtensions) ToLoggingContext() logging.CloudEventContext {
 		CorrelationID: ce.CorrelationID,
 		WaveNumber:    ce.WaveNumber,
 		WorkflowID:    ce.WorkflowID,
+		FacilityID:    ce.FacilityID,
+		WarehouseID:   ce.WarehouseID,
+		OrderID:       ce.OrderID,
 	}
 }
 
@@ -136,6 +211,15 @@ func PropagationCloudEventHeaders(c *gin.Context) map[string]string {
 	}
 	if id := GetWMSWorkflowID(c); id != "" {
 		headers[HeaderWMSWorkflowID] = id
+	}
+	if id := GetWMSFacilityID(c); id != "" {
+		headers[HeaderWMSFacilityID] = id
+	}
+	if id := GetWMSWarehouseID(c); id != "" {
+		headers[HeaderWMSWarehouseID] = id
+	}
+	if id := GetWMSOrderID(c); id != "" {
+		headers[HeaderWMSOrderID] = id
 	}
 
 	return headers

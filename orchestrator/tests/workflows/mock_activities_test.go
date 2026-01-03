@@ -3,44 +3,11 @@ package workflows_test
 import "github.com/wms-platform/orchestrator/internal/workflows"
 
 // Mock activity functions shared across workflow tests
+// These are used by the test environment to register and mock activities
 
 // ValidateOrder is a mock activity for order validation
 func ValidateOrder(input workflows.OrderFulfillmentInput) (bool, error) {
 	return true, nil
-}
-
-// CalculateRoute is a mock activity for route calculation
-func CalculateRoute(params map[string]interface{}) (workflows.RouteResult, error) {
-	return workflows.RouteResult{}, nil
-}
-
-// CalculateMultiRoute is a mock activity for multi-route calculation
-func CalculateMultiRoute(params map[string]interface{}) (workflows.MultiRouteResult, error) {
-	return workflows.MultiRouteResult{
-		OrderID:     "ORD-001",
-		TotalRoutes: 1,
-		Routes:      []workflows.RouteResult{{RouteID: "ROUTE-001"}},
-	}, nil
-}
-
-// StartPicking is a mock activity for starting picking
-func StartPicking(orderID string) error {
-	return nil
-}
-
-// MarkConsolidated is a mock activity for marking order as consolidated
-func MarkConsolidated(orderID string) error {
-	return nil
-}
-
-// MarkPacked is a mock activity for marking order as packed
-func MarkPacked(orderID string) error {
-	return nil
-}
-
-// FindCapableStation is a mock activity for finding capable station
-func FindCapableStation(input map[string]interface{}) (map[string]interface{}, error) {
-	return map[string]interface{}{"stationId": "STATION-001"}, nil
 }
 
 // ExecuteSLAM is a mock activity for SLAM process
@@ -55,18 +22,8 @@ func ExecuteSLAM(input map[string]interface{}) (workflows.SLAMResult, error) {
 	}, nil
 }
 
-// CancelOrder is a mock activity for order cancellation
-func CancelOrder(orderID, reason string) error {
-	return nil
-}
-
-// ReleaseInventoryReservation is a mock activity for releasing inventory
+// ReleaseInventoryReservation is a mock activity for releasing inventory (compensation)
 func ReleaseInventoryReservation(orderID string) error {
-	return nil
-}
-
-// NotifyCustomerCancellation is a mock activity for customer notification
-func NotifyCustomerCancellation(orderID, reason string) error {
 	return nil
 }
 
@@ -99,5 +56,15 @@ func ReserveUnits(input map[string]interface{}) (map[string]interface{}, error) 
 
 // AssignToWave is a mock activity for assigning order to wave
 func AssignToWave(orderID, waveID string) error {
+	return nil
+}
+
+// CancelOrder is a mock activity for order cancellation
+func CancelOrder(orderID, reason string) error {
+	return nil
+}
+
+// NotifyCustomerCancellation is a mock activity for customer notification
+func NotifyCustomerCancellation(orderID, reason string) error {
 	return nil
 }

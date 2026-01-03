@@ -143,6 +143,12 @@ func (c *Consumer) parseMessage(msg kafka.Message) (*cloudevents.WMSCloudEvent, 
 			event.WaveNumber = string(header.Value)
 		case "ce-wmsworkflowid":
 			event.WorkflowID = string(header.Value)
+		case "ce-wmsfacilityid":
+			event.FacilityID = string(header.Value)
+		case "ce-wmswarehouseid":
+			event.WarehouseID = string(header.Value)
+		case "ce-wmsorderid":
+			event.OrderID = string(header.Value)
 		}
 	}
 
@@ -162,6 +168,9 @@ func (c *Consumer) handleEvent(ctx context.Context, topic string, event *cloudev
 		event.CorrelationID,
 		event.WaveNumber,
 		event.WorkflowID,
+		event.FacilityID,
+		event.WarehouseID,
+		event.OrderID,
 	)
 
 	// Try specific handler first

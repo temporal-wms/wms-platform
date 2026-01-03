@@ -16,6 +16,8 @@ use (
 	./services/sortation-service
 	./services/stow-service
 	./services/unit-service
+	./services/walling-service
 	./services/waving-service
+	./services/wes-service
 	./shared
 )

@@ -56,6 +56,21 @@ const (
 	ShiftEnded          = "wms.labor.shift-ended"
 	LaborTaskAssigned   = "wms.labor.task-assigned"
 	PerformanceRecorded = "wms.labor.performance-recorded"
+
+	// WES (Warehouse Execution System) events
+	WESRouteCreated    = "wms.wes.route-created"
+	WESStageAssigned   = "wms.wes.stage-assigned"
+	WESStageStarted    = "wms.wes.stage-started"
+	WESStageCompleted  = "wms.wes.stage-completed"
+	WESStageFailed     = "wms.wes.stage-failed"
+	WESRouteCompleted  = "wms.wes.route-completed"
+	WESTemplateCreated = "wms.wes.template-created"
+
+	// Walling events
+	WallingTaskCreated   = "wms.walling.task-created"
+	WallingTaskAssigned  = "wms.walling.task-assigned"
+	WallingItemSorted    = "wms.walling.item-sorted"
+	WallingTaskCompleted = "wms.walling.task-completed"
 )
 
 // Source constants for event sources
@@ -69,6 +84,8 @@ const (
 	SourceShipping        = "/wms/shipping-service"
 	SourceInventory       = "/wms/inventory-service"
 	SourceLabor           = "/wms/labor-service"
+	SourceWES             = "/wms/wes-service"
+	SourceWalling         = "/wms/walling-service"
 )
 
 // WMSCloudEvent represents a CloudEvents v1.0 compliant event for WMS
@@ -87,6 +104,9 @@ type WMSCloudEvent struct {
 	CorrelationID string `json:"wmscorrelationid,omitempty"`
 	WaveNumber    string `json:"wmswavenumber,omitempty"`
 	WorkflowID    string `json:"wmsworkflowid,omitempty"`
+	FacilityID    string `json:"wmsfacilityid,omitempty"`
+	WarehouseID   string `json:"wmswarehouseid,omitempty"`
+	OrderID       string `json:"wmsorderid,omitempty"`
 }
 
 // OrderReceivedData represents the data payload for OrderReceived event

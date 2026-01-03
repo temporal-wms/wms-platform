@@ -62,3 +62,12 @@ var ReprocessableStatuses = []string{
 	"wave_timeout",
 	"pick_timeout",
 }
+
+// WES (Warehouse Execution System) configuration
+const (
+	// WESExecutionWorkflowTimeout is the maximum duration for WES execution
+	WESExecutionWorkflowTimeout time.Duration = 4 * time.Hour
+
+	// WESTaskQueue is the Temporal task queue for WES workers
+	WESTaskQueue = "wes-execution-queue"
+)

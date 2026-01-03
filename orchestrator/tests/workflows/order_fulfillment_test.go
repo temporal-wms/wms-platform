@@ -2,7 +2,6 @@ package workflows_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -10,30 +9,29 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 
 	"github.com/wms-platform/orchestrator/internal/workflows"
 )
 
-// TestOrderFulfillmentWorkflow_Success tests the happy path of order fulfillment
+// MockWESExecutionWorkflow is a mock workflow for WES execution
+// This is needed to register the workflow type in the test environment
+func MockWESExecutionWorkflow(ctx workflow.Context, input workflows.WESExecutionInput) (workflows.WESExecutionResult, error) {
+	return workflows.WESExecutionResult{}, nil
+}
+
+// TestOrderFulfillmentWorkflow_Success tests the happy path of order fulfillment with WES
 func TestOrderFulfillmentWorkflow_Success(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 
-	// Register workflows (including child workflows)
+	// Register workflows
 	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	env.RegisterWorkflow(workflows.PlanningWorkflow)
-	env.RegisterWorkflow(workflows.PickingWorkflow)
-	env.RegisterWorkflow(workflows.ConsolidationWorkflow)
-	env.RegisterWorkflow(workflows.PackingWorkflow)
 	env.RegisterWorkflow(workflows.ShippingWorkflow)
 	env.RegisterWorkflow(workflows.SortationWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
 	env.RegisterActivity(ValidateOrder)
-	env.RegisterActivity(CalculateMultiRoute)
-	env.RegisterActivity(ReleaseInventoryReservation)
-	env.RegisterActivity(StartPicking)
-	env.RegisterActivity(MarkConsolidated)
-	env.RegisterActivity(MarkPacked)
-	env.RegisterActivity(FindCapableStation)
 	env.RegisterActivity(ExecuteSLAM)
 
 	// Mock activity: ValidateOrder
@@ -53,24 +51,40 @@ func TestOrderFulfillmentWorkflow_Success(t *testing.T) {
 	}
 	env.OnWorkflow("PlanningWorkflow", mock.Anything, mock.Anything).Return(planningResult, nil)
 
-	// Mock activity: CalculateMultiRoute
-	multiRouteResult := workflows.MultiRouteResult{
-		OrderID:     "ORD-001",
-		TotalRoutes: 1,
-		Routes: []workflows.RouteResult{{
-			RouteID: "ROUTE-001",
-			Stops: []workflows.RouteStop{
-				{LocationID: "LOC-A1", SKU: "SKU-001", Quantity: 2},
-			},
-			EstimatedDistance: 150.5,
-			Strategy:          "shortest_path",
-		}},
+	// Mock child workflow: WESExecutionWorkflow (replaces picking, walling, packing)
+	wesResult := workflows.WESExecutionResult{
+		RouteID:         "ROUTE-001",
+		OrderID:         "ORD-001",
+		Status:          "completed",
+		PathType:        "pick_wall_pack",
+		StagesCompleted: 3,
+		TotalStages:     3,
+		PickResult: &workflows.WESStageResult{
+			StageType:   "picking",
+			TaskID:      "PICK-001",
+			WorkerID:    "WORKER-001",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		WallingResult: &workflows.WESStageResult{
+			StageType:   "walling",
+			TaskID:      "WALL-001",
+			WorkerID:    "WORKER-002",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		PackingResult: &workflows.WESStageResult{
+			StageType:   "packing",
+			TaskID:      "PACK-001",
+			WorkerID:    "WORKER-003",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		CompletedAt: time.Now().Unix(),
 	}
-	env.OnActivity(CalculateMultiRoute, mock.Anything).Return(multiRouteResult, nil)
-	env.OnActivity(StartPicking, mock.Anything).Return(nil)
-	env.OnActivity(MarkConsolidated, mock.Anything).Return(nil)
-	env.OnActivity(MarkPacked, mock.Anything).Return(nil)
-	env.OnActivity(FindCapableStation, mock.Anything).Return(map[string]interface{}{"stationId": "STATION-001"}, nil)
+	env.OnWorkflow("WESExecutionWorkflow", mock.Anything, mock.Anything).Return(wesResult, nil)
+
+	// Mock SLAM activity
 	env.OnActivity(ExecuteSLAM, mock.Anything).Return(workflows.SLAMResult{
 		TrackingNumber: "TRACK-123456",
 		ManifestID:     "MANIFEST-001",
@@ -78,28 +92,6 @@ func TestOrderFulfillmentWorkflow_Success(t *testing.T) {
 		CarrierID:      "CARRIER-001",
 		Destination:    "12345",
 	}, nil)
-
-	// Mock child workflow: PickingWorkflow
-	pickResult := workflows.PickResult{
-		TaskID: "PICK-001",
-		PickedItems: []workflows.PickedItem{
-			{SKU: "SKU-001", Quantity: 2, LocationID: "LOC-A1", ToteID: "TOTE-123"},
-		},
-		Success: true,
-	}
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(pickResult, nil)
-
-	// Mock child workflow: ConsolidationWorkflow (for multi-item orders)
-	env.OnWorkflow("ConsolidationWorkflow", mock.Anything, mock.Anything).Return(nil)
-
-	// Mock child workflow: PackingWorkflow
-	packResult := workflows.PackResult{
-		PackageID:      "PKG-001",
-		TrackingNumber: "TRACK-123456",
-		Carrier:        "UPS",
-		Weight:         5.5,
-	}
-	env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(packResult, nil)
 
 	// Mock child workflow: SortationWorkflow
 	sortationResult := &workflows.SortationWorkflowResult{
@@ -152,12 +144,9 @@ func TestOrderFulfillmentWorkflow_ValidationFailed(t *testing.T) {
 
 	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	env.RegisterWorkflow(workflows.PlanningWorkflow)
-	env.RegisterWorkflow(workflows.PickingWorkflow)
-	env.RegisterWorkflow(workflows.ConsolidationWorkflow)
-	env.RegisterWorkflow(workflows.PackingWorkflow)
 	env.RegisterWorkflow(workflows.ShippingWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
 	env.RegisterActivity(ValidateOrder)
-	env.RegisterActivity(CalculateRoute)
 	env.RegisterActivity(ReleaseInventoryReservation)
 
 	// Mock activity: ValidateOrder returns error
@@ -189,12 +178,9 @@ func TestOrderFulfillmentWorkflow_PlanningFailed(t *testing.T) {
 
 	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	env.RegisterWorkflow(workflows.PlanningWorkflow)
-	env.RegisterWorkflow(workflows.PickingWorkflow)
-	env.RegisterWorkflow(workflows.ConsolidationWorkflow)
-	env.RegisterWorkflow(workflows.PackingWorkflow)
 	env.RegisterWorkflow(workflows.ShippingWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
 	env.RegisterActivity(ValidateOrder)
-	env.RegisterActivity(CalculateRoute)
 	env.RegisterActivity(ReleaseInventoryReservation)
 
 	// Mock activity: ValidateOrder succeeds
@@ -226,20 +212,16 @@ func TestOrderFulfillmentWorkflow_PlanningFailed(t *testing.T) {
 	assert.Contains(t, workflowErr.Error(), "ORD-003")
 }
 
-// TestOrderFulfillmentWorkflow_PickingFailed tests picking workflow failure with compensation
-func TestOrderFulfillmentWorkflow_PickingFailed(t *testing.T) {
+// TestOrderFulfillmentWorkflow_WESExecutionFailed tests WES execution workflow failure with compensation
+func TestOrderFulfillmentWorkflow_WESExecutionFailed(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 
 	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	env.RegisterWorkflow(workflows.PlanningWorkflow)
-	env.RegisterWorkflow(workflows.PickingWorkflow)
-	env.RegisterWorkflow(workflows.ConsolidationWorkflow)
-	env.RegisterWorkflow(workflows.PackingWorkflow)
 	env.RegisterWorkflow(workflows.ShippingWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
 	env.RegisterActivity(ValidateOrder)
-	env.RegisterActivity(CalculateMultiRoute)
-	env.RegisterActivity(StartPicking)
 	env.RegisterActivity(ReleaseInventoryReservation)
 
 	// Mock successful validation
@@ -259,21 +241,10 @@ func TestOrderFulfillmentWorkflow_PickingFailed(t *testing.T) {
 	}
 	env.OnWorkflow("PlanningWorkflow", mock.Anything, mock.Anything).Return(planningResult, nil)
 
-	// Mock successful route calculation
-	multiRouteResult := workflows.MultiRouteResult{
-		OrderID:     "ORD-004",
-		TotalRoutes: 1,
-		Routes:      []workflows.RouteResult{{RouteID: "ROUTE-002", Stops: []workflows.RouteStop{{LocationID: "LOC-A1", SKU: "SKU-001", Quantity: 2}}}},
-	}
-	env.OnActivity(CalculateMultiRoute, mock.Anything).Return(multiRouteResult, nil)
-
-	// Mock successful start picking
-	env.OnActivity(StartPicking, mock.Anything).Return(nil)
-
-	// Mock picking workflow failure
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(
-		workflows.PickResult{},
-		errors.New("picker unavailable"),
+	// Mock WES execution failure
+	env.OnWorkflow("WESExecutionWorkflow", mock.Anything, mock.Anything).Return(
+		workflows.WESExecutionResult{},
+		errors.New("worker unavailable for picking stage"),
 	)
 
 	// Mock compensation activity
@@ -295,41 +266,35 @@ func TestOrderFulfillmentWorkflow_PickingFailed(t *testing.T) {
 	require.Error(t, workflowErr)
 
 	// When workflow returns an error, check the error message directly
-	assert.Contains(t, workflowErr.Error(), "picker unavailable")
+	assert.Contains(t, workflowErr.Error(), "worker unavailable")
 
 	// Verify compensation activity was called
 	env.AssertExpectations(t)
 }
 
-// TestOrderFulfillmentWorkflow_SingleItemSkipsConsolidation tests that single-item orders skip consolidation
-func TestOrderFulfillmentWorkflow_SingleItemSkipsConsolidation(t *testing.T) {
+// TestOrderFulfillmentWorkflow_SingleItemPickPack tests single-item order goes through pick_pack path
+func TestOrderFulfillmentWorkflow_SingleItemPickPack(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 
 	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	env.RegisterWorkflow(workflows.PlanningWorkflow)
-	env.RegisterWorkflow(workflows.PickingWorkflow)
-	env.RegisterWorkflow(workflows.ConsolidationWorkflow)
-	env.RegisterWorkflow(workflows.PackingWorkflow)
 	env.RegisterWorkflow(workflows.ShippingWorkflow)
+	env.RegisterWorkflow(workflows.SortationWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
 	env.RegisterActivity(ValidateOrder)
-	env.RegisterActivity(CalculateMultiRoute)
-	env.RegisterActivity(StartPicking)
-	env.RegisterActivity(MarkConsolidated)
-	env.RegisterActivity(FindCapableStation)
-	env.RegisterActivity(MarkPacked)
 	env.RegisterActivity(ExecuteSLAM)
 	env.RegisterActivity(ReleaseInventoryReservation)
 
 	// Setup mocks
 	env.OnActivity(ValidateOrder, mock.Anything).Return(true, nil)
 
-	// Mock child workflow: PlanningWorkflow returns single-item (no consolidation)
+	// Mock child workflow: PlanningWorkflow returns single-item path (no walling)
 	planningResult := &workflows.PlanningWorkflowResult{
 		ProcessPath: workflows.ProcessPathResult{
 			PathID:                "PATH-003",
 			Requirements:          []string{"single_item"},
-			ConsolidationRequired: false, // Single item - no consolidation
+			ConsolidationRequired: false, // Single item - direct pick to pack
 			GiftWrapRequired:      false,
 		},
 		WaveID:             "WAVE-003",
@@ -338,33 +303,32 @@ func TestOrderFulfillmentWorkflow_SingleItemSkipsConsolidation(t *testing.T) {
 	}
 	env.OnWorkflow("PlanningWorkflow", mock.Anything, mock.Anything).Return(planningResult, nil)
 
-	multiRouteResult := workflows.MultiRouteResult{
-		OrderID:     "ORD-005",
-		TotalRoutes: 1,
-		Routes:      []workflows.RouteResult{{RouteID: "ROUTE-003"}},
+	// Mock WES execution with pick_pack path (no walling stage)
+	wesResult := workflows.WESExecutionResult{
+		RouteID:         "ROUTE-003",
+		OrderID:         "ORD-005",
+		Status:          "completed",
+		PathType:        "pick_pack",
+		StagesCompleted: 2,
+		TotalStages:     2,
+		PickResult: &workflows.WESStageResult{
+			StageType:   "picking",
+			TaskID:      "PICK-003",
+			WorkerID:    "WORKER-001",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		WallingResult: nil, // No walling for single-item
+		PackingResult: &workflows.WESStageResult{
+			StageType:   "packing",
+			TaskID:      "PACK-003",
+			WorkerID:    "WORKER-002",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		CompletedAt: time.Now().Unix(),
 	}
-	env.OnActivity(CalculateMultiRoute, mock.Anything).Return(multiRouteResult, nil)
-	env.OnActivity(StartPicking, mock.Anything).Return(nil)
-
-	pickResult := workflows.PickResult{
-		TaskID:      "PICK-002",
-		PickedItems: []workflows.PickedItem{{SKU: "SKU-001", Quantity: 1}},
-		Success:     true,
-	}
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(pickResult, nil)
-
-	// Note: Single item order skips consolidation, so we don't mock ConsolidationWorkflow
-
-	// Mock capable station finding
-	env.OnActivity(FindCapableStation, mock.Anything).Return(map[string]interface{}{"stationId": "STATION-002"}, nil)
-
-	packResult := workflows.PackResult{
-		PackageID:      "PKG-002",
-		TrackingNumber: "TRACK-789",
-		Carrier:        "FedEx",
-	}
-	env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(packResult, nil)
-	env.OnActivity(MarkPacked, mock.Anything).Return(nil)
+	env.OnWorkflow("WESExecutionWorkflow", mock.Anything, mock.Anything).Return(wesResult, nil)
 
 	// Mock SLAM
 	slamResult := workflows.SLAMResult{
@@ -376,7 +340,6 @@ func TestOrderFulfillmentWorkflow_SingleItemSkipsConsolidation(t *testing.T) {
 	env.OnActivity(ExecuteSLAM, mock.Anything).Return(slamResult, nil)
 
 	// Mock sortation
-	env.RegisterWorkflow(workflows.SortationWorkflow)
 	sortationResult := &workflows.SortationWorkflowResult{
 		BatchID: "BATCH-002",
 		ChuteID: "CHUTE-002",
@@ -407,38 +370,33 @@ func TestOrderFulfillmentWorkflow_SingleItemSkipsConsolidation(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "completed", result.Status)
+	assert.Equal(t, "TRACK-789", result.TrackingNumber)
 
 	// Verify expectations
 	env.AssertExpectations(t)
 }
 
-// TestOrderFulfillmentWorkflow_PackingFailed tests packing workflow failure
-func TestOrderFulfillmentWorkflow_PackingFailed(t *testing.T) {
+// TestOrderFulfillmentWorkflow_WESPartialFailure tests WES execution with partial stage failure
+func TestOrderFulfillmentWorkflow_WESPartialFailure(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 
 	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	env.RegisterWorkflow(workflows.PlanningWorkflow)
-	env.RegisterWorkflow(workflows.PickingWorkflow)
-	env.RegisterWorkflow(workflows.ConsolidationWorkflow)
-	env.RegisterWorkflow(workflows.PackingWorkflow)
 	env.RegisterWorkflow(workflows.ShippingWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
 	env.RegisterActivity(ValidateOrder)
-	env.RegisterActivity(CalculateMultiRoute)
-	env.RegisterActivity(StartPicking)
-	env.RegisterActivity(MarkConsolidated)
-	env.RegisterActivity(FindCapableStation)
 	env.RegisterActivity(ReleaseInventoryReservation)
 
-	// Setup successful activities up to packing
+	// Setup successful activities up to WES
 	env.OnActivity(ValidateOrder, mock.Anything).Return(true, nil)
 
 	// Mock child workflow: PlanningWorkflow
 	planningResult := &workflows.PlanningWorkflowResult{
 		ProcessPath: workflows.ProcessPathResult{
 			PathID:                "PATH-004",
-			Requirements:          []string{"single_item"},
-			ConsolidationRequired: false,
+			Requirements:          []string{"multi_item"},
+			ConsolidationRequired: true,
 			GiftWrapRequired:      false,
 		},
 		WaveID:             "WAVE-004",
@@ -447,34 +405,48 @@ func TestOrderFulfillmentWorkflow_PackingFailed(t *testing.T) {
 	}
 	env.OnWorkflow("PlanningWorkflow", mock.Anything, mock.Anything).Return(planningResult, nil)
 
-	multiRouteResult := workflows.MultiRouteResult{
-		OrderID:     "ORD-006",
-		TotalRoutes: 1,
-		Routes:      []workflows.RouteResult{{RouteID: "ROUTE-004"}},
+	// WES execution fails at packing stage
+	wesResult := workflows.WESExecutionResult{
+		RouteID:         "ROUTE-004",
+		OrderID:         "ORD-006",
+		Status:          "failed",
+		PathType:        "pick_wall_pack",
+		StagesCompleted: 2,
+		TotalStages:     3,
+		PickResult: &workflows.WESStageResult{
+			StageType:   "picking",
+			TaskID:      "PICK-004",
+			WorkerID:    "WORKER-001",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		WallingResult: &workflows.WESStageResult{
+			StageType:   "walling",
+			TaskID:      "WALL-004",
+			WorkerID:    "WORKER-002",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		PackingResult: &workflows.WESStageResult{
+			StageType: "packing",
+			TaskID:    "PACK-004",
+			Success:   false,
+			Error:     "no packing materials available",
+		},
+		Error: "packing stage failed: no packing materials available",
 	}
-	env.OnActivity(CalculateMultiRoute, mock.Anything).Return(multiRouteResult, nil)
-	env.OnActivity(StartPicking, mock.Anything).Return(nil)
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(
-		workflows.PickResult{TaskID: "PICK-003", Success: true},
-		nil,
-	)
-	env.OnWorkflow("ConsolidationWorkflow", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity(MarkConsolidated, mock.Anything).Return(nil)
-	env.OnActivity(FindCapableStation, mock.Anything).Return(map[string]interface{}{"stationId": "STATION-006"}, nil)
-
-	// Packing fails
-	env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(
-		workflows.PackResult{},
-		errors.New("no packing materials available"),
+	env.OnWorkflow("WESExecutionWorkflow", mock.Anything, mock.Anything).Return(
+		wesResult,
+		errors.New("packing stage failed: no packing materials available"),
 	)
 
 	input := workflows.OrderFulfillmentInput{
 		OrderID:            "ORD-006",
 		CustomerID:         "CUST-006",
-		Items:              []workflows.Item{{SKU: "SKU-001", Quantity: 1, Weight: 2.5}},
+		Items:              []workflows.Item{{SKU: "SKU-001", Quantity: 3, Weight: 2.5}},
 		Priority:           "same_day",
 		PromisedDeliveryAt: time.Now().Add(12 * time.Hour),
-		IsMultiItem:        false,
+		IsMultiItem:        true,
 	}
 
 	env.ExecuteWorkflow(workflows.OrderFulfillmentWorkflow, input)
@@ -487,74 +459,96 @@ func TestOrderFulfillmentWorkflow_PackingFailed(t *testing.T) {
 	assert.Contains(t, workflowErr.Error(), "no packing materials available")
 }
 
-// TestOrderFulfillmentWorkflow_WithPlanningResult tests that planning results are correctly used
-func TestOrderFulfillmentWorkflow_WithPlanningResult(t *testing.T) {
+// TestOrderFulfillmentWorkflow_WithSpecialHandling tests WES with special handling requirements
+func TestOrderFulfillmentWorkflow_WithSpecialHandling(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 
 	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	env.RegisterWorkflow(workflows.PlanningWorkflow)
-	env.RegisterWorkflow(workflows.PickingWorkflow)
-	env.RegisterWorkflow(workflows.ConsolidationWorkflow)
-	env.RegisterWorkflow(workflows.PackingWorkflow)
 	env.RegisterWorkflow(workflows.ShippingWorkflow)
 	env.RegisterWorkflow(workflows.SortationWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
 	env.RegisterActivity(ValidateOrder)
-	env.RegisterActivity(CalculateMultiRoute)
-	env.RegisterActivity(StartPicking)
-	env.RegisterActivity(MarkConsolidated)
-	env.RegisterActivity(FindCapableStation)
-	env.RegisterActivity(MarkPacked)
 	env.RegisterActivity(ExecuteSLAM)
 	env.RegisterActivity(ReleaseInventoryReservation)
 
 	// Setup successful path
 	env.OnActivity(ValidateOrder, mock.Anything).Return(true, nil)
 
-	// Mock child workflow: PlanningWorkflow with specific wave
+	// Mock child workflow: PlanningWorkflow with special handling
 	planningResult := &workflows.PlanningWorkflowResult{
 		ProcessPath: workflows.ProcessPathResult{
 			PathID:                "PATH-005",
-			Requirements:          []string{"single_item"},
+			Requirements:          []string{"fragile", "hazmat"},
 			ConsolidationRequired: false,
 			GiftWrapRequired:      false,
+			SpecialHandling:       []string{"fragile", "hazmat"},
 		},
-		WaveID:             "WAVE-FIRST",
+		WaveID:             "WAVE-SPECIAL",
 		WaveScheduledStart: time.Now(),
 		Success:            true,
 	}
 	env.OnWorkflow("PlanningWorkflow", mock.Anything, mock.Anything).Return(planningResult, nil)
 
-	multiRouteResult := workflows.MultiRouteResult{
-		OrderID:     "ORD-007",
-		TotalRoutes: 1,
-		Routes:      []workflows.RouteResult{{RouteID: "ROUTE-005"}},
+	// Mock WES execution with special handling
+	wesResult := workflows.WESExecutionResult{
+		RouteID:         "ROUTE-005",
+		OrderID:         "ORD-007",
+		Status:          "completed",
+		PathType:        "pick_pack",
+		StagesCompleted: 2,
+		TotalStages:     2,
+		PickResult: &workflows.WESStageResult{
+			StageType:   "picking",
+			TaskID:      "PICK-005",
+			WorkerID:    "WORKER-CERTIFIED",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		PackingResult: &workflows.WESStageResult{
+			StageType:   "packing",
+			TaskID:      "PACK-005",
+			WorkerID:    "WORKER-HAZMAT",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		CompletedAt: time.Now().Unix(),
 	}
-	env.OnActivity(CalculateMultiRoute, mock.Anything).Return(multiRouteResult, nil)
-	env.OnActivity(StartPicking, mock.Anything).Return(nil)
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(workflows.PickResult{TaskID: "PICK-004", Success: true}, nil)
-	env.OnWorkflow("ConsolidationWorkflow", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity(MarkConsolidated, mock.Anything).Return(nil)
-	env.OnActivity(FindCapableStation, mock.Anything).Return(map[string]interface{}{"stationId": "STATION-007"}, nil)
-	env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(workflows.PackResult{PackageID: "PKG-005", TrackingNumber: "TRACK-999"}, nil)
-	env.OnActivity(MarkPacked, mock.Anything).Return(nil)
+	env.OnWorkflow("WESExecutionWorkflow", mock.Anything, mock.Anything).Return(wesResult, nil)
+
+	// Mock SLAM
 	slamResult := workflows.SLAMResult{
 		TaskID:         "SLAM-007",
-		TrackingNumber: "TRACK-999",
+		TrackingNumber: "TRACK-HAZMAT-001",
 		ManifestID:     "MANIFEST-007",
 		Success:        true,
 	}
 	env.OnActivity(ExecuteSLAM, mock.Anything).Return(slamResult, nil)
-	env.OnWorkflow("SortationWorkflow", mock.Anything, mock.Anything).Return(&workflows.SortationWorkflowResult{BatchID: "BATCH-007", ChuteID: "CHUTE-007", Zone: "ZONE-A", Success: true}, nil)
+
+	env.OnWorkflow("SortationWorkflow", mock.Anything, mock.Anything).Return(&workflows.SortationWorkflowResult{
+		BatchID: "BATCH-007",
+		ChuteID: "CHUTE-HAZMAT",
+		Zone:    "ZONE-HAZMAT",
+		Success: true,
+	}, nil)
 	env.OnWorkflow("ShippingWorkflow", mock.Anything, mock.Anything).Return(nil)
 
 	input := workflows.OrderFulfillmentInput{
-		OrderID:            "ORD-007",
-		CustomerID:         "CUST-007",
-		Items:              []workflows.Item{{SKU: "SKU-001", Quantity: 1, Weight: 2.5}},
+		OrderID:    "ORD-007",
+		CustomerID: "CUST-007",
+		Items: []workflows.Item{
+			{SKU: "SKU-HAZMAT", Quantity: 1, Weight: 2.5, IsHazmat: true, IsFragile: true},
+		},
 		Priority:           "same_day",
 		PromisedDeliveryAt: time.Now().Add(12 * time.Hour),
 		IsMultiItem:        false,
+		HazmatDetails: &workflows.HazmatDetailsInput{
+			Class:              "3",
+			UNNumber:           "UN1234",
+			PackingGroup:       "II",
+			ProperShippingName: "Flammable Liquid",
+		},
 	}
 
 	env.ExecuteWorkflow(workflows.OrderFulfillmentWorkflow, input)
@@ -567,58 +561,168 @@ func TestOrderFulfillmentWorkflow_WithPlanningResult(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should use wave from planning result
-	assert.Equal(t, "WAVE-FIRST", result.WaveID)
+	assert.Equal(t, "WAVE-SPECIAL", result.WaveID)
 	assert.Equal(t, "completed", result.Status)
 }
 
-// BenchmarkOrderFulfillmentWorkflow benchmarks the workflow execution
-func BenchmarkOrderFulfillmentWorkflow(b *testing.B) {
+// TestOrderFulfillmentWorkflow_SLAMFailed tests SLAM process failure
+func TestOrderFulfillmentWorkflow_SLAMFailed(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestWorkflowEnvironment()
+
+	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
+	env.RegisterWorkflow(workflows.PlanningWorkflow)
+	env.RegisterWorkflow(workflows.ShippingWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
+	env.RegisterActivity(ValidateOrder)
+	env.RegisterActivity(ExecuteSLAM)
+	env.RegisterActivity(ReleaseInventoryReservation)
+
+	// Setup successful path up to SLAM
+	env.OnActivity(ValidateOrder, mock.Anything).Return(true, nil)
+
+	planningResult := &workflows.PlanningWorkflowResult{
+		ProcessPath: workflows.ProcessPathResult{
+			PathID:       "PATH-008",
+			Requirements: []string{"single_item"},
+		},
+		WaveID:  "WAVE-008",
+		Success: true,
+	}
+	env.OnWorkflow("PlanningWorkflow", mock.Anything, mock.Anything).Return(planningResult, nil)
+
+	wesResult := workflows.WESExecutionResult{
+		RouteID:         "ROUTE-008",
+		OrderID:         "ORD-008",
+		Status:          "completed",
+		PathType:        "pick_pack",
+		StagesCompleted: 2,
+		TotalStages:     2,
+		CompletedAt:     time.Now().Unix(),
+	}
+	env.OnWorkflow("WESExecutionWorkflow", mock.Anything, mock.Anything).Return(wesResult, nil)
+
+	// SLAM fails
+	env.OnActivity(ExecuteSLAM, mock.Anything).Return(workflows.SLAMResult{
+		Success: false,
+	}, errors.New("label printer offline"))
 
 	input := workflows.OrderFulfillmentInput{
-		OrderID:            "ORD-BENCH",
-		CustomerID:         "CUST-BENCH",
+		OrderID:            "ORD-008",
+		CustomerID:         "CUST-008",
 		Items:              []workflows.Item{{SKU: "SKU-001", Quantity: 1, Weight: 2.5}},
 		Priority:           "standard",
 		PromisedDeliveryAt: time.Now().Add(72 * time.Hour),
 		IsMultiItem:        false,
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		env := testSuite.NewTestWorkflowEnvironment()
-		env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
-		env.RegisterWorkflow(workflows.PlanningWorkflow)
-		env.RegisterWorkflow(workflows.PickingWorkflow)
-		env.RegisterWorkflow(workflows.ConsolidationWorkflow)
-		env.RegisterWorkflow(workflows.PackingWorkflow)
-		env.RegisterWorkflow(workflows.ShippingWorkflow)
-		env.RegisterActivity(ValidateOrder)
-		env.RegisterActivity(CalculateRoute)
-		env.RegisterActivity(ReleaseInventoryReservation)
+	env.ExecuteWorkflow(workflows.OrderFulfillmentWorkflow, input)
 
-		env.OnActivity(ValidateOrder, mock.Anything).Return(true, nil)
+	require.True(t, env.IsWorkflowCompleted())
+	workflowErr := env.GetWorkflowError()
+	require.Error(t, workflowErr)
 
-		// Mock PlanningWorkflow
-		waveID := fmt.Sprintf("WAVE-%d", i)
-		planningResult := &workflows.PlanningWorkflowResult{
-			ProcessPath: workflows.ProcessPathResult{
-				PathID:                "PATH-BENCH",
-				Requirements:          []string{"single_item"},
-				ConsolidationRequired: false,
-				GiftWrapRequired:      false,
-			},
-			WaveID:             waveID,
-			WaveScheduledStart: time.Now(),
-			Success:            true,
-		}
-		env.OnWorkflow("PlanningWorkflow", mock.Anything, mock.Anything).Return(planningResult, nil)
+	assert.Contains(t, workflowErr.Error(), "label printer offline")
+}
 
-		env.OnActivity(CalculateRoute, mock.Anything).Return(workflows.RouteResult{RouteID: fmt.Sprintf("ROUTE-%d", i)}, nil)
-		env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(workflows.PickResult{Success: true}, nil)
-		env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(workflows.PackResult{TrackingNumber: "TRACK-123"}, nil)
-		env.OnWorkflow("ShippingWorkflow", mock.Anything, mock.Anything).Return(nil)
+// TestOrderFulfillmentWorkflow_MultiZoneOrder tests multi-zone order handling through WES
+func TestOrderFulfillmentWorkflow_MultiZoneOrder(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestWorkflowEnvironment()
 
-		env.ExecuteWorkflow(workflows.OrderFulfillmentWorkflow, input)
+	env.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
+	env.RegisterWorkflow(workflows.PlanningWorkflow)
+	env.RegisterWorkflow(workflows.ShippingWorkflow)
+	env.RegisterWorkflow(workflows.SortationWorkflow)
+	env.RegisterWorkflowWithOptions(MockWESExecutionWorkflow, workflow.RegisterOptions{Name: "WESExecutionWorkflow"})
+	env.RegisterActivity(ValidateOrder)
+	env.RegisterActivity(ExecuteSLAM)
+	env.RegisterActivity(ReleaseInventoryReservation)
+
+	env.OnActivity(ValidateOrder, mock.Anything).Return(true, nil)
+
+	// Multi-zone order requires consolidation through walling
+	planningResult := &workflows.PlanningWorkflowResult{
+		ProcessPath: workflows.ProcessPathResult{
+			PathID:                "PATH-MULTIZONE",
+			Requirements:          []string{"multi_zone", "multi_item"},
+			ConsolidationRequired: true,
+			GiftWrapRequired:      false,
+		},
+		WaveID:             "WAVE-MULTIZONE",
+		WaveScheduledStart: time.Now(),
+		Success:            true,
 	}
+	env.OnWorkflow("PlanningWorkflow", mock.Anything, mock.Anything).Return(planningResult, nil)
+
+	// WES handles multi-zone with pick_wall_pack path
+	wesResult := workflows.WESExecutionResult{
+		RouteID:         "ROUTE-MULTIZONE",
+		OrderID:         "ORD-MULTIZONE",
+		Status:          "completed",
+		PathType:        "pick_wall_pack",
+		StagesCompleted: 3,
+		TotalStages:     3,
+		PickResult: &workflows.WESStageResult{
+			StageType:   "picking",
+			TaskID:      "PICK-MULTIZONE",
+			WorkerID:    "WORKER-ZONE-A",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		WallingResult: &workflows.WESStageResult{
+			StageType:   "walling",
+			TaskID:      "WALL-MULTIZONE",
+			WorkerID:    "WORKER-CONSOLIDATE",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		PackingResult: &workflows.WESStageResult{
+			StageType:   "packing",
+			TaskID:      "PACK-MULTIZONE",
+			WorkerID:    "WORKER-PACK",
+			Success:     true,
+			CompletedAt: time.Now().Unix(),
+		},
+		CompletedAt: time.Now().Unix(),
+	}
+	env.OnWorkflow("WESExecutionWorkflow", mock.Anything, mock.Anything).Return(wesResult, nil)
+
+	env.OnActivity(ExecuteSLAM, mock.Anything).Return(workflows.SLAMResult{
+		TrackingNumber: "TRACK-MULTIZONE",
+		ManifestID:     "MANIFEST-MULTIZONE",
+		Success:        true,
+	}, nil)
+
+	env.OnWorkflow("SortationWorkflow", mock.Anything, mock.Anything).Return(&workflows.SortationWorkflowResult{
+		BatchID: "BATCH-MULTIZONE",
+		Success: true,
+	}, nil)
+	env.OnWorkflow("ShippingWorkflow", mock.Anything, mock.Anything).Return(nil)
+
+	input := workflows.OrderFulfillmentInput{
+		OrderID:    "ORD-MULTIZONE",
+		CustomerID: "CUST-MULTIZONE",
+		Items: []workflows.Item{
+			{SKU: "SKU-ZONE-A", Quantity: 2, Weight: 1.5},
+			{SKU: "SKU-ZONE-B", Quantity: 1, Weight: 2.0},
+			{SKU: "SKU-ZONE-C", Quantity: 3, Weight: 0.5},
+		},
+		Priority:           "same_day",
+		PromisedDeliveryAt: time.Now().Add(8 * time.Hour),
+		IsMultiItem:        true,
+	}
+
+	env.ExecuteWorkflow(workflows.OrderFulfillmentWorkflow, input)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+
+	var result workflows.OrderFulfillmentResult
+	err := env.GetWorkflowResult(&result)
+	require.NoError(t, err)
+
+	assert.Equal(t, "completed", result.Status)
+	assert.Equal(t, "TRACK-MULTIZONE", result.TrackingNumber)
+	assert.Equal(t, "WAVE-MULTIZONE", result.WaveID)
 }

@@ -13,6 +13,8 @@ export const BASE_URLS = {
   facility: __ENV.FACILITY_SERVICE_URL || 'http://localhost:8010',
   orchestrator: __ENV.ORCHESTRATOR_URL || 'http://localhost:30010',
   unit: __ENV.UNIT_SERVICE_URL || 'http://localhost:8014',
+  walling: __ENV.WALLING_SERVICE_URL || 'http://localhost:8017',
+  wes: __ENV.WES_SERVICE_URL || 'http://localhost:8016',
 };
 
 // Picker simulator configuration
@@ -39,6 +41,14 @@ export const PACKING_CONFIG = {
   simulationDelayMs: parseInt(__ENV.PACKING_DELAY_MS || '600'),
   maxTasksPerIteration: parseInt(__ENV.MAX_PACKING_TASKS || '10'),
   defaultStation: __ENV.PACKING_STATION || 'PACK-STATION-1',
+};
+
+// Walling simulator configuration
+export const WALLING_CONFIG = {
+  simulationDelayMs: parseInt(__ENV.WALLING_DELAY_MS || '500'),
+  maxTasksPerIteration: parseInt(__ENV.MAX_WALLING_TASKS || '10'),
+  defaultStation: __ENV.WALLING_STATION || 'WALL-STATION-1',
+  defaultPutWallId: __ENV.DEFAULT_PUT_WALL || 'PUTWALL-1',
 };
 
 // Shipping simulator configuration
@@ -198,6 +208,7 @@ export const ENDPOINTS = {
     signalPackingComplete: '/api/v1/signals/packing-completed',
     signalShipConfirmed: '/api/v1/signals/ship-confirmed',
     signalGiftWrapCompleted: '/api/v1/signals/gift-wrap-completed',
+    signalWallingCompleted: '/api/v1/signals/walling-completed',
   },
   facility: {
     stations: '/api/v1/stations',
@@ -224,6 +235,25 @@ export const ENDPOINTS = {
     pack: (unitId) => `/api/v1/units/${unitId}/pack`,
     ship: (unitId) => `/api/v1/units/${unitId}/ship`,
     exception: (unitId) => `/api/v1/units/${unitId}/exception`,
+  },
+  walling: {
+    pending: '/api/v1/tasks/pending',
+    get: (id) => `/api/v1/tasks/${id}`,
+    assign: (id) => `/api/v1/tasks/${id}/assign`,
+    sort: (id) => `/api/v1/tasks/${id}/sort`,
+    complete: (id) => `/api/v1/tasks/${id}/complete`,
+    activeByWalliner: (wallinerId) => `/api/v1/tasks/walliner/${wallinerId}/active`,
+  },
+  wes: {
+    resolveExecutionPlan: '/api/v1/execution-plans/resolve',
+    routes: '/api/v1/routes',
+    getRoute: (id) => `/api/v1/routes/${id}`,
+    getRouteByOrder: (orderId) => `/api/v1/routes/order/${orderId}`,
+    assignWorker: (routeId) => `/api/v1/routes/${routeId}/stages/current/assign`,
+    startStage: (routeId) => `/api/v1/routes/${routeId}/stages/current/start`,
+    completeStage: (routeId) => `/api/v1/routes/${routeId}/stages/current/complete`,
+    failStage: (routeId) => `/api/v1/routes/${routeId}/stages/current/fail`,
+    templates: '/api/v1/templates',
   },
 };
 

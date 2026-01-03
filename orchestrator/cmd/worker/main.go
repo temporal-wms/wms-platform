@@ -391,6 +391,7 @@ func startHealthServer(port string, temporalClient temporalclient.Client, m *met
 	mux.HandleFunc("/api/v1/signals/tote-arrived", createToteArrivedHandler(temporalClient, logger))
 	mux.HandleFunc("/api/v1/signals/consolidation-completed", createConsolidationCompletedHandler(temporalClient, logger))
 	mux.HandleFunc("/api/v1/signals/gift-wrap-completed", createGiftWrapCompletedHandler(temporalClient, logger))
+	mux.HandleFunc("/api/v1/signals/walling-completed", createWallingCompletedHandler(temporalClient, logger))
 
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -450,6 +451,14 @@ type GiftWrapCompletedRequest struct {
 	WrapType    string `json:"wrapType"`
 	GiftMessage string `json:"giftMessage"`
 	CompletedAt string `json:"completedAt"`
+}
+
+// WallingCompletedRequest represents the request body for the walling-completed signal
+type WallingCompletedRequest struct {
+	OrderID     string                   `json:"orderId"`
+	TaskID      string                   `json:"taskId"`
+	RouteID     string                   `json:"routeId"`
+	SortedItems []map[string]interface{} `json:"sortedItems"`
 }
 
 // createWaveAssignedHandler creates a handler for the wave-assigned signal endpoint
@@ -860,6 +869,87 @@ func createGiftWrapCompletedHandler(temporalClient temporalclient.Client, logger
 			"success":    true,
 			"workflowId": workflowID,
 			"message":    "Gift wrap completed signal sent successfully",
+		})
+	}
+}
+
+// createWallingCompletedHandler creates a handler for the walling-completed signal endpoint
+func createWallingCompletedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"failed to read request body"}`))
+			return
+		}
+		defer r.Body.Close()
+
+		var req WallingCompletedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			logger.Error("Failed to parse request", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid JSON"}`))
+			return
+		}
+
+		if req.OrderID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"orderId is required"}`))
+			return
+		}
+
+		// Signal the WES execution workflow
+		workflowID := fmt.Sprintf("wes-execution-%s", req.OrderID)
+
+		signalPayload := map[string]interface{}{
+			"taskId":      req.TaskID,
+			"routeId":     req.RouteID,
+			"sortedItems": req.SortedItems,
+			"success":     true,
+		}
+
+		err = temporalClient.SignalWorkflow(
+			r.Context(),
+			workflowID,
+			"",
+			"wallingCompleted",
+			signalPayload,
+		)
+		if err != nil {
+			logger.Error("Failed to signal workflow", "workflowId", workflowID, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    false,
+				"error":      err.Error(),
+				"workflowId": workflowID,
+			})
+			return
+		}
+
+		logger.Info("Successfully signaled walling completed",
+			"workflowId", workflowID,
+			"orderId", req.OrderID,
+			"taskId", req.TaskID,
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Walling completed signal sent successfully",
 		})
 	}
 }

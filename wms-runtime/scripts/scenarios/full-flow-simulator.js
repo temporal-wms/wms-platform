@@ -1,6 +1,11 @@
 // Full Flow Simulator - K6 Master Orchestrator
-// Simulates the complete order fulfillment flow:
-//   Facility Setup → Order Creation → Waving → Picking → Consolidation → Gift Wrap → Packing → Shipping
+// Simulates the complete order fulfillment flow using WES (Warehouse Execution System):
+//   Facility Setup → Order Creation → Waving → WES Execution (Picking → Walling? → Packing) → Shipping
+//
+// WES Process Paths:
+//   - pick_pack (2-stage): Picking → Packing
+//   - pick_wall_pack (3-stage): Picking → Walling → Packing (requires wallingCompleted signal)
+//   - pick_consolidate_pack (3-stage): Picking → Consolidation → Packing
 //
 // Usage:
 //   k6 run scripts/scenarios/full-flow-simulator.js
@@ -35,7 +40,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend, Gauge } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
-import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, FLOW_CONFIG, GIFTWRAP_CONFIG, ORDER_CONFIG, UNIT_CONFIG, MULTI_ROUTE_CONFIG } from '../lib/config.js';
+import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, FLOW_CONFIG, GIFTWRAP_CONFIG, ORDER_CONFIG, UNIT_CONFIG, MULTI_ROUTE_CONFIG, WALLING_CONFIG } from '../lib/config.js';
 import {
   discoverReadyWaves,
   processWave,
@@ -70,6 +75,10 @@ import {
   discoverPendingShipments,
   processShipment,
 } from '../lib/shipping.js';
+import {
+  discoverPendingWallingTasks,
+  processWallingTask,
+} from '../lib/walling.js';
 import {
   createStation,
   activateStation,
@@ -121,6 +130,7 @@ const flowCurrentStage = new Gauge('flow_current_stage');
 // Per-stage metrics
 const stageWavingProcessed = new Counter('flow_stage_waving_processed');
 const stagePickingProcessed = new Counter('flow_stage_picking_processed');
+const stageWallingProcessed = new Counter('flow_stage_walling_processed');
 const stageConsolidationProcessed = new Counter('flow_stage_consolidation_processed');
 const stageGiftWrapProcessed = new Counter('flow_stage_giftwrap_processed');
 const stagePackingProcessed = new Counter('flow_stage_packing_processed');
@@ -149,17 +159,18 @@ const totalRoutesCreated = new Counter('flow_total_routes_created');
 const parallelPickingTasks = new Counter('flow_parallel_picking_tasks');
 const toteArrivalsSignaled = new Counter('flow_tote_arrivals_signaled');
 
-// Stage constants for gauge
+// Stage constants for gauge (WES-aligned flow)
 const STAGE = {
   FACILITY_SETUP: 0,
   ORDER_CREATION: 1,
   WAVING: 2,
-  PICKING: 3,
-  CONSOLIDATION: 4,
-  GIFT_WRAP: 5,
-  PACKING: 6,
-  SHIPPING: 7,
-  COMPLETE: 8,
+  WES_PICKING: 3,
+  WES_WALLING: 4,      // For pick_wall_pack path
+  CONSOLIDATION: 5,    // For pick_consolidate_pack path
+  GIFT_WRAP: 6,        // Legacy - may be removed
+  WES_PACKING: 7,
+  SHIPPING: 8,
+  COMPLETE: 9,
 };
 
 /**
@@ -555,6 +566,8 @@ export function setup() {
     { name: 'Waving', url: `${BASE_URLS.waving}/health` },
     { name: 'Routing', url: `${BASE_URLS.routing}/health` },
     { name: 'Picking', url: `${BASE_URLS.picking}/health` },
+    { name: 'Walling', url: `${BASE_URLS.walling}/health` },
+    { name: 'WES', url: `${BASE_URLS.wes}/health` },
     { name: 'Consolidation', url: `${BASE_URLS.consolidation}/health` },
     { name: 'Packing', url: `${BASE_URLS.packing}/health` },
     { name: 'Shipping', url: `${BASE_URLS.shipping}/health` },
@@ -706,9 +719,9 @@ export default function (data) {
   // Verify orders have transitioned to wave_assigned status
   verifyOrdersReachedStatus(orders, ['wave_assigned', 'picking', 'consolidated', 'packed', 'shipped'], 'WAVING');
 
-  // Phase 3: Picking
-  flowCurrentStage.add(STAGE.PICKING);
-  console.log('\nPhase 3: Processing Pick Tasks');
+  // Phase 3: WES Picking
+  flowCurrentStage.add(STAGE.WES_PICKING);
+  console.log('\nPhase 3: Processing Pick Tasks (WES)');
   const pickingResults = processStage(
     'Picking',
     () => discoverPendingTasks('assigned'),
@@ -721,9 +734,22 @@ export default function (data) {
   // Verify orders have progressed past picking
   verifyOrdersReachedStatus(orders, ['picking', 'consolidated', 'packed', 'shipped'], 'PICKING');
 
-  // Phase 4: Consolidation
+  // Phase 4: WES Walling (for pick_wall_pack path orders)
+  // This phase processes walling tasks and sends wallingCompleted signals to WES workflows
+  flowCurrentStage.add(STAGE.WES_WALLING);
+  console.log('\nPhase 4: Processing Walling Tasks (WES - for pick_wall_pack orders)');
+  const wallingResults = processStage(
+    'Walling',
+    () => discoverPendingWallingTasks(),
+    processWallingTask,
+    stageWallingProcessed,
+    orderIds
+  );
+  sleep(FLOW_CONFIG.stageDelayMs / 1000);
+
+  // Phase 5: Consolidation (for pick_consolidate_pack path orders)
   flowCurrentStage.add(STAGE.CONSOLIDATION);
-  console.log('\nPhase 4: Processing Consolidations');
+  console.log('\nPhase 5: Processing Consolidations (for pick_consolidate_pack orders)');
   const consolidationResults = processStage(
     'Consolidation',
     discoverPendingConsolidations,
@@ -736,15 +762,15 @@ export default function (data) {
   // Verify multi-item orders have consolidated
   verifyOrdersReachedStatus(orders, ['consolidated', 'packed', 'shipped'], 'CONSOLIDATION');
 
-  // Phase 5: Gift Wrap (for orders with giftWrap=true)
+  // Phase 6: Gift Wrap (for orders with giftWrap=true)
   flowCurrentStage.add(STAGE.GIFT_WRAP);
-  console.log('\nPhase 5: Processing Gift Wrap');
+  console.log('\nPhase 6: Processing Gift Wrap');
   const giftWrapResults = processGiftWrapOrders(orders);
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
 
-  // Phase 6: Packing
-  flowCurrentStage.add(STAGE.PACKING);
-  console.log('\nPhase 6: Processing Pack Tasks');
+  // Phase 7: WES Packing
+  flowCurrentStage.add(STAGE.WES_PACKING);
+  console.log('\nPhase 7: Processing Pack Tasks (WES)');
   const packingResults = processStage(
     'Packing',
     discoverPendingPackTasks,
@@ -757,9 +783,9 @@ export default function (data) {
   // Verify orders have been packed
   verifyOrdersReachedStatus(orders, ['packed', 'shipped'], 'PACKING');
 
-  // Phase 7: Shipping
+  // Phase 8: Shipping
   flowCurrentStage.add(STAGE.SHIPPING);
-  console.log('\nPhase 7: Processing Shipments');
+  console.log('\nPhase 8: Processing Shipments');
   const shippingResults = processStage(
     'Shipping',
     discoverPendingShipments,
@@ -819,10 +845,13 @@ export default function (data) {
   console.log(`    - Heavy: ${reqStats.heavy}`);
   console.log(`    - High Value: ${reqStats.high_value}`);
   console.log(`Waves Processed: ${wavingResults.processed}`);
+  console.log(`--- WES Execution ---`);
   console.log(`Pick Tasks Processed: ${pickingResults.processed}`);
+  console.log(`Walling Tasks Processed: ${wallingResults.processed}`);
   console.log(`Consolidations Processed: ${consolidationResults.processed}`);
-  console.log(`Gift Wrap Processed: ${giftWrapResults.processed}`);
   console.log(`Pack Tasks Processed: ${packingResults.processed}`);
+  console.log(`--- Post-WES ---`);
+  console.log(`Gift Wrap Processed: ${giftWrapResults.processed}`);
   console.log(`Shipments Processed: ${shippingResults.processed}`);
   console.log(`Total Duration: ${flowDuration}ms (${(flowDuration / 1000).toFixed(1)}s)`);
   console.log(`Success Rate: ${((completedOrders / orders.length) * 100).toFixed(1)}%`);

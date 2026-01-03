@@ -113,3 +113,33 @@ spec:
   config:
     retention.ms: 604800000
     cleanup.policy: delete
+---
+# WES (Warehouse Execution System) events
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.wes.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+# Walling (put-wall) events
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: wms.walling.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete

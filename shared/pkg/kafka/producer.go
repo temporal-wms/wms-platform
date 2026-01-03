@@ -88,6 +88,27 @@ func (p *Producer) PublishEvent(ctx context.Context, topic string, event *cloude
 		})
 	}
 
+	if event.FacilityID != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   "ce-wmsfacilityid",
+			Value: []byte(event.FacilityID),
+		})
+	}
+
+	if event.WarehouseID != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   "ce-wmswarehouseid",
+			Value: []byte(event.WarehouseID),
+		})
+	}
+
+	if event.OrderID != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   "ce-wmsorderid",
+			Value: []byte(event.OrderID),
+		})
+	}
+
 	if err := writer.WriteMessages(ctx, msg); err != nil {
 		return fmt.Errorf("failed to publish event to topic %s: %w", topic, err)
 	}
@@ -128,6 +149,27 @@ func (p *Producer) PublishBatch(ctx context.Context, topic string, events []*clo
 			},
 			Time: event.Time,
 		}
+
+		// Add WMS extension headers
+		if event.CorrelationID != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-wmscorrelationid", Value: []byte(event.CorrelationID)})
+		}
+		if event.WaveNumber != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-wmswavenumber", Value: []byte(event.WaveNumber)})
+		}
+		if event.WorkflowID != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-wmsworkflowid", Value: []byte(event.WorkflowID)})
+		}
+		if event.FacilityID != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-wmsfacilityid", Value: []byte(event.FacilityID)})
+		}
+		if event.WarehouseID != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-wmswarehouseid", Value: []byte(event.WarehouseID)})
+		}
+		if event.OrderID != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-wmsorderid", Value: []byte(event.OrderID)})
+		}
+
 		messages = append(messages, msg)
 	}
 
