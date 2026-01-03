@@ -79,13 +79,13 @@ func (s *StowService) CreatePutawayTask(ctx context.Context, cmd CreatePutawayTa
 	if cmd.Strategy != "" {
 		strategy := domain.StorageStrategy(cmd.Strategy)
 		if err := task.SetStrategy(strategy); err != nil {
-			return nil, errors.NewValidationError("invalid storage strategy", err)
+			return nil, errors.ErrValidation("invalid storage strategy").Wrap(err)
 		}
 	}
 
 	if err := s.taskRepo.Save(ctx, task); err != nil {
 		s.logger.WithError(err).Error("Failed to save putaway task")
-		return nil, errors.NewInternalError("failed to save putaway task", err)
+		return nil, errors.ErrInternal("failed to save putaway task").Wrap(err)
 	}
 
 	s.logger.Info("Created putaway task",
@@ -108,15 +108,15 @@ type AssignTaskCommand struct {
 func (s *StowService) AssignTask(ctx context.Context, cmd AssignTaskCommand) (*domain.PutawayTask, error) {
 	task, err := s.taskRepo.FindByID(ctx, cmd.TaskID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find task", err)
+		return nil, errors.ErrInternal("failed to find task").Wrap(err)
 	}
 	if task == nil {
-		return nil, errors.NewNotFoundError("task not found", nil)
+		return nil, errors.ErrNotFound("task")
 	}
 
 	// Assign worker
 	if err := task.AssignToWorker(cmd.WorkerID); err != nil {
-		return nil, errors.NewValidationError("cannot assign task", err)
+		return nil, errors.ErrValidation("cannot assign task").Wrap(err)
 	}
 
 	// Find storage location based on strategy
@@ -132,7 +132,7 @@ func (s *StowService) AssignTask(ctx context.Context, cmd AssignTaskCommand) (*d
 	}
 
 	if err := s.taskRepo.Save(ctx, task); err != nil {
-		return nil, errors.NewInternalError("failed to save task", err)
+		return nil, errors.ErrInternal("failed to save task").Wrap(err)
 	}
 
 	s.logger.Info("Assigned putaway task",
@@ -182,18 +182,18 @@ type StartTaskCommand struct {
 func (s *StowService) StartTask(ctx context.Context, cmd StartTaskCommand) (*domain.PutawayTask, error) {
 	task, err := s.taskRepo.FindByID(ctx, cmd.TaskID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find task", err)
+		return nil, errors.ErrInternal("failed to find task").Wrap(err)
 	}
 	if task == nil {
-		return nil, errors.NewNotFoundError("task not found", nil)
+		return nil, errors.ErrNotFound("task")
 	}
 
 	if err := task.Start(); err != nil {
-		return nil, errors.NewValidationError("cannot start task", err)
+		return nil, errors.ErrValidation("cannot start task").Wrap(err)
 	}
 
 	if err := s.taskRepo.Save(ctx, task); err != nil {
-		return nil, errors.NewInternalError("failed to save task", err)
+		return nil, errors.ErrInternal("failed to save task").Wrap(err)
 	}
 
 	return task, nil
@@ -209,18 +209,18 @@ type RecordStowCommand struct {
 func (s *StowService) RecordStow(ctx context.Context, cmd RecordStowCommand) (*domain.PutawayTask, error) {
 	task, err := s.taskRepo.FindByID(ctx, cmd.TaskID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find task", err)
+		return nil, errors.ErrInternal("failed to find task").Wrap(err)
 	}
 	if task == nil {
-		return nil, errors.NewNotFoundError("task not found", nil)
+		return nil, errors.ErrNotFound("task")
 	}
 
 	if err := task.RecordStow(cmd.Quantity); err != nil {
-		return nil, errors.NewValidationError("cannot record stow", err)
+		return nil, errors.ErrValidation("cannot record stow").Wrap(err)
 	}
 
 	if err := s.taskRepo.Save(ctx, task); err != nil {
-		return nil, errors.NewInternalError("failed to save task", err)
+		return nil, errors.ErrInternal("failed to save task").Wrap(err)
 	}
 
 	return task, nil
@@ -235,21 +235,21 @@ type CompleteTaskCommand struct {
 func (s *StowService) CompleteTask(ctx context.Context, cmd CompleteTaskCommand) (*domain.PutawayTask, error) {
 	task, err := s.taskRepo.FindByID(ctx, cmd.TaskID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find task", err)
+		return nil, errors.ErrInternal("failed to find task").Wrap(err)
 	}
 	if task == nil {
-		return nil, errors.NewNotFoundError("task not found", nil)
+		return nil, errors.ErrNotFound("task")
 	}
 
 	// If not all items stowed yet, stow the remaining
 	if task.RemainingQuantity() > 0 {
 		if err := task.RecordStow(task.RemainingQuantity()); err != nil {
-			return nil, errors.NewValidationError("cannot record final stow", err)
+			return nil, errors.ErrValidation("cannot record final stow").Wrap(err)
 		}
 	}
 
 	if err := task.Complete(); err != nil {
-		return nil, errors.NewValidationError("cannot complete task", err)
+		return nil, errors.ErrValidation("cannot complete task").Wrap(err)
 	}
 
 	// Update location capacity
@@ -260,7 +260,7 @@ func (s *StowService) CompleteTask(ctx context.Context, cmd CompleteTaskCommand)
 	}
 
 	if err := s.taskRepo.Save(ctx, task); err != nil {
-		return nil, errors.NewInternalError("failed to save task", err)
+		return nil, errors.ErrInternal("failed to save task").Wrap(err)
 	}
 
 	s.logger.Info("Completed putaway task",
@@ -284,18 +284,18 @@ type FailTaskCommand struct {
 func (s *StowService) FailTask(ctx context.Context, cmd FailTaskCommand) (*domain.PutawayTask, error) {
 	task, err := s.taskRepo.FindByID(ctx, cmd.TaskID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find task", err)
+		return nil, errors.ErrInternal("failed to find task").Wrap(err)
 	}
 	if task == nil {
-		return nil, errors.NewNotFoundError("task not found", nil)
+		return nil, errors.ErrNotFound("task")
 	}
 
 	if err := task.Fail(cmd.Reason); err != nil {
-		return nil, errors.NewValidationError("cannot fail task", err)
+		return nil, errors.ErrValidation("cannot fail task").Wrap(err)
 	}
 
 	if err := s.taskRepo.Save(ctx, task); err != nil {
-		return nil, errors.NewInternalError("failed to save task", err)
+		return nil, errors.ErrInternal("failed to save task").Wrap(err)
 	}
 
 	return task, nil
@@ -305,10 +305,10 @@ func (s *StowService) FailTask(ctx context.Context, cmd FailTaskCommand) (*domai
 func (s *StowService) GetTask(ctx context.Context, taskID string) (*domain.PutawayTask, error) {
 	task, err := s.taskRepo.FindByID(ctx, taskID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find task", err)
+		return nil, errors.ErrInternal("failed to find task").Wrap(err)
 	}
 	if task == nil {
-		return nil, errors.NewNotFoundError("task not found", nil)
+		return nil, errors.ErrNotFound("task")
 	}
 	return task, nil
 }

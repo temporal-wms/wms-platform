@@ -28,6 +28,170 @@ func NewRouteCalculator(
 	}
 }
 
+// CalculateRoutes calculates one or more optimized routes for given items
+// Splits by zone and capacity (max 30 items per route)
+func (c *RouteCalculator) CalculateRoutes(ctx context.Context, request domain.RouteRequest) (*domain.MultiRouteResult, error) {
+	if len(request.Items) == 0 {
+		return nil, fmt.Errorf("no items provided for route calculation")
+	}
+
+	result := &domain.MultiRouteResult{
+		OrderID:       request.OrderID,
+		Routes:        make([]*domain.PickRoute, 0),
+		ZoneBreakdown: make(map[string]int),
+		TotalItems:    0,
+		CreatedAt:     time.Now(),
+	}
+
+	// Count total items
+	for _, item := range request.Items {
+		result.TotalItems += item.Quantity
+	}
+
+	// Step 1: Group items by zone (based on aisle prefix)
+	zoneGroups := c.groupItemsByZone(request.Items)
+
+	// Determine split reason
+	splitByZone := len(zoneGroups) > 1
+	splitByCapacity := false
+
+	// Check if any zone group exceeds capacity
+	for _, group := range zoneGroups {
+		if len(group.Items) > domain.MaxItemsPerRoute {
+			splitByCapacity = true
+			break
+		}
+	}
+
+	// Set split reason
+	if splitByZone && splitByCapacity {
+		result.SplitReason = domain.SplitReasonBoth
+	} else if splitByZone {
+		result.SplitReason = domain.SplitReasonZone
+	} else if splitByCapacity {
+		result.SplitReason = domain.SplitReasonCapacity
+	} else {
+		result.SplitReason = domain.SplitReasonNone
+	}
+
+	// Step 2: Split each zone group by capacity and create routes
+	var allRouteItems [][]domain.RouteItem
+
+	for _, group := range zoneGroups {
+		result.ZoneBreakdown[group.Zone] = len(group.Items)
+
+		// Split by capacity if needed
+		chunks := c.splitByCapacity(group.Items, domain.MaxItemsPerRoute)
+		allRouteItems = append(allRouteItems, chunks...)
+	}
+
+	// Step 3: Create individual routes
+	totalRoutes := len(allRouteItems)
+	result.TotalRoutes = totalRoutes
+
+	for i, items := range allRouteItems {
+		routeID := generateMultiRouteID(request.OrderID, i)
+
+		// Determine strategy
+		strategy := request.Strategy
+		if strategy == "" {
+			suggestedStrategy, err := c.SuggestStrategy(ctx, items)
+			if err != nil {
+				strategy = domain.StrategySShape
+			} else {
+				strategy = suggestedStrategy
+			}
+		}
+
+		// Create multi-route aware pick route
+		route, err := domain.NewMultiRoutePickRoute(routeID, request.OrderID, request.WaveID, strategy, items, i, totalRoutes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create route %d: %w", i, err)
+		}
+
+		// Set zone from first item in route
+		if len(items) > 0 {
+			route.Zone = domain.GetZoneForAisle(items[0].Location.Aisle)
+		}
+
+		// Assign unique tote ID for this route
+		route.SourceToteID = fmt.Sprintf("TOTE-%s-%d", request.OrderID[len(request.OrderID)-8:], i)
+
+		// Get start/end locations
+		startLoc := request.StartLocation
+		if startLoc.LocationID == "" && c.warehouseLayout != nil {
+			startLoc = c.warehouseLayout.GetPickStartLocation(ctx, route.Zone)
+		}
+
+		endLoc := request.EndLocation
+		if endLoc.LocationID == "" && c.warehouseLayout != nil {
+			endLoc = c.warehouseLayout.GetConsolidationLocation(ctx, route.Zone)
+		}
+
+		// Optimize route
+		if err := route.OptimizeRoute(startLoc, endLoc); err != nil {
+			return nil, fmt.Errorf("failed to optimize route %d: %w", i, err)
+		}
+
+		result.Routes = append(result.Routes, route)
+	}
+
+	return result, nil
+}
+
+// groupItemsByZone groups items by their warehouse zone based on aisle prefix
+func (c *RouteCalculator) groupItemsByZone(items []domain.RouteItem) []domain.ZoneGroup {
+	zoneMap := make(map[string][]domain.RouteItem)
+
+	for _, item := range items {
+		zone := domain.GetZoneForAisle(item.Location.Aisle)
+		zoneMap[zone] = append(zoneMap[zone], item)
+	}
+
+	// Convert map to slice and sort by zone name for deterministic ordering
+	groups := make([]domain.ZoneGroup, 0, len(zoneMap))
+	for zone, zoneItems := range zoneMap {
+		groups = append(groups, domain.ZoneGroup{
+			Zone:  zone,
+			Items: zoneItems,
+		})
+	}
+
+	// Sort by zone name
+	for i := 0; i < len(groups)-1; i++ {
+		for j := i + 1; j < len(groups); j++ {
+			if groups[j].Zone < groups[i].Zone {
+				groups[i], groups[j] = groups[j], groups[i]
+			}
+		}
+	}
+
+	return groups
+}
+
+// splitByCapacity splits items into chunks of maxSize
+func (c *RouteCalculator) splitByCapacity(items []domain.RouteItem, maxSize int) [][]domain.RouteItem {
+	if len(items) <= maxSize {
+		return [][]domain.RouteItem{items}
+	}
+
+	var chunks [][]domain.RouteItem
+	for i := 0; i < len(items); i += maxSize {
+		end := i + maxSize
+		if end > len(items) {
+			end = len(items)
+		}
+		chunks = append(chunks, items[i:end])
+	}
+
+	return chunks
+}
+
+// generateMultiRouteID generates a unique route ID for multi-route orders
+func generateMultiRouteID(orderID string, routeIndex int) string {
+	return fmt.Sprintf("RT-%s-%d-%d", orderID, routeIndex, time.Now().UnixNano()%100000)
+}
+
 // CalculateRoute calculates an optimized route for given items
 func (c *RouteCalculator) CalculateRoute(ctx context.Context, request domain.RouteRequest) (*domain.PickRoute, error) {
 	// Generate route ID

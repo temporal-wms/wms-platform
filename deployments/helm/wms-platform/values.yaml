@@ -831,6 +831,158 @@ services:
 
     terminationGracePeriodSeconds: 30
 
+  # Unit Service - API only (Unit-level tracking)
+  unit-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: unit-service
+      tag: latest
+
+    ports:
+      http: 8014
+      grpc: 9014
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 2
+
+    env:
+      - name: SERVICE_NAME
+        value: "unit-service"
+      - name: MONGODB_DATABASE
+        value: "unit_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8014"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Process Path Service - API only (Process path determination)
+  process-path-service:
+    enabled: true
+    type: api
+    replicaCount: 2
+    image:
+      repository: process-path-service
+      tag: latest
+
+    ports:
+      http: 8015
+      grpc: 9015
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "process-path-service"
+      - name: MONGODB_DATABASE
+        value: "process_path_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8015"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
   # Orchestrator - Worker only
   orchestrator:
     enabled: true

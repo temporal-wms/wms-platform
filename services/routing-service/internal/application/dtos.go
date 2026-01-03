@@ -50,3 +50,14 @@ type LocationDTO struct {
 	X          float64 `json:"x"`
 	Y          float64 `json:"y"`
 }
+
+// MultiRouteResultDTO contains the result of multi-route calculation
+type MultiRouteResultDTO struct {
+	OrderID       string           `json:"orderId"`
+	Routes        []PickRouteDTO   `json:"routes"`
+	TotalRoutes   int              `json:"totalRoutes"`
+	SplitReason   string           `json:"splitReason"`
+	ZoneBreakdown map[string]int   `json:"zoneBreakdown"`
+	TotalItems    int              `json:"totalItems"`
+	CreatedAt     time.Time        `json:"createdAt"`
+}

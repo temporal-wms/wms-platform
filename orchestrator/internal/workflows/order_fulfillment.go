@@ -22,6 +22,9 @@ type OrderFulfillmentInput struct {
 	HazmatDetails    *HazmatDetailsInput    `json:"hazmatDetails,omitempty"`
 	ColdChainDetails *ColdChainDetailsInput `json:"coldChainDetails,omitempty"`
 	TotalValue       float64                `json:"totalValue"`
+	// Unit-level tracking fields
+	UnitIDs         []string `json:"unitIds,omitempty"`         // Pre-reserved unit IDs if any
+	UseUnitTracking bool     `json:"useUnitTracking,omitempty"` // Feature flag for unit-level tracking
 }
 
 // Item represents an order item
@@ -75,6 +78,12 @@ type OrderFulfillmentResult struct {
 	TrackingNumber string `json:"trackingNumber,omitempty"`
 	WaveID         string `json:"waveId,omitempty"`
 	Error          string `json:"error,omitempty"`
+	// Unit-level tracking results
+	PathID         string   `json:"pathId,omitempty"`         // Persisted process path ID
+	CompletedUnits []string `json:"completedUnits,omitempty"` // Units successfully processed
+	FailedUnits    []string `json:"failedUnits,omitempty"`    // Units that failed processing
+	ExceptionIDs   []string `json:"exceptionIds,omitempty"`   // Exception IDs for failed units
+	PartialSuccess bool     `json:"partialSuccess,omitempty"` // True if some units succeeded but not all
 }
 
 // WaveAssignment represents a wave assignment signal
@@ -89,6 +98,10 @@ type PickResult struct {
 	PickedItems   []PickedItem `json:"pickedItems"`
 	AllocationIDs []string     `json:"allocationIds,omitempty"` // Hard allocation IDs from staging
 	Success       bool         `json:"success"`
+	// Unit-level tracking fields
+	PickedUnitIDs []string `json:"pickedUnitIds,omitempty"` // Units successfully picked
+	FailedUnitIDs []string `json:"failedUnitIds,omitempty"` // Units that failed picking
+	ExceptionIDs  []string `json:"exceptionIds,omitempty"`  // Exception IDs for failed units
 }
 
 // PickedItem represents a picked item
@@ -146,6 +159,16 @@ type RouteStop struct {
 	Quantity   int    `json:"quantity"`
 }
 
+// MultiRouteResult contains the result of multi-route calculation
+type MultiRouteResult struct {
+	OrderID       string         `json:"orderId"`
+	Routes        []RouteResult  `json:"routes"`
+	TotalRoutes   int            `json:"totalRoutes"`
+	SplitReason   string         `json:"splitReason"`   // none, zone, capacity, both
+	ZoneBreakdown map[string]int `json:"zoneBreakdown"` // Zone -> item count
+	TotalItems    int            `json:"totalItems"`
+}
+
 // OrderFulfillmentWorkflow is the main saga that orchestrates the entire order fulfillment process
 // This workflow coordinates across all bounded contexts: Order -> Waving -> Routing -> Picking -> Consolidation -> Packing -> Shipping
 func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput) (*OrderFulfillmentResult, error) {
@@ -191,121 +214,93 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	}
 
 	// ========================================
-	// Step 2: Determine Process Path
+	// Step 2: Execute Planning Workflow (Child)
 	// ========================================
-	logger.Info("Step 2: Determining process path", "orderId", input.OrderID)
+	logger.Info("Step 2: Executing planning workflow", "orderId", input.OrderID)
 
-	// Build process path items
-	processPathItems := make([]map[string]interface{}, len(input.Items))
-	for i, item := range input.Items {
-		processPathItems[i] = map[string]interface{}{
-			"sku":               item.SKU,
-			"quantity":          item.Quantity,
-			"weight":            item.Weight,
-			"isFragile":         item.IsFragile,
-			"isHazmat":          item.IsHazmat,
-			"requiresColdChain": item.RequiresColdChain,
-		}
-	}
+	planningChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID:               fmt.Sprintf("planning-%s", input.OrderID),
+		WorkflowExecutionTimeout: PlanningWorkflowTimeout,
+		RetryPolicy:              childOpts.RetryPolicy,
+	})
 
-	processPathInput := map[string]interface{}{
-		"orderId":    input.OrderID,
-		"items":      processPathItems,
-		"giftWrap":   input.GiftWrap,
-		"totalValue": input.TotalValue,
-	}
-	if input.GiftWrapDetails != nil {
-		processPathInput["giftWrapDetails"] = input.GiftWrapDetails
-	}
-	if input.HazmatDetails != nil {
-		processPathInput["hazmatDetails"] = input.HazmatDetails
-	}
-	if input.ColdChainDetails != nil {
-		processPathInput["coldChainDetails"] = input.ColdChainDetails
+	planningInput := PlanningWorkflowInput{
+		OrderID:            input.OrderID,
+		CustomerID:         input.CustomerID,
+		Items:              input.Items,
+		Priority:           input.Priority,
+		PromisedDeliveryAt: input.PromisedDeliveryAt,
+		IsMultiItem:        input.IsMultiItem,
+		GiftWrap:           input.GiftWrap,
+		GiftWrapDetails:    input.GiftWrapDetails,
+		HazmatDetails:      input.HazmatDetails,
+		ColdChainDetails:   input.ColdChainDetails,
+		TotalValue:         input.TotalValue,
+		UseUnitTracking:    input.UseUnitTracking,
+		UnitIDs:            input.UnitIDs,
 	}
 
-	var processPath ProcessPathResult
-	err = workflow.ExecuteActivity(ctx, "DetermineProcessPath", processPathInput).Get(ctx, &processPath)
+	var planningResult *PlanningWorkflowResult
+	err = workflow.ExecuteChildWorkflow(planningChildCtx, PlanningWorkflow, planningInput).Get(ctx, &planningResult)
 	if err != nil {
-		result.Status = "process_path_failed"
-		result.Error = fmt.Sprintf("process path determination failed: %v", err)
+		result.Status = "planning_failed"
+		result.Error = fmt.Sprintf("planning workflow failed: %v", err)
 		return result, err
 	}
 
-	logger.Info("Process path determined",
+	// Extract planning results
+	processPath := planningResult.ProcessPath
+	result.WaveID = planningResult.WaveID
+	result.PathID = planningResult.PathID
+
+	// Track unit IDs for downstream workflows
+	var unitIDs []string
+	if input.UseUnitTracking {
+		unitIDs = planningResult.ReservedUnitIDs
+	}
+
+	waveAssignment := WaveAssignment{
+		WaveID:         planningResult.WaveID,
+		ScheduledStart: planningResult.WaveScheduledStart,
+	}
+
+	logger.Info("Planning completed",
 		"orderId", input.OrderID,
+		"waveId", planningResult.WaveID,
 		"pathId", processPath.PathID,
-		"requirements", processPath.Requirements,
-		"consolidationRequired", processPath.ConsolidationRequired,
-		"giftWrapRequired", processPath.GiftWrapRequired,
+		"unitCount", len(unitIDs),
 	)
 
 	// ========================================
-	// Step 3: Wait for Wave Assignment
+	// Step 4: Calculate Route (supports multi-route splitting)
 	// ========================================
-	logger.Info("Step 3: Waiting for wave assignment", "orderId", input.OrderID)
+	logger.Info("Step 4: Calculating pick routes", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
 
-	// Set up signal channel for wave assignment
-	var waveAssignment WaveAssignment
-	waveSignal := workflow.GetSignalChannel(ctx, "waveAssigned")
-
-	// Wait for wave assignment with timeout based on priority
-	waveTimeout := getWaveTimeout(input.Priority)
-	waveCtx, cancelWave := workflow.WithCancel(ctx)
-	defer cancelWave()
-
-	selector := workflow.NewSelector(waveCtx)
-
-	var waveAssigned bool
-	selector.AddReceive(waveSignal, func(c workflow.ReceiveChannel, more bool) {
-		c.Receive(waveCtx, &waveAssignment)
-		waveAssigned = true
-	})
-
-	selector.AddFuture(workflow.NewTimer(waveCtx, waveTimeout), func(f workflow.Future) {
-		// Timeout - order not assigned to wave in time
-		logger.Warn("Wave assignment timeout", "orderId", input.OrderID)
-	})
-
-	selector.Select(waveCtx)
-
-	if !waveAssigned {
-		result.Status = "wave_timeout"
-		result.Error = "order was not assigned to a wave within the expected time"
-		return result, fmt.Errorf("wave assignment timeout for order %s", input.OrderID)
-	}
-
-	result.WaveID = waveAssignment.WaveID
-	logger.Info("Order assigned to wave", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
-
-	// Update order status to wave_assigned
-	err = workflow.ExecuteActivity(ctx, "AssignToWave", input.OrderID, waveAssignment.WaveID).Get(ctx, nil)
-	if err != nil {
-		logger.Warn("Failed to update order status to wave_assigned", "orderId", input.OrderID, "error", err)
-		// Non-fatal: continue with workflow - order status can be reconciled later
-	}
-
-	// ========================================
-	// Step 4: Calculate Route
-	// ========================================
-	logger.Info("Step 4: Calculating pick route", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
-
-	var routeResult RouteResult
-	err = workflow.ExecuteActivity(ctx, "CalculateRoute", map[string]interface{}{
+	var multiRouteResult MultiRouteResult
+	err = workflow.ExecuteActivity(ctx, "CalculateMultiRoute", map[string]interface{}{
 		"orderId": input.OrderID,
 		"waveId":  waveAssignment.WaveID,
 		"items":   input.Items,
-	}).Get(ctx, &routeResult)
+	}).Get(ctx, &multiRouteResult)
 	if err != nil {
 		result.Status = "routing_failed"
 		result.Error = fmt.Sprintf("route calculation failed: %v", err)
 		return result, err
 	}
 
+	logger.Info("Routes calculated",
+		"orderId", input.OrderID,
+		"totalRoutes", multiRouteResult.TotalRoutes,
+		"splitReason", multiRouteResult.SplitReason,
+	)
+
 	// ========================================
-	// Step 5: Execute Picking (Child Workflow)
+	// Step 5: Execute Picking (supports parallel multi-route picking)
 	// ========================================
-	logger.Info("Step 5: Starting picking workflow", "orderId", input.OrderID, "routeId", routeResult.RouteID)
+	logger.Info("Step 5: Starting picking workflow(s)",
+		"orderId", input.OrderID,
+		"routeCount", multiRouteResult.TotalRoutes,
+	)
 
 	// Update order status to "picking"
 	err = workflow.ExecuteActivity(ctx, "StartPicking", input.OrderID).Get(ctx, nil)
@@ -314,24 +309,141 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		// Non-fatal: continue with picking workflow
 	}
 
-	pickingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID:               fmt.Sprintf("picking-%s", input.OrderID),
-		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-		RetryPolicy:              childOpts.RetryPolicy,
-	})
-
 	var pickResult PickResult
-	err = workflow.ExecuteChildWorkflow(pickingChildCtx, "PickingWorkflow", map[string]interface{}{
-		"orderId": input.OrderID,
-		"waveId":  waveAssignment.WaveID,
-		"route":   routeResult,
-	}).Get(ctx, &pickResult)
-	if err != nil {
-		result.Status = "picking_failed"
-		result.Error = fmt.Sprintf("picking workflow failed: %v", err)
-		// Trigger compensation - release inventory reservations
-		_ = workflow.ExecuteActivity(ctx, "ReleaseInventoryReservation", input.OrderID).Get(ctx, nil)
-		return result, err
+
+	if multiRouteResult.TotalRoutes <= 1 {
+		// Single route - use existing flow
+		routeResult := multiRouteResult.Routes[0]
+
+		pickingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+			WorkflowID:               fmt.Sprintf("picking-%s", input.OrderID),
+			WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
+			RetryPolicy:              childOpts.RetryPolicy,
+		})
+
+		pickingInput := map[string]interface{}{
+			"orderId": input.OrderID,
+			"waveId":  waveAssignment.WaveID,
+			"route":   routeResult,
+		}
+		// Include unit-level tracking if enabled
+		if input.UseUnitTracking && len(unitIDs) > 0 {
+			pickingInput["unitIds"] = unitIDs
+			pickingInput["pathId"] = result.PathID
+		}
+
+		err = workflow.ExecuteChildWorkflow(pickingChildCtx, "PickingWorkflow", pickingInput).Get(ctx, &pickResult)
+		if err != nil {
+			result.Status = "picking_failed"
+			result.Error = fmt.Sprintf("picking workflow failed: %v", err)
+			// Trigger compensation - release inventory reservations
+			_ = workflow.ExecuteActivity(ctx, "ReleaseInventoryReservation", input.OrderID).Get(ctx, nil)
+			return result, err
+		}
+	} else {
+		// Multi-route - execute parallel picking workflows
+		logger.Info("Executing parallel picking for multi-route order",
+			"orderId", input.OrderID,
+			"routeCount", multiRouteResult.TotalRoutes,
+		)
+
+		// Create futures for all picking workflows
+		pickingFutures := make([]workflow.ChildWorkflowFuture, multiRouteResult.TotalRoutes)
+		for i, route := range multiRouteResult.Routes {
+			pickingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+				WorkflowID:               fmt.Sprintf("picking-%s-route-%d", input.OrderID, i),
+				WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
+				RetryPolicy:              childOpts.RetryPolicy,
+			})
+
+			pickingInput := map[string]interface{}{
+				"orderId":    input.OrderID,
+				"waveId":     waveAssignment.WaveID,
+				"route":      route,
+				"routeIndex": i,
+				"totalRoutes": multiRouteResult.TotalRoutes,
+			}
+			// Include unit-level tracking if enabled
+			if input.UseUnitTracking && len(unitIDs) > 0 {
+				pickingInput["unitIds"] = unitIDs
+				pickingInput["pathId"] = result.PathID
+			}
+
+			pickingFutures[i] = workflow.ExecuteChildWorkflow(pickingChildCtx, "PickingWorkflow", pickingInput)
+		}
+
+		// Wait for all picking workflows and aggregate results
+		pickResult = PickResult{
+			PickedItems:    make([]PickedItem, 0),
+			PickedUnitIDs:  make([]string, 0),
+			FailedUnitIDs:  make([]string, 0),
+			ExceptionIDs:   make([]string, 0),
+		}
+		allRoutesSucceeded := true
+		var failedRoutes []int
+
+		for i, future := range pickingFutures {
+			var routePickResult PickResult
+			err := future.Get(ctx, &routePickResult)
+			if err != nil {
+				logger.Warn("Picking failed for route",
+					"orderId", input.OrderID,
+					"routeIndex", i,
+					"error", err,
+				)
+				failedRoutes = append(failedRoutes, i)
+				allRoutesSucceeded = false
+				continue
+			}
+
+			// Aggregate picked items
+			pickResult.PickedItems = append(pickResult.PickedItems, routePickResult.PickedItems...)
+			pickResult.PickedUnitIDs = append(pickResult.PickedUnitIDs, routePickResult.PickedUnitIDs...)
+			pickResult.FailedUnitIDs = append(pickResult.FailedUnitIDs, routePickResult.FailedUnitIDs...)
+			pickResult.ExceptionIDs = append(pickResult.ExceptionIDs, routePickResult.ExceptionIDs...)
+		}
+
+		// Handle partial or complete failure
+		if !allRoutesSucceeded {
+			if len(pickResult.PickedItems) == 0 {
+				// All routes failed
+				result.Status = "picking_failed"
+				result.Error = fmt.Sprintf("all %d picking routes failed", len(failedRoutes))
+				_ = workflow.ExecuteActivity(ctx, "ReleaseInventoryReservation", input.OrderID).Get(ctx, nil)
+				return result, fmt.Errorf("all picking routes failed for order %s", input.OrderID)
+			}
+			// Partial success - continue with picked items
+			logger.Warn("Partial picking success",
+				"orderId", input.OrderID,
+				"failedRoutes", failedRoutes,
+				"pickedItems", len(pickResult.PickedItems),
+			)
+			result.PartialSuccess = true
+		}
+
+		logger.Info("Parallel picking completed",
+			"orderId", input.OrderID,
+			"pickedItems", len(pickResult.PickedItems),
+			"allRoutesSucceeded", allRoutesSucceeded,
+		)
+	}
+
+	// Track unit-level picking results
+	if input.UseUnitTracking {
+		if len(pickResult.PickedUnitIDs) > 0 {
+			result.CompletedUnits = append(result.CompletedUnits, pickResult.PickedUnitIDs...)
+		}
+		if len(pickResult.FailedUnitIDs) > 0 {
+			result.FailedUnits = append(result.FailedUnits, pickResult.FailedUnitIDs...)
+			result.PartialSuccess = len(pickResult.PickedUnitIDs) > 0
+		}
+		if len(pickResult.ExceptionIDs) > 0 {
+			result.ExceptionIDs = append(result.ExceptionIDs, pickResult.ExceptionIDs...)
+		}
+		// Update unitIDs to continue with only successfully picked units
+		if len(pickResult.PickedUnitIDs) > 0 {
+			unitIDs = pickResult.PickedUnitIDs
+		}
 	}
 
 	// ========================================
@@ -346,11 +458,18 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 			RetryPolicy:              childOpts.RetryPolicy,
 		})
 
-		err = workflow.ExecuteChildWorkflow(consolidationChildCtx, "ConsolidationWorkflow", map[string]interface{}{
+		consolidationInput := map[string]interface{}{
 			"orderId":     input.OrderID,
 			"waveId":      waveAssignment.WaveID,
 			"pickedItems": pickResult.PickedItems,
-		}).Get(ctx, nil)
+		}
+		// Include unit-level tracking if enabled
+		if input.UseUnitTracking && len(unitIDs) > 0 {
+			consolidationInput["unitIds"] = unitIDs
+			consolidationInput["pathId"] = result.PathID
+		}
+
+		err = workflow.ExecuteChildWorkflow(consolidationChildCtx, "ConsolidationWorkflow", consolidationInput).Get(ctx, nil)
 		if err != nil {
 			result.Status = "consolidation_failed"
 			result.Error = fmt.Sprintf("consolidation workflow failed: %v", err)
@@ -443,6 +562,11 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	}
 	if targetStationID != "" {
 		packingInput["stationId"] = targetStationID
+	}
+	// Include unit-level tracking if enabled
+	if input.UseUnitTracking && len(unitIDs) > 0 {
+		packingInput["unitIds"] = unitIDs
+		packingInput["pathId"] = result.PathID
 	}
 
 	var packResult PackResult
@@ -555,7 +679,7 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		RetryPolicy:              childOpts.RetryPolicy,
 	})
 
-	err = workflow.ExecuteChildWorkflow(shippingChildCtx, "ShippingWorkflow", map[string]interface{}{
+	shippingInput := map[string]interface{}{
 		"orderId":        input.OrderID,
 		"packageId":      packResult.PackageID,
 		"trackingNumber": result.TrackingNumber,
@@ -563,7 +687,14 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		"manifestId":     slamResult.ManifestID,
 		"batchId":        sortationResult.BatchID,
 		"chuteId":        sortationResult.ChuteID,
-	}).Get(ctx, nil)
+	}
+	// Include unit-level tracking if enabled
+	if input.UseUnitTracking && len(unitIDs) > 0 {
+		shippingInput["unitIds"] = unitIDs
+		shippingInput["pathId"] = result.PathID
+	}
+
+	err = workflow.ExecuteChildWorkflow(shippingChildCtx, "ShippingWorkflow", shippingInput).Get(ctx, nil)
 	if err != nil {
 		result.Status = "shipping_failed"
 		result.Error = fmt.Sprintf("shipping workflow failed: %v", err)
@@ -573,9 +704,28 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	// ========================================
 	// Workflow Complete
 	// ========================================
-	result.Status = "completed"
-	logger.Info("Order fulfillment completed successfully",
+	// Determine final status based on unit tracking
+	if input.UseUnitTracking {
+		if len(result.FailedUnits) > 0 && len(result.CompletedUnits) > 0 {
+			result.Status = "partial_success"
+			result.PartialSuccess = true
+			logger.Info("Order fulfillment completed with partial success",
+				"orderId", input.OrderID,
+				"completedUnits", len(result.CompletedUnits),
+				"failedUnits", len(result.FailedUnits),
+			)
+		} else if len(result.FailedUnits) > 0 {
+			result.Status = "failed"
+		} else {
+			result.Status = "completed"
+		}
+	} else {
+		result.Status = "completed"
+	}
+
+	logger.Info("Order fulfillment completed",
 		"orderId", input.OrderID,
+		"status", result.Status,
 		"waveId", result.WaveID,
 		"trackingNumber", result.TrackingNumber,
 	)

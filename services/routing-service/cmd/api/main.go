@@ -151,6 +151,7 @@ func main() {
 		routes := api.Group("/routes")
 		{
 			routes.POST("", calculateRouteHandler(routingService, logger))
+			routes.POST("/calculate-multi", calculateMultiRouteHandler(routingService, logger))
 			routes.GET("/:routeId", getRouteHandler(routingService, logger))
 			routes.DELETE("/:routeId", deleteRouteHandler(routingService, logger))
 
@@ -276,6 +277,38 @@ func calculateRouteHandler(service *application.RoutingApplicationService, logge
 		}
 
 		c.JSON(http.StatusCreated, route)
+	}
+}
+
+func calculateMultiRouteHandler(service *application.RoutingApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req domain.RouteRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"order.id":    req.OrderID,
+			"wave.id":     req.WaveID,
+			"items.count": len(req.Items),
+		})
+
+		cmd := application.CalculateMultiRouteCommand{RouteRequest: req}
+
+		result, err := service.CalculateMultiRoute(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusCreated, result)
 	}
 }
 

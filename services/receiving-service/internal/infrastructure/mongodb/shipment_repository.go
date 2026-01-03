@@ -153,8 +153,11 @@ func (r *InboundShipmentRepository) FindByASNID(ctx context.Context, asnID strin
 	return &shipment, err
 }
 
-func (r *InboundShipmentRepository) FindBySupplierID(ctx context.Context, supplierID string) ([]*domain.InboundShipment, error) {
-	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+func (r *InboundShipmentRepository) FindBySupplierID(ctx context.Context, supplierID string, pagination domain.Pagination) ([]*domain.InboundShipment, error) {
+	opts := options.Find().
+		SetSort(bson.D{{Key: "createdAt", Value: -1}}).
+		SetSkip(pagination.Skip()).
+		SetLimit(pagination.Limit())
 	cursor, err := r.collection.Find(ctx, bson.M{"supplier.supplierId": supplierID}, opts)
 	if err != nil {
 		return nil, err
@@ -176,8 +179,11 @@ func (r *InboundShipmentRepository) FindByPurchaseOrderID(ctx context.Context, p
 	return shipments, err
 }
 
-func (r *InboundShipmentRepository) FindByStatus(ctx context.Context, status domain.ShipmentStatus) ([]*domain.InboundShipment, error) {
-	opts := options.Find().SetSort(bson.D{{Key: "asn.expectedArrival", Value: 1}})
+func (r *InboundShipmentRepository) FindByStatus(ctx context.Context, status domain.ShipmentStatus, pagination domain.Pagination) ([]*domain.InboundShipment, error) {
+	opts := options.Find().
+		SetSort(bson.D{{Key: "asn.expectedArrival", Value: 1}}).
+		SetSkip(pagination.Skip()).
+		SetLimit(pagination.Limit())
 	cursor, err := r.collection.Find(ctx, bson.M{"status": status}, opts)
 	if err != nil {
 		return nil, err
@@ -198,6 +204,111 @@ func (r *InboundShipmentRepository) FindByDockAndStatus(ctx context.Context, doc
 	var shipments []*domain.InboundShipment
 	err = cursor.All(ctx, &shipments)
 	return shipments, err
+}
+
+func (r *InboundShipmentRepository) FindByDockID(ctx context.Context, dockID string) ([]*domain.InboundShipment, error) {
+	filter := bson.M{"receivingDockId": dockID}
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var shipments []*domain.InboundShipment
+	err = cursor.All(ctx, &shipments)
+	return shipments, err
+}
+
+func (r *InboundShipmentRepository) FindExpectedToday(ctx context.Context) ([]*domain.InboundShipment, error) {
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	filter := bson.M{
+		"status": domain.ShipmentStatusExpected,
+		"asn.expectedArrival": bson.M{
+			"$gte": startOfDay,
+			"$lt":  endOfDay,
+		},
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "asn.expectedArrival", Value: 1}})
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var shipments []*domain.InboundShipment
+	err = cursor.All(ctx, &shipments)
+	return shipments, err
+}
+
+func (r *InboundShipmentRepository) FindPendingReceiving(ctx context.Context, limit int) ([]*domain.InboundShipment, error) {
+	filter := bson.M{
+		"status": bson.M{
+			"$in": []domain.ShipmentStatus{
+				domain.ShipmentStatusArrived,
+				domain.ShipmentStatusReceiving,
+			},
+		},
+	}
+	opts := options.Find().
+		SetSort(bson.D{{Key: "arrivedAt", Value: 1}}).
+		SetLimit(int64(limit))
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var shipments []*domain.InboundShipment
+	err = cursor.All(ctx, &shipments)
+	return shipments, err
+}
+
+func (r *InboundShipmentRepository) UpdateStatus(ctx context.Context, shipmentID string, status domain.ShipmentStatus) error {
+	filter := bson.M{"shipmentId": shipmentID}
+	update := bson.M{
+		"$set": bson.M{
+			"status":    status,
+			"updatedAt": time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+func (r *InboundShipmentRepository) Count(ctx context.Context, filter domain.ShipmentFilter) (int64, error) {
+	mongoFilter := bson.M{}
+
+	if filter.SupplierID != nil {
+		mongoFilter["supplier.supplierId"] = *filter.SupplierID
+	}
+	if filter.Status != nil {
+		mongoFilter["status"] = *filter.Status
+	}
+	if filter.DockID != nil {
+		mongoFilter["receivingDockId"] = *filter.DockID
+	}
+	if filter.PurchaseOrderID != nil {
+		mongoFilter["purchaseOrderId"] = *filter.PurchaseOrderID
+	}
+	if filter.FromDate != nil || filter.ToDate != nil {
+		dateFilter := bson.M{}
+		if filter.FromDate != nil {
+			if fromTime, err := time.Parse(time.RFC3339, *filter.FromDate); err == nil {
+				dateFilter["$gte"] = fromTime
+			}
+		}
+		if filter.ToDate != nil {
+			if toTime, err := time.Parse(time.RFC3339, *filter.ToDate); err == nil {
+				dateFilter["$lte"] = toTime
+			}
+		}
+		if len(dateFilter) > 0 {
+			mongoFilter["asn.expectedArrival"] = dateFilter
+		}
+	}
+
+	return r.collection.CountDocuments(ctx, mongoFilter)
 }
 
 func (r *InboundShipmentRepository) FindExpectedArrivals(ctx context.Context, from, to time.Time) ([]*domain.InboundShipment, error) {

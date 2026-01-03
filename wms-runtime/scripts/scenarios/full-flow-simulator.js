@@ -35,7 +35,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend, Gauge } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
-import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, FLOW_CONFIG, GIFTWRAP_CONFIG, ORDER_CONFIG } from '../lib/config.js';
+import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, FLOW_CONFIG, GIFTWRAP_CONFIG, ORDER_CONFIG, UNIT_CONFIG, MULTI_ROUTE_CONFIG } from '../lib/config.js';
 import {
   discoverReadyWaves,
   processWave,
@@ -51,7 +51,17 @@ import {
 import {
   discoverPendingConsolidations,
   processConsolidation,
+  processMultiRouteConsolidation,
+  sendToteArrivedSignal,
+  getToteArrivalProgress,
 } from '../lib/consolidation.js';
+import {
+  calculateMultiRoute,
+  getMultiRouteSummary,
+  shouldUseMultiRoute,
+  getExpectedTotesFromRoutes,
+  getPickTasksByRoute,
+} from '../lib/routing.js';
 import {
   discoverPendingPackTasks,
   processPackTask,
@@ -75,7 +85,19 @@ import {
   waitForOrderStatus,
   waitForAllOrdersStatus,
 } from '../lib/orders.js';
-import { generateOrder, generateOrderWithType, getProductCountByRequirement } from '../lib/data.js';
+import {
+  generateOrder,
+  generateOrderWithType,
+  getProductCountByRequirement,
+  generateLargeOrder,
+  wouldTriggerMultiRoute,
+  estimateRouteCount,
+} from '../lib/data.js';
+import {
+  reserveUnits,
+  getUnitsForOrder,
+  checkHealth as checkUnitHealth,
+} from '../lib/unit.js';
 
 // Load station test data for facility setup
 const stationData = new SharedArray('stations', function () {
@@ -116,6 +138,16 @@ const fragileOrders = new Counter('flow_fragile_orders');
 const oversizedOrders = new Counter('flow_oversized_orders');
 const heavyOrders = new Counter('flow_heavy_orders');
 const highValueOrders = new Counter('flow_high_value_orders');
+
+// Unit tracking metrics
+const unitsReserved = new Counter('flow_units_reserved');
+const unitTrackingFailed = new Counter('flow_unit_tracking_failed');
+
+// Multi-route metrics
+const multiRouteOrders = new Counter('flow_multi_route_orders');
+const totalRoutesCreated = new Counter('flow_total_routes_created');
+const parallelPickingTasks = new Counter('flow_parallel_picking_tasks');
+const toteArrivalsSignaled = new Counter('flow_tote_arrivals_signaled');
 
 // Stage constants for gauge
 const STAGE = {
@@ -222,12 +254,15 @@ function setupFacilityStations(existingStationIds) {
 
 /**
  * Creates test orders for the flow (with typed orders and requirements)
+ * Includes support for large orders that trigger multi-route splitting
  */
 function createTestOrders(count) {
   const orders = [];
   let giftWrapCount = 0;
   let singleItemCount = 0;
   let multiItemCount = 0;
+  let largeOrderCount = 0;
+  let multiRouteCount = 0;
   const requirementCounts = {
     hazmat: 0,
     fragile: 0,
@@ -236,9 +271,23 @@ function createTestOrders(count) {
     high_value: 0,
   };
 
+  // Determine if we should include large orders
+  // Include at least one large order if multi-route is enabled and count >= 3
+  const includeLargeOrders = MULTI_ROUTE_CONFIG.enableMultiRoute && count >= 3;
+  const largeOrderFrequency = includeLargeOrders ? Math.max(1, Math.floor(count / 5)) : 0; // ~20% large orders
+
   for (let i = 0; i < count; i++) {
-    // Use typed order generation (respects FORCE_ORDER_TYPE and FORCE_REQUIREMENT)
-    let order = generateOrderWithType();
+    let order;
+
+    // Create a large order periodically if enabled
+    if (includeLargeOrders && largeOrderCount < largeOrderFrequency && i % 5 === 0) {
+      order = generateLargeOrder();
+      largeOrderCount++;
+      console.log(`Creating large order with ${order.items.length} items (expected ${order.expectedRoutes} routes)`);
+    } else {
+      // Use typed order generation (respects FORCE_ORDER_TYPE and FORCE_REQUIREMENT)
+      order = generateOrderWithType();
+    }
 
     // Randomly add gift wrap based on configured ratio
     const isGiftWrap = shouldHaveGiftWrap();
@@ -251,9 +300,23 @@ function createTestOrders(count) {
     if (order.orderType === 'single_item') {
       singleItemCount++;
       singleItemOrders.add(1);
+    } else if (order.orderType === 'large_multi_route') {
+      multiItemCount++;
+      multiItemOrders.add(1);
+      multiRouteCount++;
+      multiRouteOrders.add(1);
+      totalRoutesCreated.add(order.expectedRoutes || 2);
     } else {
       multiItemCount++;
       multiItemOrders.add(1);
+    }
+
+    // Check if this order would trigger multi-route (even if not large_multi_route type)
+    if (wouldTriggerMultiRoute(order) && order.orderType !== 'large_multi_route') {
+      multiRouteCount++;
+      multiRouteOrders.add(1);
+      const routes = estimateRouteCount(order);
+      totalRoutesCreated.add(routes);
     }
 
     // Track requirements
@@ -293,6 +356,9 @@ function createTestOrders(count) {
           giftWrapDetails: isGiftWrap ? order.giftWrapDetails : null,
           orderType: order.orderType,
           requirements: order.requirements || [],
+          isMultiRoute: wouldTriggerMultiRoute(order) || order.orderType === 'large_multi_route',
+          expectedRoutes: order.expectedRoutes || estimateRouteCount(order),
+          itemCount: order.items?.length || 0,
         });
         flowOrdersCreated.add(1);
         if (isGiftWrap) {
@@ -313,6 +379,8 @@ function createTestOrders(count) {
   console.log(`Created ${orders.length} orders:`);
   console.log(`  - Single-item: ${singleItemCount}`);
   console.log(`  - Multi-item: ${multiItemCount}`);
+  console.log(`  - Large (multi-route): ${largeOrderCount}`);
+  console.log(`  - Total multi-route orders: ${multiRouteCount}`);
   console.log(`  - Gift wrap: ${giftWrapCount}`);
   console.log(`  - Requirements: hazmat=${requirementCounts.hazmat}, fragile=${requirementCounts.fragile}, ` +
               `oversized=${requirementCounts.oversized}, heavy=${requirementCounts.heavy}, high_value=${requirementCounts.high_value}`);
@@ -474,18 +542,25 @@ export function setup() {
   console.log(`Max items per order: ${ORDER_CONFIG.maxItemsPerOrder}`);
   console.log(`Force order type: ${ORDER_CONFIG.forceOrderType || 'none'}`);
   console.log(`Force requirement: ${ORDER_CONFIG.forceRequirement || 'none'}`);
+  console.log('--- Multi-Route Configuration ---');
+  console.log(`Multi-route enabled: ${MULTI_ROUTE_CONFIG.enableMultiRoute}`);
+  console.log(`Max items per route: ${MULTI_ROUTE_CONFIG.maxItemsPerRoute}`);
+  console.log(`Large order item count: ${MULTI_ROUTE_CONFIG.largeOrderItemCount}`);
+  console.log(`Parallel picking enabled: ${MULTI_ROUTE_CONFIG.parallelPickingEnabled}`);
   console.log('='.repeat(60));
 
   // Health check all services
   const services = [
     { name: 'Orders', url: `${BASE_URLS.orders}/health` },
     { name: 'Waving', url: `${BASE_URLS.waving}/health` },
+    { name: 'Routing', url: `${BASE_URLS.routing}/health` },
     { name: 'Picking', url: `${BASE_URLS.picking}/health` },
     { name: 'Consolidation', url: `${BASE_URLS.consolidation}/health` },
     { name: 'Packing', url: `${BASE_URLS.packing}/health` },
     { name: 'Shipping', url: `${BASE_URLS.shipping}/health` },
     { name: 'Facility', url: `${BASE_URLS.facility}/health` },
     { name: 'Orchestrator', url: `${BASE_URLS.orchestrator}/health` },
+    { name: 'Unit', url: `${BASE_URLS.unit}/health` },
   ];
 
   const healthStatus = {};
@@ -546,6 +621,47 @@ export default function (data) {
   }
 
   console.log(`Created ${orders.length} orders`);
+
+  // Phase 1b: Reserve Units for Orders (if unit tracking is enabled)
+  if (UNIT_CONFIG.enableUnitTracking) {
+    console.log('\nPhase 1b: Reserving Units for Orders');
+    let totalUnitsReserved = 0;
+    let reservationsFailed = 0;
+
+    for (const order of orders) {
+      // Get order details to extract items
+      const orderResult = getOrder(order.orderId);
+      if (orderResult.success && orderResult.body?.items) {
+        const items = orderResult.body.items.map(item => ({
+          sku: item.sku,
+          quantity: item.quantity,
+        }));
+
+        const pathId = `PATH-${order.orderId.slice(-8)}`;
+        const reserveResult = reserveUnits(
+          order.orderId,
+          pathId,
+          items,
+          'k6-flow-simulator'
+        );
+
+        if (reserveResult.success && !reserveResult.skipped) {
+          const count = reserveResult.reservedUnits?.length || 0;
+          totalUnitsReserved += count;
+          unitsReserved.add(count);
+          console.log(`Reserved ${count} units for order ${order.orderId}`);
+        } else if (!reserveResult.success) {
+          reservationsFailed++;
+          unitTrackingFailed.add(1);
+          console.warn(`Failed to reserve units for order ${order.orderId}`);
+        }
+      }
+      sleep(0.1);
+    }
+
+    console.log(`Unit reservation complete: ${totalUnitsReserved} reserved, ${reservationsFailed} failed`);
+  }
+
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
 
   // Phase 2: Waving - Create wave, release it, and signal workflows
@@ -674,7 +790,9 @@ export default function (data) {
 
   // Calculate order type stats
   const singleItems = orders.filter(o => o.orderType === 'single_item').length;
-  const multiItems = orders.filter(o => o.orderType === 'multi_item').length;
+  const multiItems = orders.filter(o => o.orderType === 'multi_item' || o.orderType === 'large_multi_route').length;
+  const multiRouteItems = orders.filter(o => o.isMultiRoute).length;
+  const totalExpectedRoutes = orders.reduce((sum, o) => sum + (o.expectedRoutes || 1), 0);
   const reqStats = {
     hazmat: orders.filter(o => o.requirements?.includes('hazmat')).length,
     fragile: orders.filter(o => o.requirements?.includes('fragile')).length,
@@ -691,6 +809,8 @@ export default function (data) {
   console.log(`Orders Created: ${orders.length}`);
   console.log(`  - Single-item: ${singleItems}`);
   console.log(`  - Multi-item: ${multiItems}`);
+  console.log(`  - Multi-route orders: ${multiRouteItems}`);
+  console.log(`  - Total expected routes: ${totalExpectedRoutes}`);
   console.log(`  - Gift Wrap: ${giftWrapOrders.length}`);
   console.log(`  - Requirements:`);
   console.log(`    - Hazmat: ${reqStats.hazmat}`);

@@ -1,5 +1,5 @@
 // Data generators for WMS Platform load testing
-import { ORDER_CONFIG } from './config.js';
+import { ORDER_CONFIG, MULTI_ROUTE_CONFIG } from './config.js';
 
 // Load static data
 const skusData = JSON.parse(open('../../data/skus.json'));
@@ -387,4 +387,178 @@ export function getProductCountByRequirement() {
   }
 
   return counts;
+}
+
+// ============================================================================
+// Multi-Route Order Generation
+// ============================================================================
+
+/**
+ * Zone mapping for location-based splitting
+ * First letter of aisle determines zone
+ */
+const ZONE_MAPPING = {
+  'A': 'ZONE-1', 'B': 'ZONE-1', 'C': 'ZONE-1', 'D': 'ZONE-1',
+  'E': 'ZONE-2', 'F': 'ZONE-2', 'G': 'ZONE-2', 'H': 'ZONE-2',
+  'I': 'ZONE-3', 'J': 'ZONE-3', 'K': 'ZONE-3', 'L': 'ZONE-3',
+  'M': 'ZONE-4', 'N': 'ZONE-4', 'O': 'ZONE-4', 'P': 'ZONE-4',
+  'Q': 'ZONE-5', 'R': 'ZONE-5', 'S': 'ZONE-5', 'T': 'ZONE-5',
+  'U': 'ZONE-6', 'V': 'ZONE-6', 'W': 'ZONE-6', 'X': 'ZONE-6',
+  'Y': 'ZONE-6', 'Z': 'ZONE-6',
+};
+
+/**
+ * Get zone for a location
+ * @param {Object} location - Location object with aisle property
+ * @returns {string} Zone identifier
+ */
+export function getZoneForLocation(location) {
+  if (!location || !location.aisle) {
+    return 'ZONE-1';
+  }
+  const firstLetter = location.aisle.charAt(0).toUpperCase();
+  return ZONE_MAPPING[firstLetter] || 'ZONE-1';
+}
+
+/**
+ * Select products distributed across multiple zones for multi-route testing
+ * @param {number} count - Total number of products to select
+ * @param {number} minZones - Minimum number of zones to spread across
+ * @returns {Array} Products from multiple zones
+ */
+export function selectProductsAcrossZones(count, minZones = 2) {
+  // Group locations by zone
+  const locationsByZone = {};
+  for (const zone of zones) {
+    for (const loc of zone.locations || []) {
+      const zoneName = getZoneForLocation(loc);
+      if (!locationsByZone[zoneName]) {
+        locationsByZone[zoneName] = [];
+      }
+      locationsByZone[zoneName].push(loc);
+    }
+  }
+
+  const zoneNames = Object.keys(locationsByZone);
+  if (zoneNames.length < minZones) {
+    // Not enough zones, fall back to random selection
+    return selectRandomProducts(count);
+  }
+
+  // Select zones to use
+  const shuffledZones = [...zoneNames].sort(() => 0.5 - Math.random());
+  const selectedZones = shuffledZones.slice(0, Math.min(minZones, shuffledZones.length));
+
+  // Distribute items across selected zones
+  const itemsPerZone = Math.ceil(count / selectedZones.length);
+  const selectedProducts = [];
+
+  for (const zoneName of selectedZones) {
+    // Get products from this zone (based on available locations)
+    const zoneLocations = locationsByZone[zoneName];
+    const zoneProductsCount = Math.min(itemsPerZone, count - selectedProducts.length);
+
+    // Select random products and assign zone locations
+    const zoneProducts = selectRandomProducts(zoneProductsCount).map(product => ({
+      ...product,
+      locationHint: zoneLocations[Math.floor(Math.random() * zoneLocations.length)],
+    }));
+
+    selectedProducts.push(...zoneProducts);
+  }
+
+  return selectedProducts.slice(0, count);
+}
+
+/**
+ * Generate a large order that will trigger multi-route splitting
+ * @param {number} itemCount - Number of items (should be > maxItemsPerRoute)
+ * @param {boolean} spreadAcrossZones - Whether to distribute items across zones
+ * @returns {Object} Generated large order
+ */
+export function generateLargeOrder(itemCount = null, spreadAcrossZones = true) {
+  const customerId = generateCustomerId();
+  const priority = selectPriority();
+
+  // Default to triggering multi-route by exceeding capacity
+  const effectiveItemCount = itemCount || MULTI_ROUTE_CONFIG.largeOrderItemCount;
+
+  // Select products
+  let selectedProducts;
+  if (spreadAcrossZones) {
+    selectedProducts = selectProductsAcrossZones(effectiveItemCount, 3);
+  } else {
+    selectedProducts = selectRandomProducts(effectiveItemCount);
+  }
+
+  const items = selectedProducts.map(product => ({
+    sku: product.sku,
+    name: product.productName,
+    quantity: 1, // Keep quantity low to have more distinct items
+    weight: product.weight,
+    locationHint: product.locationHint,
+  }));
+
+  const requirements = aggregateOrderRequirements(items);
+  const address = generateAddress();
+  const promisedDeliveryAt = generatePromisedDeliveryDate(priority);
+
+  return {
+    customerId,
+    items,
+    shippingAddress: address,
+    priority,
+    promisedDeliveryAt,
+    requirements,
+    orderType: 'large_multi_route',
+    expectedRoutes: Math.ceil(effectiveItemCount / MULTI_ROUTE_CONFIG.maxItemsPerRoute),
+  };
+}
+
+/**
+ * Generate order items with zone hints for multi-route testing
+ * @param {number} count - Number of items
+ * @param {boolean} spreadAcrossZones - Whether to spread across zones
+ * @returns {Array} Order items with zone hints
+ */
+export function generateOrderItemsWithZones(count, spreadAcrossZones = true) {
+  const selectedProducts = spreadAcrossZones
+    ? selectProductsAcrossZones(count, 2)
+    : selectRandomProducts(count);
+
+  return selectedProducts.map(product => ({
+    sku: product.sku,
+    name: product.productName,
+    quantity: randomInt(1, 2),
+    weight: product.weight,
+    locationHint: product.locationHint,
+  }));
+}
+
+/**
+ * Check if an order would trigger multi-route based on item count
+ * @param {Object} order - Order object with items array
+ * @returns {boolean} True if order would trigger multi-route
+ */
+export function wouldTriggerMultiRoute(order) {
+  if (!MULTI_ROUTE_CONFIG.enableMultiRoute) {
+    return false;
+  }
+
+  const totalItems = order.items?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
+  return totalItems > MULTI_ROUTE_CONFIG.maxItemsPerRoute;
+}
+
+/**
+ * Estimate the number of routes for an order
+ * @param {Object} order - Order object with items array
+ * @returns {number} Estimated number of routes
+ */
+export function estimateRouteCount(order) {
+  if (!MULTI_ROUTE_CONFIG.enableMultiRoute) {
+    return 1;
+  }
+
+  const totalItems = order.items?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
+  return Math.max(1, Math.ceil(totalItems / MULTI_ROUTE_CONFIG.maxItemsPerRoute));
 }

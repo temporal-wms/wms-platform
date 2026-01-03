@@ -4,6 +4,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PACKING_CONFIG } from './config.js';
+import { confirmPacksForOrder } from './unit.js';
 
 /**
  * Discovers pending pack tasks
@@ -369,6 +370,17 @@ export function processPackTask(task) {
 
   // Step 1: Simulate packing workflow
   const packageInfo = simulatePackingTask(task);
+
+  // Step 1b: Confirm unit packs for the order
+  if (orderId) {
+    const packageId = `PKG-${taskId.slice(-8)}`;
+    const packerId = `PACKER-SIM-${__VU || 1}`;
+    const stationId = PACKING_CONFIG.defaultStation;
+    const unitResult = confirmPacksForOrder(orderId, packageId, packerId, stationId);
+    if (!unitResult.skipped) {
+      console.log(`Unit pack confirmations: ${unitResult.success}/${unitResult.total} succeeded`);
+    }
+  }
 
   // Step 2: Complete the task via API
   const completed = completePackTask(taskId);

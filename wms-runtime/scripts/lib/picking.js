@@ -5,6 +5,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PICKER_CONFIG } from './config.js';
 import { pickStock, getInventoryItem } from './inventory.js';
+import { confirmPicksForOrder } from './unit.js';
 
 /**
  * Discovers pending pick tasks from the picking service
@@ -251,6 +252,16 @@ export function processPickTask(task) {
   if (pickedItems.length === 0) {
     console.warn(`No items picked for task ${task.taskId}`);
     return false;
+  }
+
+  // Step 1b: Confirm unit picks for the order
+  if (task.orderId && pickedItems.length > 0) {
+    const toteId = pickedItems[0]?.toteId || `TOTE-${task.taskId}`;
+    const pickerId = `PICKER-SIM-${__VU || 1}`;
+    const unitResult = confirmPicksForOrder(task.orderId, toteId, pickerId, '');
+    if (!unitResult.skipped) {
+      console.log(`Unit pick confirmations: ${unitResult.success}/${unitResult.total} succeeded`);
+    }
   }
 
   // Step 2: Complete the task in picking-service

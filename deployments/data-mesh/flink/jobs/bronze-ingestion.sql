@@ -375,3 +375,120 @@ SELECT
     `__source_ts_ms` AS cdc_timestamp,
     CURRENT_TIMESTAMP AS ingestion_time
 FROM pack_tasks_cdc_source;
+
+-- ============================================
+-- ROUTING DATA PRODUCT - Bronze Layer
+-- ============================================
+
+-- Configure Kafka source for Routes CDC
+CREATE TABLE routes_cdc_source (
+    `_id` STRING,
+    `route_id` STRING,
+    `order_id` STRING,
+    `wave_id` STRING,
+    `picker_id` STRING,
+    `status` STRING,
+    `strategy` STRING,
+    `stops` STRING,  -- JSON array of route stops
+    `zone` STRING,
+    `total_items` INT,
+    `picked_items` INT,
+    `estimated_distance` DOUBLE,
+    `actual_distance` DOUBLE,
+    `estimated_time` BIGINT,  -- Duration in nanoseconds
+    `actual_time` BIGINT,
+    `start_location` STRING,  -- JSON object
+    `end_location` STRING,  -- JSON object
+    `is_multi_route` BOOLEAN,
+    `parent_order_id` STRING,
+    `route_index` INT,
+    `total_routes_in_order` INT,
+    `source_tote_id` STRING,
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `started_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `__op` STRING,
+    `__source_ts_ms` BIGINT,
+    `proctime` AS PROCTIME()
+) WITH (
+    'connector' = 'kafka',
+    'topic' = 'cdc.wms.routes',
+    'properties.bootstrap.servers' = 'wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092',
+    'properties.group.id' = 'flink-bronze-routes',
+    'scan.startup.mode' = 'earliest-offset',
+    'format' = 'json',
+    'json.ignore-parse-errors' = 'true'
+);
+
+-- Create Bronze Routes table
+CREATE TABLE IF NOT EXISTS iceberg_catalog.bronze.routes_raw (
+    `_id` STRING,
+    `route_id` STRING,
+    `order_id` STRING,
+    `wave_id` STRING,
+    `picker_id` STRING,
+    `status` STRING,
+    `strategy` STRING,
+    `stops` STRING,
+    `zone` STRING,
+    `total_items` INT,
+    `picked_items` INT,
+    `estimated_distance` DOUBLE,
+    `actual_distance` DOUBLE,
+    `estimated_time` BIGINT,
+    `actual_time` BIGINT,
+    `start_location` STRING,
+    `end_location` STRING,
+    `is_multi_route` BOOLEAN,
+    `parent_order_id` STRING,
+    `route_index` INT,
+    `total_routes_in_order` INT,
+    `source_tote_id` STRING,
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `started_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `cdc_operation` STRING,
+    `cdc_timestamp` BIGINT,
+    `ingestion_time` TIMESTAMP(3),
+    PRIMARY KEY (`_id`) NOT ENFORCED
+) PARTITIONED BY (days(`ingestion_time`))
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Insert CDC events into Bronze layer
+INSERT INTO iceberg_catalog.bronze.routes_raw
+SELECT
+    `_id`,
+    `route_id`,
+    `order_id`,
+    `wave_id`,
+    `picker_id`,
+    `status`,
+    `strategy`,
+    `stops`,
+    `zone`,
+    `total_items`,
+    `picked_items`,
+    `estimated_distance`,
+    `actual_distance`,
+    `estimated_time`,
+    `actual_time`,
+    `start_location`,
+    `end_location`,
+    `is_multi_route`,
+    `parent_order_id`,
+    `route_index`,
+    `total_routes_in_order`,
+    `source_tote_id`,
+    `created_at`,
+    `updated_at`,
+    `started_at`,
+    `completed_at`,
+    `__op` AS cdc_operation,
+    `__source_ts_ms` AS cdc_timestamp,
+    CURRENT_TIMESTAMP AS ingestion_time
+FROM routes_cdc_source;

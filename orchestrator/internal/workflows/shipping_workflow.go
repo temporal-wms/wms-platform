@@ -14,6 +14,9 @@ type ShippingWorkflowInput struct {
 	PackageID      string `json:"packageId"`
 	TrackingNumber string `json:"trackingNumber"`
 	Carrier        string `json:"carrier"`
+	// Unit-level tracking fields
+	UnitIDs []string `json:"unitIds,omitempty"` // Specific units being shipped
+	PathID  string   `json:"pathId,omitempty"`  // Process path ID for consistency
 }
 
 // ShippingWorkflow coordinates the SLAM (Scan, Label, Apply, Manifest) and shipping process
@@ -25,11 +28,27 @@ func ShippingWorkflow(ctx workflow.Context, input map[string]interface{}) error 
 	trackingNumber, _ := input["trackingNumber"].(string)
 	carrier, _ := input["carrier"].(string)
 
+	// Extract unit-level tracking fields
+	var unitIDs []string
+	var pathID string
+	if ids, ok := input["unitIds"].([]interface{}); ok {
+		for _, id := range ids {
+			if strID, ok := id.(string); ok {
+				unitIDs = append(unitIDs, strID)
+			}
+		}
+	}
+	if pid, ok := input["pathId"].(string); ok {
+		pathID = pid
+	}
+	useUnitTracking := len(unitIDs) > 0
+
 	logger.Info("Starting shipping workflow (SLAM)",
 		"orderId", orderID,
 		"packageId", packageID,
 		"trackingNumber", trackingNumber,
 		"carrier", carrier,
+		"unitCount", len(unitIDs),
 	)
 
 	// Activity options
@@ -169,6 +188,36 @@ func ShippingWorkflow(ctx workflow.Context, input map[string]interface{}) error 
 		// Don't fail workflow if notification fails - it's best effort
 		logger.Warn("Failed to notify customer", "orderId", orderID, "error", err)
 	}
+
+	// Step 9: Unit-level shipping confirmation (if unit tracking enabled)
+	if useUnitTracking && len(unitIDs) > 0 {
+		logger.Info("Confirming unit-level shipping", "orderId", orderID, "unitCount", len(unitIDs))
+
+		handlerID := "shipping-workflow"
+
+		for _, unitID := range unitIDs {
+			err := workflow.ExecuteActivity(ctx, "ConfirmUnitShipped", map[string]interface{}{
+				"unitId":         unitID,
+				"shipmentId":     shipmentID,
+				"trackingNumber": trackingNumber,
+				"handlerId":      handlerID,
+			}).Get(ctx, nil)
+
+			if err != nil {
+				logger.Warn("Failed to confirm unit shipped",
+					"orderId", orderID,
+					"unitId", unitID,
+					"error", err,
+				)
+				// Continue with other units - partial failure handled at parent workflow
+			}
+		}
+
+		logger.Info("Unit-level shipping confirmation completed", "orderId", orderID)
+	}
+
+	// Suppress unused variable warning
+	_ = pathID
 
 	logger.Info("Shipping workflow completed successfully",
 		"orderId", orderID,

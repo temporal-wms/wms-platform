@@ -1,0 +1,154 @@
+# Superset Dashboard Configuration: Tote Lookup
+# Dashboard for finding orders by tote ID
+
+dashboard:
+  name: "Tote Lookup"
+  description: "Look up orders by scanning or entering a tote ID"
+  slug: tote-lookup
+  published: true
+
+  # Native filters
+  filters:
+    - name: tote_id
+      type: text_input
+      title: "Tote ID"
+      description: "Enter or scan the Tote ID (e.g., TOTE-XXXXXXXX)"
+      required: true
+      default_value: ""
+      filter_key: tote_id
+
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Filter by consolidation date"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: status_filter
+      type: select
+      title: "Status"
+      description: "Filter by consolidation status"
+      required: false
+      options:
+        - pending
+        - in_progress
+        - completed
+      filter_key: consolidation_status
+
+  # Dashboard layout
+  layout:
+    # Row 1: Summary metrics
+    - row: 1
+      charts:
+        - name: "Total Orders in Tote"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: orders_by_tote
+          configuration:
+            metric: order_count
+            subheader: "Orders"
+            filter_params:
+              tote_id: "{{ filters.tote_id }}"
+
+        - name: "Total Items"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: orders_by_tote
+          configuration:
+            metric: total_items
+            subheader: "Items Expected"
+            filter_params:
+              tote_id: "{{ filters.tote_id }}"
+
+        - name: "Consolidation Progress"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: orders_by_tote
+          configuration:
+            metric: consolidation_progress
+            subheader: "% Complete"
+            format: "{value:.1f}%"
+            filter_params:
+              tote_id: "{{ filters.tote_id }}"
+
+        - name: "Ready for Packing"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: orders_by_tote
+          configuration:
+            metric: ready_count
+            subheader: "Ready"
+            filter_params:
+              tote_id: "{{ filters.tote_id }}"
+
+    # Row 2: Orders table
+    - row: 2
+      charts:
+        - name: "Orders in Tote"
+          type: table
+          width: 12
+          height: 6
+          description: "All orders with items in the specified tote"
+          dataset: orders_by_tote
+          configuration:
+            columns:
+              - order_id
+              - consolidation_id
+              - consolidation_status
+              - station
+              - worker_id
+              - total_expected
+              - total_consolidated
+              - ready_for_packing
+              - created_at
+            query_mode: raw
+            row_limit: 100
+            order_by: created_at
+            order_direction: desc
+            filter_params:
+              tote_id: "{{ filters.tote_id }}"
+            conditional_formatting:
+              - column: consolidation_status
+                conditions:
+                  - value: "completed"
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - value: "in_progress"
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - value: "pending"
+                    background_color: "#d9d9d9"
+                    text_color: "#595959"
+              - column: ready_for_packing
+                conditions:
+                  - value: true
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - value: false
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: orders_by_tote
+    database: trino
+    sql: |
+      SELECT
+        c.order_id,
+        c.consolidation_id,
+        c.status AS consolidation_status,
+        c.station,
+        c.worker_id,
+        c.total_expected,
+        c.total_consolidated,
+        c.ready_for_packing,
+        c.created_at,
+        c.updated_at
+      FROM mongodb.wms.consolidations c
+      WHERE ARRAY_CONTAINS(c.source_totes, '{{ tote_id }}')
+      ORDER BY c.created_at DESC

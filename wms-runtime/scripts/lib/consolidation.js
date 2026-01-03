@@ -1,9 +1,11 @@
 // K6 Consolidation Service Helper Library
 // Provides functions for interacting with consolidation-service and orchestrator signal bridge
+// Includes multi-route support with tote arrival tracking
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, CONSOLIDATION_CONFIG } from './config.js';
+import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, CONSOLIDATION_CONFIG, MULTI_ROUTE_CONFIG } from './config.js';
+import { confirmConsolidationForOrder } from './unit.js';
 
 /**
  * Discovers pending consolidation units
@@ -284,6 +286,17 @@ export function processConsolidation(unit) {
     console.warn(`Skipping item consolidation for ${consolidationId} - sourceToteId not populated (data quality issue)`);
   }
 
+  // Step 1b: Confirm unit consolidations for the order
+  if (orderId) {
+    const destinationBin = `BIN-${consolidationId.slice(-6)}`;
+    const workerId = `CONSOL-WORKER-${__VU || 1}`;
+    const stationId = CONSOLIDATION_CONFIG.defaultStation;
+    const unitResult = confirmConsolidationForOrder(orderId, destinationBin, workerId, stationId);
+    if (!unitResult.skipped) {
+      console.log(`Unit consolidation confirmations: ${unitResult.success}/${unitResult.total} succeeded`);
+    }
+  }
+
   // Step 2: Complete the consolidation via API
   const completed = completeConsolidation(consolidationId);
   if (!completed) {
@@ -344,4 +357,211 @@ export function processAllPendingConsolidations(maxTasks = CONSOLIDATION_CONFIG.
   console.log(`Processed ${results.processed}/${results.discovered} consolidations (${results.failed} failed)`);
 
   return results;
+}
+
+// ============================================================================
+// Multi-Route Consolidation Support
+// ============================================================================
+
+/**
+ * Sends a tote arrival signal to the orchestrator for multi-route orders
+ * @param {string} orderId - The order ID
+ * @param {string} toteId - The tote ID that arrived
+ * @param {string} routeId - The route ID the tote belongs to
+ * @param {number} routeIndex - The route index in the multi-route sequence
+ * @returns {boolean} True if successful
+ */
+export function sendToteArrivedSignal(orderId, toteId, routeId, routeIndex = 0) {
+  // Note: This endpoint needs to be added to the orchestrator's signal bridge
+  const url = `${BASE_URLS.orchestrator}/api/v1/signals/tote-arrived`;
+  const payload = JSON.stringify({
+    orderId: orderId,
+    toteId: toteId,
+    routeId: routeId,
+    routeIndex: routeIndex,
+    arrivedAt: new Date().toISOString(),
+  });
+
+  const response = http.post(url, payload, HTTP_PARAMS);
+
+  const success = check(response, {
+    'signal tote arrived status 200/202': (r) => r.status === 200 || r.status === 202,
+  });
+
+  if (!success) {
+    console.warn(`Failed to signal tote arrival for order ${orderId}, tote ${toteId}: ${response.status} - ${response.body}`);
+  } else {
+    console.log(`Tote arrival signal sent for order ${orderId}, tote ${toteId}, route ${routeId}`);
+  }
+
+  return success;
+}
+
+/**
+ * Records tote arrival at consolidation service
+ * @param {string} consolidationId - The consolidation ID
+ * @param {string} toteId - The tote ID that arrived
+ * @param {string} routeId - The route ID the tote belongs to
+ * @returns {boolean} True if successful
+ */
+export function receiveTote(consolidationId, toteId, routeId) {
+  const url = `${BASE_URLS.consolidation}/api/v1/consolidations/${consolidationId}/totes`;
+  const payload = JSON.stringify({
+    toteId: toteId,
+    routeId: routeId,
+    receivedAt: new Date().toISOString(),
+  });
+
+  const response = http.post(url, payload, HTTP_PARAMS);
+
+  const success = check(response, {
+    'receive tote status 200': (r) => r.status === 200,
+  });
+
+  if (!success) {
+    console.warn(`Failed to record tote ${toteId} arrival: ${response.status} - ${response.body}`);
+  }
+
+  return success;
+}
+
+/**
+ * Gets tote arrival progress for a multi-route consolidation
+ * @param {string} consolidationId - The consolidation ID
+ * @returns {Object} Tote progress {received, expected, missing}
+ */
+export function getToteArrivalProgress(consolidationId) {
+  const consolidation = getConsolidation(consolidationId);
+
+  if (!consolidation) {
+    return { received: 0, expected: 0, missing: [] };
+  }
+
+  const expectedTotes = consolidation.expectedTotes || [];
+  const receivedTotes = consolidation.receivedTotes || [];
+  const missing = expectedTotes.filter(t => !receivedTotes.includes(t));
+
+  return {
+    received: receivedTotes.length,
+    expected: expectedTotes.length,
+    missing: missing,
+    isComplete: missing.length === 0,
+    isMultiRoute: consolidation.isMultiRoute || false,
+  };
+}
+
+/**
+ * Creates a multi-route consolidation unit
+ * @param {string} orderId - The order ID
+ * @param {string} waveId - The wave ID
+ * @param {Array} items - Array of expected items
+ * @param {number} expectedRouteCount - Number of routes to wait for
+ * @param {Array} expectedTotes - Array of expected tote IDs
+ * @returns {Object|null} Created consolidation unit or null
+ */
+export function createMultiRouteConsolidation(orderId, waveId, items, expectedRouteCount, expectedTotes) {
+  const url = `${BASE_URLS.consolidation}${ENDPOINTS.consolidation.create}`;
+  const payload = JSON.stringify({
+    orderId: orderId,
+    waveId: waveId,
+    expectedItems: items,
+    isMultiRoute: true,
+    expectedRouteCount: expectedRouteCount,
+    expectedTotes: expectedTotes,
+    strategy: 'order',
+  });
+
+  const response = http.post(url, payload, HTTP_PARAMS);
+
+  const success = check(response, {
+    'create multi-route consolidation status 200/201': (r) => r.status === 200 || r.status === 201,
+  });
+
+  if (!success) {
+    console.warn(`Failed to create multi-route consolidation for order ${orderId}: ${response.status} - ${response.body}`);
+    return null;
+  }
+
+  try {
+    return JSON.parse(response.body);
+  } catch (e) {
+    console.error(`Failed to parse consolidation response: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Waits for all totes to arrive at consolidation (polling)
+ * @param {string} consolidationId - The consolidation ID
+ * @param {number} timeoutMs - Maximum time to wait in milliseconds
+ * @param {number} pollIntervalMs - Polling interval in milliseconds
+ * @returns {Object} Result {success, received, expected, timedOut}
+ */
+export function waitForAllTotes(consolidationId, timeoutMs = 300000, pollIntervalMs = 5000) {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    const progress = getToteArrivalProgress(consolidationId);
+
+    if (!progress.isMultiRoute) {
+      console.log(`Consolidation ${consolidationId} is not multi-route, no tote waiting needed`);
+      return { success: true, received: 1, expected: 1, timedOut: false };
+    }
+
+    console.log(`Tote progress for ${consolidationId}: ${progress.received}/${progress.expected} received`);
+
+    if (progress.isComplete) {
+      console.log(`All ${progress.expected} totes received for consolidation ${consolidationId}`);
+      return {
+        success: true,
+        received: progress.received,
+        expected: progress.expected,
+        timedOut: false,
+      };
+    }
+
+    sleep(pollIntervalMs / 1000);
+  }
+
+  const finalProgress = getToteArrivalProgress(consolidationId);
+  console.warn(`Timeout waiting for totes. Received ${finalProgress.received}/${finalProgress.expected}. Missing: ${finalProgress.missing.join(', ')}`);
+
+  return {
+    success: false,
+    received: finalProgress.received,
+    expected: finalProgress.expected,
+    missing: finalProgress.missing,
+    timedOut: true,
+  };
+}
+
+/**
+ * Processes a multi-route consolidation with tote waiting
+ * @param {Object} unit - The consolidation unit object
+ * @param {boolean} waitForTotes - Whether to wait for all totes before processing
+ * @returns {boolean} True if fully successful
+ */
+export function processMultiRouteConsolidation(unit, waitForTotes = true) {
+  const consolidationId = unit.consolidationId || unit.id;
+  const orderId = unit.orderId;
+  const isMultiRoute = unit.isMultiRoute || false;
+
+  console.log(`Processing ${isMultiRoute ? 'multi-route' : 'single-route'} consolidation ${consolidationId} for order ${orderId}`);
+
+  // For multi-route consolidations, wait for all totes
+  if (isMultiRoute && waitForTotes) {
+    const waitResult = waitForAllTotes(
+      consolidationId,
+      CONSOLIDATION_CONFIG.toteWaitTimeoutMs || 300000,
+      CONSOLIDATION_CONFIG.toteWaitPollIntervalMs || 5000
+    );
+
+    if (!waitResult.success) {
+      console.warn(`Tote wait failed for consolidation ${consolidationId}. Proceeding with partial consolidation.`);
+      // Continue anyway with available totes
+    }
+  }
+
+  // Process using standard consolidation flow
+  return processConsolidation(unit);
 }

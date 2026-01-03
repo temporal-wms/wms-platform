@@ -112,6 +112,7 @@ type Reservation struct {
 	Quantity      int       `bson:"quantity"`
 	LocationID    string    `bson:"locationId"`
 	Status        string    `bson:"status"` // active, staged, fulfilled, cancelled
+	UnitIDs       []string  `bson:"unitIds,omitempty"` // Specific units reserved for unit-level tracking
 	CreatedAt     time.Time `bson:"createdAt"`
 	ExpiresAt     time.Time `bson:"expiresAt"`
 }
@@ -126,6 +127,7 @@ type HardAllocation struct {
 	SourceLocationID  string     `bson:"sourceLocationId"`
 	StagingLocationID string     `bson:"stagingLocationId"`
 	Status            string     `bson:"status"` // staged, packed, shipped, returned
+	UnitIDs           []string   `bson:"unitIds,omitempty"` // Specific units allocated for unit-level tracking
 	StagedBy          string     `bson:"stagedBy"`
 	PackedBy          string     `bson:"packedBy,omitempty"`
 	CreatedAt         time.Time  `bson:"createdAt"`
@@ -220,6 +222,11 @@ func (i *InventoryItem) ReceiveStock(locationID, zone string, quantity int, refe
 
 // Reserve reserves stock for an order
 func (i *InventoryItem) Reserve(orderID, locationID string, quantity int) error {
+	return i.ReserveWithUnits(orderID, locationID, quantity, nil)
+}
+
+// ReserveWithUnits reserves stock for an order with specific unit IDs
+func (i *InventoryItem) ReserveWithUnits(orderID, locationID string, quantity int, unitIDs []string) error {
 	if quantity <= 0 {
 		return ErrInvalidQuantity
 	}
@@ -246,6 +253,7 @@ func (i *InventoryItem) Reserve(orderID, locationID string, quantity int) error 
 		Quantity:      quantity,
 		LocationID:    locationID,
 		Status:        "active",
+		UnitIDs:       unitIDs,
 		CreatedAt:     time.Now(),
 		ExpiresAt:     time.Now().Add(24 * time.Hour),
 	}
@@ -536,7 +544,7 @@ func (i *InventoryItem) Stage(reservationID, stagingLocationID, stagedBy string)
 	i.ReservedQuantity -= reservation.Quantity
 	i.HardAllocatedQuantity += reservation.Quantity
 
-	// Create hard allocation
+	// Create hard allocation (copy unit IDs from reservation for unit-level tracking)
 	allocation := HardAllocation{
 		AllocationID:      generateAllocationID(),
 		ReservationID:     reservationID,
@@ -545,6 +553,7 @@ func (i *InventoryItem) Stage(reservationID, stagingLocationID, stagedBy string)
 		SourceLocationID:  reservation.LocationID,
 		StagingLocationID: stagingLocationID,
 		Status:            "staged",
+		UnitIDs:           reservation.UnitIDs,
 		StagedBy:          stagedBy,
 		CreatedAt:         time.Now(),
 	}

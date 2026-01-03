@@ -43,6 +43,7 @@ type ItemReceivedEvent struct {
 	ToteID     string    `json:"toteId,omitempty"`
 	ReceivedBy string    `json:"receivedBy"`
 	ReceivedAt time.Time `json:"receivedAt"`
+	UnitIDs    []string  `json:"unitIds,omitempty"` // Generated unit UUIDs for unit-level tracking
 }
 
 func (e *ItemReceivedEvent) EventType() string     { return "receiving.item.received" }

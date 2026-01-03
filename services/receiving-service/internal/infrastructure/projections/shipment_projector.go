@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/wms-platform/receiving-service/internal/domain"
+	"github.com/wms-platform/services/receiving-service/internal/domain"
 )
 
 // ShipmentProjector handles domain events and updates the shipment list projection
@@ -43,16 +43,16 @@ func (p *ShipmentProjector) OnShipmentExpected(ctx context.Context, event *domai
 	// Create initial projection
 	projection := &ShipmentListProjection{
 		ShipmentID:         shipment.ShipmentID,
-		ASNID:              shipment.ASNID,
-		SupplierID:         shipment.SupplierID,
-		SupplierName:       shipment.SupplierName,
+		ASNID:              shipment.ASN.ASNID,
+		SupplierID:         shipment.Supplier.SupplierID,
+		SupplierName:       shipment.Supplier.SupplierName,
 		Status:             string(shipment.Status),
-		TotalItemsExpected: shipment.TotalItemsExpected(),
+		TotalItemsExpected: shipment.TotalExpectedQuantity(),
 		TotalItemsReceived: 0,
 		TotalDamaged:       0,
 		DiscrepancyCount:   0,
 		ReceivingProgress:  0,
-		ExpectedArrival:    shipment.ExpectedArrival,
+		ExpectedArrival:    shipment.ASN.ExpectedArrival,
 		CreatedAt:          shipment.CreatedAt,
 		UpdatedAt:          now,
 		IsOnTime:           !isLate,
@@ -186,38 +186,38 @@ func (p *ShipmentProjector) RebuildProjection(ctx context.Context, shipmentID st
 	}
 
 	now := time.Now().UTC()
-	isLate := shipment.ArrivedAt == nil && now.After(shipment.ExpectedArrival)
+	isLate := shipment.ArrivedAt == nil && now.After(shipment.ASN.ExpectedArrival)
 	if shipment.ArrivedAt != nil {
-		isLate = shipment.ArrivedAt.After(shipment.ExpectedArrival)
+		isLate = shipment.ArrivedAt.After(shipment.ASN.ExpectedArrival)
 	}
 
 	progress := float64(0)
-	totalExpected := shipment.TotalItemsExpected()
-	totalReceived := shipment.TotalItemsReceived()
+	totalExpected := shipment.TotalExpectedQuantity()
+	totalReceived := shipment.TotalReceivedQuantity()
 	if totalExpected > 0 {
 		progress = float64(totalReceived) / float64(totalExpected) * 100
 	}
 
 	projection := &ShipmentListProjection{
 		ShipmentID:         shipment.ShipmentID,
-		ASNID:              shipment.ASNID,
-		SupplierID:         shipment.SupplierID,
-		SupplierName:       shipment.SupplierName,
+		ASNID:              shipment.ASN.ASNID,
+		SupplierID:         shipment.Supplier.SupplierID,
+		SupplierName:       shipment.Supplier.SupplierName,
 		Status:             string(shipment.Status),
-		DockID:             shipment.DockID,
+		DockID:             shipment.ReceivingDockID,
 		TotalItemsExpected: totalExpected,
 		TotalItemsReceived: totalReceived,
-		TotalDamaged:       shipment.TotalDamaged(),
+		TotalDamaged:       shipment.TotalDamagedQuantity(),
 		DiscrepancyCount:   len(shipment.Discrepancies),
 		ReceivingProgress:  progress,
-		ExpectedArrival:    shipment.ExpectedArrival,
+		ExpectedArrival:    shipment.ASN.ExpectedArrival,
 		ArrivedAt:          shipment.ArrivedAt,
 		CompletedAt:        shipment.CompletedAt,
 		CreatedAt:          shipment.CreatedAt,
 		UpdatedAt:          now,
 		IsOnTime:           !isLate,
 		IsLate:             isLate,
-		HasIssues:          shipment.TotalDamaged() > 0 || len(shipment.Discrepancies) > 0,
+		HasIssues:          shipment.TotalDamagedQuantity() > 0 || len(shipment.Discrepancies) > 0,
 	}
 
 	return p.projectionRepo.Upsert(ctx, projection)

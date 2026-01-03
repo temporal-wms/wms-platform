@@ -91,14 +91,15 @@ func (e *ExpectedItem) IsFullyReceived() bool {
 
 // ReceiptRecord represents a single receipt action
 type ReceiptRecord struct {
-	ReceiptID    string    `bson:"receiptId" json:"receiptId"`
-	SKU          string    `bson:"sku" json:"sku"`
-	Quantity     int       `bson:"quantity" json:"quantity"`
-	ToteID       string    `bson:"toteId,omitempty" json:"toteId,omitempty"`
-	Condition    string    `bson:"condition" json:"condition"` // good, damaged
-	ReceivedBy   string    `bson:"receivedBy" json:"receivedBy"`
-	ReceivedAt   time.Time `bson:"receivedAt" json:"receivedAt"`
-	Notes        string    `bson:"notes,omitempty" json:"notes,omitempty"`
+	ReceiptID        string    `bson:"receiptId" json:"receiptId"`
+	SKU              string    `bson:"sku" json:"sku"`
+	Quantity         int       `bson:"quantity" json:"quantity"`
+	ToteID           string    `bson:"toteId,omitempty" json:"toteId,omitempty"`
+	Condition        string    `bson:"condition" json:"condition"` // good, damaged
+	ReceivedBy       string    `bson:"receivedBy" json:"receivedBy"`
+	ReceivedAt       time.Time `bson:"receivedAt" json:"receivedAt"`
+	Notes            string    `bson:"notes,omitempty" json:"notes,omitempty"`
+	GeneratedUnitIDs []string  `bson:"generatedUnitIds,omitempty" json:"generatedUnitIds,omitempty"` // UUIDs for each unit received
 }
 
 // Discrepancy represents a difference between expected and actual
@@ -234,6 +235,11 @@ func (s *InboundShipment) StartReceiving(workerID string) error {
 
 // ReceiveItem records the receipt of items
 func (s *InboundShipment) ReceiveItem(sku string, quantity int, condition string, toteID, workerID, notes string) error {
+	return s.ReceiveItemWithUnits(sku, quantity, condition, toteID, workerID, notes, nil)
+}
+
+// ReceiveItemWithUnits records the receipt of items with generated unit IDs
+func (s *InboundShipment) ReceiveItemWithUnits(sku string, quantity int, condition string, toteID, workerID, notes string, unitIDs []string) error {
 	if s.Status != ShipmentStatusReceiving {
 		return ErrInvalidStatusTransition
 	}
@@ -263,14 +269,15 @@ func (s *InboundShipment) ReceiveItem(sku string, quantity int, condition string
 	// Create receipt record
 	receiptID := generateReceiptID()
 	s.ReceiptRecords = append(s.ReceiptRecords, ReceiptRecord{
-		ReceiptID:  receiptID,
-		SKU:        sku,
-		Quantity:   quantity,
-		ToteID:     toteID,
-		Condition:  condition,
-		ReceivedBy: workerID,
-		ReceivedAt: now,
-		Notes:      notes,
+		ReceiptID:        receiptID,
+		SKU:              sku,
+		Quantity:         quantity,
+		ToteID:           toteID,
+		Condition:        condition,
+		ReceivedBy:       workerID,
+		ReceivedAt:       now,
+		Notes:            notes,
+		GeneratedUnitIDs: unitIDs,
 	})
 
 	s.UpdatedAt = now
@@ -284,6 +291,7 @@ func (s *InboundShipment) ReceiveItem(sku string, quantity int, condition string
 		ToteID:     toteID,
 		ReceivedBy: workerID,
 		ReceivedAt: now,
+		UnitIDs:    unitIDs,
 	})
 
 	return nil

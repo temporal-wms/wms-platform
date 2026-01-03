@@ -28,6 +28,8 @@ type Config struct {
 	LaborServiceURL         string
 	WavingServiceURL        string
 	FacilityServiceURL      string
+	UnitServiceURL          string
+	ProcessPathServiceURL   string
 }
 
 // NewServiceClients creates a new ServiceClients instance
@@ -230,6 +232,16 @@ func (c *ServiceClients) GetRoute(ctx context.Context, routeID string) (*Route, 
 	return &result, nil
 }
 
+// CalculateMultiRoute calculates multiple routes for an order (zone and capacity splitting)
+func (c *ServiceClients) CalculateMultiRoute(ctx context.Context, req *CalculateRouteRequest) (*MultiRouteResult, error) {
+	url := fmt.Sprintf("%s/api/v1/routes/calculate-multi", c.config.RoutingServiceURL)
+	var result MultiRouteResult
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // PickingService methods
 
 // CreatePickTask creates a new pick task
@@ -333,6 +345,16 @@ func (c *ServiceClients) GetPackTask(ctx context.Context, taskID string) (*PackT
 	url := fmt.Sprintf("%s/api/v1/tasks/%s", c.config.PackingServiceURL, taskID)
 	var result PackTask
 	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// StartPackTask marks a pack task as started (sets startedAt timestamp)
+func (c *ServiceClients) StartPackTask(ctx context.Context, taskID string) (*PackTask, error) {
+	url := fmt.Sprintf("%s/api/v1/tasks/%s/start", c.config.PackingServiceURL, taskID)
+	var result PackTask
+	if err := c.doRequest(ctx, http.MethodPost, url, nil, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -559,4 +581,306 @@ func (c *ServiceClients) GetStationsByType(ctx context.Context, stationType stri
 		return nil, err
 	}
 	return result, nil
+}
+
+// Unit Service methods
+
+// CreateUnitsRequest represents a request to create units at receiving
+type CreateUnitsRequest struct {
+	SKU        string `json:"sku"`
+	ShipmentID string `json:"shipmentId"`
+	LocationID string `json:"locationId"`
+	Quantity   int    `json:"quantity"`
+	CreatedBy  string `json:"createdBy"`
+}
+
+// CreateUnitsResponse represents the result of creating units
+type CreateUnitsResponse struct {
+	UnitIDs []string `json:"unitIds"`
+	SKU     string   `json:"sku"`
+	Count   int      `json:"count"`
+}
+
+// CreateUnits generates UUIDs for units at receiving
+func (c *ServiceClients) CreateUnits(ctx context.Context, sku, shipmentID, locationID string, quantity int, createdBy string) (*CreateUnitsResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/units", c.config.UnitServiceURL)
+	req := CreateUnitsRequest{
+		SKU:        sku,
+		ShipmentID: shipmentID,
+		LocationID: locationID,
+		Quantity:   quantity,
+		CreatedBy:  createdBy,
+	}
+	var result CreateUnitsResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ReserveUnitsRequest represents a request to reserve units for an order
+type ReserveUnitsRequest struct {
+	OrderID   string            `json:"orderId"`
+	PathID    string            `json:"pathId"`
+	Items     []ReserveUnitItem `json:"items"`
+	HandlerID string            `json:"handlerId"`
+}
+
+// ReserveUnitItem specifies SKU and quantity to reserve
+type ReserveUnitItem struct {
+	SKU      string `json:"sku"`
+	Quantity int    `json:"quantity"`
+}
+
+// ReservedUnit holds info about a reserved unit
+type ReservedUnit struct {
+	UnitID     string `json:"unitId"`
+	SKU        string `json:"sku"`
+	LocationID string `json:"locationId"`
+}
+
+// FailedReserveItem holds info about a failed reservation
+type FailedReserveItem struct {
+	SKU       string `json:"sku"`
+	Requested int    `json:"requested"`
+	Available int    `json:"available"`
+	Reason    string `json:"reason"`
+}
+
+// ReserveUnitsResponse represents the result of reserving units
+type ReserveUnitsResponse struct {
+	ReservedUnits []ReservedUnit      `json:"reservedUnits"`
+	FailedItems   []FailedReserveItem `json:"failedItems,omitempty"`
+}
+
+// ReserveUnits reserves specific units for an order with a path
+func (c *ServiceClients) ReserveUnits(ctx context.Context, orderID, pathID string, items interface{}, handlerID string) (*ReserveUnitsResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/units/reserve", c.config.UnitServiceURL)
+	req := map[string]interface{}{
+		"orderId":   orderID,
+		"pathId":    pathID,
+		"items":     items,
+		"handlerId": handlerID,
+	}
+	var result ReserveUnitsResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UnitForOrder holds information about a unit for an order
+type UnitForOrder struct {
+	UnitID     string `json:"unitId"`
+	SKU        string `json:"sku"`
+	Status     string `json:"status"`
+	LocationID string `json:"locationId"`
+}
+
+// GetUnitsForOrder retrieves all units reserved for an order
+func (c *ServiceClients) GetUnitsForOrder(ctx context.Context, orderID string) ([]UnitForOrder, error) {
+	url := fmt.Sprintf("%s/api/v1/units/order/%s", c.config.UnitServiceURL, orderID)
+	var result []UnitForOrder
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ConfirmUnitPick confirms that a specific unit has been picked
+func (c *ServiceClients) ConfirmUnitPick(ctx context.Context, unitID, toteID, pickerID, stationID string) error {
+	url := fmt.Sprintf("%s/api/v1/units/%s/pick", c.config.UnitServiceURL, unitID)
+	req := map[string]string{
+		"toteId":    toteID,
+		"pickerId":  pickerID,
+		"stationId": stationID,
+	}
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// ConfirmUnitConsolidation confirms that a specific unit has been consolidated
+func (c *ServiceClients) ConfirmUnitConsolidation(ctx context.Context, unitID, destinationBin, workerID, stationID string) error {
+	url := fmt.Sprintf("%s/api/v1/units/%s/consolidate", c.config.UnitServiceURL, unitID)
+	req := map[string]string{
+		"destinationBin": destinationBin,
+		"workerId":       workerID,
+		"stationId":      stationID,
+	}
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// ConfirmUnitPacked confirms that a specific unit has been packed
+func (c *ServiceClients) ConfirmUnitPacked(ctx context.Context, unitID, packageID, packerID, stationID string) error {
+	url := fmt.Sprintf("%s/api/v1/units/%s/pack", c.config.UnitServiceURL, unitID)
+	req := map[string]string{
+		"packageId": packageID,
+		"packerId":  packerID,
+		"stationId": stationID,
+	}
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// ConfirmUnitShipped confirms that a specific unit has been shipped
+func (c *ServiceClients) ConfirmUnitShipped(ctx context.Context, unitID, shipmentID, trackingNumber, handlerID string) error {
+	url := fmt.Sprintf("%s/api/v1/units/%s/ship", c.config.UnitServiceURL, unitID)
+	req := map[string]string{
+		"shipmentId":     shipmentID,
+		"trackingNumber": trackingNumber,
+		"handlerId":      handlerID,
+	}
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// UnitExceptionResult holds the result of creating an exception
+type UnitExceptionResult struct {
+	ExceptionID string `json:"exceptionId"`
+	UnitID      string `json:"unitId"`
+}
+
+// CreateUnitException creates an exception for a failed unit
+func (c *ServiceClients) CreateUnitException(ctx context.Context, unitID, exceptionType, stage, description, stationID, reportedBy string) (*UnitExceptionResult, error) {
+	url := fmt.Sprintf("%s/api/v1/units/%s/exception", c.config.UnitServiceURL, unitID)
+	req := map[string]string{
+		"exceptionType": exceptionType,
+		"stage":         stage,
+		"description":   description,
+		"stationId":     stationID,
+		"reportedBy":    reportedBy,
+	}
+	var result UnitExceptionResult
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UnitMovement holds information about a unit movement
+type UnitMovement struct {
+	MovementID     string `json:"movementId"`
+	FromLocationID string `json:"fromLocationId"`
+	ToLocationID   string `json:"toLocationId"`
+	FromStatus     string `json:"fromStatus"`
+	ToStatus       string `json:"toStatus"`
+	StationID      string `json:"stationId"`
+	HandlerID      string `json:"handlerId"`
+	Timestamp      string `json:"timestamp"`
+	Notes          string `json:"notes"`
+}
+
+// GetUnitAuditTrail retrieves the full movement history for a unit
+func (c *ServiceClients) GetUnitAuditTrail(ctx context.Context, unitID string) ([]UnitMovement, error) {
+	url := fmt.Sprintf("%s/api/v1/units/%s/audit", c.config.UnitServiceURL, unitID)
+	var result []UnitMovement
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// PersistProcessPathResult holds the result of persisting a process path
+type PersistProcessPathResult struct {
+	PathID  string `json:"pathId"`
+	OrderID string `json:"orderId"`
+}
+
+// PersistProcessPath saves the process path to ensure all units follow the same path
+func (c *ServiceClients) PersistProcessPath(ctx context.Context, orderID string, requirements []string, consolidationRequired, giftWrapRequired bool, specialHandling []string) (*PersistProcessPathResult, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths", c.config.OrderServiceURL)
+	req := map[string]interface{}{
+		"orderId":               orderID,
+		"requirements":          requirements,
+		"consolidationRequired": consolidationRequired,
+		"giftWrapRequired":      giftWrapRequired,
+		"specialHandling":       specialHandling,
+	}
+	var result PersistProcessPathResult
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ProcessPathInfo holds information about a persisted process path
+type ProcessPathInfo struct {
+	PathID                string   `json:"pathId"`
+	OrderID               string   `json:"orderId"`
+	Requirements          []string `json:"requirements"`
+	ConsolidationRequired bool     `json:"consolidationRequired"`
+	GiftWrapRequired      bool     `json:"giftWrapRequired"`
+	SpecialHandling       []string `json:"specialHandling"`
+	TargetStationID       string   `json:"targetStationId,omitempty"`
+}
+
+// GetProcessPath retrieves a persisted process path by ID
+func (c *ServiceClients) GetProcessPath(ctx context.Context, pathID string) (*ProcessPathInfo, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths/%s", c.config.OrderServiceURL, pathID)
+	var result ProcessPathInfo
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Process Path Service methods
+
+// DetermineProcessPathRequest represents a request to determine process path
+type DetermineProcessPathRequest struct {
+	OrderID          string            `json:"orderId"`
+	Items            []ProcessPathItem `json:"items"`
+	GiftWrap         bool              `json:"giftWrap"`
+	GiftWrapDetails  *GiftWrapDetails  `json:"giftWrapDetails,omitempty"`
+	HazmatDetails    *HazmatDetails    `json:"hazmatDetails,omitempty"`
+	ColdChainDetails *ColdChainDetails `json:"coldChainDetails,omitempty"`
+	TotalValue       float64           `json:"totalValue"`
+}
+
+// ProcessPathItem represents an item for process path determination
+type ProcessPathItem struct {
+	SKU               string  `json:"sku"`
+	Quantity          int     `json:"quantity"`
+	Weight            float64 `json:"weight"`
+	IsFragile         bool    `json:"isFragile"`
+	IsHazmat          bool    `json:"isHazmat"`
+	RequiresColdChain bool    `json:"requiresColdChain"`
+}
+
+// DetermineProcessPathViaService calls the process-path-service to determine the process path
+func (c *ServiceClients) DetermineProcessPathViaService(ctx context.Context, req *DetermineProcessPathRequest) (*ProcessPath, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths/determine", c.config.ProcessPathServiceURL)
+	var result ProcessPath
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetProcessPathFromService retrieves a process path from process-path-service by pathId
+func (c *ServiceClients) GetProcessPathFromService(ctx context.Context, pathID string) (*ProcessPath, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths/%s", c.config.ProcessPathServiceURL, pathID)
+	var result ProcessPath
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetProcessPathByOrderID retrieves a process path by order ID from process-path-service
+func (c *ServiceClients) GetProcessPathByOrderID(ctx context.Context, orderID string) (*ProcessPath, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths/order/%s", c.config.ProcessPathServiceURL, orderID)
+	var result ProcessPath
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// AssignStationToProcessPath assigns a station to a process path in process-path-service
+func (c *ServiceClients) AssignStationToProcessPath(ctx context.Context, pathID, stationID string) (*ProcessPath, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths/%s/station", c.config.ProcessPathServiceURL, pathID)
+	req := map[string]string{"stationId": stationID}
+	var result ProcessPath
+	if err := c.doRequest(ctx, http.MethodPut, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }

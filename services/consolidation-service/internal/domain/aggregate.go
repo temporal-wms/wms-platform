@@ -56,6 +56,14 @@ type ConsolidationUnit struct {
 	StartedAt           *time.Time            `bson:"startedAt,omitempty"`
 	CompletedAt         *time.Time            `bson:"completedAt,omitempty"`
 	DomainEvents        []DomainEvent         `bson:"-"`
+
+	// Multi-route support fields
+	IsMultiRoute       bool              `bson:"isMultiRoute"`       // Flag for multi-route order
+	ExpectedRouteCount int               `bson:"expectedRouteCount"` // Total routes to wait for
+	ReceivedRouteCount int               `bson:"receivedRouteCount"` // Routes received so far
+	RouteStatus        map[string]string `bson:"routeStatus"`        // Status per route ID
+	ExpectedTotes      []string          `bson:"expectedTotes"`      // Expected tote IDs from all routes
+	ReceivedTotes      []string          `bson:"receivedTotes"`      // Totes already received
 }
 
 // ExpectedItem represents an item expected for consolidation
@@ -125,6 +133,117 @@ func NewConsolidationUnit(consolidationID, orderID, waveID string, strategy Cons
 	})
 
 	return unit, nil
+}
+
+// NewMultiRouteConsolidationUnit creates a consolidation unit for multi-route orders
+func NewMultiRouteConsolidationUnit(consolidationID, orderID, waveID string, strategy ConsolidationStrategy, items []ExpectedItem, expectedRouteCount int, expectedTotes []string) (*ConsolidationUnit, error) {
+	unit, err := NewConsolidationUnit(consolidationID, orderID, waveID, strategy, items)
+	if err != nil {
+		return nil, err
+	}
+
+	unit.IsMultiRoute = expectedRouteCount > 1
+	unit.ExpectedRouteCount = expectedRouteCount
+	unit.ReceivedRouteCount = 0
+	unit.RouteStatus = make(map[string]string)
+	unit.ExpectedTotes = expectedTotes
+	unit.ReceivedTotes = make([]string, 0)
+
+	return unit, nil
+}
+
+// ReceiveTote records arrival of a tote from a picking route
+func (c *ConsolidationUnit) ReceiveTote(toteID, routeID string) error {
+	if c.Status == ConsolidationStatusCompleted {
+		return ErrConsolidationComplete
+	}
+
+	// Check if tote already received
+	for _, t := range c.ReceivedTotes {
+		if t == toteID {
+			return nil // Already received, idempotent
+		}
+	}
+
+	c.ReceivedTotes = append(c.ReceivedTotes, toteID)
+
+	// Update route status if provided
+	if routeID != "" {
+		if c.RouteStatus == nil {
+			c.RouteStatus = make(map[string]string)
+		}
+		if _, exists := c.RouteStatus[routeID]; !exists {
+			c.RouteStatus[routeID] = "received"
+			c.ReceivedRouteCount++
+		}
+	}
+
+	c.UpdatedAt = time.Now()
+
+	c.AddDomainEvent(&ToteReceivedEvent{
+		ConsolidationID: c.ConsolidationID,
+		ToteID:          toteID,
+		RouteID:         routeID,
+		ReceivedAt:      time.Now(),
+	})
+
+	return nil
+}
+
+// AllTotesReceived checks if all expected totes have arrived
+func (c *ConsolidationUnit) AllTotesReceived() bool {
+	if !c.IsMultiRoute {
+		return true // Single route - always ready
+	}
+
+	if len(c.ExpectedTotes) == 0 {
+		// No specific totes expected - check by route count
+		return c.ReceivedRouteCount >= c.ExpectedRouteCount
+	}
+
+	// Check if all expected totes have been received
+	for _, expected := range c.ExpectedTotes {
+		found := false
+		for _, received := range c.ReceivedTotes {
+			if expected == received {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}
+
+// GetMissingTotes returns list of expected totes that haven't arrived
+func (c *ConsolidationUnit) GetMissingTotes() []string {
+	missing := make([]string, 0)
+
+	for _, expected := range c.ExpectedTotes {
+		found := false
+		for _, received := range c.ReceivedTotes {
+			if expected == received {
+				found = true
+				break
+			}
+		}
+		if !found {
+			missing = append(missing, expected)
+		}
+	}
+
+	return missing
+}
+
+// GetToteArrivalProgress returns progress of tote arrivals (received/expected)
+func (c *ConsolidationUnit) GetToteArrivalProgress() (int, int) {
+	if !c.IsMultiRoute {
+		return 1, 1
+	}
+	return len(c.ReceivedTotes), len(c.ExpectedTotes)
 }
 
 // AssignStation assigns a consolidation station and worker

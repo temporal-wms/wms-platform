@@ -428,10 +428,10 @@ func (s *WavingApplicationService) CreateWaveFromOrders(ctx context.Context, cmd
 		return nil, fmt.Errorf("failed to save wave: %w", err)
 	}
 
-	// Signal each order's Temporal workflow with waveAssigned
+	// Signal each order's Planning workflow with waveAssigned
 	if s.temporalClient != nil {
 		for _, order := range wave.Orders {
-			workflowID := "order-fulfillment-" + order.OrderID
+			workflowID := "planning-" + order.OrderID
 			signalPayload := WaveAssignedSignal{
 				WaveID:         waveID,
 				ScheduledStart: scheduledStart,

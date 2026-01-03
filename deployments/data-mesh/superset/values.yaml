@@ -41,6 +41,24 @@ configOverrides:
         "ENABLE_FILTER_BOX_MIGRATION": True,
     }
 
+  # CSRF configuration for API access
+  csrf: |
+    # Exempt REST API endpoints from CSRF protection for programmatic access
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_EXEMPT_LIST = [
+        'superset.views.api',
+        'superset.views.core.csrf_token',
+        'superset.security.api',
+    ]
+    # Allow CORS for local development
+    ENABLE_CORS = True
+    CORS_OPTIONS = {
+        'supports_credentials': True,
+        'allow_headers': ['*'],
+        'resources': ['*'],
+        'origins': ['*'],
+    }
+
 # Bootstrap script to create admin user and configure database
 bootstrapScript: |
   #!/bin/bash

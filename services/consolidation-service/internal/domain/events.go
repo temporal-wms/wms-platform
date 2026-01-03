@@ -45,3 +45,14 @@ type ConsolidationCompletedEvent struct {
 
 func (e *ConsolidationCompletedEvent) EventType() string    { return "wms.consolidation.completed" }
 func (e *ConsolidationCompletedEvent) OccurredAt() time.Time { return e.CompletedAt }
+
+// ToteReceivedEvent is published when a tote arrives at consolidation from a picking route
+type ToteReceivedEvent struct {
+	ConsolidationID string    `json:"consolidationId"`
+	ToteID          string    `json:"toteId"`
+	RouteID         string    `json:"routeId"`
+	ReceivedAt      time.Time `json:"receivedAt"`
+}
+
+func (e *ToteReceivedEvent) EventType() string    { return "wms.consolidation.tote-received" }
+func (e *ToteReceivedEvent) OccurredAt() time.Time { return e.ReceivedAt }

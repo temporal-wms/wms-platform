@@ -344,6 +344,31 @@ services:
       - full
     restart: unless-stopped
 
+  process-path-service:
+    build:
+      context: ..
+      dockerfile: services/process-path-service/Dockerfile
+    container_name: wms-process-path-service
+    ports:
+      - "8015:8015"
+    environment:
+      - SERVER_ADDR=:8015
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=process_path_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+      - LOG_LEVEL=debug
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
   orchestrator:
     build:
       context: ..

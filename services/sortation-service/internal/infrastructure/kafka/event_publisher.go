@@ -6,7 +6,7 @@ import (
 
 	"github.com/wms-platform/shared/pkg/cloudevents"
 	"github.com/wms-platform/shared/pkg/kafka"
-	"github.com/wms-platform/sortation-service/internal/domain"
+	"github.com/wms-platform/services/sortation-service/internal/domain"
 )
 
 // EventPublisher implements domain event publishing using Kafka

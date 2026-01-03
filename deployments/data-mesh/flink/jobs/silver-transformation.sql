@@ -466,3 +466,119 @@ FROM (
     FROM bronze.pack_tasks_raw
 )
 WHERE rn = 1;
+
+-- ============================================
+-- ROUTING DATA PRODUCT - Silver Layer
+-- ============================================
+
+-- Routes Current: Full details with computed metrics
+CREATE TABLE IF NOT EXISTS silver.routes_current (
+    `route_id` STRING,
+    `order_id` STRING,
+    `wave_id` STRING,
+    `picker_id` STRING,
+    `status` STRING,
+    `strategy` STRING,
+    `stops` ARRAY<ROW<
+        stop_number INT,
+        location_id STRING,
+        aisle STRING,
+        rack INT,
+        level INT,
+        zone STRING,
+        sku STRING,
+        quantity INT,
+        picked_qty INT,
+        status STRING,
+        tote_id STRING,
+        picked_at TIMESTAMP(3)
+    >>,
+    `zone` STRING,
+    `total_items` INT,
+    `picked_items` INT,
+    `stop_count` INT,
+    `zones_visited` ARRAY<STRING>,
+    `zone_count` INT,
+    `estimated_distance_m` DOUBLE,
+    `actual_distance_m` DOUBLE,
+    `estimated_time_seconds` BIGINT,
+    `actual_time_seconds` BIGINT,
+    `is_multi_route` BOOLEAN,
+    `parent_order_id` STRING,
+    `route_index` INT,
+    `total_routes_in_order` INT,
+    `source_tote_id` STRING,
+    `efficiency_ratio` DOUBLE,
+    `distance_accuracy` DOUBLE,
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `started_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `duration_seconds` BIGINT,
+    `pick_rate` DOUBLE,
+    `is_deleted` BOOLEAN,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`route_id`) NOT ENFORCED
+) PARTITIONED BY (days(`created_at`))
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Transform routes from Bronze
+INSERT INTO silver.routes_current
+SELECT
+    route_id,
+    order_id,
+    wave_id,
+    picker_id,
+    status,
+    strategy,
+    CAST(JSON_QUERY(stops, '$[*]' RETURNING ARRAY<ROW<
+        stop_number INT, location_id STRING, aisle STRING,
+        rack INT, level INT, zone STRING, sku STRING,
+        quantity INT, picked_qty INT, status STRING,
+        tote_id STRING, picked_at TIMESTAMP(3)
+    >>) AS ARRAY<ROW<stop_number INT, location_id STRING, aisle STRING,
+        rack INT, level INT, zone STRING, sku STRING,
+        quantity INT, picked_qty INT, status STRING,
+        tote_id STRING, picked_at TIMESTAMP(3)>>) AS stops,
+    zone,
+    total_items,
+    picked_items,
+    COALESCE(JSON_ARRAY_LENGTH(stops), 0) AS stop_count,
+    -- Extract unique zones from stops JSON
+    ARRAY_DISTINCT(CAST(JSON_QUERY(stops, '$[*].zone' RETURNING ARRAY<STRING>) AS ARRAY<STRING>)) AS zones_visited,
+    CARDINALITY(ARRAY_DISTINCT(CAST(JSON_QUERY(stops, '$[*].zone' RETURNING ARRAY<STRING>) AS ARRAY<STRING>))) AS zone_count,
+    estimated_distance AS estimated_distance_m,
+    actual_distance AS actual_distance_m,
+    estimated_time / 1000000000 AS estimated_time_seconds,
+    actual_time / 1000000000 AS actual_time_seconds,
+    is_multi_route,
+    parent_order_id,
+    route_index,
+    total_routes_in_order,
+    source_tote_id,
+    CASE WHEN estimated_time > 0
+         THEN CAST(actual_time AS DOUBLE) / estimated_time
+         ELSE NULL END AS efficiency_ratio,
+    CASE WHEN estimated_distance > 0
+         THEN actual_distance / estimated_distance
+         ELSE NULL END AS distance_accuracy,
+    created_at,
+    updated_at,
+    started_at,
+    completed_at,
+    CASE WHEN completed_at IS NOT NULL AND started_at IS NOT NULL
+         THEN TIMESTAMPDIFF(SECOND, started_at, completed_at)
+         ELSE NULL END AS duration_seconds,
+    CASE WHEN completed_at IS NOT NULL AND started_at IS NOT NULL AND picked_items > 0
+         THEN CAST(picked_items AS DOUBLE) / (TIMESTAMPDIFF(SECOND, started_at, completed_at) / 60.0)
+         ELSE NULL END AS pick_rate,
+    CASE WHEN cdc_operation = 'd' THEN TRUE ELSE FALSE END AS is_deleted,
+    CURRENT_TIMESTAMP AS processing_time
+FROM (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY route_id ORDER BY cdc_timestamp DESC) as rn
+    FROM bronze.routes_raw
+)
+WHERE rn = 1;

@@ -594,3 +594,229 @@ LEFT JOIN silver.consolidations_current c ON o.order_id = c.order_id
 LEFT JOIN silver.pack_tasks_current pk ON o.order_id = pk.order_id
 LEFT JOIN silver.shipments_current s ON o.order_id = s.order_id
 WHERE o.is_deleted = FALSE;
+
+-- ============================================
+-- ROUTING DATA PRODUCT - Gold Layer
+-- ============================================
+
+-- Route Performance by Zone (Daily)
+CREATE TABLE IF NOT EXISTS gold.route_performance_by_zone_daily (
+    `date` DATE,
+    `zone` STRING,
+    `total_routes` BIGINT,
+    `completed_routes` BIGINT,
+    `cancelled_routes` BIGINT,
+    `in_progress_routes` BIGINT,
+    `completion_rate` DOUBLE,
+    `total_items_picked` BIGINT,
+    `avg_items_per_route` DOUBLE,
+    `avg_stops_per_route` DOUBLE,
+    `total_distance_m` DOUBLE,
+    `avg_distance_per_route_m` DOUBLE,
+    `total_duration_seconds` BIGINT,
+    `avg_duration_minutes` DOUBLE,
+    `p50_duration_minutes` DOUBLE,
+    `p95_duration_minutes` DOUBLE,
+    `avg_pick_rate` DOUBLE,
+    `unique_pickers` BIGINT,
+    `routes_per_picker` DOUBLE,
+    `avg_efficiency_ratio` DOUBLE,
+    `multi_route_count` BIGINT,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `zone`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Route Performance by Zone
+INSERT INTO gold.route_performance_by_zone_daily
+SELECT
+    CAST(r.created_at AS DATE) AS `date`,
+    COALESCE(r.zone, 'UNKNOWN') AS zone,
+    COUNT(*) AS total_routes,
+    COUNT(CASE WHEN r.status = 'completed' THEN 1 END) AS completed_routes,
+    COUNT(CASE WHEN r.status = 'cancelled' THEN 1 END) AS cancelled_routes,
+    COUNT(CASE WHEN r.status = 'in_progress' THEN 1 END) AS in_progress_routes,
+    CAST(COUNT(CASE WHEN r.status = 'completed' THEN 1 END) AS DOUBLE) / NULLIF(COUNT(*), 0) AS completion_rate,
+    SUM(r.picked_items) AS total_items_picked,
+    AVG(CAST(r.total_items AS DOUBLE)) AS avg_items_per_route,
+    AVG(CAST(r.stop_count AS DOUBLE)) AS avg_stops_per_route,
+    SUM(r.actual_distance_m) AS total_distance_m,
+    AVG(r.actual_distance_m) AS avg_distance_per_route_m,
+    SUM(r.duration_seconds) AS total_duration_seconds,
+    AVG(r.duration_seconds / 60.0) AS avg_duration_minutes,
+    PERCENTILE(r.duration_seconds / 60.0, 0.5) AS p50_duration_minutes,
+    PERCENTILE(r.duration_seconds / 60.0, 0.95) AS p95_duration_minutes,
+    AVG(r.pick_rate) AS avg_pick_rate,
+    COUNT(DISTINCT r.picker_id) AS unique_pickers,
+    CAST(COUNT(*) AS DOUBLE) / NULLIF(COUNT(DISTINCT r.picker_id), 0) AS routes_per_picker,
+    AVG(r.efficiency_ratio) AS avg_efficiency_ratio,
+    COUNT(CASE WHEN r.is_multi_route = TRUE THEN 1 END) AS multi_route_count,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.routes_current r
+WHERE r.is_deleted = FALSE
+GROUP BY CAST(r.created_at AS DATE), COALESCE(r.zone, 'UNKNOWN');
+
+-- Picker Route Performance (Daily)
+CREATE TABLE IF NOT EXISTS gold.picker_route_performance_daily (
+    `date` DATE,
+    `picker_id` STRING,
+    `zone` STRING,
+    `routes_completed` INT,
+    `total_items_picked` INT,
+    `total_stops_completed` INT,
+    `total_distance_m` DOUBLE,
+    `total_work_minutes` DOUBLE,
+    `routes_per_hour` DOUBLE,
+    `items_per_hour` DOUBLE,
+    `avg_route_duration_minutes` DOUBLE,
+    `avg_pick_rate` DOUBLE,
+    `avg_efficiency_ratio` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `picker_id`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Picker Route Performance
+INSERT INTO gold.picker_route_performance_daily
+SELECT
+    CAST(r.completed_at AS DATE) AS `date`,
+    r.picker_id,
+    r.zone,
+    COUNT(*) AS routes_completed,
+    SUM(r.picked_items) AS total_items_picked,
+    SUM(r.stop_count) AS total_stops_completed,
+    SUM(r.actual_distance_m) AS total_distance_m,
+    SUM(r.duration_seconds) / 60.0 AS total_work_minutes,
+    COUNT(*) / NULLIF(SUM(r.duration_seconds) / 3600.0, 0) AS routes_per_hour,
+    SUM(r.picked_items) / NULLIF(SUM(r.duration_seconds) / 3600.0, 0) AS items_per_hour,
+    AVG(r.duration_seconds / 60.0) AS avg_route_duration_minutes,
+    AVG(r.pick_rate) AS avg_pick_rate,
+    AVG(r.efficiency_ratio) AS avg_efficiency_ratio,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.routes_current r
+WHERE r.status = 'completed'
+  AND r.picker_id IS NOT NULL
+  AND r.is_deleted = FALSE
+GROUP BY CAST(r.completed_at AS DATE), r.picker_id, r.zone;
+
+-- Route Optimization Metrics (Daily)
+CREATE TABLE IF NOT EXISTS gold.route_optimization_daily (
+    `date` DATE,
+    `route_complexity` STRING,
+    `total_routes` BIGINT,
+    `avg_stops` DOUBLE,
+    `avg_zones_visited` DOUBLE,
+    `avg_distance_m` DOUBLE,
+    `avg_estimated_time_min` DOUBLE,
+    `avg_actual_time_min` DOUBLE,
+    `avg_efficiency_ratio` DOUBLE,
+    `routes_exceeding_time_estimate` BIGINT,
+    `routes_with_multi_zone` BIGINT,
+    `avg_items_per_stop` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `route_complexity`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Route Optimization Metrics
+INSERT INTO gold.route_optimization_daily
+SELECT
+    CAST(r.created_at AS DATE) AS `date`,
+    CASE
+        WHEN r.stop_count <= 5 AND r.zone_count = 1 THEN 'simple'
+        WHEN r.stop_count <= 15 AND r.zone_count <= 2 THEN 'moderate'
+        ELSE 'complex'
+    END AS route_complexity,
+    COUNT(*) AS total_routes,
+    AVG(CAST(r.stop_count AS DOUBLE)) AS avg_stops,
+    AVG(CAST(r.zone_count AS DOUBLE)) AS avg_zones_visited,
+    AVG(r.estimated_distance_m) AS avg_distance_m,
+    AVG(r.estimated_time_seconds / 60.0) AS avg_estimated_time_min,
+    AVG(r.actual_time_seconds / 60.0) AS avg_actual_time_min,
+    AVG(r.efficiency_ratio) AS avg_efficiency_ratio,
+    COUNT(CASE WHEN r.efficiency_ratio > 1.2 THEN 1 END) AS routes_exceeding_time_estimate,
+    COUNT(CASE WHEN r.zone_count > 1 THEN 1 END) AS routes_with_multi_zone,
+    AVG(CAST(r.total_items AS DOUBLE) / NULLIF(r.stop_count, 0)) AS avg_items_per_stop,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.routes_current r
+WHERE r.is_deleted = FALSE
+GROUP BY CAST(r.created_at AS DATE),
+    CASE
+        WHEN r.stop_count <= 5 AND r.zone_count = 1 THEN 'simple'
+        WHEN r.stop_count <= 15 AND r.zone_count <= 2 THEN 'moderate'
+        ELSE 'complex'
+    END;
+
+-- Individual Route Optimization Candidates
+CREATE TABLE IF NOT EXISTS gold.route_optimization_candidates (
+    `route_id` STRING,
+    `order_id` STRING,
+    `date` DATE,
+    `zone` STRING,
+    `strategy` STRING,
+    `stop_count` INT,
+    `zone_count` INT,
+    `estimated_distance_m` DOUBLE,
+    `actual_distance_m` DOUBLE,
+    `estimated_time_min` DOUBLE,
+    `actual_time_min` DOUBLE,
+    `efficiency_ratio` DOUBLE,
+    `distance_accuracy` DOUBLE,
+    `items_per_stop` DOUBLE,
+    `has_high_zone_count` BOOLEAN,
+    `is_inefficient` BOOLEAN,
+    `is_very_inefficient` BOOLEAN,
+    `is_long_distance` BOOLEAN,
+    `has_many_stops` BOOLEAN,
+    `distance_exceeded` BOOLEAN,
+    `optimization_score` INT,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`route_id`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Route Optimization Candidates
+INSERT INTO gold.route_optimization_candidates
+SELECT
+    r.route_id,
+    r.order_id,
+    CAST(r.created_at AS DATE) AS `date`,
+    r.zone,
+    r.strategy,
+    r.stop_count,
+    r.zone_count,
+    r.estimated_distance_m,
+    r.actual_distance_m,
+    r.estimated_time_seconds / 60.0 AS estimated_time_min,
+    r.actual_time_seconds / 60.0 AS actual_time_min,
+    r.efficiency_ratio,
+    r.distance_accuracy,
+    CAST(r.total_items AS DOUBLE) / NULLIF(r.stop_count, 0) AS items_per_stop,
+    -- Optimization flags
+    r.zone_count > 2 AS has_high_zone_count,
+    r.efficiency_ratio > 1.2 AS is_inefficient,
+    r.efficiency_ratio > 1.5 AS is_very_inefficient,
+    r.estimated_distance_m > 500 AS is_long_distance,
+    r.stop_count > 20 AS has_many_stops,
+    r.distance_accuracy > 1.3 AS distance_exceeded,
+    -- Calculate optimization score
+    (CASE WHEN r.zone_count > 2 THEN 3 ELSE 0 END) +
+    (CASE WHEN r.efficiency_ratio > 1.5 THEN 3 WHEN r.efficiency_ratio > 1.2 THEN 1 ELSE 0 END) +
+    (CASE WHEN r.estimated_distance_m > 500 THEN 2 ELSE 0 END) +
+    (CASE WHEN r.stop_count > 20 THEN 2 ELSE 0 END) AS optimization_score,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.routes_current r
+WHERE r.status = 'completed'
+  AND r.is_deleted = FALSE;

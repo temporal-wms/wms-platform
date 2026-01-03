@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/wms-platform/receiving-service/internal/domain"
+	"github.com/wms-platform/services/receiving-service/internal/domain"
 	"github.com/wms-platform/shared/pkg/cloudevents"
 	"github.com/wms-platform/shared/pkg/kafka"
 )

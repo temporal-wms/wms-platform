@@ -13,6 +13,9 @@ type PickingWorkflowInput struct {
 	OrderID string      `json:"orderId"`
 	WaveID  string      `json:"waveId"`
 	Route   RouteResult `json:"route"`
+	// Unit-level tracking fields
+	UnitIDs []string `json:"unitIds,omitempty"` // Specific units to pick
+	PathID  string   `json:"pathId,omitempty"`  // Process path ID for consistency
 }
 
 // PickingWorkflow coordinates the picking process for an order
@@ -22,7 +25,22 @@ func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (PickRe
 	orderID, _ := input["orderId"].(string)
 	waveID, _ := input["waveId"].(string)
 
-	logger.Info("Starting picking workflow", "orderId", orderID, "waveId", waveID)
+	// Extract unit-level tracking fields
+	var unitIDs []string
+	var pathID string
+	if ids, ok := input["unitIds"].([]interface{}); ok {
+		for _, id := range ids {
+			if strID, ok := id.(string); ok {
+				unitIDs = append(unitIDs, strID)
+			}
+		}
+	}
+	if pid, ok := input["pathId"].(string); ok {
+		pathID = pid
+	}
+	useUnitTracking := len(unitIDs) > 0
+
+	logger.Info("Starting picking workflow", "orderId", orderID, "waveId", waveID, "unitCount", len(unitIDs))
 
 	// Activity options
 	ao := workflow.ActivityOptions{
@@ -184,6 +202,80 @@ func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (PickRe
 			)
 		}
 	}
+
+	// Step 6: Unit-level pick confirmation (if unit tracking enabled)
+	if useUnitTracking && len(unitIDs) > 0 {
+		logger.Info("Confirming unit-level picks", "orderId", orderID, "unitCount", len(unitIDs))
+
+		var pickedUnitIDs []string
+		var failedUnitIDs []string
+		var exceptionIDs []string
+
+		// Get the first tote ID from picked items
+		toteID := "TOTE-DEFAULT"
+		if len(pickedItems) > 0 && pickedItems[0].ToteID != "" {
+			toteID = pickedItems[0].ToteID
+		}
+
+		// Get a station ID (could come from route or task)
+		stationID := "PICK-STATION-DEFAULT"
+
+		for _, unitID := range unitIDs {
+			// Attempt to confirm pick for each unit
+			err := workflow.ExecuteActivity(ctx, "ConfirmUnitPick", map[string]interface{}{
+				"unitId":    unitID,
+				"toteId":    toteID,
+				"pickerId":  workerID,
+				"stationId": stationID,
+			}).Get(ctx, nil)
+
+			if err != nil {
+				logger.Warn("Failed to confirm unit pick, creating exception",
+					"orderId", orderID,
+					"unitId", unitID,
+					"error", err,
+				)
+				failedUnitIDs = append(failedUnitIDs, unitID)
+
+				// Create exception for failed unit
+				var exceptionResult map[string]interface{}
+				exErr := workflow.ExecuteActivity(ctx, "CreateUnitException", map[string]interface{}{
+					"unitId":        unitID,
+					"exceptionType": "picking_failure",
+					"stage":         "picking",
+					"description":   fmt.Sprintf("Failed to confirm pick: %v", err),
+					"stationId":     stationID,
+					"reportedBy":    workerID,
+				}).Get(ctx, &exceptionResult)
+				if exErr == nil {
+					if exID, ok := exceptionResult["exceptionId"].(string); ok {
+						exceptionIDs = append(exceptionIDs, exID)
+					}
+				}
+			} else {
+				pickedUnitIDs = append(pickedUnitIDs, unitID)
+			}
+		}
+
+		result.PickedUnitIDs = pickedUnitIDs
+		result.FailedUnitIDs = failedUnitIDs
+		result.ExceptionIDs = exceptionIDs
+
+		logger.Info("Unit-level pick confirmation completed",
+			"orderId", orderID,
+			"pickedUnits", len(pickedUnitIDs),
+			"failedUnits", len(failedUnitIDs),
+		)
+
+		// If all units failed, consider the pick failed
+		if len(pickedUnitIDs) == 0 && len(failedUnitIDs) > 0 {
+			result.Success = false
+			return result, fmt.Errorf("all units failed picking for order %s", orderID)
+		}
+	}
+
+	// Suppress unused variable warning for pathID (will be used in future enhancements)
+	_ = pathID
 
 	logger.Info("Picking completed successfully",
 		"orderId", orderID,

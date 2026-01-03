@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 )
 
 // InboundShipmentRepository defines the interface for shipment persistence
@@ -29,6 +30,12 @@ type InboundShipmentRepository interface {
 
 	// FindPendingReceiving retrieves shipments pending receiving
 	FindPendingReceiving(ctx context.Context, limit int) ([]*InboundShipment, error)
+
+	// FindAll retrieves all shipments up to the specified limit
+	FindAll(ctx context.Context, limit int) ([]*InboundShipment, error)
+
+	// FindExpectedArrivals retrieves shipments expected within a time range
+	FindExpectedArrivals(ctx context.Context, from, to time.Time) ([]*InboundShipment, error)
 
 	// UpdateStatus updates the shipment status
 	UpdateStatus(ctx context.Context, shipmentID string, status ShipmentStatus) error

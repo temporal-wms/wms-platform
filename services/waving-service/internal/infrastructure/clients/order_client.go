@@ -157,14 +157,14 @@ func (c *OrderServiceClient) GetOrdersReadyForWaving(ctx context.Context, filter
 	return waveOrders, nil
 }
 
-// NotifyWaveAssignment signals the order's Temporal workflow about wave assignment
+// NotifyWaveAssignment signals the order's Planning workflow about wave assignment
 // Implements domain.OrderService interface
 func (c *OrderServiceClient) NotifyWaveAssignment(ctx context.Context, orderID, waveID string, scheduledStart time.Time) error {
 	if c.temporalClient == nil {
 		return fmt.Errorf("temporal client not configured")
 	}
 
-	workflowID := fmt.Sprintf("order-fulfillment-%s", orderID)
+	workflowID := fmt.Sprintf("planning-%s", orderID)
 
 	signal := struct {
 		WaveID         string    `json:"waveId"`

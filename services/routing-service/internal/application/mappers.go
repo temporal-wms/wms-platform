@@ -76,3 +76,27 @@ func ToPickRouteDTOs(routes []*domain.PickRoute) []PickRouteDTO {
 	}
 	return dtos
 }
+
+// ToMultiRouteResultDTO converts a domain MultiRouteResult to MultiRouteResultDTO
+func ToMultiRouteResultDTO(result *domain.MultiRouteResult) *MultiRouteResultDTO {
+	if result == nil {
+		return nil
+	}
+
+	routes := make([]PickRouteDTO, 0, len(result.Routes))
+	for _, route := range result.Routes {
+		if dto := ToPickRouteDTO(route); dto != nil {
+			routes = append(routes, *dto)
+		}
+	}
+
+	return &MultiRouteResultDTO{
+		OrderID:       result.OrderID,
+		Routes:        routes,
+		TotalRoutes:   result.TotalRoutes,
+		SplitReason:   string(result.SplitReason),
+		ZoneBreakdown: result.ZoneBreakdown,
+		TotalItems:    result.TotalItems,
+		CreatedAt:     result.CreatedAt,
+	}
+}

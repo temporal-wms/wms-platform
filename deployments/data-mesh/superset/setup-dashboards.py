@@ -35,7 +35,19 @@ class SupersetClient:
         """Login and get access token"""
         print(f"{YELLOW}Authenticating with Superset...{NC}")
 
-        # Get JWT token
+        # First, get the login page to establish session and get CSRF cookie
+        login_page = self.session.get(f"{self.base_url}/login/")
+
+        # Extract CSRF token from cookies (set by Superset automatically)
+        self.csrf_token = self.session.cookies.get('csrf_access_token')
+        if not self.csrf_token:
+            # Try alternative cookie names
+            self.csrf_token = self.session.cookies.get('_csrf') or self.session.cookies.get('session')
+
+        if self.csrf_token:
+            print(f"  Got CSRF token from cookie")
+
+        # Get JWT token with CSRF
         response = self.session.post(
             f"{self.base_url}/api/v1/security/login",
             json={
@@ -43,6 +55,10 @@ class SupersetClient:
                 "password": password,
                 "provider": "db",
                 "refresh": True
+            },
+            headers={
+                "Content-Type": "application/json",
+                "X-CSRFToken": self.csrf_token or ""
             }
         )
 
@@ -56,10 +72,9 @@ class SupersetClient:
             "Content-Type": "application/json"
         })
 
-        # Get CSRF token
-        response = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
-        if response.status_code == 200:
-            self.csrf_token = response.json().get("result")
+        # Get fresh CSRF token from cookies after login
+        self.csrf_token = self.session.cookies.get('csrf_access_token')
+        if self.csrf_token:
             self.session.headers.update({"X-CSRFToken": self.csrf_token})
 
         print(f"{GREEN}✓ Authenticated successfully{NC}")
@@ -67,19 +82,25 @@ class SupersetClient:
     def get(self, endpoint, params=None):
         return self.session.get(f"{self.base_url}{endpoint}", params=params)
 
-    def post(self, endpoint, data):
-        # Refresh CSRF token before POST
+    def _refresh_csrf(self):
+        """Refresh CSRF token from the security endpoint"""
         response = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
         if response.status_code == 200:
             self.csrf_token = response.json().get("result")
             self.session.headers.update({"X-CSRFToken": self.csrf_token})
+        # Also check cookies
+        csrf = self.session.cookies.get('csrf_access_token')
+        if csrf and not self.csrf_token:
+            self.csrf_token = csrf
+            self.session.headers.update({"X-CSRFToken": self.csrf_token})
+
+    def post(self, endpoint, data):
+        # Refresh CSRF token before POST
+        self._refresh_csrf()
         return self.session.post(f"{self.base_url}{endpoint}", json=data)
 
     def put(self, endpoint, data):
-        response = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
-        if response.status_code == 200:
-            self.csrf_token = response.json().get("result")
-            self.session.headers.update({"X-CSRFToken": self.csrf_token})
+        self._refresh_csrf()
         return self.session.put(f"{self.base_url}{endpoint}", json=data)
 
 
@@ -536,6 +557,262 @@ LEFT JOIN iceberg.bronze.shipments_raw s ON o.order_id = s.order_id
     return dashboard_id
 
 
+def setup_tote_lookup_dashboard(client, database_id):
+    """Setup the Tote Lookup dashboard for consolidation"""
+    print(f"\n{BLUE}═══ Setting up Tote Lookup Dashboard ═══{NC}")
+
+    # Create virtual dataset for tote lookup using MongoDB consolidation_db
+    # Note: MongoDB column names are lowercase without underscores
+    sql = """
+SELECT
+    consolidationid,
+    orderid,
+    sourcetotes,
+    status,
+    station,
+    totalexpected,
+    totalconsolidated,
+    createdat
+FROM mongodb.consolidation_db.consolidations
+ORDER BY createdat DESC
+"""
+    dataset_id = create_virtual_dataset(
+        client, database_id,
+        "vw_orders_by_tote",
+        sql,
+        "consolidation_db"
+    )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Tote Lookup dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Orders Table
+    chart1 = create_chart(
+        client,
+        "Tote Lookup - Orders",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["consolidationid", "orderid", "sourcetotes", "status", "station", "totalexpected", "totalconsolidated", "createdat"],
+            "row_limit": 100
+        },
+        "Orders in consolidation with tote information"
+    )
+    charts.append(chart1)
+
+    # Create dashboard
+    dashboard_id = create_dashboard(
+        client,
+        "Tote Lookup",
+        "tote-lookup",
+        charts,
+        "Dashboard for looking up orders by tote ID"
+    )
+
+    return dashboard_id
+
+
+def setup_route_performance_dashboard(client, database_id):
+    """Setup the Route Performance by Zone dashboard"""
+    print(f"\n{BLUE}═══ Setting up Route Performance Dashboard ═══{NC}")
+
+    # Try physical table first
+    dataset_id = create_dataset(
+        client, database_id,
+        "gold", "route_performance_by_zone_daily",
+        "Daily route performance metrics by warehouse zone"
+    )
+
+    if not dataset_id:
+        # Create virtual dataset using MongoDB routing_db
+        # Note: MongoDB column names are lowercase without underscores
+        sql = """
+SELECT
+    CAST(createdat AS DATE) AS route_date,
+    routeid,
+    orderid,
+    zone,
+    strategy,
+    status,
+    estimateddistance,
+    totalitems,
+    createdat
+FROM mongodb.routing_db.routes
+ORDER BY createdat DESC
+"""
+        dataset_id = create_virtual_dataset(
+            client, database_id,
+            "vw_route_performance_by_zone",
+            sql,
+            "routing_db"
+        )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Route Performance dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Routes by Zone bar chart
+    chart1 = create_chart(
+        client,
+        "Route Performance - Routes by Zone",
+        "dist_bar",
+        dataset_id,
+        {
+            "viz_type": "dist_bar",
+            "metrics": [{"label": "Total Routes", "expressionType": "SQL", "sqlExpression": "COUNT(*)"}],
+            "groupby": ["zone"],
+            "row_limit": 20,
+            "order_desc": True,
+            "show_legend": True,
+            "y_axis_format": "SMART_NUMBER",
+            "color_scheme": "supersetColors"
+        },
+        "Number of routes per zone"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Distance Distribution
+    chart2 = create_chart(
+        client,
+        "Route Performance - Avg Distance",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Avg Distance", "expressionType": "SQL", "sqlExpression": "AVG(estimateddistance)"},
+            "y_axis_format": ",.0f"
+        },
+        "Average estimated distance (m)"
+    )
+    charts.append(chart2)
+
+    # Chart 3: Details Table
+    chart3 = create_chart(
+        client,
+        "Route Performance - Details",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["route_date", "routeid", "orderid", "zone", "strategy", "status", "estimateddistance", "totalitems"],
+            "row_limit": 100
+        },
+        "Route performance details"
+    )
+    charts.append(chart3)
+
+    # Create dashboard
+    dashboard_id = create_dashboard(
+        client,
+        "Route Performance by Zone",
+        "route-performance",
+        charts,
+        "Dashboard for analyzing picking route efficiency across warehouse zones"
+    )
+
+    return dashboard_id
+
+
+def setup_route_optimization_dashboard(client, database_id):
+    """Setup the Route Optimization Analysis dashboard"""
+    print(f"\n{BLUE}═══ Setting up Route Optimization Dashboard ═══{NC}")
+
+    # Try physical table first
+    dataset_id = create_dataset(
+        client, database_id,
+        "gold", "route_optimization_candidates",
+        "Routes with optimization scores and flags"
+    )
+
+    if not dataset_id:
+        # Create virtual dataset using MongoDB routing_db
+        # Note: MongoDB column names are lowercase without underscores
+        sql = """
+SELECT
+    routeid,
+    orderid,
+    CAST(createdat AS DATE) AS route_date,
+    zone,
+    strategy,
+    status,
+    estimateddistance,
+    totalitems,
+    CASE WHEN estimateddistance > 500 THEN 2 ELSE 0 END +
+    CASE WHEN totalitems > 20 THEN 2 ELSE 0 END AS optimization_score,
+    createdat
+FROM mongodb.routing_db.routes
+ORDER BY createdat DESC
+"""
+        dataset_id = create_virtual_dataset(
+            client, database_id,
+            "vw_route_optimization_candidates",
+            sql,
+            "routing_db"
+        )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Route Optimization dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Optimization Score Distribution
+    chart1 = create_chart(
+        client,
+        "Route Optimization - Score Distribution",
+        "dist_bar",
+        dataset_id,
+        {
+            "viz_type": "dist_bar",
+            "metrics": [{"label": "Route Count", "expressionType": "SQL", "sqlExpression": "COUNT(*)"}],
+            "groupby": ["optimization_score"],
+            "row_limit": 20,
+            "order_desc": False,
+            "show_legend": True,
+            "y_axis_format": "SMART_NUMBER",
+            "color_scheme": "supersetColors"
+        },
+        "Distribution of routes by optimization score"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Routes Needing Attention Table
+    chart2 = create_chart(
+        client,
+        "Route Optimization - Routes Needing Attention",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["routeid", "orderid", "route_date", "zone", "strategy", "status", "estimateddistance", "totalitems", "optimization_score"],
+            "row_limit": 50,
+            "order_by_cols": [["optimization_score", False]]
+        },
+        "Routes with highest optimization scores"
+    )
+    charts.append(chart2)
+
+    # Create dashboard
+    dashboard_id = create_dashboard(
+        client,
+        "Route Optimization Analysis",
+        "route-optimization",
+        charts,
+        "Dashboard for identifying routes that need optimization"
+    )
+
+    return dashboard_id
+
+
 def main():
     print_banner()
 
@@ -552,6 +829,9 @@ def main():
     # Setup dashboards
     requirements_chart = setup_orders_requirements_chart(client, database_id)
     order_flow_dash = setup_order_flow_dashboard(client, database_id)
+    tote_lookup_dash = setup_tote_lookup_dashboard(client, database_id)
+    route_performance_dash = setup_route_performance_dashboard(client, database_id)
+    route_optimization_dash = setup_route_optimization_dashboard(client, database_id)
 
     # Summary
     print(f"\n{BLUE}═══════════════════════════════════════════════════════════{NC}")
@@ -564,7 +844,13 @@ def main():
         print(f"  {GREEN}✓{NC} Orders by Special Requirements (chart)")
     if order_flow_dash:
         print(f"  {GREEN}✓{NC} Order Flow Tracker (dashboard)")
-    print(f"\n{YELLOW}Note:{NC} Add native filters for order_id lookups in the Order Flow Tracker.")
+    if tote_lookup_dash:
+        print(f"  {GREEN}✓{NC} Tote Lookup (dashboard)")
+    if route_performance_dash:
+        print(f"  {GREEN}✓{NC} Route Performance by Zone (dashboard)")
+    if route_optimization_dash:
+        print(f"  {GREEN}✓{NC} Route Optimization Analysis (dashboard)")
+    print(f"\n{YELLOW}Note:{NC} Add native filters for order_id/tote_id lookups in the dashboards.")
 
 
 if __name__ == "__main__":

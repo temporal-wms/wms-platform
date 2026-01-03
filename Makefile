@@ -1,7 +1,7 @@
 .PHONY: all build test clean docker-build docker-up docker-down help
 
 # Variables
-SERVICES := order-service waving-service routing-service picking-service consolidation-service packing-service shipping-service inventory-service labor-service
+SERVICES := order-service waving-service routing-service picking-service consolidation-service packing-service shipping-service inventory-service labor-service facility-service unit-service process-path-service
 GO := go
 DOCKER_COMPOSE := docker compose -f deployments/docker-compose.yml
 
@@ -154,6 +154,14 @@ run-order-service: ## Run order-service locally
 run-orchestrator: ## Run orchestrator locally
 	@echo "$(GREEN)Running orchestrator...$(NC)"
 	cd orchestrator && $(GO) run ./cmd/worker
+
+run-unit-service: ## Run unit-service locally
+	@echo "$(GREEN)Running unit-service...$(NC)"
+	cd services/unit-service && $(GO) run ./cmd/api
+
+run-process-path-service: ## Run process-path-service locally
+	@echo "$(GREEN)Running process-path-service...$(NC)"
+	cd services/process-path-service && $(GO) run ./cmd/api
 
 # =========================
 # Contract Testing

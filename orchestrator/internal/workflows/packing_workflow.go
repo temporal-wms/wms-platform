@@ -12,6 +12,9 @@ import (
 type PackingWorkflowInput struct {
 	OrderID string `json:"orderId"`
 	WaveID  string `json:"waveId"`
+	// Unit-level tracking fields
+	UnitIDs []string `json:"unitIds,omitempty"` // Specific units to pack
+	PathID  string   `json:"pathId,omitempty"`  // Process path ID for consistency
 }
 
 // PackingWorkflow coordinates the packing process for an order
@@ -20,7 +23,23 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (PackRe
 
 	orderID, _ := input["orderId"].(string)
 	waveID, _ := input["waveId"].(string)
-	logger.Info("Starting packing workflow", "orderId", orderID, "waveId", waveID)
+
+	// Extract unit-level tracking fields
+	var unitIDs []string
+	var pathID string
+	if ids, ok := input["unitIds"].([]interface{}); ok {
+		for _, id := range ids {
+			if strID, ok := id.(string); ok {
+				unitIDs = append(unitIDs, strID)
+			}
+		}
+	}
+	if pid, ok := input["pathId"].(string); ok {
+		pathID = pid
+	}
+	useUnitTracking := len(unitIDs) > 0
+
+	logger.Info("Starting packing workflow", "orderId", orderID, "waveId", waveID, "unitCount", len(unitIDs))
 
 	// Activity options
 	ao := workflow.ActivityOptions{
@@ -45,6 +64,13 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (PackRe
 	}).Get(ctx, &taskID)
 	if err != nil {
 		return result, fmt.Errorf("failed to create pack task: %w", err)
+	}
+
+	// Step 1.5: Start the pack task (sets startedAt timestamp)
+	logger.Info("Starting pack task", "orderId", orderID, "taskId", taskID)
+	err = workflow.ExecuteActivity(ctx, "StartPackTask", taskID).Get(ctx, nil)
+	if err != nil {
+		return result, fmt.Errorf("failed to start pack task: %w", err)
 	}
 
 	// Step 2: Select packaging materials
@@ -162,6 +188,45 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (PackRe
 				logger.Info("Inventory marked as packed successfully", "orderId", orderID)
 			}
 		}
+	}
+
+	// Step 9: Unit-level packing confirmation (if unit tracking enabled)
+	if useUnitTracking && len(unitIDs) > 0 {
+		logger.Info("Confirming unit-level packing", "orderId", orderID, "unitCount", len(unitIDs))
+
+		stationID := "PACKING-STATION-DEFAULT"
+		packerID := "packing-workflow"
+
+		for _, unitID := range unitIDs {
+			err := workflow.ExecuteActivity(ctx, "ConfirmUnitPacked", map[string]interface{}{
+				"unitId":    unitID,
+				"packageId": packageID,
+				"packerId":  packerID,
+				"stationId": stationID,
+			}).Get(ctx, nil)
+
+			if err != nil {
+				logger.Warn("Failed to confirm unit packed",
+					"orderId", orderID,
+					"unitId", unitID,
+					"error", err,
+				)
+				// Continue with other units - partial failure handled at parent workflow
+			}
+		}
+
+		logger.Info("Unit-level packing confirmation completed", "orderId", orderID)
+	}
+
+	// Suppress unused variable warning
+	_ = pathID
+
+	// Final step: Complete the pack task (sets completedAt timestamp)
+	logger.Info("Completing pack task", "orderId", orderID, "taskId", taskID)
+	err = workflow.ExecuteActivity(ctx, "CompletePackTask", taskID).Get(ctx, nil)
+	if err != nil {
+		// Log but don't fail - packing was successful
+		logger.Warn("Failed to complete pack task record", "taskId", taskID, "error", err)
 	}
 
 	logger.Info("Packing completed successfully",

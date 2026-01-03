@@ -65,6 +65,8 @@ func main() {
 		LaborServiceURL:         config.LaborServiceURL,
 		WavingServiceURL:        config.WavingServiceURL,
 		FacilityServiceURL:      config.FacilityServiceURL,
+		UnitServiceURL:          config.UnitServiceURL,
+		ProcessPathServiceURL:   config.ProcessPathServiceURL,
 	})
 
 	// Create activities with service clients
@@ -84,6 +86,9 @@ func main() {
 	stowActivities := activities.NewStowActivities()
 	slamActivities := activities.NewSLAMActivities()
 	sortationActivities := activities.NewSortationActivities()
+
+	// Create unit-level tracking activities
+	unitActivities := activities.NewUnitActivities(serviceClients, logger)
 
 	// Create worker
 	workerOpts := temporal.DefaultWorkerOptions(temporal.TaskQueues.Orchestrator)
@@ -105,6 +110,7 @@ func main() {
 	w.RegisterWorkflow(workflows.InboundFulfillmentWorkflow)
 	w.RegisterWorkflow(workflows.SortationWorkflow)
 	w.RegisterWorkflow(workflows.BatchSortationWorkflow)
+	w.RegisterWorkflow(workflows.PlanningWorkflow)
 	logger.Info("Registered workflows", "workflows", []string{
 		"OrderFulfillmentWorkflow",
 		"OrderCancellationWorkflow",
@@ -120,6 +126,7 @@ func main() {
 		"InboundFulfillmentWorkflow",
 		"SortationWorkflow",
 		"BatchSortationWorkflow",
+		"PlanningWorkflow",
 	})
 
 	// Register activities
@@ -138,6 +145,7 @@ func main() {
 	w.RegisterActivity(inventoryActivities.ReturnInventoryToShelf)
 	w.RegisterActivity(inventoryActivities.RecordStockShortage)
 	w.RegisterActivity(routingActivities.CalculateRoute)
+	w.RegisterActivity(routingActivities.CalculateMultiRoute)
 
 	// Register picking activities
 	w.RegisterActivity(pickingActivities.CreatePickTask)
@@ -201,7 +209,8 @@ func main() {
 	w.RegisterActivity(stowActivities.ProcessStow)
 
 	// Register SLAM activities (Scan, Label, Apply, Manifest)
-	w.RegisterActivity(slamActivities.ScanPackage)
+	// Note: ScanPackage is not registered here to avoid conflict with ShippingActivities.ScanPackage
+	// SLAM's ScanPackage is called internally by ExecuteSLAM via Go method call
 	w.RegisterActivity(slamActivities.GenerateLabel)
 	w.RegisterActivity(slamActivities.ApplyLabel)
 	w.RegisterActivity(slamActivities.AddToManifest)
@@ -218,6 +227,19 @@ func main() {
 	w.RegisterActivity(sortationActivities.ProcessSortation)
 	w.RegisterActivity(sortationActivities.NotifyCarrier)
 
+	// Register unit-level tracking activities
+	w.RegisterActivity(unitActivities.CreateUnits)
+	w.RegisterActivity(unitActivities.ReserveUnits)
+	w.RegisterActivity(unitActivities.GetUnitsForOrder)
+	w.RegisterActivity(unitActivities.ConfirmUnitPick)
+	w.RegisterActivity(unitActivities.ConfirmUnitConsolidation)
+	w.RegisterActivity(unitActivities.ConfirmUnitPacked)
+	w.RegisterActivity(unitActivities.ConfirmUnitShipped)
+	w.RegisterActivity(unitActivities.CreateUnitException)
+	w.RegisterActivity(unitActivities.GetUnitAuditTrail)
+	w.RegisterActivity(unitActivities.PersistProcessPath)
+	w.RegisterActivity(unitActivities.GetProcessPath)
+
 	logger.Info("Registered activities", "activities", []string{
 		"ValidateOrder",
 		"CancelOrder",
@@ -230,6 +252,7 @@ func main() {
 		"ConfirmInventoryPick",
 		"RecordStockShortage",
 		"CalculateRoute",
+		"CalculateMultiRoute",
 		"CreatePickTask",
 		"AssignPickerToTask",
 		"CreateConsolidationUnit",
@@ -291,6 +314,18 @@ func main() {
 		"DispatchBatch",
 		"ProcessSortation",
 		"NotifyCarrier",
+		// Unit-level tracking activities
+		"CreateUnits",
+		"ReserveUnits",
+		"GetUnitsForOrder",
+		"ConfirmUnitPick",
+		"ConfirmUnitConsolidation",
+		"ConfirmUnitPacked",
+		"ConfirmUnitShipped",
+		"CreateUnitException",
+		"GetUnitAuditTrail",
+		"PersistProcessPath",
+		"GetProcessPath",
 	})
 
 	// Create reprocessing schedule if enabled
@@ -353,6 +388,9 @@ func startHealthServer(port string, temporalClient temporalclient.Client, m *met
 	// Signal bridge endpoints for simulators
 	mux.HandleFunc("/api/v1/signals/wave-assigned", createWaveAssignedHandler(temporalClient, logger))
 	mux.HandleFunc("/api/v1/signals/pick-completed", createPickCompletedHandler(temporalClient, logger))
+	mux.HandleFunc("/api/v1/signals/tote-arrived", createToteArrivedHandler(temporalClient, logger))
+	mux.HandleFunc("/api/v1/signals/consolidation-completed", createConsolidationCompletedHandler(temporalClient, logger))
+	mux.HandleFunc("/api/v1/signals/gift-wrap-completed", createGiftWrapCompletedHandler(temporalClient, logger))
 
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -387,6 +425,31 @@ type PickedItem struct {
 type WaveAssignedRequest struct {
 	OrderID string `json:"orderId"`
 	WaveID  string `json:"waveId"`
+}
+
+// ToteArrivedRequest represents the request body for the tote-arrived signal (multi-route support)
+type ToteArrivedRequest struct {
+	OrderID    string `json:"orderId"`
+	ToteID     string `json:"toteId"`
+	RouteID    string `json:"routeId"`
+	RouteIndex int    `json:"routeIndex"`
+	ArrivedAt  string `json:"arrivedAt"`
+}
+
+// ConsolidationCompletedRequest represents the request body for the consolidation-completed signal
+type ConsolidationCompletedRequest struct {
+	OrderID           string                 `json:"orderId"`
+	ConsolidationID   string                 `json:"consolidationId"`
+	ConsolidatedItems []map[string]interface{} `json:"consolidatedItems"`
+}
+
+// GiftWrapCompletedRequest represents the request body for the gift-wrap-completed signal
+type GiftWrapCompletedRequest struct {
+	OrderID     string `json:"orderId"`
+	StationID   string `json:"stationId"`
+	WrapType    string `json:"wrapType"`
+	GiftMessage string `json:"giftMessage"`
+	CompletedAt string `json:"completedAt"`
 }
 
 // createWaveAssignedHandler creates a handler for the wave-assigned signal endpoint
@@ -429,8 +492,8 @@ func createWaveAssignedHandler(temporalClient temporalclient.Client, logger *slo
 			return
 		}
 
-		// Construct workflow ID (order fulfillment workflow follows pattern "order-fulfillment-{orderId}")
-		workflowID := fmt.Sprintf("order-fulfillment-%s", req.OrderID)
+		// Construct workflow ID (planning workflow follows pattern "planning-{orderId}")
+		workflowID := fmt.Sprintf("planning-%s", req.OrderID)
 
 		// Build signal payload matching workflow expectations
 		signalPayload := map[string]interface{}{
@@ -559,6 +622,248 @@ func createPickCompletedHandler(temporalClient temporalclient.Client, logger *sl
 	}
 }
 
+// createToteArrivedHandler creates a handler for the tote-arrived signal endpoint (multi-route support)
+func createToteArrivedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"failed to read request body"}`))
+			return
+		}
+		defer r.Body.Close()
+
+		var req ToteArrivedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			logger.Error("Failed to parse request", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid JSON"}`))
+			return
+		}
+
+		if req.OrderID == "" || req.ToteID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"orderId and toteId are required"}`))
+			return
+		}
+
+		// Signal the consolidation workflow for the order
+		workflowID := fmt.Sprintf("consolidation-%s", req.OrderID)
+
+		signalPayload := map[string]interface{}{
+			"toteId":     req.ToteID,
+			"routeId":    req.RouteID,
+			"routeIndex": req.RouteIndex,
+			"arrivedAt":  req.ArrivedAt,
+		}
+
+		err = temporalClient.SignalWorkflow(
+			r.Context(),
+			workflowID,
+			"",
+			"toteArrived",
+			signalPayload,
+		)
+		if err != nil {
+			logger.Error("Failed to signal workflow", "workflowId", workflowID, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    false,
+				"error":      err.Error(),
+				"workflowId": workflowID,
+			})
+			return
+		}
+
+		logger.Info("Successfully signaled tote arrival",
+			"workflowId", workflowID,
+			"orderId", req.OrderID,
+			"toteId", req.ToteID,
+			"routeId", req.RouteID,
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Tote arrival signal sent successfully",
+		})
+	}
+}
+
+// createConsolidationCompletedHandler creates a handler for the consolidation-completed signal endpoint
+func createConsolidationCompletedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"failed to read request body"}`))
+			return
+		}
+		defer r.Body.Close()
+
+		var req ConsolidationCompletedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			logger.Error("Failed to parse request", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid JSON"}`))
+			return
+		}
+
+		if req.OrderID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"orderId is required"}`))
+			return
+		}
+
+		// Signal the order fulfillment workflow
+		workflowID := fmt.Sprintf("order-fulfillment-%s", req.OrderID)
+
+		signalPayload := map[string]interface{}{
+			"consolidationId":   req.ConsolidationID,
+			"consolidatedItems": req.ConsolidatedItems,
+		}
+
+		err = temporalClient.SignalWorkflow(
+			r.Context(),
+			workflowID,
+			"",
+			"consolidationCompleted",
+			signalPayload,
+		)
+		if err != nil {
+			logger.Error("Failed to signal workflow", "workflowId", workflowID, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    false,
+				"error":      err.Error(),
+				"workflowId": workflowID,
+			})
+			return
+		}
+
+		logger.Info("Successfully signaled consolidation completed",
+			"workflowId", workflowID,
+			"orderId", req.OrderID,
+			"consolidationId", req.ConsolidationID,
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Consolidation completed signal sent successfully",
+		})
+	}
+}
+
+// createGiftWrapCompletedHandler creates a handler for the gift-wrap-completed signal endpoint
+func createGiftWrapCompletedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"failed to read request body"}`))
+			return
+		}
+		defer r.Body.Close()
+
+		var req GiftWrapCompletedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			logger.Error("Failed to parse request", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid JSON"}`))
+			return
+		}
+
+		if req.OrderID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"orderId is required"}`))
+			return
+		}
+
+		// Signal the gift wrap workflow
+		workflowID := fmt.Sprintf("giftwrap-%s", req.OrderID)
+
+		signalPayload := map[string]interface{}{
+			"stationId":   req.StationID,
+			"wrapType":    req.WrapType,
+			"giftMessage": req.GiftMessage,
+			"completedAt": req.CompletedAt,
+		}
+
+		err = temporalClient.SignalWorkflow(
+			r.Context(),
+			workflowID,
+			"",
+			"giftWrapCompleted",
+			signalPayload,
+		)
+		if err != nil {
+			logger.Error("Failed to signal workflow", "workflowId", workflowID, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    false,
+				"error":      err.Error(),
+				"workflowId": workflowID,
+			})
+			return
+		}
+
+		logger.Info("Successfully signaled gift wrap completed",
+			"workflowId", workflowID,
+			"orderId", req.OrderID,
+			"stationId", req.StationID,
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Gift wrap completed signal sent successfully",
+		})
+	}
+}
+
 // Config holds application configuration
 type Config struct {
 	Temporal                *temporal.Config
@@ -575,6 +880,8 @@ type Config struct {
 	ReceivingServiceURL     string
 	StowServiceURL          string
 	SortationServiceURL     string
+	UnitServiceURL          string
+	ProcessPathServiceURL   string
 }
 
 func loadConfig() *Config {
@@ -597,6 +904,8 @@ func loadConfig() *Config {
 		ReceivingServiceURL:     getEnv("RECEIVING_SERVICE_URL", "http://localhost:8010"),
 		StowServiceURL:          getEnv("STOW_SERVICE_URL", "http://localhost:8012"),
 		SortationServiceURL:     getEnv("SORTATION_SERVICE_URL", "http://localhost:8013"),
+		UnitServiceURL:          getEnv("UNIT_SERVICE_URL", "http://localhost:8014"),
+		ProcessPathServiceURL:   getEnv("PROCESS_PATH_SERVICE_URL", "http://localhost:8015"),
 	}
 }
 

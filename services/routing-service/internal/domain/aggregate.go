@@ -39,6 +39,47 @@ const (
 	RouteStatusPaused     RouteStatus = "paused"      // Route temporarily paused
 )
 
+// SplitReason indicates why an order was split into multiple routes
+type SplitReason string
+
+const (
+	SplitReasonNone     SplitReason = "none"     // Single route, no split
+	SplitReasonZone     SplitReason = "zone"     // Split due to multiple zones
+	SplitReasonCapacity SplitReason = "capacity" // Split due to capacity limits
+	SplitReasonBoth     SplitReason = "both"     // Split due to both zone and capacity
+)
+
+// ZoneMapping maps aisle prefixes to zone IDs
+var ZoneMapping = map[string]string{
+	"A": "ZONE-1", "B": "ZONE-1", "C": "ZONE-1", "D": "ZONE-1",
+	"E": "ZONE-2", "F": "ZONE-2", "G": "ZONE-2", "H": "ZONE-2",
+	"I": "ZONE-3", "J": "ZONE-3", "K": "ZONE-3", "L": "ZONE-3",
+	"M": "ZONE-4", "N": "ZONE-4", "O": "ZONE-4", "P": "ZONE-4",
+	"Q": "ZONE-5", "R": "ZONE-5", "S": "ZONE-5", "T": "ZONE-5",
+	"U": "ZONE-6", "V": "ZONE-6", "W": "ZONE-6", "X": "ZONE-6",
+	"Y": "ZONE-6", "Z": "ZONE-6",
+}
+
+// MaxItemsPerRoute is the maximum number of items allowed in a single route
+const MaxItemsPerRoute = 30
+
+// MultiRouteResult contains the result of multi-route calculation
+type MultiRouteResult struct {
+	OrderID       string            `json:"orderId"`
+	Routes        []*PickRoute      `json:"routes"`
+	TotalRoutes   int               `json:"totalRoutes"`
+	SplitReason   SplitReason       `json:"splitReason"`
+	ZoneBreakdown map[string]int    `json:"zoneBreakdown"` // Zone -> item count
+	TotalItems    int               `json:"totalItems"`
+	CreatedAt     time.Time         `json:"createdAt"`
+}
+
+// ZoneGroup represents items grouped by zone for multi-route calculation
+type ZoneGroup struct {
+	Zone  string      `json:"zone"`
+	Items []RouteItem `json:"items"`
+}
+
 // PickRoute is the aggregate root for the Routing bounded context
 type PickRoute struct {
 	ID                primitive.ObjectID `bson:"_id,omitempty"`
@@ -63,6 +104,13 @@ type PickRoute struct {
 	StartedAt         *time.Time         `bson:"startedAt,omitempty"`
 	CompletedAt       *time.Time         `bson:"completedAt,omitempty"`
 	DomainEvents      []DomainEvent      `bson:"-"`
+
+	// Multi-route support fields
+	ParentOrderID      string `bson:"parentOrderId,omitempty"`      // Original order ID for multi-route orders
+	RouteIndex         int    `bson:"routeIndex"`                   // Index in multi-route sequence (0, 1, 2...)
+	TotalRoutesInOrder int    `bson:"totalRoutesInOrder"`           // Total routes for this order
+	IsMultiRoute       bool   `bson:"isMultiRoute"`                 // Flag for multi-route order
+	SourceToteID       string `bson:"sourceToteId,omitempty"`       // Unique tote for this route's items
 }
 
 // RouteStop represents a single stop in the pick route
@@ -152,6 +200,34 @@ type RouteItem struct {
 	SKU      string   `json:"sku"`
 	Quantity int      `json:"quantity"`
 	Location Location `json:"location"`
+}
+
+// GetZoneForAisle returns the zone ID for a given aisle prefix
+func GetZoneForAisle(aisle string) string {
+	if aisle == "" {
+		return "ZONE-1" // Default zone
+	}
+	// Get first character of aisle
+	prefix := string(aisle[0])
+	if zone, ok := ZoneMapping[prefix]; ok {
+		return zone
+	}
+	return "ZONE-1" // Default zone
+}
+
+// NewMultiRoutePickRoute creates a new PickRoute with multi-route tracking fields
+func NewMultiRoutePickRoute(routeID, orderID, waveID string, strategy RoutingStrategy, items []RouteItem, routeIndex, totalRoutes int) (*PickRoute, error) {
+	route, err := NewPickRoute(routeID, orderID, waveID, strategy, items)
+	if err != nil {
+		return nil, err
+	}
+
+	route.ParentOrderID = orderID
+	route.RouteIndex = routeIndex
+	route.TotalRoutesInOrder = totalRoutes
+	route.IsMultiRoute = totalRoutes > 1
+
+	return route, nil
 }
 
 // OptimizeRoute optimizes the stop sequence based on the strategy

@@ -12,6 +12,7 @@ export const BASE_URLS = {
   shipping: __ENV.SHIPPING_SERVICE_URL || 'http://localhost:8007',
   facility: __ENV.FACILITY_SERVICE_URL || 'http://localhost:8010',
   orchestrator: __ENV.ORCHESTRATOR_URL || 'http://localhost:30010',
+  unit: __ENV.UNIT_SERVICE_URL || 'http://localhost:8014',
 };
 
 // Picker simulator configuration
@@ -71,6 +72,12 @@ export const FLOW_CONFIG = {
   statusCheckIntervalMs: parseInt(__ENV.STATUS_CHECK_INTERVAL_MS || '3000'), // 3s polling
 };
 
+// Unit-level tracking configuration
+export const UNIT_CONFIG = {
+  enableUnitTracking: __ENV.ENABLE_UNIT_TRACKING !== 'false',  // Default enabled
+  createUnitsOnReceive: __ENV.CREATE_UNITS_ON_RECEIVE === 'true',  // Default disabled
+};
+
 // Order generation configuration
 export const ORDER_CONFIG = {
   // Item count distribution (must sum to 1.0)
@@ -84,6 +91,14 @@ export const ORDER_CONFIG = {
 
   // Available requirements (for reference)
   validRequirements: ['hazmat', 'fragile', 'oversized', 'heavy', 'high_value'],
+};
+
+// Multi-route configuration
+export const MULTI_ROUTE_CONFIG = {
+  enableMultiRoute: __ENV.ENABLE_MULTI_ROUTE !== 'false',  // Default enabled
+  maxItemsPerRoute: parseInt(__ENV.MAX_ITEMS_PER_ROUTE || '30'),
+  largeOrderItemCount: parseInt(__ENV.LARGE_ORDER_ITEMS || '35'),  // Items to trigger multi-route
+  parallelPickingEnabled: __ENV.PARALLEL_PICKING !== 'false',  // Default enabled
 };
 
 export const ENDPOINTS = {
@@ -116,12 +131,19 @@ export const ENDPOINTS = {
     completeTask: (id) => `/api/v1/workers/${id}/task/complete`,
     availableWorkers: '/api/v1/workers/available',
   },
+  routing: {
+    calculate: '/api/v1/routes',
+    calculateMulti: '/api/v1/routes/calculate-multi',
+    get: (id) => `/api/v1/routes/${id}`,
+    byOrder: (orderId) => `/api/v1/routes/order/${orderId}`,
+  },
   picking: {
     pending: '/api/v1/tasks/pending',
     get: (id) => `/api/v1/tasks/${id}`,
     confirmPick: (id) => `/api/v1/tasks/${id}/pick`,
     start: (id) => `/api/v1/tasks/${id}/start`,
     complete: (id) => `/api/v1/tasks/${id}/complete`,
+    byRoute: (routeId) => `/api/v1/tasks/route/${routeId}`,
   },
   waving: {
     list: '/api/v1/waves',
@@ -190,6 +212,18 @@ export const ENDPOINTS = {
     byZone: (zone) => `/api/v1/stations/zone/${zone}`,
     byType: (type) => `/api/v1/stations/type/${type}`,
     byStatus: (status) => `/api/v1/stations/status/${status}`,
+  },
+  unit: {
+    create: '/api/v1/units',
+    reserve: '/api/v1/units/reserve',
+    byOrder: (orderId) => `/api/v1/units/order/${orderId}`,
+    get: (unitId) => `/api/v1/units/${unitId}`,
+    audit: (unitId) => `/api/v1/units/${unitId}/audit`,
+    pick: (unitId) => `/api/v1/units/${unitId}/pick`,
+    consolidate: (unitId) => `/api/v1/units/${unitId}/consolidate`,
+    pack: (unitId) => `/api/v1/units/${unitId}/pack`,
+    ship: (unitId) => `/api/v1/units/${unitId}/ship`,
+    exception: (unitId) => `/api/v1/units/${unitId}/exception`,
   },
 };
 
