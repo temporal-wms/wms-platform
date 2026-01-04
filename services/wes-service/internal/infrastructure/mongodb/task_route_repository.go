@@ -55,8 +55,21 @@ func NewTaskRouteRepository(db *mongo.Database) *TaskRouteRepository {
 	}
 }
 
-// Save saves a task route
+// Save saves a task route (idempotent - returns existing route if already exists)
 func (r *TaskRouteRepository) Save(ctx context.Context, route *domain.TaskRoute) error {
+	// Check if a route for this order already exists (for idempotency)
+	existingRoute, err := r.FindByOrderID(ctx, route.OrderID)
+	if err != nil && err.Error() != "failed to find task route: mongo: no documents in result" {
+		return fmt.Errorf("failed to check existing route: %w", err)
+	}
+
+	// If route already exists, copy all fields to the input route (idempotent behavior for Temporal retries)
+	if existingRoute != nil {
+		*route = *existingRoute
+		return nil
+	}
+
+	// Insert new route
 	route.CreatedAt = time.Now()
 	route.UpdatedAt = time.Now()
 

@@ -8,6 +8,20 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+// Task queue constants for cross-queue child workflow execution
+const (
+	PickingTaskQueue       = "picking-queue"
+	ConsolidationTaskQueue = "consolidation-queue"
+	PackingTaskQueue       = "packing-queue"
+)
+
+// Workflow name constants
+const (
+	PickingWorkflowName       = "OrchestratedPickingWorkflow"
+	ConsolidationWorkflowName = "ConsolidationWorkflow"
+	PackingWorkflowName       = "PackingWorkflow"
+)
+
 // WESExecutionInput represents the input for the WES execution workflow
 type WESExecutionInput struct {
 	OrderID         string          `json:"orderId"`
@@ -298,26 +312,36 @@ func executeStage(ctx workflow.Context, routeID string, input WESExecutionInput,
 	return stageResult, nil
 }
 
-// executePickingStage executes the picking stage
+// executePickingStage executes the picking stage via cross-queue child workflow
 func executePickingStage(ctx workflow.Context, input WESExecutionInput, routeID string, assignment WorkerAssignment, result *StageResult) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing picking stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
 
 	// Build picking input
 	pickingInput := map[string]interface{}{
-		"orderId": input.OrderID,
-		"waveId":  input.WaveID,
-		"taskId":  assignment.TaskID,
-		"items":   input.Items,
+		"orderId":  input.OrderID,
+		"waveId":   input.WaveID,
+		"routeId":  routeID,
+		"taskId":   assignment.TaskID,
+		"pickerId": assignment.WorkerID,
+		"items":    input.Items,
 	}
 
-	// Execute picking child workflow
-	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID: fmt.Sprintf("picking-%s-%s", input.OrderID, assignment.TaskID),
-	})
+	// Configure child workflow options to route to picking-service worker
+	childWorkflowOptions := workflow.ChildWorkflowOptions{
+		TaskQueue: PickingTaskQueue,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    time.Minute,
+			MaximumAttempts:    3,
+		},
+	}
+	childCtx := workflow.WithChildOptions(ctx, childWorkflowOptions)
 
-	var pickResult map[string]interface{}
-	err := workflow.ExecuteChildWorkflow(childCtx, "PickingWorkflow", pickingInput).Get(ctx, &pickResult)
+	// Execute PickingWorkflow as a child workflow on the picking-queue
+	var pickingResult map[string]interface{}
+	err := workflow.ExecuteChildWorkflow(childCtx, PickingWorkflowName, pickingInput).Get(ctx, &pickingResult)
 	if err != nil {
 		return fmt.Errorf("picking workflow failed: %w", err)
 	}
@@ -374,7 +398,7 @@ func executeWallingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 	return nil
 }
 
-// executeConsolidationStage executes the consolidation stage
+// executeConsolidationStage executes the consolidation stage via cross-queue child workflow
 func executeConsolidationStage(ctx workflow.Context, input WESExecutionInput, routeID string, assignment WorkerAssignment, result *StageResult) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing consolidation stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
@@ -383,17 +407,26 @@ func executeConsolidationStage(ctx workflow.Context, input WESExecutionInput, ro
 	consolidationInput := map[string]interface{}{
 		"orderId": input.OrderID,
 		"waveId":  input.WaveID,
+		"routeId": routeID,
 		"taskId":  assignment.TaskID,
 		"items":   input.Items,
 	}
 
-	// Execute consolidation child workflow
-	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID: fmt.Sprintf("consolidation-%s-%s", input.OrderID, assignment.TaskID),
-	})
+	// Configure child workflow options to route to consolidation-service worker
+	childWorkflowOptions := workflow.ChildWorkflowOptions{
+		TaskQueue: ConsolidationTaskQueue,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    time.Minute,
+			MaximumAttempts:    3,
+		},
+	}
+	childCtx := workflow.WithChildOptions(ctx, childWorkflowOptions)
 
+	// Execute ConsolidationWorkflow as a child workflow on the consolidation-queue
 	var consolidationResult map[string]interface{}
-	err := workflow.ExecuteChildWorkflow(childCtx, "ConsolidationWorkflow", consolidationInput).Get(ctx, &consolidationResult)
+	err := workflow.ExecuteChildWorkflow(childCtx, ConsolidationWorkflowName, consolidationInput).Get(ctx, &consolidationResult)
 	if err != nil {
 		return fmt.Errorf("consolidation workflow failed: %w", err)
 	}
@@ -402,26 +435,37 @@ func executeConsolidationStage(ctx workflow.Context, input WESExecutionInput, ro
 	return nil
 }
 
-// executePackingStage executes the packing stage
+// executePackingStage executes the packing stage via cross-queue child workflow
 func executePackingStage(ctx workflow.Context, input WESExecutionInput, routeID string, assignment WorkerAssignment, result *StageResult) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing packing stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
 
 	// Build packing input
 	packingInput := map[string]interface{}{
-		"orderId":  input.OrderID,
-		"waveId":   input.WaveID,
-		"taskId":   assignment.TaskID,
-		"packerId": assignment.WorkerID,
+		"orderId":    input.OrderID,
+		"waveId":     input.WaveID,
+		"routeId":    routeID,
+		"taskId":     assignment.TaskID,
+		"packerId":   assignment.WorkerID,
+		"sourceType": "tote",
+		"items":      input.Items,
 	}
 
-	// Execute packing child workflow
-	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID: fmt.Sprintf("packing-%s-%s", input.OrderID, assignment.TaskID),
-	})
+	// Configure child workflow options to route to packing-service worker
+	childWorkflowOptions := workflow.ChildWorkflowOptions{
+		TaskQueue: PackingTaskQueue,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    time.Minute,
+			MaximumAttempts:    3,
+		},
+	}
+	childCtx := workflow.WithChildOptions(ctx, childWorkflowOptions)
 
-	var packResult map[string]interface{}
-	err := workflow.ExecuteChildWorkflow(childCtx, "PackingWorkflow", packingInput).Get(ctx, &packResult)
+	// Execute PackingWorkflow as a child workflow on the packing-queue
+	var packingResult map[string]interface{}
+	err := workflow.ExecuteChildWorkflow(childCtx, PackingWorkflowName, packingInput).Get(ctx, &packingResult)
 	if err != nil {
 		return fmt.Errorf("packing workflow failed: %w", err)
 	}
