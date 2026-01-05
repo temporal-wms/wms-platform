@@ -103,6 +103,10 @@ Each service represents a bounded context with:
 - **Temporal** for durable workflow execution
 - **Saga Pattern** with automatic compensation
 - **Child Workflows** for complex sub-processes
+- **18+ Workflows** across orchestrator and service layers
+- **100+ Activities** for granular operations
+
+See [Temporal Workflows Documentation](/temporal/overview) for comprehensive workflow details.
 
 ### 4. Resilience Patterns
 - **Circuit Breakers** for external calls
@@ -253,3 +257,10 @@ graph TB
 - [Walling Workflow](/architecture/sequence-diagrams/walling-workflow) - Put-wall sorting flow
 - [Bounded Contexts](/domain-driven-design/bounded-contexts) - Domain decomposition
 - [Infrastructure](/infrastructure/overview) - Deployment details
+
+### Temporal Workflows
+- [Temporal Overview](/temporal/overview) - Workflow architecture and patterns
+- [Order Fulfillment Workflow](/temporal/workflows/order-fulfillment) - Main saga workflow
+- [Workflow Hierarchy](/temporal/diagrams/workflow-hierarchy) - Parent-child relationships
+- [Order Flow Diagram](/temporal/diagrams/order-flow) - Complete order processing flow
+- [Activities Overview](/temporal/activities/overview) - Activity patterns and conventions

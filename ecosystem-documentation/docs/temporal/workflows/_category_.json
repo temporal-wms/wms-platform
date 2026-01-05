@@ -1,0 +1,8 @@
+{
+  "label": "Workflows",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Documentation for all Temporal workflows in the WMS Platform, including orchestrator and service-level workflows."
+  }
+}

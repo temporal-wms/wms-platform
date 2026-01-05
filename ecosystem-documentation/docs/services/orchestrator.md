@@ -219,3 +219,30 @@ graph TB
 - [Order Cancellation](/architecture/sequence-diagrams/order-cancellation) - Compensation
 - [Temporal Infrastructure](/infrastructure/temporal) - Server setup
 - [WES Service](/services/wes-service) - Execution service
+
+### Comprehensive Workflow Documentation
+
+For detailed workflow documentation with full Go struct definitions, see:
+
+**Orchestrator Workflows:**
+- [Order Fulfillment Workflow](/temporal/workflows/order-fulfillment) - Main saga with 5 stages
+- [Planning Workflow](/temporal/workflows/planning) - Process path determination
+- [WES Execution Workflow](/temporal/workflows/wes-execution) - Child workflow execution
+- [Picking Workflow](/temporal/workflows/picking) - Orchestrated picking
+- [Consolidation Workflow](/temporal/workflows/consolidation) - Multi-route handling
+- [Packing Workflow](/temporal/workflows/packing) - Pack task management
+- [Shipping Workflow](/temporal/workflows/shipping) - SLAM process
+- [Sortation Workflow](/temporal/workflows/sortation) - Package sorting
+- [Gift Wrap Workflow](/temporal/workflows/gift-wrap) - Gift wrap processing
+- [Cancellation Workflows](/temporal/workflows/cancellation) - Order cancellation
+- [Reprocessing Workflows](/temporal/workflows/reprocessing) - Failed workflow retry
+
+**Activities:**
+- [Activities Overview](/temporal/activities/overview) - Activity patterns and conventions
+- [Order Activities](/temporal/activities/order-activities) - Order lifecycle activities
+- [Inventory Activities](/temporal/activities/inventory-activities) - Inventory operations
+
+**Reference:**
+- [Signals & Queries](/temporal/signals-queries) - All signal handlers
+- [Task Queues](/temporal/task-queues) - Queue assignments
+- [Retry Policies](/temporal/retry-policies) - Timeout configuration
