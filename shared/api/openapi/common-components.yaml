@@ -226,6 +226,90 @@ components:
                   reason: "Database connection timeout"
                 timestamp: "2024-12-24T10:30:00Z"
 
+    # Idempotency-related responses
+    IdempotencyKeyRequired:
+      description: Idempotency-Key header is required for this operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            keyRequired:
+              summary: Missing idempotency key
+              value:
+                code: "IDEMPOTENCY_KEY_REQUIRED"
+                message: "Idempotency-Key header is required for this operation"
+                timestamp: "2024-12-24T10:30:00Z"
+
+    IdempotencyKeyInvalid:
+      description: Idempotency-Key header has invalid format
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            invalidFormat:
+              summary: Invalid key format
+              value:
+                code: "IDEMPOTENCY_KEY_INVALID"
+                message: "Invalid idempotency key: key contains invalid characters"
+                details:
+                  providedKey: "invalid key with spaces"
+                  reason: "Key contains whitespace characters"
+                timestamp: "2024-12-24T10:30:00Z"
+
+    IdempotencyConcurrentRequest:
+      description: Another request with this idempotency key is currently being processed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            concurrentRequest:
+              summary: Concurrent request detected
+              value:
+                code: "IDEMPOTENCY_CONCURRENT_REQUEST"
+                message: "A request with this idempotency key is currently being processed"
+                details:
+                  idempotencyKey: "550e8400-e29b-41d4-a716-446655440000"
+                  lockedAt: "2024-12-24T10:29:58Z"
+                  retryAfter: 2
+                timestamp: "2024-12-24T10:30:00Z"
+
+    IdempotencyParameterMismatch:
+      description: Request parameters differ from original request with this idempotency key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            parameterMismatch:
+              summary: Request parameters changed
+              value:
+                code: "IDEMPOTENCY_PARAMETER_MISMATCH"
+                message: "Request parameters differ from original request with this idempotency key"
+                details:
+                  idempotencyKey: "550e8400-e29b-41d4-a716-446655440000"
+                  originalRequestAt: "2024-12-24T10:25:00Z"
+                  advice: "Use a different idempotency key if request parameters need to change"
+                timestamp: "2024-12-24T10:30:00Z"
+
+    IdempotencyStorageUnavailable:
+      description: Idempotency storage is temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            storageUnavailable:
+              summary: Storage unavailable
+              value:
+                code: "IDEMPOTENCY_STORAGE_UNAVAILABLE"
+                message: "Idempotency storage temporarily unavailable. Please retry."
+                details:
+                  retryAfter: 5
+                timestamp: "2024-12-24T10:30:00Z"
+
   parameters:
     # Pagination parameters
     PageParam:
@@ -273,6 +357,60 @@ components:
           - desc
         default: desc
       example: "desc"
+
+    # Idempotency parameter
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 255
+        pattern: '^[a-zA-Z0-9_-]+$'
+        example: "550e8400-e29b-41d4-a716-446655440000"
+      description: |
+        Unique key for idempotent request processing following Stripe's pattern.
+
+        **Recommended**: Use UUID v4 for best results.
+
+        **Behavior**:
+        - Requests with the same key return the same cached result (24-hour retention)
+        - Keys are scoped per service (same key can be used across different services)
+        - Duplicate requests with same parameters return the exact same response
+        - Parameter changes with same key return 422 error (parameter mismatch)
+        - Concurrent requests with same key return 409 error
+
+        **Applies to**: POST, PUT, PATCH, DELETE operations
+
+        **Error Codes**:
+        - `400 Bad Request`: Missing key (when required) or invalid format
+        - `409 Conflict`: Another request with this key is currently being processed
+        - `422 Unprocessable Entity`: Request parameters differ from original request
+        - `503 Service Unavailable`: Idempotency storage temporarily unavailable
+
+        **Key Format**:
+        - Alphanumeric characters, hyphens, and underscores only
+        - Maximum 255 characters
+        - Case-sensitive
+
+        **Examples**:
+        - Valid: `550e8400-e29b-41d4-a716-446655440000` (UUID v4)
+        - Valid: `order_2024_01_03_abc123`
+        - Valid: `my-unique-request-key`
+        - Invalid: `invalid key with spaces`
+        - Invalid: `key@with#special$chars`
+
+        **Client Implementation**:
+        1. Generate a new UUID v4 for each unique operation
+        2. Store the key locally for potential retries
+        3. Reuse the same key when retrying the exact same request
+        4. Use a different key if request parameters change
+        5. Implement exponential backoff for 409 Conflict errors
+
+        **Migration Note**:
+        Currently optional for backward compatibility. Will become required for all mutating operations in future releases.
+
+        For more details, see: https://stripe.com/docs/api/idempotent_requests
 
   headers:
     # CloudEvents WMS-specific extension headers

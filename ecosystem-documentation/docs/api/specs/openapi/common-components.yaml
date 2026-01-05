@@ -1,0 +1,345 @@
+openapi: 3.0.3
+info:
+  title: WMS Platform - Common Components
+  description: Reusable OpenAPI components shared across all WMS services
+  version: 1.0.0
+
+components:
+  schemas:
+    # Error response schema
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code identifier
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid input parameters"
+        details:
+          type: object
+          description: Additional error context
+          additionalProperties: true
+          example:
+            field: "quantity"
+            reason: "must be greater than 0"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+          example: "2024-12-24T10:30:00Z"
+
+    # Pagination metadata
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+          example: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of items per page
+          example: 20
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of items across all pages
+          example: 150
+        totalPages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+          example: 8
+        hasMore:
+          type: boolean
+          description: Whether there are more pages available
+          example: true
+
+    # Timestamp format
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 timestamp
+      example: "2024-12-24T10:00:00Z"
+
+    # Address schema (used across multiple services)
+    Address:
+      type: object
+      required:
+        - street
+        - city
+        - state
+        - zipCode
+        - country
+      properties:
+        street:
+          type: string
+          description: Street address
+          example: "123 Main Street"
+        street2:
+          type: string
+          description: Additional address line
+          example: "Apt 4B"
+        city:
+          type: string
+          description: City name
+          example: "San Francisco"
+        state:
+          type: string
+          description: State or province code
+          example: "CA"
+        zipCode:
+          type: string
+          description: Postal code
+          example: "94105"
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code
+          example: "US"
+
+    # Priority levels (used in orders and tasks)
+    Priority:
+      type: string
+      enum:
+        - same_day
+        - next_day
+        - standard
+      description: Priority level for processing
+      example: "same_day"
+
+    # Generic status
+    Status:
+      type: string
+      description: Entity status
+      example: "active"
+
+  responses:
+    # 400 Bad Request
+    BadRequest:
+      description: Invalid request parameters or validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            validationError:
+              summary: Validation error example
+              value:
+                code: "VALIDATION_ERROR"
+                message: "Request validation failed"
+                details:
+                  field: "quantity"
+                  reason: "must be greater than 0"
+                timestamp: "2024-12-24T10:30:00Z"
+            missingField:
+              summary: Missing required field
+              value:
+                code: "MISSING_FIELD"
+                message: "Required field is missing"
+                details:
+                  field: "customerId"
+                timestamp: "2024-12-24T10:30:00Z"
+
+    # 404 Not Found
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            resourceNotFound:
+              summary: Resource not found example
+              value:
+                code: "NOT_FOUND"
+                message: "Resource not found"
+                details:
+                  resourceType: "Order"
+                  resourceId: "ORD-12345"
+                timestamp: "2024-12-24T10:30:00Z"
+
+    # 409 Conflict
+    Conflict:
+      description: Resource conflict or business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            duplicateResource:
+              summary: Duplicate resource
+              value:
+                code: "DUPLICATE_RESOURCE"
+                message: "Resource already exists"
+                details:
+                  resourceType: "Order"
+                  resourceId: "ORD-12345"
+                timestamp: "2024-12-24T10:30:00Z"
+            businessRuleViolation:
+              summary: Business rule violation
+              value:
+                code: "BUSINESS_RULE_VIOLATION"
+                message: "Cannot cancel shipped order"
+                details:
+                  orderId: "ORD-12345"
+                  currentStatus: "shipped"
+                timestamp: "2024-12-24T10:30:00Z"
+
+    # 500 Internal Server Error
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            internalError:
+              summary: Internal server error
+              value:
+                code: "INTERNAL_ERROR"
+                message: "An unexpected error occurred"
+                timestamp: "2024-12-24T10:30:00Z"
+
+    # 503 Service Unavailable
+    ServiceUnavailable:
+      description: Service temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            serviceUnavailable:
+              summary: Service unavailable
+              value:
+                code: "SERVICE_UNAVAILABLE"
+                message: "Service is temporarily unavailable"
+                details:
+                  reason: "Database connection timeout"
+                timestamp: "2024-12-24T10:30:00Z"
+
+  parameters:
+    # Pagination parameters
+    PageParam:
+      name: page
+      in: query
+      description: Page number (1-indexed)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+
+    PageSizeParam:
+      name: pageSize
+      in: query
+      description: Number of items per page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+
+    # Sorting parameters
+    SortByParam:
+      name: sortBy
+      in: query
+      description: Field to sort by
+      required: false
+      schema:
+        type: string
+      example: "createdAt"
+
+    SortOrderParam:
+      name: sortOrder
+      in: query
+      description: Sort order direction
+      required: false
+      schema:
+        type: string
+        enum:
+          - asc
+          - desc
+        default: desc
+      example: "desc"
+
+  headers:
+    # CloudEvents WMS-specific extension headers
+    X-WMS-Correlation-ID:
+      description: |
+        CloudEvents extension for distributed tracing and correlation across WMS services.
+        This ID should be propagated through all service calls within a single business transaction.
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    X-WMS-Wave-Number:
+      description: |
+        CloudEvents extension for wave-based processing correlation.
+        Used to group related orders and tasks within a picking wave.
+      required: false
+      schema:
+        type: string
+        pattern: "^WAVE-[0-9]{4}-[0-9]+$"
+      example: "WAVE-2024-00123"
+
+    X-WMS-Workflow-ID:
+      description: |
+        CloudEvents extension for Temporal workflow correlation.
+        Identifies the order fulfillment workflow instance handling this request.
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"
+
+    # Standard correlation headers
+    X-Request-ID:
+      description: Unique identifier for this HTTP request
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+
+    X-Correlation-ID:
+      description: Correlation ID for distributed tracing
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "d85e2d72-0c45-4b89-9f89-98e16b234f61"
+
+    X-Trace-ID:
+      description: OpenTelemetry trace ID for distributed tracing
+      required: false
+      schema:
+        type: string
+      example: "4bf92f3577b34da6a3ce929d0e0e4736"
+
+  securitySchemes:
+    # Bearer token authentication
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token-based authentication
+
+    # API Key authentication
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key-based authentication

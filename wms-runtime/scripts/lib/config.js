@@ -111,6 +111,37 @@ export const MULTI_ROUTE_CONFIG = {
   parallelPickingEnabled: __ENV.PARALLEL_PICKING !== 'false',  // Default enabled
 };
 
+// Signal retry configuration
+export const SIGNAL_CONFIG = {
+  maxRetries: parseInt(__ENV.SIGNAL_MAX_RETRIES || '3'),
+  retryDelayMs: parseInt(__ENV.SIGNAL_RETRY_DELAY_MS || '1000'),
+  timeoutMs: parseInt(__ENV.SIGNAL_TIMEOUT_MS || '5000'),
+};
+
+// Workflow ID patterns used by orchestrator
+// Reference: orchestrator/cmd/worker/main.go signal handlers
+export const WORKFLOW_PATTERNS = {
+  planning: (orderId) => `planning-${orderId}`,        // Wave assignment
+  picking: (orderId) => `picking-${orderId}`,          // Standalone picking
+  consolidation: (orderId) => `consolidation-${orderId}`, // Consolidation
+  packing: (orderId) => `packing-${orderId}`,          // Standalone packing
+  wes: (orderId) => `wes-execution-${orderId}`,        // WES orchestration (walling, multi-stage)
+  shipping: (orderId) => `shipping-${orderId}`,        // Shipping
+  giftWrap: (orderId) => `giftwrap-${orderId}`,        // Gift wrapping
+};
+
+// Signal endpoint reference
+// All endpoints are relative to ORCHESTRATOR_URL
+export const SIGNAL_ENDPOINTS = {
+  waveAssigned: '/api/v1/signals/wave-assigned',               // → planning-{orderId}
+  pickCompleted: '/api/v1/signals/pick-completed',             // → picking-{orderId}
+  toteArrived: '/api/v1/signals/tote-arrived',                 // → consolidation-{orderId}
+  consolidationCompleted: '/api/v1/signals/consolidation-completed', // → order-fulfillment-{orderId}
+  giftWrapCompleted: '/api/v1/signals/gift-wrap-completed',    // → giftwrap-{orderId}
+  wallingCompleted: '/api/v1/signals/walling-completed',       // → wes-execution-{orderId}
+  packingCompleted: '/api/v1/signals/packing-completed',       // → packing-{orderId} or wes-execution-{orderId}
+};
+
 export const ENDPOINTS = {
   orders: {
     create: '/api/v1/orders',

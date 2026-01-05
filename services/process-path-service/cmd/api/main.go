@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/wms-platform/shared/pkg/idempotency"
 	"github.com/wms-platform/shared/pkg/logging"
 	"github.com/wms-platform/shared/pkg/metrics"
 	"github.com/wms-platform/shared/pkg/middleware"
@@ -71,8 +72,19 @@ func main() {
 	defer instrumentedMongo.Close(ctx)
 	logger.Info("Connected to MongoDB", "database", config.MongoDB.Database)
 
+	// Initialize idempotency indexes
+	if err := idempotency.InitializeIndexes(ctx, instrumentedMongo.Database()); err != nil {
+		logger.WithError(err).Warn("Failed to initialize idempotency indexes")
+	} else {
+		logger.Info("Idempotency indexes initialized")
+	}
+
 	// Initialize repository
 	repo := mongoRepo.NewProcessPathRepository(instrumentedMongo.Database())
+
+	// Initialize idempotency repository
+	idempotencyKeyRepo := idempotency.NewMongoKeyRepository(instrumentedMongo.Database())
+	logger.Info("Idempotency repositories initialized")
 
 	// Initialize application service
 	processPathService := application.NewProcessPathService(repo, logger)
@@ -80,8 +92,25 @@ func main() {
 	// Setup Gin router with middleware
 	router := gin.New()
 
+	// Initialize idempotency metrics
+	idempotencyMetrics := idempotency.NewMetrics(nil)
+
 	// Apply standard middleware
 	middlewareConfig := middleware.DefaultConfig(serviceName, logger.Logger)
+
+	// Configure idempotency middleware
+	middlewareConfig.IdempotencyConfig = &idempotency.Config{
+		ServiceName:     serviceName,
+		Repository:      idempotencyKeyRepo,
+		RequireKey:      false,
+		OnlyMutating:    true,
+		MaxKeyLength:    255,
+		LockTimeout:     5 * time.Minute,
+		RetentionPeriod: 24 * time.Hour,
+		MaxResponseSize: 1024 * 1024,
+		Metrics:         idempotencyMetrics,
+	}
+
 	middleware.Setup(router, middlewareConfig)
 
 	// Add metrics middleware

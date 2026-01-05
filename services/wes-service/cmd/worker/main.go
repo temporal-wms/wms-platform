@@ -6,6 +6,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/wms-platform/shared/pkg/cloudevents"
+	"github.com/wms-platform/shared/pkg/kafka"
+	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/metrics"
+	"github.com/wms-platform/shared/pkg/temporal"
 	"github.com/wms-platform/wes-service/internal/activities"
 	"github.com/wms-platform/wes-service/internal/application"
 	"github.com/wms-platform/wes-service/internal/domain"
@@ -17,15 +22,12 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-const (
-	taskQueue = "wes-execution-queue"
-)
-
 func main() {
-	// Setup logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	// Setup logger with shared logging package
+	logConfig := logging.DefaultConfig("wes-worker")
+	logConfig.Level = logging.LogLevel(getEnv("LOG_LEVEL", "info"))
+	loggerWrapper := logging.New(logConfig)
+	logger := loggerWrapper.Logger
 	slog.SetDefault(logger)
 
 	logger.Info("Starting WES Temporal Worker")
@@ -35,6 +37,7 @@ func main() {
 	dbName := getEnv("MONGODB_DATABASE", "wes_db")
 	temporalHost := getEnv("TEMPORAL_HOST", "localhost:7233")
 	temporalNamespace := getEnv("TEMPORAL_NAMESPACE", "default")
+	kafkaBrokers := getEnv("KAFKA_BROKERS", "localhost:9092")
 
 	// Service URLs for clients
 	laborServiceURL := getEnv("LABOR_SERVICE_URL", "http://localhost:8010")
@@ -73,9 +76,30 @@ func main() {
 	// Get database
 	db := mongoClient.Database(dbName)
 
+	// Initialize metrics
+	metricsConfig := metrics.DefaultConfig("wes-worker")
+	m := metrics.New(metricsConfig)
+
+	// Initialize Kafka producer with instrumentation
+	kafkaConfig := &kafka.Config{
+		Brokers:       []string{kafkaBrokers},
+		ConsumerGroup: "wes-worker",
+		ClientID:      "wes-worker",
+		BatchSize:     100,
+		BatchTimeout:  10 * time.Millisecond,
+		RequiredAcks:  -1,
+	}
+	kafkaProducer := kafka.NewProducer(kafkaConfig)
+	instrumentedProducer := kafka.NewInstrumentedProducer(kafkaProducer, m, loggerWrapper)
+	defer instrumentedProducer.Close()
+	logger.Info("Kafka producer initialized", "brokers", kafkaBrokers)
+
+	// Initialize CloudEvents factory
+	eventFactory := cloudevents.NewEventFactory("/wes-service")
+
 	// Create repositories
-	templateRepo := mongodb.NewStageTemplateRepository(db)
-	routeRepo := mongodb.NewTaskRouteRepository(db)
+	templateRepo := mongodb.NewStageTemplateRepository(db, eventFactory)
+	routeRepo := mongodb.NewTaskRouteRepository(db, eventFactory)
 
 	// Seed default templates if needed
 	if err := seedDefaultTemplates(ctx, templateRepo, logger); err != nil {
@@ -94,6 +118,8 @@ func main() {
 		templateRepo,
 		routeRepo,
 		processPathClient,
+		instrumentedProducer,
+		eventFactory,
 		logger,
 	)
 
@@ -120,7 +146,7 @@ func main() {
 	logger.Info("Connected to Temporal", "host", temporalHost, "namespace", temporalNamespace)
 
 	// Create worker
-	w := worker.New(temporalClient, taskQueue, worker.Options{})
+	w := worker.New(temporalClient, temporal.TaskQueues.WESExecution, worker.Options{})
 
 	// Register workflows
 	w.RegisterWorkflow(workflows.WESExecutionWorkflow)
@@ -133,9 +159,12 @@ func main() {
 	w.RegisterActivity(wesActivities.CompleteStage)
 	w.RegisterActivity(wesActivities.FailStage)
 	w.RegisterActivity(wesActivities.ExecuteWallingTask)
+	w.RegisterActivity(wesActivities.ExecutePickingTask)
+	w.RegisterActivity(wesActivities.ExecuteConsolidationTask)
+	w.RegisterActivity(wesActivities.ExecutePackingTask)
 
 	// Start worker
-	logger.Info("Starting WES worker", "taskQueue", taskQueue)
+	logger.Info("Starting WES worker", "taskQueue", temporal.TaskQueues.WESExecution)
 	if err := w.Run(worker.InterruptCh()); err != nil {
 		logger.Error("Failed to start worker", "error", err)
 		os.Exit(1)

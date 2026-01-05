@@ -492,3 +492,303 @@ SELECT
     `__source_ts_ms` AS cdc_timestamp,
     CURRENT_TIMESTAMP AS ingestion_time
 FROM routes_cdc_source;
+
+-- ============================================
+-- RECEIVING DATA PRODUCT - Bronze Layer
+-- ============================================
+
+-- Configure Kafka source for Receipts CDC
+CREATE TABLE receipts_cdc_source (
+    `_id` STRING,
+    `receipt_id` STRING,
+    `po_number` STRING,
+    `vendor_id` STRING,
+    `vendor_name` STRING,
+    `dock_door` STRING,
+    `status` STRING,
+    `items` STRING,  -- JSON array
+    `total_units` INT,
+    `received_units` INT,
+    `damaged_units` INT,
+    `expected_at` TIMESTAMP(3),
+    `arrived_at` TIMESTAMP(3),
+    `unloading_started_at` TIMESTAMP(3),
+    `unloading_completed_at` TIMESTAMP(3),
+    `inspection_completed_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `worker_id` STRING,
+    `notes` STRING,
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `__op` STRING,
+    `__source_ts_ms` BIGINT,
+    `proctime` AS PROCTIME()
+) WITH (
+    'connector' = 'kafka',
+    'topic' = 'cdc.wms.receipts',
+    'properties.bootstrap.servers' = 'wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092',
+    'properties.group.id' = 'flink-bronze-receipts',
+    'scan.startup.mode' = 'earliest-offset',
+    'format' = 'json',
+    'json.ignore-parse-errors' = 'true'
+);
+
+-- Create Bronze Receipts table
+CREATE TABLE IF NOT EXISTS iceberg_catalog.bronze.receipts_raw (
+    `_id` STRING,
+    `receipt_id` STRING,
+    `po_number` STRING,
+    `vendor_id` STRING,
+    `vendor_name` STRING,
+    `dock_door` STRING,
+    `status` STRING,
+    `items` STRING,
+    `total_units` INT,
+    `received_units` INT,
+    `damaged_units` INT,
+    `expected_at` TIMESTAMP(3),
+    `arrived_at` TIMESTAMP(3),
+    `unloading_started_at` TIMESTAMP(3),
+    `unloading_completed_at` TIMESTAMP(3),
+    `inspection_completed_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `worker_id` STRING,
+    `notes` STRING,
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `cdc_operation` STRING,
+    `cdc_timestamp` BIGINT,
+    `ingestion_time` TIMESTAMP(3),
+    PRIMARY KEY (`_id`) NOT ENFORCED
+) PARTITIONED BY (days(`ingestion_time`))
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Insert CDC events into Bronze layer
+INSERT INTO iceberg_catalog.bronze.receipts_raw
+SELECT
+    `_id`,
+    `receipt_id`,
+    `po_number`,
+    `vendor_id`,
+    `vendor_name`,
+    `dock_door`,
+    `status`,
+    `items`,
+    `total_units`,
+    `received_units`,
+    `damaged_units`,
+    `expected_at`,
+    `arrived_at`,
+    `unloading_started_at`,
+    `unloading_completed_at`,
+    `inspection_completed_at`,
+    `completed_at`,
+    `worker_id`,
+    `notes`,
+    `created_at`,
+    `updated_at`,
+    `__op` AS cdc_operation,
+    `__source_ts_ms` AS cdc_timestamp,
+    CURRENT_TIMESTAMP AS ingestion_time
+FROM receipts_cdc_source;
+
+-- ============================================
+-- STOWING DATA PRODUCT - Bronze Layer
+-- ============================================
+
+-- Configure Kafka source for Stow Tasks CDC
+CREATE TABLE stow_tasks_cdc_source (
+    `_id` STRING,
+    `stow_task_id` STRING,
+    `receipt_id` STRING,
+    `worker_id` STRING,
+    `status` STRING,
+    `sku` STRING,
+    `product_name` STRING,
+    `quantity` INT,
+    `source_location` STRING,
+    `target_location` STRING,
+    `suggested_location` STRING,
+    `actual_location` STRING,
+    `zone` STRING,
+    `priority` INT,
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `assigned_at` TIMESTAMP(3),
+    `started_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `__op` STRING,
+    `__source_ts_ms` BIGINT,
+    `proctime` AS PROCTIME()
+) WITH (
+    'connector' = 'kafka',
+    'topic' = 'cdc.wms.stow_tasks',
+    'properties.bootstrap.servers' = 'wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092',
+    'properties.group.id' = 'flink-bronze-stow-tasks',
+    'scan.startup.mode' = 'earliest-offset',
+    'format' = 'json',
+    'json.ignore-parse-errors' = 'true'
+);
+
+-- Create Bronze Stow Tasks table
+CREATE TABLE IF NOT EXISTS iceberg_catalog.bronze.stow_tasks_raw (
+    `_id` STRING,
+    `stow_task_id` STRING,
+    `receipt_id` STRING,
+    `worker_id` STRING,
+    `status` STRING,
+    `sku` STRING,
+    `product_name` STRING,
+    `quantity` INT,
+    `source_location` STRING,
+    `target_location` STRING,
+    `suggested_location` STRING,
+    `actual_location` STRING,
+    `zone` STRING,
+    `priority` INT,
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `assigned_at` TIMESTAMP(3),
+    `started_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `cdc_operation` STRING,
+    `cdc_timestamp` BIGINT,
+    `ingestion_time` TIMESTAMP(3),
+    PRIMARY KEY (`_id`) NOT ENFORCED
+) PARTITIONED BY (days(`ingestion_time`))
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Insert CDC events into Bronze layer
+INSERT INTO iceberg_catalog.bronze.stow_tasks_raw
+SELECT
+    `_id`,
+    `stow_task_id`,
+    `receipt_id`,
+    `worker_id`,
+    `status`,
+    `sku`,
+    `product_name`,
+    `quantity`,
+    `source_location`,
+    `target_location`,
+    `suggested_location`,
+    `actual_location`,
+    `zone`,
+    `priority`,
+    `created_at`,
+    `updated_at`,
+    `assigned_at`,
+    `started_at`,
+    `completed_at`,
+    `__op` AS cdc_operation,
+    `__source_ts_ms` AS cdc_timestamp,
+    CURRENT_TIMESTAMP AS ingestion_time
+FROM stow_tasks_cdc_source;
+
+-- ============================================
+-- RETURNS DATA PRODUCT - Bronze Layer
+-- ============================================
+
+-- Configure Kafka source for Returns CDC
+CREATE TABLE returns_cdc_source (
+    `_id` STRING,
+    `return_id` STRING,
+    `order_id` STRING,
+    `customer_id` STRING,
+    `status` STRING,
+    `reason` STRING,
+    `disposition` STRING,
+    `items` STRING,  -- JSON array
+    `total_items` INT,
+    `restocked_items` INT,
+    `disposed_items` INT,
+    `refund_amount` DOUBLE,
+    `tracking_number` STRING,
+    `carrier` STRING,
+    `worker_id` STRING,
+    `notes` STRING,
+    `received_at` TIMESTAMP(3),
+    `inspected_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `__op` STRING,
+    `__source_ts_ms` BIGINT,
+    `proctime` AS PROCTIME()
+) WITH (
+    'connector' = 'kafka',
+    'topic' = 'cdc.wms.returns',
+    'properties.bootstrap.servers' = 'wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092',
+    'properties.group.id' = 'flink-bronze-returns',
+    'scan.startup.mode' = 'earliest-offset',
+    'format' = 'json',
+    'json.ignore-parse-errors' = 'true'
+);
+
+-- Create Bronze Returns table
+CREATE TABLE IF NOT EXISTS iceberg_catalog.bronze.returns_raw (
+    `_id` STRING,
+    `return_id` STRING,
+    `order_id` STRING,
+    `customer_id` STRING,
+    `status` STRING,
+    `reason` STRING,
+    `disposition` STRING,
+    `items` STRING,
+    `total_items` INT,
+    `restocked_items` INT,
+    `disposed_items` INT,
+    `refund_amount` DOUBLE,
+    `tracking_number` STRING,
+    `carrier` STRING,
+    `worker_id` STRING,
+    `notes` STRING,
+    `received_at` TIMESTAMP(3),
+    `inspected_at` TIMESTAMP(3),
+    `completed_at` TIMESTAMP(3),
+    `created_at` TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3),
+    `cdc_operation` STRING,
+    `cdc_timestamp` BIGINT,
+    `ingestion_time` TIMESTAMP(3),
+    PRIMARY KEY (`_id`) NOT ENFORCED
+) PARTITIONED BY (days(`ingestion_time`))
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Insert CDC events into Bronze layer
+INSERT INTO iceberg_catalog.bronze.returns_raw
+SELECT
+    `_id`,
+    `return_id`,
+    `order_id`,
+    `customer_id`,
+    `status`,
+    `reason`,
+    `disposition`,
+    `items`,
+    `total_items`,
+    `restocked_items`,
+    `disposed_items`,
+    `refund_amount`,
+    `tracking_number`,
+    `carrier`,
+    `worker_id`,
+    `notes`,
+    `received_at`,
+    `inspected_at`,
+    `completed_at`,
+    `created_at`,
+    `updated_at`,
+    `__op` AS cdc_operation,
+    `__source_ts_ms` AS cdc_timestamp,
+    CURRENT_TIMESTAMP AS ingestion_time
+FROM returns_cdc_source;

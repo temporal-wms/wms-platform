@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wms-platform/shared/pkg/cloudevents"
+	"github.com/wms-platform/shared/pkg/kafka"
+	"github.com/wms-platform/shared/pkg/outbox"
+	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
 	"github.com/wms-platform/wes-service/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -14,11 +18,14 @@ import (
 
 // StageTemplateRepository implements domain.StageTemplateRepository using MongoDB
 type StageTemplateRepository struct {
-	collection *mongo.Collection
+	db           *mongo.Database
+	collection   *mongo.Collection
+	eventFactory *cloudevents.EventFactory
+	outboxRepo   *outboxMongo.OutboxRepository
 }
 
 // NewStageTemplateRepository creates a new StageTemplateRepository
-func NewStageTemplateRepository(db *mongo.Database) *StageTemplateRepository {
+func NewStageTemplateRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *StageTemplateRepository {
 	collection := db.Collection("stage_templates")
 
 	// Create indexes
@@ -44,22 +51,76 @@ func NewStageTemplateRepository(db *mongo.Database) *StageTemplateRepository {
 	_, _ = collection.Indexes().CreateMany(ctx, indexes)
 
 	return &StageTemplateRepository{
-		collection: collection,
+		db:           db,
+		collection:   collection,
+		eventFactory: eventFactory,
+		outboxRepo:   outboxMongo.NewOutboxRepository(db),
 	}
 }
 
-// Save saves a stage template
+// GetOutboxRepository returns the outbox repository
+func (r *StageTemplateRepository) GetOutboxRepository() *outboxMongo.OutboxRepository {
+	return r.outboxRepo
+}
+
+// Save saves a stage template with event publishing via outbox
 func (r *StageTemplateRepository) Save(ctx context.Context, template *domain.StageTemplate) error {
 	template.CreatedAt = time.Now()
 	template.UpdatedAt = time.Now()
 
-	result, err := r.collection.InsertOne(ctx, template)
+	// Start MongoDB session for transaction
+	session, err := r.db.Client().StartSession()
 	if err != nil {
-		return fmt.Errorf("failed to insert stage template: %w", err)
+		return fmt.Errorf("failed to start session: %w", err)
 	}
+	defer session.EndSession(ctx)
 
-	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
-		template.ID = oid
+	// Execute transaction
+	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+		// Insert template
+		result, err := r.collection.InsertOne(sessCtx, template)
+		if err != nil {
+			return nil, fmt.Errorf("failed to insert stage template: %w", err)
+		}
+
+		if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+			template.ID = oid
+		}
+
+		// Create CloudEvent
+		cloudEvent := r.eventFactory.CreateEvent(
+			sessCtx,
+			"wms.wes.template-created",
+			"template/"+template.TemplateID,
+			map[string]interface{}{
+				"templateID": template.TemplateID,
+				"name":       template.Name,
+				"pathType":   template.PathType,
+				"stages":     len(template.Stages),
+			},
+		)
+
+		// Create outbox event from CloudEvent
+		outboxEvent, err := outbox.NewOutboxEventFromCloudEvent(
+			template.TemplateID,
+			"StageTemplate",
+			kafka.Topics.WESEvents,
+			cloudEvent,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create outbox event: %w", err)
+		}
+
+		// Save to outbox atomically
+		if err := r.outboxRepo.Save(sessCtx, outboxEvent); err != nil {
+			return nil, fmt.Errorf("failed to save event to outbox: %w", err)
+		}
+
+		return nil, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("transaction failed: %w", err)
 	}
 
 	return nil

@@ -105,7 +105,7 @@ stateDiagram-v2
 | Positive Quantity | Quantity must be greater than 0 |
 | Valid Strategy | Strategy must be valid enum value |
 | Location Constraints | Target location must support item constraints |
-| Stowed <= Total | Stowed quantity cannot exceed total quantity |
+| Stowed &lt;= Total | Stowed quantity cannot exceed total quantity |
 | Status Transitions | Status can only follow valid state machine |
 
 ## Storage Strategies

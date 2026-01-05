@@ -1,0 +1,197 @@
+# Superset Dashboard Configuration: Inventory Analytics
+# Dashboard for stock visibility and inventory health monitoring
+
+dashboard:
+  name: "Inventory Analytics"
+  description: "Monitor stock levels, velocity classes, and reorder alerts"
+  slug: inventory-analytics
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: zone
+      type: select
+      title: "Zone"
+      description: "Filter by warehouse zone"
+      required: false
+      options:
+        - ZONE-1
+        - ZONE-2
+        - ZONE-3
+        - ZONE-4
+        - ZONE-5
+        - ZONE-6
+      filter_key: zone
+
+    - name: stock_status
+      type: select
+      title: "Stock Status"
+      description: "Filter by stock status"
+      required: false
+      options:
+        - Healthy
+        - Low Stock
+        - Out of Stock
+      filter_key: stock_status
+
+    - name: sku
+      type: text
+      title: "SKU"
+      description: "Search by SKU"
+      required: false
+      filter_key: sku
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Total SKUs"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: inventory_current
+          configuration:
+            metric: total_skus
+            subheader: "SKUs"
+
+        - name: "Total Units"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: inventory_current
+          configuration:
+            metric: total_units
+            subheader: "Units"
+
+        - name: "Low Stock Alerts"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: inventory_current
+          configuration:
+            metric: low_stock_count
+            subheader: "Alerts"
+            color: "#ff4d4f"
+
+        - name: "Out of Stock"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: inventory_current
+          configuration:
+            metric: out_of_stock_count
+            subheader: "SKUs"
+            color: "#cf1322"
+
+    # Row 2: Stock Distribution
+    - row: 2
+      charts:
+        - name: "Stock Distribution by Zone"
+          type: bar
+          width: 6
+          height: 4
+          description: "Total units by warehouse zone"
+          dataset: inventory_current
+          configuration:
+            metric: total_units
+            dimension: zone
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Velocity Class Distribution"
+          type: pie
+          width: 6
+          height: 4
+          description: "SKUs by velocity class (A/B/C)"
+          dataset: inventory_current
+          configuration:
+            metric: total_skus
+            dimension: velocity_class
+            show_legend: true
+            show_values: true
+
+    # Row 3: Trends
+    - row: 3
+      charts:
+        - name: "Inventory Turnover Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Inventory turnover rate over time"
+          dataset: inventory_metrics_daily
+          configuration:
+            metrics:
+              - avg_turnover_rate
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+        - name: "Low Stock Trend"
+          type: area
+          width: 6
+          height: 4
+          description: "Low stock SKU count over time"
+          dataset: inventory_metrics_daily
+          configuration:
+            metrics:
+              - low_stock_count
+            dimension: date
+            time_grain: day
+            fill: true
+            color: "#ff4d4f"
+
+    # Row 4: Reorder Alerts Table
+    - row: 4
+      charts:
+        - name: "Reorder Alerts"
+          type: table
+          width: 12
+          height: 4
+          description: "SKUs requiring reorder"
+          dataset: inventory_current
+          configuration:
+            columns:
+              - sku
+              - product_name
+              - total_quantity
+              - available_quantity
+              - reserved_quantity
+              - reorder_point
+              - stock_status
+              - updated_at
+            filter: "available_quantity <= reorder_point"
+            order_by: available_quantity
+            order_direction: asc
+            conditional_formatting:
+              - column: stock_status
+                conditions:
+                  - operator: "=="
+                    value: "Out of Stock"
+                    background_color: "#cf1322"
+                    text_color: "#ffffff"
+                  - operator: "=="
+                    value: "Low Stock"
+                    background_color: "#faad14"
+                    text_color: "#000000"
+
+# Dataset references
+datasets:
+  - name: inventory_current
+    database: trino
+    schema: iceberg.silver
+    table_name: inventory_current
+
+  - name: inventory_metrics_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: inventory_metrics_daily

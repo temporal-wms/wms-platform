@@ -71,6 +71,7 @@ var Topics = struct {
 	InventoryEvents     string
 	LaborEvents         string
 	FacilityEvents      string
+	WESEvents           string
 
 	// Amazon-aligned process topics
 	ReceivingEvents  string
@@ -93,6 +94,7 @@ var Topics = struct {
 	InventoryEvents:     "wms.inventory.events",
 	LaborEvents:         "wms.labor.events",
 	FacilityEvents:      "wms.facility.events",
+	WESEvents:           "wms.wes.events",
 
 	// Amazon-aligned process topics
 	ReceivingEvents:  "wms.receiving.events",
@@ -124,6 +126,7 @@ func DefaultTopicConfigs() []TopicConfig {
 		{Name: Topics.ShippingEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.InventoryEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.LaborEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
+		{Name: Topics.WESEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		// Amazon-aligned process topics
 		{Name: Topics.ReceivingEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.StowEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},

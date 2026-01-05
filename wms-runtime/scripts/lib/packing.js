@@ -3,7 +3,7 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PACKING_CONFIG } from './config.js';
+import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PACKING_CONFIG, SIGNAL_CONFIG } from './config.js';
 import { confirmPacksForOrder } from './unit.js';
 
 /**
@@ -265,6 +265,18 @@ export function completePackTask(taskId) {
  * @returns {boolean} True if successful
  */
 export function sendPackingCompleteSignal(orderId, taskId, packageInfo = {}) {
+  // Validate package info has essential data
+  if (!packageInfo.trackingNumber) {
+    console.warn(`⚠️  No tracking number for pack task ${taskId}, continuing anyway`);
+  }
+
+  if (!packageInfo.weight || packageInfo.weight <= 0) {
+    console.warn(`⚠️  Invalid or missing weight for pack task ${taskId}`);
+  }
+
+  console.log(`✓ Sending packing completed signal for order ${orderId}, task ${taskId}`);
+  console.log(`  Tracking: ${packageInfo.trackingNumber}, Weight: ${packageInfo.weight}g`);
+
   const url = `${BASE_URLS.orchestrator}${ENDPOINTS.orchestrator.signalPackingComplete}`;
   const payload = JSON.stringify({
     orderId: orderId,
@@ -272,11 +284,34 @@ export function sendPackingCompleteSignal(orderId, taskId, packageInfo = {}) {
     packageInfo: packageInfo,
   });
 
-  const response = http.post(url, payload, HTTP_PARAMS);
+  let success = false;
+  let lastResponse = null;
 
-  const success = check(response, {
-    'signal packing complete status 200': (r) => r.status === 200,
-  });
+  for (let attempt = 1; attempt <= SIGNAL_CONFIG.maxRetries; attempt++) {
+    const response = http.post(url, payload, {
+      ...HTTP_PARAMS,
+      timeout: `${SIGNAL_CONFIG.timeoutMs}ms`,
+    });
+    lastResponse = response;
+
+    success = check(response, {
+      'signal packing complete status 200': (r) => r.status === 200,
+    });
+
+    if (success) {
+      if (attempt > 1) {
+        console.log(`✓ Signal succeeded on attempt ${attempt}/${SIGNAL_CONFIG.maxRetries}`);
+      }
+      break;
+    }
+
+    if (attempt < SIGNAL_CONFIG.maxRetries) {
+      console.warn(`⚠️  Signal attempt ${attempt}/${SIGNAL_CONFIG.maxRetries} failed: ${response.status}, retrying...`);
+      sleep(SIGNAL_CONFIG.retryDelayMs / 1000);
+    }
+  }
+
+  const response = lastResponse; // For compatibility with code below
 
   if (!success) {
     console.warn(`Failed to signal packing complete for order ${orderId}: ${response.status} - ${response.body}`);

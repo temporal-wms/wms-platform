@@ -99,7 +99,7 @@ stateDiagram-v2
 | Valid Station Type | Station type must be valid enum value |
 | Valid Capabilities | All capabilities must be valid enum values |
 | Max Tasks Positive | MaxConcurrentTasks must be > 0 |
-| Current <= Max | Current tasks cannot exceed maximum |
+| Current &lt;= Max | Current tasks cannot exceed maximum |
 | Active for Tasks | Cannot assign tasks to inactive/maintenance stations |
 | Unique Capabilities | Cannot add duplicate capabilities |
 

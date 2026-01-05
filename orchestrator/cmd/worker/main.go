@@ -98,7 +98,7 @@ func main() {
 	w.RegisterWorkflow(workflows.OrderFulfillmentWorkflow)
 	w.RegisterWorkflow(workflows.OrderCancellationWorkflow)
 	w.RegisterWorkflow(workflows.OrderCancellationWorkflowWithAllocations)
-	w.RegisterWorkflow(workflows.PickingWorkflow)
+	w.RegisterWorkflow(workflows.OrchestratedPickingWorkflow)
 	w.RegisterWorkflow(workflows.ConsolidationWorkflow)
 	w.RegisterWorkflow(workflows.PackingWorkflow)
 	w.RegisterWorkflow(workflows.ShippingWorkflow)
@@ -114,7 +114,7 @@ func main() {
 	logger.Info("Registered workflows", "workflows", []string{
 		"OrderFulfillmentWorkflow",
 		"OrderCancellationWorkflow",
-		"PickingWorkflow",
+		"OrchestratedPickingWorkflow",
 		"ConsolidationWorkflow",
 		"PackingWorkflow",
 		"ShippingWorkflow",
@@ -392,6 +392,7 @@ func startHealthServer(port string, temporalClient temporalclient.Client, m *met
 	mux.HandleFunc("/api/v1/signals/consolidation-completed", createConsolidationCompletedHandler(temporalClient, logger))
 	mux.HandleFunc("/api/v1/signals/gift-wrap-completed", createGiftWrapCompletedHandler(temporalClient, logger))
 	mux.HandleFunc("/api/v1/signals/walling-completed", createWallingCompletedHandler(temporalClient, logger))
+	mux.HandleFunc("/api/v1/signals/packing-completed", createPackingCompletedHandler(temporalClient, logger))
 
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -459,6 +460,13 @@ type WallingCompletedRequest struct {
 	TaskID      string                   `json:"taskId"`
 	RouteID     string                   `json:"routeId"`
 	SortedItems []map[string]interface{} `json:"sortedItems"`
+}
+
+// PackingCompletedRequest represents the packing completed signal payload
+type PackingCompletedRequest struct {
+	OrderID     string                 `json:"orderId"`
+	TaskID      string                 `json:"taskId"`
+	PackageInfo map[string]interface{} `json:"packageInfo"`
 }
 
 // createWaveAssignedHandler creates a handler for the wave-assigned signal endpoint
@@ -950,6 +958,79 @@ func createWallingCompletedHandler(temporalClient temporalclient.Client, logger 
 			"success":    true,
 			"workflowId": workflowID,
 			"message":    "Walling completed signal sent successfully",
+		})
+	}
+}
+
+// createPackingCompletedHandler creates a handler for packing completed signals
+func createPackingCompletedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req PackingCompletedRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			logger.Error("Failed to decode packing completed request", "error", err)
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Validate required fields
+		if req.OrderID == "" || req.TaskID == "" {
+			logger.Error("Missing required fields in packing completed request")
+			http.Error(w, "Missing orderId or taskId", http.StatusBadRequest)
+			return
+		}
+
+		// Determine workflow ID - packing can be standalone or part of WES
+		// Try packing workflow first, then fall back to WES execution workflow
+		workflowID := fmt.Sprintf("packing-%s", req.OrderID)
+
+		// Prepare signal payload
+		signalPayload := map[string]interface{}{
+			"taskId":      req.TaskID,
+			"packageInfo": req.PackageInfo,
+		}
+
+		// Send signal to workflow
+		ctx := context.Background()
+		err := temporalClient.SignalWorkflow(ctx, workflowID, "", "packingCompleted", signalPayload)
+		if err != nil {
+			logger.Error("Failed to signal packing workflow",
+				"orderId", req.OrderID,
+				"workflowId", workflowID,
+				"error", err,
+			)
+
+			// If packing workflow not found, try WES execution workflow
+			wesWorkflowID := fmt.Sprintf("wes-execution-%s", req.OrderID)
+			err = temporalClient.SignalWorkflow(ctx, wesWorkflowID, "", "packingCompleted", signalPayload)
+			if err != nil {
+				logger.Error("Failed to signal WES workflow for packing",
+					"orderId", req.OrderID,
+					"workflowId", wesWorkflowID,
+					"error", err,
+				)
+				http.Error(w, fmt.Sprintf("Failed to send signal: %v", err), http.StatusInternalServerError)
+				return
+			}
+			workflowID = wesWorkflowID
+		}
+
+		logger.Info("Packing completed signal sent",
+			"orderId", req.OrderID,
+			"taskId", req.TaskID,
+			"workflowId", workflowID,
+		)
+
+		// Return success response
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Signal sent successfully",
 		})
 	}
 }

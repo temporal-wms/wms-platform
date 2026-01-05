@@ -1,0 +1,191 @@
+# Superset Dashboard Configuration: Wave Performance
+# Dashboard for monitoring wave execution and cycle times
+
+dashboard:
+  name: "Wave Performance"
+  description: "Monitor wave creation, completion rates, and cycle times"
+  slug: wave-performance
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: wave_type
+      type: select
+      title: "Wave Type"
+      description: "Filter by wave type"
+      required: false
+      options:
+        - Digital
+        - Wholesale
+        - Priority
+        - Mixed
+      filter_key: wave_type
+
+    - name: status
+      type: select
+      title: "Status"
+      description: "Filter by wave status"
+      required: false
+      options:
+        - Planning
+        - Scheduled
+        - Released
+        - InProgress
+        - Completed
+        - Cancelled
+      filter_key: status
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Waves Created"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: wave_performance_daily
+          configuration:
+            metric: total_waves
+            subheader: "Waves"
+
+        - name: "Completion Rate"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: wave_performance_daily
+          configuration:
+            metric: completion_rate
+            subheader: "%"
+            format: "{value:.1f}%"
+
+        - name: "Avg Cycle Time"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: wave_performance_daily
+          configuration:
+            metric: avg_cycle_time
+            subheader: "Hours"
+            format: "{value:.1f}"
+
+        - name: "Avg Orders/Wave"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: wave_performance_daily
+          configuration:
+            metric: avg_orders
+            subheader: "Orders"
+            format: "{value:.0f}"
+
+    # Row 2: Wave Type Distribution
+    - row: 2
+      charts:
+        - name: "Waves by Type"
+          type: bar
+          width: 6
+          height: 4
+          description: "Wave count by type"
+          dataset: wave_performance_daily
+          configuration:
+            metric: total_waves
+            dimension: wave_type
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Cycle Time by Type"
+          type: bar
+          width: 6
+          height: 4
+          description: "Average cycle time by wave type"
+          dataset: wave_performance_daily
+          configuration:
+            metric: avg_cycle_time
+            dimension: wave_type
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+    # Row 3: Trends
+    - row: 3
+      charts:
+        - name: "Wave Volume Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Waves created over time"
+          dataset: wave_performance_daily
+          configuration:
+            metrics:
+              - total_waves
+              - completed_waves
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+        - name: "Completion Rate Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Completion rate over time"
+          dataset: wave_performance_daily
+          configuration:
+            metrics:
+              - completion_rate
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+    # Row 4: Wave Details Table
+    - row: 4
+      charts:
+        - name: "Wave Performance Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Detailed wave metrics"
+          dataset: wave_performance_daily
+          configuration:
+            columns:
+              - date
+              - wave_type
+              - waves_created
+              - waves_completed
+              - waves_cancelled
+              - avg_orders_per_wave
+              - avg_items_per_wave
+              - avg_completion_time_hours
+            order_by: date
+            order_direction: desc
+            conditional_formatting:
+              - column: avg_completion_time_hours
+                conditions:
+                  - operator: "<="
+                    value: 2
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: "<="
+                    value: 4
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: ">"
+                    value: 4
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: wave_performance_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: wave_performance_daily

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/wms-platform/shared/pkg/idempotency"
 )
 
 // Config holds middleware configuration
@@ -17,6 +18,9 @@ type Config struct {
 	RateLimitRPS       int
 	TrustedProxies     []string
 	LoggerExcludePaths []string // Paths to exclude from request logging (e.g., /health, /ready, /metrics)
+
+	// Idempotency configuration (optional)
+	IdempotencyConfig *idempotency.Config
 }
 
 // DefaultConfig returns a default middleware configuration
@@ -56,6 +60,11 @@ func Setup(router *gin.Engine, config *Config) {
 
 	router.Use(InputSanitizer())
 
+	// Idempotency middleware (after correlation, before handlers)
+	if config.IdempotencyConfig != nil {
+		router.Use(idempotency.Middleware(config.IdempotencyConfig))
+	}
+
 	if config.EnableCORS {
 		router.Use(CORS())
 	}
@@ -79,7 +88,7 @@ func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Request-ID, X-Correlation-ID")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Request-ID, X-Correlation-ID, Idempotency-Key")
 		c.Header("Access-Control-Expose-Headers", "X-Request-ID, X-Correlation-ID")
 		c.Header("Access-Control-Max-Age", "86400")
 

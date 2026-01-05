@@ -1,0 +1,958 @@
+asyncapi: 3.0.0
+info:
+  title: WMS - Warehouse Management System Events API
+  version: 1.0.0
+  description: |
+    Event-driven API for the Warehouse Management System (WMS).
+
+    This API defines the asynchronous events exchanged between WMS bounded contexts
+    using Apache Kafka as the message broker and CloudEvents as the event format.
+
+    ## Bounded Contexts
+    - **Order Management**: Receiving and managing customer orders
+    - **Waving**: Batching and scheduling order fulfillment
+    - **Routing**: Optimizing pick paths through the warehouse
+    - **Picking**: Physical item retrieval operations
+    - **Consolidation**: Grouping items for multi-item orders
+    - **Packing**: Final packaging and labeling
+    - **Shipping/SLAM**: Carrier integration and manifesting
+    - **Inventory**: Stock levels and replenishment
+    - **Labor**: Worker scheduling and task assignment
+
+    ## Architecture
+    All events follow the CloudEvents v1.0 specification and are orchestrated
+    using Temporal workflows with the Saga pattern.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  contact:
+    name: WMS Platform Team
+    email: wms-team@example.com
+
+servers:
+  production:
+    host: kafka.wms.internal:9092
+    protocol: kafka
+    description: Production Kafka cluster
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Development Kafka cluster
+
+defaultContentType: application/cloudevents+json
+
+channels:
+  ordersInbound:
+    address: wms.orders.inbound
+    description: |
+      Inbound orders from external systems (e-commerce, ERP).
+
+      **Trigger**: New order received from external system
+      **Consumers**: Order Service
+      **Business Impact**: Initiates order fulfillment workflow
+    messages:
+      orderReceived:
+        $ref: '#/components/messages/OrderReceived'
+    bindings:
+      kafka:
+        topic: wms.orders.inbound
+        partitions: 6
+        replicas: 3
+        configs:
+          retention.ms: 604800000  # 7 days
+          cleanup.policy: delete
+          compression.type: gzip
+
+  ordersEvents:
+    address: wms.orders.events
+    description: |
+      Order lifecycle events published by Order Service.
+
+      **Trigger**: Order state changes (validation, cancellation, completion)
+      **Consumers**: Waving Service, Analytics Service, Notification Service
+      **Business Impact**: Triggers downstream fulfillment processes
+    messages:
+      orderValidated:
+        $ref: '#/components/messages/OrderValidated'
+      orderCancelled:
+        $ref: '#/components/messages/OrderCancelled'
+      orderCompleted:
+        $ref: '#/components/messages/OrderCompleted'
+    bindings:
+      kafka:
+        topic: wms.orders.events
+        partitions: 6
+        replicas: 3
+        configs:
+          retention.ms: 604800000  # 7 days
+          cleanup.policy: delete
+          compression.type: gzip
+
+  wavesEvents:
+    address: wms.waves.events
+    description: |
+      Wave planning and execution events published by Waving Service.
+
+      **Trigger**: Wave creation, release, and completion
+      **Consumers**: Routing Service, Labor Service, Analytics Service
+      **Business Impact**: Coordinates batch picking operations
+    messages:
+      waveCreated:
+        $ref: '#/components/messages/WaveCreated'
+      waveReleased:
+        $ref: '#/components/messages/WaveReleased'
+      waveCompleted:
+        $ref: '#/components/messages/WaveCompleted'
+    bindings:
+      kafka:
+        topic: wms.waves.events
+        partitions: 4
+        replicas: 3
+        configs:
+          retention.ms: 604800000
+          cleanup.policy: delete
+          compression.type: gzip
+
+  pickingEvents:
+    address: wms.picking.events
+    description: |
+      Picking operations events published by Picking Service.
+
+      **Trigger**: Pick task creation, assignment, and completion
+      **Consumers**: Consolidation Service, Labor Service, Inventory Service
+      **Business Impact**: Tracks physical item retrieval progress
+    messages:
+      pickTaskAssigned:
+        $ref: '#/components/messages/PickTaskAssigned'
+      itemPicked:
+        $ref: '#/components/messages/ItemPicked'
+      pickTaskCompleted:
+        $ref: '#/components/messages/PickTaskCompleted'
+    bindings:
+      kafka:
+        topic: wms.picking.events
+        partitions: 8
+        replicas: 3
+        configs:
+          retention.ms: 604800000
+          cleanup.policy: delete
+          compression.type: gzip
+
+  packingEvents:
+    address: wms.packing.events
+    description: |
+      Packing operations events published by Packing Service.
+
+      **Trigger**: Package sealing and label application
+      **Consumers**: Shipping Service, Order Service
+      **Business Impact**: Prepares orders for carrier pickup
+    messages:
+      packageSealed:
+        $ref: '#/components/messages/PackageSealed'
+      labelApplied:
+        $ref: '#/components/messages/LabelApplied'
+    bindings:
+      kafka:
+        topic: wms.packing.events
+        partitions: 4
+        replicas: 3
+        configs:
+          retention.ms: 604800000
+          cleanup.policy: delete
+          compression.type: gzip
+
+  shippingEvents:
+    address: wms.shipping.events
+    description: |
+      Shipping and SLAM (Scan Label Apply Manifest) events.
+
+      **Trigger**: Shipment lifecycle changes
+      **Consumers**: Order Service, Notification Service, Analytics Service
+      **Business Impact**: Finalizes order fulfillment and customer notification
+    messages:
+      shipmentCreated:
+        $ref: '#/components/messages/ShipmentCreated'
+      shipmentManifested:
+        $ref: '#/components/messages/ShipmentManifested'
+      shipConfirmed:
+        $ref: '#/components/messages/ShipConfirmed'
+    bindings:
+      kafka:
+        topic: wms.shipping.events
+        partitions: 4
+        replicas: 3
+        configs:
+          retention.ms: 604800000
+          cleanup.policy: delete
+          compression.type: gzip
+
+  inventoryEvents:
+    address: wms.inventory.events
+    description: |
+      Inventory management events published by Inventory Service.
+
+      **Trigger**: Stock receipts, adjustments, and alerts
+      **Consumers**: Order Service, Replenishment Service, Analytics Service
+      **Business Impact**: Maintains accurate inventory levels
+    messages:
+      inventoryReceived:
+        $ref: '#/components/messages/InventoryReceived'
+      inventoryAdjusted:
+        $ref: '#/components/messages/InventoryAdjusted'
+      lowStockAlert:
+        $ref: '#/components/messages/LowStockAlert'
+    bindings:
+      kafka:
+        topic: wms.inventory.events
+        partitions: 6
+        replicas: 3
+        configs:
+          retention.ms: 2592000000  # 30 days (important for audit)
+          cleanup.policy: delete
+          compression.type: gzip
+
+  laborEvents:
+    address: wms.labor.events
+    description: |
+      Labor management events published by Labor Service.
+
+      **Trigger**: Worker shifts and task assignments
+      **Consumers**: Picking Service, Packing Service, Analytics Service
+      **Business Impact**: Optimizes workforce utilization
+    messages:
+      shiftStarted:
+        $ref: '#/components/messages/ShiftStarted'
+      taskAssigned:
+        $ref: '#/components/messages/TaskAssigned'
+    bindings:
+      kafka:
+        topic: wms.labor.events
+        partitions: 4
+        replicas: 3
+        configs:
+          retention.ms: 604800000
+          cleanup.policy: delete
+          compression.type: gzip
+
+operations:
+  receiveOrder:
+    action: receive
+    channel:
+      $ref: '#/channels/ordersInbound'
+    summary: Receive new order from external system
+    messages:
+      - $ref: '#/channels/ordersInbound/messages/orderReceived'
+
+  publishOrderValidated:
+    action: send
+    channel:
+      $ref: '#/channels/ordersEvents'
+    summary: Publish order validated event
+    messages:
+      - $ref: '#/channels/ordersEvents/messages/orderValidated'
+
+  publishWaveCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wavesEvents'
+    summary: Publish wave created event
+    messages:
+      - $ref: '#/channels/wavesEvents/messages/waveCreated'
+
+  publishItemPicked:
+    action: send
+    channel:
+      $ref: '#/channels/pickingEvents'
+    summary: Publish item picked event
+    messages:
+      - $ref: '#/channels/pickingEvents/messages/itemPicked'
+
+  publishShipmentCreated:
+    action: send
+    channel:
+      $ref: '#/channels/shippingEvents'
+    summary: Publish shipment created event
+    messages:
+      - $ref: '#/channels/shippingEvents/messages/shipmentCreated'
+
+components:
+  messages:
+    # Order Events
+    OrderReceived:
+      name: OrderReceived
+      title: Order Received
+      summary: A new order has been received from an external system
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/OrderReceivedPayload'
+
+    OrderValidated:
+      name: OrderValidated
+      title: Order Validated
+      summary: An order has been validated and is ready for wave assignment
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/OrderValidatedPayload'
+
+    OrderCancelled:
+      name: OrderCancelled
+      title: Order Cancelled
+      summary: An order has been cancelled
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/OrderCancelledPayload'
+
+    OrderCompleted:
+      name: OrderCompleted
+      title: Order Completed
+      summary: An order has been completed (delivered to customer)
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/OrderCompletedPayload'
+
+    # Wave Events
+    WaveCreated:
+      name: WaveCreated
+      title: Wave Created
+      summary: A new wave has been created with assigned orders
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/WaveCreatedPayload'
+
+    WaveReleased:
+      name: WaveReleased
+      title: Wave Released
+      summary: A wave has been released for picking
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/WaveReleasedPayload'
+
+    WaveCompleted:
+      name: WaveCompleted
+      title: Wave Completed
+      summary: All orders in a wave have been fulfilled
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/WaveCompletedPayload'
+
+    # Picking Events
+    PickTaskAssigned:
+      name: PickTaskAssigned
+      title: Pick Task Assigned
+      summary: A pick task has been assigned to a worker
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/PickTaskAssignedPayload'
+
+    ItemPicked:
+      name: ItemPicked
+      title: Item Picked
+      summary: An item has been picked from a location
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/ItemPickedPayload'
+
+    PickTaskCompleted:
+      name: PickTaskCompleted
+      title: Pick Task Completed
+      summary: A pick task has been completed
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/PickTaskCompletedPayload'
+
+    # Packing Events
+    PackageSealed:
+      name: PackageSealed
+      title: Package Sealed
+      summary: A package has been sealed and is ready for labeling
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/PackageSealedPayload'
+
+    LabelApplied:
+      name: LabelApplied
+      title: Label Applied
+      summary: A shipping label has been applied to a package
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/LabelAppliedPayload'
+
+    # Shipping Events
+    ShipmentCreated:
+      name: ShipmentCreated
+      title: Shipment Created
+      summary: A new shipment has been created
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/ShipmentCreatedPayload'
+
+    ShipmentManifested:
+      name: ShipmentManifested
+      title: Shipment Manifested
+      summary: A shipment has been added to a carrier manifest
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/ShipmentManifestedPayload'
+
+    ShipConfirmed:
+      name: ShipConfirmed
+      title: Ship Confirmed
+      summary: A shipment has been confirmed picked up by carrier
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/ShipConfirmedPayload'
+
+    # Inventory Events
+    InventoryReceived:
+      name: InventoryReceived
+      title: Inventory Received
+      summary: New inventory has been received into the warehouse
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/InventoryReceivedPayload'
+
+    InventoryAdjusted:
+      name: InventoryAdjusted
+      title: Inventory Adjusted
+      summary: Inventory quantity has been adjusted
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/InventoryAdjustedPayload'
+
+    LowStockAlert:
+      name: LowStockAlert
+      title: Low Stock Alert
+      summary: Inventory has fallen below reorder point
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/LowStockAlertPayload'
+
+    # Labor Events
+    ShiftStarted:
+      name: ShiftStarted
+      title: Shift Started
+      summary: A worker has started their shift
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/ShiftStartedPayload'
+
+    TaskAssigned:
+      name: TaskAssigned
+      title: Task Assigned
+      summary: A task has been assigned to a worker
+      contentType: application/cloudevents+json
+      traits:
+        - $ref: '#/components/messageTraits/cloudEventsBase'
+      payload:
+        $ref: '#/components/schemas/TaskAssignedPayload'
+
+  schemas:
+    # Order Schemas
+    OrderReceivedPayload:
+      type: object
+      required:
+        - orderId
+        - customerId
+        - orderLines
+        - priority
+      properties:
+        orderId:
+          type: string
+          description: Unique order identifier
+          example: "ORD-A1B2C3D4"
+        customerId:
+          type: string
+          description: Customer identifier
+          example: "CUST-12345"
+        orderLines:
+          type: array
+          description: List of items in the order
+          items:
+            $ref: '#/components/schemas/OrderLine'
+          example:
+            - sku: "WIDGET-001"
+              quantity: 2
+              weight: 1.5
+            - sku: "GADGET-002"
+              quantity: 1
+              weight: 2.3
+        priority:
+          type: string
+          enum: [same_day, next_day, standard]
+          description: Order fulfillment priority level
+          example: "same_day"
+        promisedDeliveryAt:
+          type: string
+          format: date-time
+          description: Promised delivery timestamp to customer
+          example: "2024-12-24T20:00:00Z"
+        shippingAddress:
+          type: object
+          description: Customer shipping address
+          example:
+            street: "123 Main St"
+            city: "San Francisco"
+            state: "CA"
+            zipCode: "94105"
+            country: "US"
+        receivedAt:
+          type: string
+          format: date-time
+          description: When the order was received into WMS
+          example: "2024-12-24T10:00:00Z"
+
+    OrderLine:
+      type: object
+      required:
+        - sku
+        - quantity
+      properties:
+        sku:
+          type: string
+          description: Stock keeping unit identifier
+          example: "WIDGET-001"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity ordered
+          example: 2
+        weight:
+          type: number
+          description: Weight per unit in kilograms
+          example: 1.5
+        productName:
+          type: string
+          description: Human-readable product name
+          example: "Premium Widget"
+
+    OrderValidatedPayload:
+      type: object
+      required:
+        - orderId
+        - totalItems
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        totalItems:
+          type: integer
+
+    OrderCancelledPayload:
+      type: object
+      required:
+        - orderId
+        - reason
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        reason:
+          type: string
+
+    OrderCompletedPayload:
+      type: object
+      required:
+        - orderId
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        deliveredAt:
+          type: string
+          format: date-time
+
+    # Wave Schemas
+    WaveCreatedPayload:
+      type: object
+      required:
+        - waveId
+        - orderIds
+      properties:
+        waveId:
+          type: string
+          description: Unique wave identifier
+          example: "WAVE-001"
+        waveNumber:
+          type: integer
+          description: Sequential wave number for the day
+          example: 1
+        orderIds:
+          type: array
+          description: List of order IDs assigned to this wave
+          items:
+            type: string
+          example: ["ORD-A1B2C3D4", "ORD-B2C3D4E5", "ORD-C3D4E5F6"]
+        zone:
+          type: string
+          description: Warehouse zone for this wave
+          example: "A"
+        scheduledStart:
+          type: string
+          format: date-time
+          description: When the wave is scheduled to start
+          example: "2024-12-24T14:00:00Z"
+        estimatedDuration:
+          type: string
+          description: Estimated time to complete the wave
+          example: "45 minutes"
+        waveType:
+          type: string
+          enum: [single_order, batch, zone_based]
+          description: Wave batching strategy
+          example: "batch"
+        totalOrders:
+          type: integer
+          description: Number of orders in the wave
+          example: 3
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-12-24T13:00:00Z"
+
+    WaveReleasedPayload:
+      type: object
+      required:
+        - waveId
+      properties:
+        waveId:
+          type: string
+        releasedAt:
+          type: string
+          format: date-time
+
+    WaveCompletedPayload:
+      type: object
+      required:
+        - waveId
+      properties:
+        waveId:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        ordersFulfilled:
+          type: integer
+
+    # Picking Schemas
+    PickTaskAssignedPayload:
+      type: object
+      required:
+        - taskId
+        - pickerId
+        - waveId
+      properties:
+        taskId:
+          type: string
+          description: Unique pick task identifier
+          example: "PICK-TASK-001"
+        pickerId:
+          type: string
+          description: Worker ID assigned to this task
+          example: "PICKER-123"
+        waveId:
+          type: string
+          description: Wave this task belongs to
+          example: "WAVE-001"
+        routeId:
+          type: string
+          description: Optimized route ID for this pick task
+          example: "ROUTE-001"
+        items:
+          type: array
+          description: Items to be picked
+          items:
+            $ref: '#/components/schemas/PickItem'
+          example:
+            - sku: "WIDGET-001"
+              quantity: 2
+              locationId: "A-1-2-3"
+            - sku: "GADGET-002"
+              quantity: 1
+              locationId: "A-2-1-4"
+        assignedAt:
+          type: string
+          format: date-time
+          example: "2024-12-24T14:05:00Z"
+
+    PickItem:
+      type: object
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+        locationId:
+          type: string
+
+    ItemPickedPayload:
+      type: object
+      required:
+        - taskId
+        - itemId
+        - quantity
+        - locationId
+      properties:
+        taskId:
+          type: string
+        itemId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        locationId:
+          type: string
+        toteId:
+          type: string
+
+    PickTaskCompletedPayload:
+      type: object
+      required:
+        - taskId
+      properties:
+        taskId:
+          type: string
+        pickerId:
+          type: string
+        itemsPicked:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+
+    # Packing Schemas
+    PackageSealedPayload:
+      type: object
+      required:
+        - packageId
+        - orderId
+      properties:
+        packageId:
+          type: string
+        orderId:
+          type: string
+        weight:
+          type: number
+
+    LabelAppliedPayload:
+      type: object
+      required:
+        - packageId
+        - trackingNumber
+        - carrier
+      properties:
+        packageId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+
+    # Shipping Schemas
+    ShipmentCreatedPayload:
+      type: object
+      required:
+        - shipmentId
+        - orderId
+        - carrier
+      properties:
+        shipmentId:
+          type: string
+        orderId:
+          type: string
+        carrier:
+          type: string
+        trackingNumber:
+          type: string
+
+    ShipmentManifestedPayload:
+      type: object
+      required:
+        - manifestId
+        - carrier
+      properties:
+        manifestId:
+          type: string
+        carrier:
+          type: string
+        packageCount:
+          type: integer
+
+    ShipConfirmedPayload:
+      type: object
+      required:
+        - shipmentId
+      properties:
+        shipmentId:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+
+    # Inventory Schemas
+    InventoryReceivedPayload:
+      type: object
+      required:
+        - sku
+        - quantity
+        - locationId
+      properties:
+        sku:
+          type: string
+          description: Stock keeping unit
+          example: "WIDGET-001"
+        quantity:
+          type: integer
+          description: Quantity received
+          example: 100
+        locationId:
+          type: string
+          description: Warehouse location where stock was received
+          example: "A-1-2-3"
+        zone:
+          type: string
+          description: Warehouse zone
+          example: "A"
+        referenceId:
+          type: string
+          description: Purchase order or receiving ID
+          example: "PO-12345"
+        receivedAt:
+          type: string
+          format: date-time
+          example: "2024-12-24T09:00:00Z"
+
+    InventoryAdjustedPayload:
+      type: object
+      required:
+        - sku
+        - previousQuantity
+        - newQuantity
+      properties:
+        sku:
+          type: string
+        locationId:
+          type: string
+        previousQuantity:
+          type: integer
+        newQuantity:
+          type: integer
+        adjustmentType:
+          type: string
+          enum: [pick, receive, cycle_count, damage]
+        reason:
+          type: string
+
+    LowStockAlertPayload:
+      type: object
+      required:
+        - sku
+        - currentQuantity
+        - reorderPoint
+      properties:
+        sku:
+          type: string
+        currentQuantity:
+          type: integer
+        reorderPoint:
+          type: integer
+
+    # Labor Schemas
+    ShiftStartedPayload:
+      type: object
+      required:
+        - workerId
+        - zone
+      properties:
+        workerId:
+          type: string
+        zone:
+          type: string
+        shiftType:
+          type: string
+
+    TaskAssignedPayload:
+      type: object
+      required:
+        - workerId
+        - taskId
+        - taskType
+      properties:
+        workerId:
+          type: string
+        taskId:
+          type: string
+        taskType:
+          type: string
+          enum: [picking, packing, receiving]
+        zone:
+          type: string
+
+  messageTraits:
+    cloudEventsBase:
+      headers:
+        type: object
+        properties:
+          ce-specversion:
+            type: string
+            const: "1.0"
+          ce-type:
+            type: string
+          ce-source:
+            type: string
+          ce-id:
+            type: string
+            format: uuid
+          ce-time:
+            type: string
+            format: date-time
+          ce-wmscorrelationid:
+            type: string
+            description: Correlation ID for tracing across services
+          ce-wmswavenumber:
+            type: string
+            description: Wave number for the event
+          ce-wmsworkflowid:
+            type: string
+            description: Temporal workflow ID

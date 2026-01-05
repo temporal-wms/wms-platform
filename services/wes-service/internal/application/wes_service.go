@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/wms-platform/shared/pkg/cloudevents"
+	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/wes-service/internal/domain"
 )
 
@@ -18,6 +20,8 @@ type WESApplicationService struct {
 	routeRepo         domain.TaskRouteRepository
 	templateSelector  *TemplateSelector
 	processPathClient *ProcessPathClient
+	producer          *kafka.InstrumentedProducer
+	eventFactory      *cloudevents.EventFactory
 	logger            *slog.Logger
 }
 
@@ -26,6 +30,8 @@ func NewWESApplicationService(
 	templateRepo domain.StageTemplateRepository,
 	routeRepo domain.TaskRouteRepository,
 	processPathClient *ProcessPathClient,
+	producer *kafka.InstrumentedProducer,
+	eventFactory *cloudevents.EventFactory,
 	logger *slog.Logger,
 ) *WESApplicationService {
 	return &WESApplicationService{
@@ -33,6 +39,8 @@ func NewWESApplicationService(
 		routeRepo:         routeRepo,
 		templateSelector:  NewTemplateSelector(templateRepo),
 		processPathClient: processPathClient,
+		producer:          producer,
+		eventFactory:      eventFactory,
 		logger:            logger,
 	}
 }

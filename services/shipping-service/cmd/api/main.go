@@ -12,6 +12,7 @@ import (
 
 	"github.com/wms-platform/shared/pkg/cloudevents"
 	"github.com/wms-platform/shared/pkg/errors"
+	"github.com/wms-platform/shared/pkg/idempotency"
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
 	"github.com/wms-platform/shared/pkg/metrics"
@@ -76,6 +77,13 @@ func main() {
 	defer instrumentedMongo.Close(ctx)
 	logger.Info("Connected to MongoDB", "database", config.MongoDB.Database)
 
+	// Initialize idempotency indexes
+	if err := idempotency.InitializeIndexes(ctx, instrumentedMongo.Database()); err != nil {
+		logger.WithError(err).Warn("Failed to initialize idempotency indexes")
+	} else {
+		logger.Info("Idempotency indexes initialized")
+	}
+
 	// Initialize Kafka producer with instrumentation
 	kafkaProducer := kafka.NewProducer(config.Kafka)
 	instrumentedProducer := kafka.NewInstrumentedProducer(kafkaProducer, m, logger)
@@ -88,6 +96,10 @@ func main() {
 	// Initialize repositories with instrumented client and event factory
 	repo := mongoRepo.NewShipmentRepository(instrumentedMongo.Database(), eventFactory)
 	manifestRepo := mongoRepo.NewManifestRepository(instrumentedMongo.Database(), eventFactory)
+
+	// Initialize idempotency repository
+	idempotencyKeyRepo := idempotency.NewMongoKeyRepository(instrumentedMongo.Database())
+	logger.Info("Idempotency repositories initialized")
 
 	// Initialize and start outbox publisher
 	outboxPublisher := outbox.NewPublisher(
@@ -124,8 +136,22 @@ func main() {
 	// Setup Gin router with middleware
 	router := gin.New()
 
+	// Initialize idempotency metrics
+	idempotencyMetrics := idempotency.NewMetrics(nil)
+
 	// Apply standard middleware (includes recovery, request ID, correlation, logging, error handling)
 	middlewareConfig := middleware.DefaultConfig(serviceName, logger.Logger)
+	middlewareConfig.IdempotencyConfig = &idempotency.Config{
+		ServiceName:     serviceName,
+		Repository:      idempotencyKeyRepo,
+		RequireKey:      false,
+		OnlyMutating:    true,
+		MaxKeyLength:    255,
+		LockTimeout:     5 * time.Minute,
+		RetentionPeriod: 24 * time.Hour,
+		MaxResponseSize: 1024 * 1024,
+		Metrics:         idempotencyMetrics,
+	}
 	middleware.Setup(router, middlewareConfig)
 
 	// Add metrics middleware

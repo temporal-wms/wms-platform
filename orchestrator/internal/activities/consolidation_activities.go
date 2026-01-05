@@ -67,10 +67,14 @@ func (a *ConsolidationActivities) ConsolidateItems(ctx context.Context, input ma
 	consolidationID, _ := input["consolidationId"].(string)
 	pickedItemsRaw, _ := input["pickedItems"].([]interface{})
 
-	logger.Info("Consolidating items", "consolidationId", consolidationID)
+	logger.Info("Consolidating items", "consolidationId", consolidationID, "itemCount", len(pickedItemsRaw))
 
 	// Consolidate each item
-	for _, itemRaw := range pickedItemsRaw {
+	for i, itemRaw := range pickedItemsRaw {
+		// Record heartbeat for long-running consolidation operations
+		// This allows Temporal to detect if the activity is still making progress
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Processing item %d/%d", i+1, len(pickedItemsRaw)))
+
 		if item, ok := itemRaw.(map[string]interface{}); ok {
 			sku, _ := item["sku"].(string)
 			quantity, _ := item["quantity"].(float64)
@@ -87,7 +91,7 @@ func (a *ConsolidationActivities) ConsolidateItems(ctx context.Context, input ma
 				return fmt.Errorf("failed to consolidate item %s: %w", sku, err)
 			}
 
-			logger.Info("Item consolidated", "consolidationId", consolidationID, "sku", sku, "quantity", int(quantity))
+			logger.Info("Item consolidated", "consolidationId", consolidationID, "sku", sku, "quantity", int(quantity), "progress", fmt.Sprintf("%d/%d", i+1, len(pickedItemsRaw)))
 		}
 	}
 

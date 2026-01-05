@@ -3,7 +3,7 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PICKER_CONFIG } from './config.js';
+import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PICKER_CONFIG, SIGNAL_CONFIG } from './config.js';
 import { pickStock, getInventoryItem } from './inventory.js';
 import { confirmPicksForOrder } from './unit.js';
 
@@ -146,6 +146,24 @@ export function completeTask(taskId) {
  * @returns {boolean} True if successful
  */
 export function sendPickCompletedSignal(orderId, taskId, pickedItems) {
+  // Validate pickedItems is not empty
+  if (!pickedItems || pickedItems.length === 0) {
+    console.warn(`⚠️  No picked items for order ${orderId}, skipping signal`);
+    return false;
+  }
+
+  // Validate each picked item has required fields
+  const invalidItems = pickedItems.filter(item =>
+    !item.sku || !item.quantity || !item.locationId || !item.toteId
+  );
+
+  if (invalidItems.length > 0) {
+    console.error(`❌ Invalid picked items for order ${orderId}:`, invalidItems);
+    return false;
+  }
+
+  console.log(`✓ Sending pick completed signal for order ${orderId} with ${pickedItems.length} items`);
+
   const url = `${BASE_URLS.orchestrator}${ENDPOINTS.orchestrator.signalPickCompleted}`;
   const payload = JSON.stringify({
     orderId: orderId,
@@ -153,11 +171,34 @@ export function sendPickCompletedSignal(orderId, taskId, pickedItems) {
     pickedItems: pickedItems,
   });
 
-  const response = http.post(url, payload, HTTP_PARAMS);
+  let success = false;
+  let lastResponse = null;
 
-  const success = check(response, {
-    'signal pick completed status 200': (r) => r.status === 200,
-  });
+  for (let attempt = 1; attempt <= SIGNAL_CONFIG.maxRetries; attempt++) {
+    const response = http.post(url, payload, {
+      ...HTTP_PARAMS,
+      timeout: `${SIGNAL_CONFIG.timeoutMs}ms`,
+    });
+    lastResponse = response;
+
+    success = check(response, {
+      'signal pick completed status 200': (r) => r.status === 200,
+    });
+
+    if (success) {
+      if (attempt > 1) {
+        console.log(`✓ Signal succeeded on attempt ${attempt}/${SIGNAL_CONFIG.maxRetries}`);
+      }
+      break;
+    }
+
+    if (attempt < SIGNAL_CONFIG.maxRetries) {
+      console.warn(`⚠️  Signal attempt ${attempt}/${SIGNAL_CONFIG.maxRetries} failed: ${response.status}, retrying...`);
+      sleep(SIGNAL_CONFIG.retryDelayMs / 1000);
+    }
+  }
+
+  const response = lastResponse; // For compatibility with code below
 
   if (!success) {
     console.warn(`Failed to signal pick completed for order ${orderId}: ${response.status} - ${response.body}`);

@@ -1,0 +1,211 @@
+# Superset Dashboard Configuration: Receiving
+# Dashboard for monitoring inbound operations and vendor performance
+
+dashboard:
+  name: "Receiving Operations"
+  description: "Monitor dock-to-stock time, vendor performance, and receiving accuracy"
+  slug: receiving
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: dock_door
+      type: select
+      title: "Dock Door"
+      description: "Filter by dock door"
+      required: false
+      options:
+        - DOCK-01
+        - DOCK-02
+        - DOCK-03
+        - DOCK-04
+        - DOCK-05
+        - DOCK-06
+        - DOCK-07
+        - DOCK-08
+      filter_key: dock_door
+
+    - name: vendor_id
+      type: text
+      title: "Vendor"
+      description: "Search by vendor ID"
+      required: false
+      filter_key: vendor_id
+
+    - name: status
+      type: select
+      title: "Status"
+      description: "Filter by receipt status"
+      required: false
+      options:
+        - scheduled
+        - arrived
+        - unloading
+        - inspecting
+        - completed
+        - cancelled
+      filter_key: status
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Total Receipts"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: receiving_metrics_daily
+          configuration:
+            metric: total_receipts_sum
+            subheader: "Receipts"
+
+        - name: "Dock-to-Stock"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: receiving_metrics_daily
+          configuration:
+            metric: avg_dock_to_stock
+            subheader: "Avg Minutes"
+            format: "{value:.0f}"
+
+        - name: "Receiving Accuracy"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: receiving_metrics_daily
+          configuration:
+            metric: avg_accuracy
+            subheader: "%"
+            format: "{value:.1f}%"
+
+        - name: "On-Time Rate"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: receiving_metrics_daily
+          configuration:
+            metric: on_time_rate_avg
+            subheader: "%"
+            format: "{value:.1f}%"
+
+    # Row 2: Volume and Performance
+    - row: 2
+      charts:
+        - name: "Units by Dock Door"
+          type: bar
+          width: 6
+          height: 4
+          description: "Units received by dock door"
+          dataset: receiving_metrics_daily
+          configuration:
+            metric: total_units_sum
+            dimension: dock_door
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Dock-to-Stock by Door"
+          type: bar
+          width: 6
+          height: 4
+          description: "Average dock-to-stock time by door"
+          dataset: receiving_metrics_daily
+          configuration:
+            metric: avg_dock_to_stock
+            dimension: dock_door
+            orientation: horizontal
+            sort: ascending
+            show_values: true
+
+    # Row 3: Trends
+    - row: 3
+      charts:
+        - name: "Receiving Volume Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Units received over time"
+          dataset: receiving_metrics_daily
+          configuration:
+            metrics:
+              - total_units_sum
+            dimension: date
+            time_grain: day
+            show_legend: true
+            breakdown_by: dock_door
+
+        - name: "Dock-to-Stock Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Dock-to-stock time trend"
+          dataset: receiving_metrics_daily
+          configuration:
+            metrics:
+              - avg_dock_to_stock
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+    # Row 4: Vendor Performance
+    - row: 4
+      charts:
+        - name: "Receiving Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Detailed receiving metrics by dock door"
+          dataset: receiving_metrics_daily
+          configuration:
+            columns:
+              - date
+              - dock_door
+              - total_receipts
+              - completed_receipts
+              - total_units_received
+              - total_units_damaged
+              - receiving_accuracy
+              - avg_dock_to_stock_minutes
+              - on_time_arrivals
+              - late_arrivals
+              - on_time_rate
+              - unique_vendors
+            order_by: date
+            order_direction: desc
+            conditional_formatting:
+              - column: on_time_rate
+                conditions:
+                  - operator: ">="
+                    value: 0.95
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 0.85
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: "<"
+                    value: 0.85
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: receiving_metrics_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: receiving_metrics_daily
+
+  - name: vendor_performance_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: vendor_performance_daily

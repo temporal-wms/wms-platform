@@ -1,0 +1,223 @@
+# Superset Dashboard Configuration: Operations KPI
+# Executive dashboard with high-level WMS performance metrics
+
+dashboard:
+  name: "Operations KPI"
+  description: "Executive-level overview of warehouse operations with key performance indicators"
+  slug: operations-kpi
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: priority
+      type: select
+      title: "Priority"
+      description: "Filter by order priority"
+      required: false
+      options:
+        - same_day
+        - next_day
+        - standard
+      filter_key: priority
+
+  # Dashboard layout
+  layout:
+    # Row 1: Order KPIs
+    - row: 1
+      charts:
+        - name: "Orders Today"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: operations_summary_daily
+          configuration:
+            metric: total_orders
+            subheader: "Orders"
+
+        - name: "Fulfillment Rate"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: operations_summary_daily
+          configuration:
+            metric: fulfillment_rate
+            subheader: "%"
+            format: "{value:.1f}%"
+            color: "#52c41a"
+
+        - name: "Items Picked"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: operations_summary_daily
+          configuration:
+            metric: total_items_picked
+            subheader: "Items"
+
+        - name: "Shipments"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: operations_summary_daily
+          configuration:
+            metric: total_shipments
+            subheader: "Sent"
+
+        - name: "Avg Fulfillment"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: operations_summary_daily
+          configuration:
+            metric: avg_fulfillment_hours
+            subheader: "Hours"
+            format: "{value:.1f}"
+
+        - name: "Active Workers"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: operations_summary_daily
+          configuration:
+            metric: total_active_workers
+            subheader: "Workers"
+
+    # Row 2: Throughput Charts
+    - row: 2
+      charts:
+        - name: "Hourly Throughput"
+          type: area
+          width: 8
+          height: 4
+          description: "Orders and shipments by hour"
+          dataset: hourly_throughput
+          configuration:
+            metrics:
+              - orders_received
+              - orders_completed
+              - shipments_sent
+            dimension: hour
+            show_legend: true
+            fill: true
+
+        - name: "Stage Bottlenecks"
+          type: funnel
+          width: 4
+          height: 4
+          description: "Orders by fulfillment stage"
+          dataset: operations_summary_daily
+          configuration:
+            stages:
+              - name: "Received"
+                value: orders_received
+              - name: "Picking"
+                value: pick_tasks_completed
+              - name: "Packed"
+                value: packages_packed
+              - name: "Shipped"
+                value: shipments_sent
+
+    # Row 3: Trend Analysis
+    - row: 3
+      charts:
+        - name: "Order Volume Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Daily order volume"
+          dataset: operations_summary_daily
+          configuration:
+            metrics:
+              - orders_received
+              - orders_completed
+              - orders_cancelled
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+        - name: "Performance Metrics Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Key performance metrics over time"
+          dataset: operations_summary_daily
+          configuration:
+            metrics:
+              - fulfillment_rate
+              - picking_accuracy
+              - shipping_on_time_rate
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+    # Row 4: Detailed Metrics
+    - row: 4
+      charts:
+        - name: "Operations Summary"
+          type: table
+          width: 12
+          height: 4
+          description: "Daily operations summary"
+          dataset: operations_summary_daily
+          configuration:
+            columns:
+              - date
+              - orders_received
+              - orders_completed
+              - order_completion_rate
+              - avg_order_fulfillment_hours
+              - items_picked
+              - packages_packed
+              - shipments_sent
+              - shipping_on_time_rate
+              - receipts_completed
+              - returns_processed
+              - active_workers
+              - low_stock_alerts
+            order_by: date
+            order_direction: desc
+            conditional_formatting:
+              - column: order_completion_rate
+                conditions:
+                  - operator: ">="
+                    value: 0.95
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 0.85
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: "<"
+                    value: 0.85
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+              - column: low_stock_alerts
+                conditions:
+                  - operator: ">"
+                    value: 10
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+                  - operator: ">"
+                    value: 5
+                    background_color: "#faad14"
+                    text_color: "#000000"
+
+# Dataset references
+datasets:
+  - name: operations_summary_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: operations_summary_daily
+
+  - name: hourly_throughput
+    database: trino
+    schema: iceberg.gold
+    table_name: hourly_throughput

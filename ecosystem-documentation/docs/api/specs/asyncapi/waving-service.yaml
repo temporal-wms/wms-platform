@@ -1,0 +1,237 @@
+asyncapi: 3.0.0
+info:
+  title: Waving Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Waving Service.
+
+    This service publishes events related to wave management including
+    wave creation, scheduling, release, and order-wave assignments.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.waves.events:
+    address: wms.waves.events
+    messages:
+      WaveCreated:
+        $ref: '#/components/messages/WaveCreated'
+      WaveScheduled:
+        $ref: '#/components/messages/WaveScheduled'
+      WaveReleased:
+        $ref: '#/components/messages/WaveReleased'
+      WaveCompleted:
+        $ref: '#/components/messages/WaveCompleted'
+      WaveCancelled:
+        $ref: '#/components/messages/WaveCancelled'
+      OrderAddedToWave:
+        $ref: '#/components/messages/OrderAddedToWave'
+      OrderRemovedFromWave:
+        $ref: '#/components/messages/OrderRemovedFromWave'
+    description: Wave management events
+
+operations:
+  publishWaveCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.waves.events'
+    messages:
+      - $ref: '#/channels/wms.waves.events/messages/WaveCreated'
+    description: Published when a new wave is created
+
+  publishWaveReleased:
+    action: send
+    channel:
+      $ref: '#/channels/wms.waves.events'
+    messages:
+      - $ref: '#/channels/wms.waves.events/messages/WaveReleased'
+    description: Published when a wave is released for picking
+
+components:
+  messages:
+    WaveCreated:
+      name: WaveCreated
+      title: Wave Created Event
+      summary: Published when a new wave is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WaveScheduled:
+      name: WaveScheduled
+      title: Wave Scheduled Event
+      summary: Published when a wave is scheduled for execution
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveScheduledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WaveReleased:
+      name: WaveReleased
+      title: Wave Released Event
+      summary: Published when a wave is released for picking
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveReleasedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WaveCompleted:
+      name: WaveCompleted
+      title: Wave Completed Event
+      summary: Published when all orders in a wave are picked
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    WaveCancelled:
+      name: WaveCancelled
+      title: Wave Cancelled Event
+      summary: Published when a wave is cancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WaveCancelledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderAddedToWave:
+      name: OrderAddedToWave
+      title: Order Added to Wave Event
+      summary: Published when an order is added to a wave
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderAddedToWavePayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderRemovedFromWave:
+      name: OrderRemovedFromWave
+      title: Order Removed from Wave Event
+      summary: Published when an order is removed from a wave
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderRemovedFromWavePayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        ce-wmswavenumber:
+          type: string
+        ce-wmsworkflowid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    WaveCreatedPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        waveType:
+          type: string
+          enum: [digital, wholesale, priority, mixed]
+        fulfillmentMode:
+          type: string
+          enum: [wave, discrete]
+        createdAt:
+          type: string
+          format: date-time
+
+    WaveScheduledPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        scheduledStart:
+          type: string
+          format: date-time
+        scheduledEnd:
+          type: string
+          format: date-time
+
+    WaveReleasedPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        orderIds:
+          type: array
+          items:
+            type: string
+        releasedAt:
+          type: string
+          format: date-time
+
+    WaveCompletedPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        orderCount:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+
+    WaveCancelledPayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+
+    OrderAddedToWavePayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        orderId:
+          type: string
+        addedAt:
+          type: string
+          format: date-time
+
+    OrderRemovedFromWavePayload:
+      type: object
+      properties:
+        waveId:
+          type: string
+        orderId:
+          type: string
+        removedAt:
+          type: string
+          format: date-time

@@ -10,7 +10,7 @@ import (
 
 // Task queue constants for cross-queue child workflow execution
 const (
-	PickingTaskQueue       = "picking-queue"
+	PickingTaskQueue       = "orchestrator-queue" // OrchestratedPickingWorkflow is on orchestrator-queue
 	ConsolidationTaskQueue = "consolidation-queue"
 	PackingTaskQueue       = "packing-queue"
 )
@@ -63,6 +63,17 @@ type StageResult struct {
 	Success     bool   `json:"success"`
 	CompletedAt int64  `json:"completedAt,omitempty"`
 	Error       string `json:"error,omitempty"`
+
+	// Stage-specific output data for downstream stages
+	PickedItems []PickedItem `json:"pickedItems,omitempty"` // From picking stage
+}
+
+// PickedItem represents an item that was picked (with tote information)
+type PickedItem struct {
+	SKU        string `json:"sku"`
+	Quantity   int    `json:"quantity"`
+	LocationID string `json:"locationId"`
+	ToteID     string `json:"toteId"`
 }
 
 // ExecutionPlan represents the resolved execution plan
@@ -174,6 +185,7 @@ func WESExecutionWorkflow(ctx workflow.Context, input WESExecutionInput) (*WESEx
 	logger.Info("Task route created", "routeId", taskRoute.RouteID, "orderId", input.OrderID)
 
 	// Step 3: Execute each stage in sequence
+	previousResults := make(map[string]*StageResult)
 	for i, stage := range executionPlan.Stages {
 		logger.Info("Executing stage",
 			"orderId", input.OrderID,
@@ -182,7 +194,7 @@ func WESExecutionWorkflow(ctx workflow.Context, input WESExecutionInput) (*WESEx
 			"stageType", stage.StageType,
 		)
 
-		stageResult, err := executeStage(ctx, taskRoute.RouteID, input, stage)
+		stageResult, err := executeStage(ctx, taskRoute.RouteID, input, stage, previousResults)
 		if err != nil {
 			// Mark stage as failed
 			workflow.ExecuteActivity(ctx, "FailStage", map[string]interface{}{
@@ -196,7 +208,8 @@ func WESExecutionWorkflow(ctx workflow.Context, input WESExecutionInput) (*WESEx
 			return result, err
 		}
 
-		// Store stage result
+		// Store stage result for next stages and final output
+		previousResults[stage.StageType] = stageResult
 		switch stage.StageType {
 		case "picking":
 			result.PickResult = stageResult
@@ -235,7 +248,7 @@ func WESExecutionWorkflow(ctx workflow.Context, input WESExecutionInput) (*WESEx
 }
 
 // executeStage executes a single stage in the workflow
-func executeStage(ctx workflow.Context, routeID string, input WESExecutionInput, stage StageDefinition) (*StageResult, error) {
+func executeStage(ctx workflow.Context, routeID string, input WESExecutionInput, stage StageDefinition, previousResults map[string]*StageResult) (*StageResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Stage-specific activity options with timeout from stage definition
@@ -293,7 +306,9 @@ func executeStage(ctx workflow.Context, routeID string, input WESExecutionInput,
 	case "walling":
 		err = executeWallingStage(stageCtx, input, routeID, assignment, stage.Config, stageResult)
 	case "consolidation":
-		err = executeConsolidationStage(stageCtx, input, routeID, assignment, stageResult)
+		// Pass picking result to consolidation
+		pickingResult := previousResults["picking"]
+		err = executeConsolidationStage(stageCtx, input, routeID, assignment, pickingResult, stageResult)
 	case "packing":
 		err = executePackingStage(stageCtx, input, routeID, assignment, stageResult)
 	default:
@@ -344,6 +359,31 @@ func executePickingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 	err := workflow.ExecuteChildWorkflow(childCtx, PickingWorkflowName, pickingInput).Get(ctx, &pickingResult)
 	if err != nil {
 		return fmt.Errorf("picking workflow failed: %w", err)
+	}
+
+	// Extract picked items from result for downstream stages
+	if pickedItemsRaw, ok := pickingResult["pickedItems"].([]interface{}); ok {
+		pickedItems := make([]PickedItem, 0, len(pickedItemsRaw))
+		for _, itemRaw := range pickedItemsRaw {
+			if itemMap, ok := itemRaw.(map[string]interface{}); ok {
+				// Safe type assertions
+				sku, _ := itemMap["sku"].(string)
+				quantity, _ := itemMap["quantity"].(float64)
+				locationID, _ := itemMap["locationId"].(string)
+				toteID, _ := itemMap["toteId"].(string)
+
+				pickedItems = append(pickedItems, PickedItem{
+					SKU:        sku,
+					Quantity:   int(quantity),
+					LocationID: locationID,
+					ToteID:     toteID,
+				})
+			}
+		}
+		result.PickedItems = pickedItems
+		logger.Info("Extracted picked items from result",
+			"orderId", input.OrderID,
+			"itemCount", len(pickedItems))
 	}
 
 	logger.Info("Picking stage completed", "orderId", input.OrderID, "taskId", assignment.TaskID)
@@ -399,17 +439,45 @@ func executeWallingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 }
 
 // executeConsolidationStage executes the consolidation stage via cross-queue child workflow
-func executeConsolidationStage(ctx workflow.Context, input WESExecutionInput, routeID string, assignment WorkerAssignment, result *StageResult) error {
+func executeConsolidationStage(ctx workflow.Context, input WESExecutionInput, routeID string, assignment WorkerAssignment, pickingResult *StageResult, result *StageResult) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing consolidation stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
 
-	// Build consolidation input
+	// Extract picked items from picking stage result
+	pickedItems := make([]map[string]interface{}, 0)
+	if pickingResult != nil && len(pickingResult.PickedItems) > 0 {
+		for _, item := range pickingResult.PickedItems {
+			pickedItems = append(pickedItems, map[string]interface{}{
+				"sku":        item.SKU,
+				"quantity":   item.Quantity,
+				"locationId": item.LocationID,
+				"toteId":     item.ToteID,
+			})
+		}
+		logger.Info("Using picked items from picking stage",
+			"orderId", input.OrderID,
+			"itemCount", len(pickedItems))
+	} else {
+		logger.Warn("No picked items from picking stage, using original items as fallback",
+			"orderId", input.OrderID)
+		// Fallback to original items if picking result unavailable
+		for _, item := range input.Items {
+			pickedItems = append(pickedItems, map[string]interface{}{
+				"sku":        item.SKU,
+				"quantity":   item.Quantity,
+				"locationId": item.LocationID,
+				"toteId":     "", // No tote ID in original items
+			})
+		}
+	}
+
+	// Build consolidation input with PICKED ITEMS
 	consolidationInput := map[string]interface{}{
-		"orderId": input.OrderID,
-		"waveId":  input.WaveID,
-		"routeId": routeID,
-		"taskId":  assignment.TaskID,
-		"items":   input.Items,
+		"orderId":     input.OrderID,
+		"waveId":      input.WaveID,
+		"routeId":     routeID,
+		"taskId":      assignment.TaskID,
+		"pickedItems": pickedItems,
 	}
 
 	// Configure child workflow options to route to consolidation-service worker

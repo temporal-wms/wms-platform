@@ -47,16 +47,15 @@ type PickedItem struct {
 }
 
 // PickingWorkflow orchestrates the picking process for an order
-func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (*PickingWorkflowResult, error) {
+// Using typed struct input to ensure determinism and type safety
+func PickingWorkflow(ctx workflow.Context, input PickingWorkflowInput) (*PickingWorkflowResult, error) {
 	logger := workflow.GetLogger(ctx)
 
-	// Extract input
-	orderID, _ := input["orderId"].(string)
-	waveID, _ := input["waveId"].(string)
-	routeRaw, _ := input["route"].(map[string]interface{})
-
-	routeID, _ := routeRaw["routeId"].(string)
-	stopsRaw, _ := routeRaw["stops"].([]interface{})
+	// Extract input from typed struct
+	orderID := input.OrderID
+	waveID := input.WaveID
+	routeID := input.Route.RouteID
+	stops := input.Route.Stops
 
 	logger.Info("Starting picking workflow", "orderId", orderID, "waveId", waveID, "routeId", routeID)
 
@@ -64,10 +63,14 @@ func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (*Picki
 		Success: false,
 	}
 
-	// Activity options
+	// Activity options with proper timeouts for picking operations
+	// ScheduleToCloseTimeout: Total time including retries
+	// StartToCloseTimeout: Time for a single attempt
+	// HeartbeatTimeout: Detect stuck workers for long-running pick tasks
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: 10 * time.Minute,
-		HeartbeatTimeout:    30 * time.Second,
+		ScheduleToCloseTimeout: 30 * time.Minute, // Total time including retries
+		StartToCloseTimeout:    10 * time.Minute,
+		HeartbeatTimeout:       30 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second,
 			BackoffCoefficient: 2.0,
@@ -84,7 +87,7 @@ func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (*Picki
 		"orderId": orderID,
 		"waveId":  waveID,
 		"routeId": routeID,
-		"stops":   stopsRaw,
+		"stops":   stops,
 	}).Get(ctx, &taskID)
 	if err != nil {
 		result.Error = fmt.Sprintf("failed to create pick task: %v", err)
@@ -135,7 +138,7 @@ func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (*Picki
 	exceptionSignal := workflow.GetSignalChannel(ctx, "pickException")
 
 	pickedItems := make([]PickedItem, 0)
-	pendingItems := len(stopsRaw)
+	pendingItems := len(stops)
 	pickingComplete := false
 
 	for !pickingComplete && pendingItems > 0 {

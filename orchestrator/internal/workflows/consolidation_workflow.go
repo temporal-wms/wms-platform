@@ -33,6 +33,10 @@ type ToteArrivedSignal struct {
 func ConsolidationWorkflow(ctx workflow.Context, input map[string]interface{}) error {
 	logger := workflow.GetLogger(ctx)
 
+	// Workflow versioning for safe deployments
+	version := workflow.GetVersion(ctx, "ConsolidationWorkflow", workflow.DefaultVersion, ConsolidationWorkflowVersion)
+	logger.Info("Workflow version", "version", version)
+
 	orderID, _ := input["orderId"].(string)
 	waveID, _ := input["waveId"].(string)
 

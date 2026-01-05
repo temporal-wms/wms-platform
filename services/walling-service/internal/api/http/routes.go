@@ -6,10 +6,6 @@ import (
 
 // SetupRoutes configures all HTTP routes for the Walling service
 func SetupRoutes(router *gin.Engine, handlers *Handlers) {
-	// Health endpoints
-	router.GET("/health", handlers.HealthCheck)
-	router.GET("/ready", handlers.ReadyCheck)
-
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{

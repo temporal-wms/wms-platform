@@ -107,7 +107,7 @@ stateDiagram-v2
 | Supplier Required | Shipment must have supplier information |
 | Expected Items | Cannot receive without expected items list |
 | Valid Status | Status transitions must follow state machine |
-| Received <= Expected | Cannot receive more than expected (overage is discrepancy) |
+| Received &lt;= Expected | Cannot receive more than expected (overage is discrepancy) |
 | Condition Required | Every received item must have condition |
 
 ## Commands

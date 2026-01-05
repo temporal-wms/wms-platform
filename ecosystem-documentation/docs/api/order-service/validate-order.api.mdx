@@ -1,0 +1,71 @@
+---
+id: validate-order
+title: "Validate order"
+description: "Validate order"
+sidebar_label: "Validate order"
+hide_title: true
+hide_table_of_contents: true
+api: eJyVVk1v2zAM/SuCThuQxulOg08rth162Jb185DmoNpsrFWWVInOmgX57yNlJ3Ube8BOsfQo8pF6IrOVqFZR5gv5I5QQolxOpFdB1YC8yhdbaWkhc+kYPy/lRGpLS6+wou8AT40OUMocQwMTGYsKaiXzrcSN52MRg7Yrudst2Th6ZyNExj/MZvxTQiyC9qgde00kxFoZXSoEDlY4i2CRTZX3RheKTbNfke23x/Hc/S8okA764DwE1G20PftjYhSiiejqUTiiwiYOQj5oFzRuRkBX6wjlFzB6DWFzhsdmE/ngQq0IkZzwCWqqNcestPdkcFaWVLQ4lN9L5RfsDYA3CybTUgb6/aP9Z1dCKmNjMWzS9b4qTHd0OHGGPgzXbCzrNvQQsicz6K6jN6CbiUSNhrf2xaAtjVD3q6JCUJz42/0RNcTHZuzKyqbA70nxA/hToyy+zlyTPFcQGG2sxnnQRf+sber7Fv0NelXhANTLMMn/nHJodx0qc/4mo168hP/8J6VkcjsWucNvlGlGOKs1jD2aAPxC/0fUjS//78jbylx0/YOQHYOve8dN1zVEeuvkknpY5UruVU2SAHesXGYJjtm2awm7bN9u+OFAWO/7XhMMmVeIPs8y4wplKhcx/zibnWbK62x9Kt9S+AJrMM7X1LBE64ry7nuK5IrOTn/XcQrPqvYGpoWrx/zNWz3S4uBuyf33waUS9msjLsmAtCfO5udHfj672geowEbqROLi6+UVmwmqeVssUSurVpB48ztJPTYKbQVWIG6/XQpvFPIVTe/snb2qdEyEOF6lbGkg5nf2RLRMkjSYMyH7Xk7LFwOjH6DYFAZ6cQ/oCYtOqBj1yiZCGFTxSCJ5Od92ZNHqKaYwTw0Eetx3lnLnG2zzPp3OprNuiKgi6a6bZpzTvMtJXIGqyYoGieaLosv51LucpENPV09kex6O5Paq5AeBIzxjRtWjoclPgJWw7aS4aKdSpLP5y3Q9qJFumgXHdtvtvYpwHcxux9ucLD34xZKtg1b3LANSbKkjf5PkH5SJcETpMEvlu4tuerwXFHKQ6r6z2k1LiluEpM9H2PT+DeyWZFqB4hIwhRY9Kwrw2Dt3NLpZx4f3Ob++oiL/Ba/79J0=
+sidebar_class_name: "put api-method"
+info_path: api/order-service/order-service-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Validate order"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/orders/{orderId}/validate"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Validate order
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"orderId","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Order validated","content":{"application/json":{"schema":{"type":"object","properties":{"orderId":{"type":"string"},"customerId":{"type":"string"},"status":{"type":"string"},"priority":{"type":"string"},"promisedDeliveryAt":{"type":"string","format":"date-time"},"shippingAddress":{"type":"object","required":["street","city","state","zipCode","country"],"properties":{"street":{"type":"string"},"street2":{"type":"string"},"city":{"type":"string"},"state":{"type":"string"},"zipCode":{"type":"string"},"country":{"type":"string"}},"title":"Address"},"items":{"type":"array","items":{"type":"object","properties":{"sku":{"type":"string"},"productName":{"type":"string"},"quantity":{"type":"integer"},"unitPrice":{"type":"number"},"weight":{"type":"number"}},"title":"OrderItem"}},"totalItems":{"type":"integer"},"totalQuantity":{"type":"integer"},"totalWeight":{"type":"number"},"totalValue":{"type":"number"},"waveId":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"}},"title":"OrderResponse"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

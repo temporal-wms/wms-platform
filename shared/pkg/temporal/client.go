@@ -44,6 +44,7 @@ var TaskQueues = struct {
 	Inventory       string
 	Labor           string
 	Orchestrator    string
+	WESExecution    string
 }{
 	OrderManagement: "order-management-queue",
 	Waving:          "waving-queue",
@@ -55,6 +56,7 @@ var TaskQueues = struct {
 	Inventory:       "inventory-queue",
 	Labor:           "labor-queue",
 	Orchestrator:    "orchestrator-queue",
+	WESExecution:    "wes-execution-queue",
 }
 
 // WorkflowNames contains all WMS workflow names

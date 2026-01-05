@@ -1,0 +1,89 @@
+# Superset Dataset Configuration: Wave Performance
+# Dataset for the Wave Performance dashboard
+
+dataset:
+  name: wave_performance_daily
+  description: "Daily wave execution metrics by wave type"
+  database: trino
+  schema: iceberg.gold
+  table_name: wave_performance_daily
+
+  # Main time column for time series
+  main_dttm_col: date
+
+  # Columns
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of the metrics"
+
+    - column_name: wave_type
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Wave type (Digital, Wholesale, Priority, Mixed)"
+
+    - column_name: waves_created
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Number of waves created"
+
+    - column_name: waves_completed
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Number of waves completed"
+
+    - column_name: waves_cancelled
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Number of waves cancelled"
+
+    - column_name: avg_orders_per_wave
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average orders per wave"
+
+    - column_name: avg_items_per_wave
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average items per wave"
+
+    - column_name: avg_completion_time_hours
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average wave completion time in hours"
+
+  # Metrics
+  metrics:
+    - metric_name: total_waves
+      expression: "SUM(waves_created)"
+      description: "Total waves created"
+
+    - metric_name: completed_waves
+      expression: "SUM(waves_completed)"
+      description: "Total waves completed"
+
+    - metric_name: completion_rate
+      expression: "CAST(SUM(waves_completed) AS DOUBLE) / NULLIF(SUM(waves_created), 0) * 100"
+      description: "Wave completion rate (%)"
+
+    - metric_name: avg_cycle_time
+      expression: "AVG(avg_completion_time_hours)"
+      description: "Average cycle time (hours)"
+
+    - metric_name: avg_orders
+      expression: "AVG(avg_orders_per_wave)"
+      description: "Average orders per wave"
+
+    - metric_name: avg_items
+      expression: "AVG(avg_items_per_wave)"
+      description: "Average items per wave"

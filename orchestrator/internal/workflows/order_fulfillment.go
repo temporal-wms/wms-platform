@@ -212,20 +212,56 @@ type MultiRouteResult struct {
 	TotalItems    int            `json:"totalItems"`
 }
 
+// OrderFulfillmentQueryStatus represents the current status of the order fulfillment workflow
+type OrderFulfillmentQueryStatus struct {
+	OrderID          string  `json:"orderId"`
+	CurrentStage     string  `json:"currentStage"`
+	Status           string  `json:"status"`
+	CompletionPercent int    `json:"completionPercent"`
+	TotalStages      int     `json:"totalStages"`
+	CompletedStages  int     `json:"completedStages"`
+	Error            string  `json:"error,omitempty"`
+}
+
 // OrderFulfillmentWorkflow is the main saga that orchestrates the entire order fulfillment process
 // This workflow coordinates across all bounded contexts: Order -> Waving -> Routing -> Picking -> Consolidation -> Packing -> Shipping
 func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput) (*OrderFulfillmentResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting order fulfillment workflow", "orderId", input.OrderID)
 
+	// Workflow versioning for safe deployments - establishes version tracking
+	// Future breaking changes should increment OrderFulfillmentWorkflowVersion and add version checks
+	version := workflow.GetVersion(ctx, "OrderFulfillmentWorkflow", workflow.DefaultVersion, OrderFulfillmentWorkflowVersion)
+	logger.Info("Workflow version", "version", version)
+
 	result := &OrderFulfillmentResult{
 		OrderID: input.OrderID,
 		Status:  "in_progress",
 	}
 
+	// Query handler for workflow status - allows external systems to inspect current state
+	queryStatus := OrderFulfillmentQueryStatus{
+		OrderID:         input.OrderID,
+		CurrentStage:    "validation",
+		Status:          "in_progress",
+		TotalStages:     5, // validation, planning, picking, consolidation/packing, shipping
+		CompletedStages: 0,
+	}
+	err := workflow.SetQueryHandler(ctx, "getStatus", func() (OrderFulfillmentQueryStatus, error) {
+		return queryStatus, nil
+	})
+	if err != nil {
+		logger.Error("Failed to set query handler", "error", err)
+	}
+
 	// Activity options with retry policy
+	// ScheduleToCloseTimeout: Total time including all retries
+	// StartToCloseTimeout: Time for a single attempt
+	// HeartbeatTimeout: Detect stuck/crashed workers for long-running activities
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: DefaultActivityTimeout,
+		ScheduleToCloseTimeout: 30 * time.Minute, // Total time including retries
+		StartToCloseTimeout:    DefaultActivityTimeout,
+		HeartbeatTimeout:       30 * time.Second, // Detect stuck workers quickly
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    DefaultRetryInitialInterval,
 			BackoffCoefficient: DefaultRetryBackoffCoefficient,
@@ -236,35 +272,43 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
 	// Child workflow options
+	// Note: Retry policies are intentionally omitted for child workflows
+	// Workflows should be deterministic; retrying them would repeat the same logic
+	// Instead, let activities within child workflows handle their own retries
 	childOpts := workflow.ChildWorkflowOptions{
 		WorkflowExecutionTimeout: DefaultChildWorkflowTimeout,
-		RetryPolicy: &temporal.RetryPolicy{
-			MaximumAttempts: DefaultMaxRetryAttempts,
-		},
 	}
 
 	// ========================================
 	// Step 1: Validate Order
 	// ========================================
+	queryStatus.CurrentStage = "validation"
+	queryStatus.CompletedStages = 0
+	queryStatus.CompletionPercent = 0
 	logger.Info("Step 1: Validating order", "orderId", input.OrderID)
 
 	var orderValidated bool
-	err := workflow.ExecuteActivity(ctx, "ValidateOrder", input).Get(ctx, &orderValidated)
+	err = workflow.ExecuteActivity(ctx, "ValidateOrder", input).Get(ctx, &orderValidated)
 	if err != nil {
+		queryStatus.Status = "failed"
+		queryStatus.Error = fmt.Sprintf("validation failed: %v", err)
 		result.Status = "validation_failed"
 		result.Error = fmt.Sprintf("order validation failed: %v", err)
 		return result, err
 	}
+	queryStatus.CompletedStages = 1
+	queryStatus.CompletionPercent = 20
 
 	// ========================================
 	// Step 2: Execute Planning Workflow (Child)
 	// ========================================
+	queryStatus.CurrentStage = "planning"
+	queryStatus.CompletionPercent = 20
 	logger.Info("Step 2: Executing planning workflow", "orderId", input.OrderID)
 
 	planningChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("planning-%s", input.OrderID),
 		WorkflowExecutionTimeout: PlanningWorkflowTimeout,
-		RetryPolicy:              childOpts.RetryPolicy,
 	})
 
 	planningInput := PlanningWorkflowInput{
@@ -286,10 +330,14 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	var planningResult *PlanningWorkflowResult
 	err = workflow.ExecuteChildWorkflow(planningChildCtx, PlanningWorkflow, planningInput).Get(ctx, &planningResult)
 	if err != nil {
+		queryStatus.Status = "failed"
+		queryStatus.Error = fmt.Sprintf("planning failed: %v", err)
 		result.Status = "planning_failed"
 		result.Error = fmt.Sprintf("planning workflow failed: %v", err)
 		return result, err
 	}
+	queryStatus.CompletedStages = 2
+	queryStatus.CompletionPercent = 40
 
 	// Extract planning results
 	processPath := planningResult.ProcessPath
@@ -318,6 +366,8 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	// Step 3: WES Execution
 	// ========================================
 	// Delegate picking, walling, and packing to WES (Warehouse Execution System)
+	queryStatus.CurrentStage = "wes_execution"
+	queryStatus.CompletionPercent = 40
 	logger.Info("Step 3: Delegating to WES for execution", "orderId", input.OrderID)
 
 	// Convert items to WES format
@@ -345,7 +395,6 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		WorkflowID:               fmt.Sprintf("wes-%s", input.OrderID),
 		WorkflowExecutionTimeout: WESExecutionWorkflowTimeout,
 		TaskQueue:                WESTaskQueue,
-		RetryPolicy:              childOpts.RetryPolicy,
 	})
 
 	var wesResult WESExecutionResult
@@ -425,7 +474,6 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	sortationChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("sortation-%s", input.OrderID),
 		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-		RetryPolicy:              childOpts.RetryPolicy,
 	})
 
 	// Get destination from SLAM result or use a default
@@ -467,7 +515,6 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	shippingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("shipping-%s", input.OrderID),
 		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-		RetryPolicy:              childOpts.RetryPolicy,
 	})
 
 	shippingInput := map[string]interface{}{
@@ -514,6 +561,12 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		result.Status = "completed"
 	}
 
+	// Update final query status
+	queryStatus.Status = "completed"
+	queryStatus.CurrentStage = "completed"
+	queryStatus.CompletedStages = 5
+	queryStatus.CompletionPercent = 100
+
 	logger.Info("Order fulfillment completed",
 		"orderId", input.OrderID,
 		"status", result.Status,
@@ -551,9 +604,14 @@ func OrderCancellationWorkflow(ctx workflow.Context, orderID string, reason stri
 	logger.Info("Starting order cancellation workflow", "orderId", orderID, "reason", reason)
 
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: DefaultActivityTimeout,
+		ScheduleToCloseTimeout: 15 * time.Minute,
+		StartToCloseTimeout:    DefaultActivityTimeout,
+		HeartbeatTimeout:       30 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
-			MaximumAttempts: DefaultMaxRetryAttempts,
+			InitialInterval:    DefaultRetryInitialInterval,
+			BackoffCoefficient: DefaultRetryBackoffCoefficient,
+			MaximumInterval:    DefaultRetryMaxInterval,
+			MaximumAttempts:    DefaultMaxRetryAttempts,
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
@@ -594,9 +652,14 @@ func OrderCancellationWorkflowWithAllocations(ctx workflow.Context, input OrderC
 	)
 
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: DefaultActivityTimeout,
+		ScheduleToCloseTimeout: 15 * time.Minute,
+		StartToCloseTimeout:    DefaultActivityTimeout,
+		HeartbeatTimeout:       30 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
-			MaximumAttempts: DefaultMaxRetryAttempts,
+			InitialInterval:    DefaultRetryInitialInterval,
+			BackoffCoefficient: DefaultRetryBackoffCoefficient,
+			MaximumInterval:    DefaultRetryMaxInterval,
+			MaximumAttempts:    DefaultMaxRetryAttempts,
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)

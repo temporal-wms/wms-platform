@@ -4,17 +4,29 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/middleware"
 	"github.com/wms-platform/wes-service/internal/application"
 )
 
 // Handlers holds the HTTP handlers for WES service
 type Handlers struct {
-	service *application.WESApplicationService
+	service         *application.WESApplicationService
+	logger          *logging.Logger
+	businessMetrics *middleware.BusinessMetrics
 }
 
 // NewHandlers creates a new Handlers instance
-func NewHandlers(service *application.WESApplicationService) *Handlers {
-	return &Handlers{service: service}
+func NewHandlers(
+	service *application.WESApplicationService,
+	logger *logging.Logger,
+	businessMetrics *middleware.BusinessMetrics,
+) *Handlers {
+	return &Handlers{
+		service:         service,
+		logger:          logger,
+		businessMetrics: businessMetrics,
+	}
 }
 
 // ResolveExecutionPlan handles POST /api/v1/execution-plans/resolve

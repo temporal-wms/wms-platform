@@ -23,7 +23,7 @@ spec:
 
     # Database and Collection Filters
     database.include.list: "wms"
-    collection.include.list: "wms.orders,wms.inventory,wms.waves,wms.pick_tasks,wms.pack_tasks,wms.shipments,wms.routes,wms.consolidations,wms.workers"
+    collection.include.list: "wms.orders,wms.inventory,wms.waves,wms.pick_tasks,wms.pack_tasks,wms.shipments,wms.routes,wms.consolidations,wms.workers,wms.receipts,wms.stow_tasks,wms.returns"
 
     # Topic Naming
     topic.prefix: "cdc"
@@ -186,6 +186,48 @@ spec:
   replicas: 1
   config:
     retention.ms: 2592000000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.receipts
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.stow-tasks
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.returns
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
     cleanup.policy: delete
 ---
 apiVersion: kafka.strimzi.io/v1beta2

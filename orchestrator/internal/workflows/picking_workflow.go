@@ -18,9 +18,15 @@ type PickingWorkflowInput struct {
 	PathID  string   `json:"pathId,omitempty"`  // Process path ID for consistency
 }
 
-// PickingWorkflow coordinates the picking process for an order
-func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (PickResult, error) {
+// OrchestratedPickingWorkflow coordinates the picking process for an order with
+// enhanced features like unit-level tracking and inventory staging.
+// Note: For simple picking, use PickingWorkflow from picking-service on picking-queue.
+func OrchestratedPickingWorkflow(ctx workflow.Context, input map[string]interface{}) (PickResult, error) {
 	logger := workflow.GetLogger(ctx)
+
+	// Workflow versioning for safe deployments
+	version := workflow.GetVersion(ctx, "OrchestratedPickingWorkflow", workflow.DefaultVersion, OrchestratedPickingWorkflowVersion)
+	logger.Info("Workflow version", "version", version)
 
 	orderID, _ := input["orderId"].(string)
 	waveID, _ := input["waveId"].(string)
@@ -65,6 +71,7 @@ func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (PickRe
 		"orderId": orderID,
 		"waveId":  waveID,
 		"route":   input["route"],
+		"items":   input["items"],
 	}).Get(ctx, &taskID)
 	if err != nil {
 		return result, fmt.Errorf("failed to create pick task: %w", err)
@@ -101,11 +108,17 @@ func PickingWorkflow(ctx workflow.Context, input map[string]interface{}) (PickRe
 		if items, ok := completion["pickedItems"].([]interface{}); ok {
 			for _, item := range items {
 				if itemMap, ok := item.(map[string]interface{}); ok {
+					// Safe type assertions with defaults for nil values
+					sku, _ := itemMap["sku"].(string)
+					quantity, _ := itemMap["quantity"].(float64)
+					locationID, _ := itemMap["locationId"].(string)
+					toteID, _ := itemMap["toteId"].(string)
+
 					pickedItems = append(pickedItems, PickedItem{
-						SKU:        itemMap["sku"].(string),
-						Quantity:   int(itemMap["quantity"].(float64)),
-						LocationID: itemMap["locationId"].(string),
-						ToteID:     itemMap["toteId"].(string),
+						SKU:        sku,
+						Quantity:   int(quantity),
+						LocationID: locationID,
+						ToteID:     toteID,
 					})
 				}
 			}

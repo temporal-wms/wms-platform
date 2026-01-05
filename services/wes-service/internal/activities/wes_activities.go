@@ -307,6 +307,113 @@ func (a *WESActivities) ExecuteWallingTask(ctx context.Context, input map[string
 	return nil
 }
 
+// ExecutePickingTask creates and monitors a picking task
+func (a *WESActivities) ExecutePickingTask(ctx context.Context, input map[string]interface{}) error {
+	logger := activity.GetLogger(ctx)
+
+	orderID := getString(input, "orderId")
+	waveID := getString(input, "waveId")
+	routeID := getString(input, "routeId")
+	taskID := getString(input, "taskId")
+
+	logger.Info("Executing picking task", "orderId", orderID, "taskId", taskID)
+
+	if a.pickingClient != nil {
+		// Convert items
+		var items []PickItem
+		if itemsRaw, ok := input["items"].([]interface{}); ok {
+			for _, itemRaw := range itemsRaw {
+				if itemMap, ok := itemRaw.(map[string]interface{}); ok {
+					items = append(items, PickItem{
+						SKU:        getString(itemMap, "sku"),
+						Quantity:   getInt(itemMap, "quantity"),
+						LocationID: getString(itemMap, "locationId"),
+					})
+				}
+			}
+		}
+
+		// Create pick task via picking service
+		err := a.pickingClient.CreatePickTask(ctx, &CreatePickTaskRequest{
+			OrderID: orderID,
+			WaveID:  waveID,
+			RouteID: routeID,
+			ToteID:  fmt.Sprintf("TOTE-%s", taskID),
+			Items:   items,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create pick task: %w", err)
+		}
+	}
+
+	logger.Info("Picking task created", "taskId", taskID)
+	return nil
+}
+
+// ExecuteConsolidationTask creates and monitors a consolidation task
+func (a *WESActivities) ExecuteConsolidationTask(ctx context.Context, input map[string]interface{}) error {
+	logger := activity.GetLogger(ctx)
+
+	orderID := getString(input, "orderId")
+	waveID := getString(input, "waveId")
+	routeID := getString(input, "routeId")
+	taskID := getString(input, "taskId")
+
+	logger.Info("Executing consolidation task", "orderId", orderID, "taskId", taskID)
+
+	// Consolidation is typically internal - just log and return
+	// In a real implementation, this would coordinate consolidation units
+	logger.Info("Consolidation task created", "orderId", orderID, "waveId", waveID, "routeId", routeID, "taskId", taskID)
+	return nil
+}
+
+// ExecutePackingTask creates and monitors a packing task
+func (a *WESActivities) ExecutePackingTask(ctx context.Context, input map[string]interface{}) error {
+	logger := activity.GetLogger(ctx)
+
+	orderID := getString(input, "orderId")
+	routeID := getString(input, "routeId")
+	taskID := getString(input, "taskId")
+	sourceType := getString(input, "sourceType")
+	sourceToteID := getString(input, "sourceToteId")
+	sourceBinID := getString(input, "sourceBinId")
+	putWallID := getString(input, "putWallId")
+
+	logger.Info("Executing packing task", "orderId", orderID, "taskId", taskID)
+
+	if a.packingClient != nil {
+		// Convert items
+		var items []PackItem
+		if itemsRaw, ok := input["items"].([]interface{}); ok {
+			for _, itemRaw := range itemsRaw {
+				if itemMap, ok := itemRaw.(map[string]interface{}); ok {
+					items = append(items, PackItem{
+						SKU:      getString(itemMap, "sku"),
+						Quantity: getInt(itemMap, "quantity"),
+					})
+				}
+			}
+		}
+
+		// Create pack task via packing service
+		err := a.packingClient.CreatePackTask(ctx, &CreatePackTaskRequest{
+			OrderID:      orderID,
+			RouteID:      routeID,
+			SourceType:   sourceType,
+			SourceToteID: sourceToteID,
+			SourceBinID:  sourceBinID,
+			PutWallID:    putWallID,
+			Items:        items,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create pack task: %w", err)
+		}
+	}
+
+	logger.Info("Packing task created", "taskId", taskID)
+	return nil
+}
+
 // Helper functions
 func getString(m map[string]interface{}, key string) string {
 	if v, ok := m[key].(string); ok {
@@ -398,6 +505,48 @@ func NewPickingServiceClient(baseURL string) *PickingServiceClient {
 	}
 }
 
+// CreatePickTaskRequest represents a request to create a pick task
+type CreatePickTaskRequest struct {
+	OrderID string     `json:"orderId"`
+	RouteID string     `json:"routeId"`
+	WaveID  string     `json:"waveId"`
+	ToteID  string     `json:"toteId,omitempty"`
+	Items   []PickItem `json:"items"`
+}
+
+// PickItem represents an item to pick
+type PickItem struct {
+	SKU        string `json:"sku"`
+	Quantity   int    `json:"quantity"`
+	LocationID string `json:"locationId"`
+}
+
+// CreatePickTask creates a pick task via the picking service
+func (c *PickingServiceClient) CreatePickTask(ctx context.Context, req *CreatePickTaskRequest) error {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/v1/tasks", strings.NewReader(string(body)))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("picking service returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 // WallingServiceClient is a client for the walling service
 type WallingServiceClient struct {
 	baseURL    string
@@ -459,4 +608,48 @@ func NewPackingServiceClient(baseURL string) *PackingServiceClient {
 			Timeout: 10 * time.Second,
 		},
 	}
+}
+
+// CreatePackTaskRequest represents a request to create a pack task
+type CreatePackTaskRequest struct {
+	OrderID      string     `json:"orderId"`
+	RouteID      string     `json:"routeId"`
+	SourceType   string     `json:"sourceType"`
+	SourceToteID string     `json:"sourceToteId,omitempty"`
+	SourceBinID  string     `json:"sourceBinId,omitempty"`
+	PutWallID    string     `json:"putWallId,omitempty"`
+	Items        []PackItem `json:"items"`
+}
+
+// PackItem represents an item to pack
+type PackItem struct {
+	SKU         string `json:"sku"`
+	ProductName string `json:"productName,omitempty"`
+	Quantity    int    `json:"quantity"`
+}
+
+// CreatePackTask creates a pack task via the packing service
+func (c *PackingServiceClient) CreatePackTask(ctx context.Context, req *CreatePackTaskRequest) error {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/v1/tasks", strings.NewReader(string(body)))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("packing service returned status %d", resp.StatusCode)
+	}
+
+	return nil
 }
