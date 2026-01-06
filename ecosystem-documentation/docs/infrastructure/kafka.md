@@ -16,17 +16,21 @@ wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
 
 ### Topics
 
-| Topic | Partitions | Replication | Retention |
-|-------|------------|-------------|-----------|
-| wms.orders.events | 3 | 3 | 7 days |
-| wms.waves.events | 3 | 3 | 7 days |
-| wms.routes.events | 3 | 3 | 7 days |
-| wms.picking.events | 6 | 3 | 7 days |
-| wms.consolidation.events | 3 | 3 | 7 days |
-| wms.packing.events | 3 | 3 | 7 days |
-| wms.shipping.events | 3 | 3 | 7 days |
-| wms.inventory.events | 6 | 3 | 7 days |
-| wms.labor.events | 3 | 3 | 7 days |
+| Topic | Partitions | Replication | Retention | Description |
+|-------|------------|-------------|-----------|-------------|
+| wms.orders.events | 3 | 3 | 7 days | Order lifecycle events |
+| wms.waves.events | 3 | 3 | 7 days | Wave planning events |
+| wms.wes.events | 6 | 3 | 7 days | WES execution events |
+| wms.walling.events | 3 | 3 | 7 days | Put wall/sorting events |
+| wms.routes.events | 3 | 3 | 7 days | Routing calculation events |
+| wms.picking.events | 6 | 3 | 7 days | Pick task events |
+| wms.consolidation.events | 3 | 3 | 7 days | Consolidation events |
+| wms.packing.events | 3 | 3 | 7 days | Packing station events |
+| wms.shipping.events | 3 | 3 | 7 days | Shipping/manifest events |
+| wms.receiving.events | 3 | 3 | 7 days | Inbound receiving events |
+| wms.sortation.events | 6 | 3 | 7 days | Sortation system events |
+| wms.inventory.events | 6 | 3 | 7 days | Inventory updates |
+| wms.labor.events | 3 | 3 | 7 days | Labor/worker events |
 
 ## Deployment (Strimzi)
 

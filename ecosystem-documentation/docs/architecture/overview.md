@@ -37,6 +37,8 @@ graph TB
             Shipping[Shipping Service<br/>:8007]
             Inventory[Inventory Service<br/>:8008]
             Labor[Labor Service<br/>:8009]
+            Unit[Unit Service<br/>:8014]
+            ProcessPath[Process Path Service<br/>:8015]
         end
 
         subgraph "Execution Services"
@@ -161,6 +163,8 @@ Each service owns its database:
 - **Shipping Service** → `shipping_db`
 - **Inventory Service** → `inventory_db`
 - **Labor Service** → `labor_db`
+- **Unit Service** → `unit_db`
+- **Process Path Service** → `process_path_db`
 
 ### Event Store
 Kafka serves as the event store for:

@@ -137,6 +137,223 @@ Request:
 }
 ```
 
+### Reprocessing API
+
+#### Get Eligible Orders for Retry
+
+```http
+GET /api/v1/reprocessing/eligible?limit=100&maxRetries=5
+```
+
+#### Get Retry Metadata
+
+```http
+GET /api/v1/reprocessing/orders/{orderId}/retry-count
+```
+
+#### Increment Retry Count
+
+```http
+POST /api/v1/reprocessing/orders/{orderId}/retry-count
+```
+
+Request:
+```json
+{
+  "failureReason": "Picking station offline",
+  "failedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+#### Reset Order for Retry
+
+```http
+POST /api/v1/reprocessing/orders/{orderId}/reset
+```
+
+#### Move to Dead Letter Queue
+
+```http
+POST /api/v1/reprocessing/orders/{orderId}/dlq
+```
+
+Request:
+```json
+{
+  "failureStatus": "picking",
+  "failureReason": "Max retries exceeded"
+}
+```
+
+### Dead Letter Queue API
+
+#### List DLQ Entries
+
+```http
+GET /api/v1/dead-letter-queue?resolved=false&limit=50
+```
+
+#### Get DLQ Statistics
+
+```http
+GET /api/v1/dead-letter-queue/stats
+```
+
+Response:
+```json
+{
+  "totalEntries": 42,
+  "unresolvedCount": 15,
+  "resolvedCount": 27,
+  "byFailureStatus": { "picking": 8, "packing": 4 }
+}
+```
+
+#### Resolve DLQ Entry
+
+```http
+PATCH /api/v1/dead-letter-queue/{orderId}/resolve
+```
+
+Request:
+```json
+{
+  "resolution": "manual_retry",
+  "notes": "Inventory replenished",
+  "resolvedBy": "SUPERVISOR-001"
+}
+```
+
+## Unit Service API (Port 8014)
+
+The Unit Service provides individual unit-level tracking throughout fulfillment.
+
+### Create Units
+
+```http
+POST /api/v1/units
+```
+
+Request:
+```json
+{
+  "sku": "SKU-001",
+  "shipmentId": "SHIP-12345",
+  "locationId": "RECV-DOCK-01",
+  "quantity": 10,
+  "createdBy": "WORKER-001"
+}
+```
+
+### Reserve Units
+
+```http
+POST /api/v1/units/reserve
+```
+
+Request:
+```json
+{
+  "orderId": "ORD-12345",
+  "pathId": "PATH-001",
+  "items": [
+    { "sku": "SKU-001", "quantity": 2 }
+  ],
+  "handlerId": "SYSTEM"
+}
+```
+
+### Get Unit
+
+```http
+GET /api/v1/units/{unitId}
+GET /api/v1/units/order/{orderId}
+```
+
+### Get Unit Audit Trail
+
+```http
+GET /api/v1/units/{unitId}/audit
+```
+
+### Unit Operations
+
+```http
+POST /api/v1/units/{unitId}/pick
+POST /api/v1/units/{unitId}/consolidate
+POST /api/v1/units/{unitId}/pack
+POST /api/v1/units/{unitId}/ship
+POST /api/v1/units/{unitId}/exception
+```
+
+### Exception Management
+
+```http
+GET /api/v1/exceptions/order/{orderId}
+GET /api/v1/exceptions/unresolved
+POST /api/v1/exceptions/{exceptionId}/resolve
+```
+
+## Process Path Service API (Port 8015)
+
+The Process Path Service determines optimal fulfillment paths based on item characteristics.
+
+### Determine Process Path
+
+```http
+POST /api/v1/process-paths/determine
+```
+
+Request:
+```json
+{
+  "orderId": "ORD-12345",
+  "items": [
+    {
+      "sku": "SKU-001",
+      "quantity": 2,
+      "weight": 1.5,
+      "isFragile": true,
+      "isHazmat": false,
+      "requiresColdChain": false
+    }
+  ],
+  "giftWrap": true,
+  "totalValue": 299.99
+}
+```
+
+Response:
+```json
+{
+  "pathId": "PATH-001",
+  "requirements": ["multi_item", "gift_wrap", "fragile"],
+  "consolidationRequired": true,
+  "giftWrapRequired": true,
+  "specialHandling": ["fragile_packing"]
+}
+```
+
+### Get Process Path
+
+```http
+GET /api/v1/process-paths/{pathId}
+GET /api/v1/process-paths/order/{orderId}
+```
+
+### Assign Station
+
+```http
+PUT /api/v1/process-paths/{pathId}/station
+```
+
+Request:
+```json
+{
+  "stationId": "STATION-A01"
+}
+```
+
 ## WES Service API (Port 8016)
 
 The Warehouse Execution System coordinates order execution through configurable process paths.

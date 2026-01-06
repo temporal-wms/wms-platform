@@ -41,9 +41,8 @@ type OrderFulfillmentInput struct {
     ColdChainDetails *ColdChainDetailsInput `json:"coldChainDetails,omitempty"`
     TotalValue       float64                `json:"totalValue"`            // Order total value
 
-    // Unit-level tracking fields
-    UnitIDs         []string `json:"unitIds,omitempty"`         // Pre-reserved unit IDs
-    UseUnitTracking bool     `json:"useUnitTracking,omitempty"` // Feature flag
+    // Unit-level tracking fields (always enabled)
+    UnitIDs         []string `json:"unitIds,omitempty"`         // Pre-reserved unit IDs if any
 }
 
 // Item represents an order item
@@ -298,6 +297,17 @@ graph TD
 | `sortation_failed` | Package routing failed | None |
 | `shipping_failed` | Carrier handoff failed | None |
 
+## Unit-Level Tracking
+
+Unit-level tracking is **always enabled** in the current version. This provides:
+
+- Individual unit tracking through the fulfillment process
+- Granular audit trails for each physical unit
+- Better exception handling at the unit level
+- Accurate consolidation for multi-route orders
+
+When `UnitIDs` are provided in the input, those pre-reserved units are used. Otherwise, units are reserved during the planning phase.
+
 ## Versioning
 
 ```go
@@ -306,7 +316,7 @@ OrderFulfillmentWorkflowVersion = 1
 
 // Change IDs for specific features
 OrderFulfillmentMultiRouteSupport = "multi-route-support"
-OrderFulfillmentUnitTracking      = "unit-level-tracking"
+OrderFulfillmentUnitTracking      = "unit-level-tracking"  // Now always enabled
 ```
 
 ## Usage Example
@@ -326,6 +336,8 @@ input := workflows.OrderFulfillmentInput{
     Priority:           "same_day",
     PromisedDeliveryAt: time.Now().Add(8 * time.Hour),
     IsMultiItem:        true,
+    TotalValue:         149.99,
+    // Unit tracking is always enabled - UnitIDs are optional (reserved during planning if not provided)
 }
 
 we, err := client.ExecuteWorkflow(ctx, options, workflows.OrderFulfillmentWorkflow, input)
