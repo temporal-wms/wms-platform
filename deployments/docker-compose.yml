@@ -15,6 +15,7 @@ services:
     volumes:
       - mongodb_data:/data/db
       - ./mongodb/init-replica.js:/docker-entrypoint-initdb.d/init-replica.js:ro
+      - ./mongodb/init-locations.js:/docker-entrypoint-initdb.d/init-locations.js:ro
     environment:
       MONGO_INITDB_DATABASE: admin
     healthcheck:
