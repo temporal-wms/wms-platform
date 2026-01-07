@@ -1,0 +1,26 @@
+{
+  "id": "architecture/c4-diagrams/containers",
+  "title": "C4 Level 2: Container Diagram",
+  "description": "The Container diagram shows the high-level technology choices and how responsibilities are distributed across containers (applications, databases, etc.).",
+  "source": "@site/docs/architecture/c4-diagrams/containers.md",
+  "sourceDirName": "architecture/c4-diagrams",
+  "slug": "/architecture/c4-diagrams/containers",
+  "permalink": "/architecture/c4-diagrams/containers",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "C4 Level 1: System Context",
+    "permalink": "/architecture/c4-diagrams/context"
+  },
+  "next": {
+    "title": "C4 Level 3: Component Diagrams",
+    "permalink": "/architecture/c4-diagrams/components"
+  }
+}

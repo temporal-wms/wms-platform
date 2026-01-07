@@ -1,0 +1,1017 @@
+openapi: 3.0.3
+info:
+  title: WMS Channel Service API
+  description: |
+    REST API for multi-channel integration in the WMS Platform.
+
+    This service handles:
+    - Sales channel connections (Shopify, Amazon, eBay, WooCommerce)
+    - Order import from external channels
+    - Inventory sync to channels
+    - Tracking push to channels
+    - Webhook handling for real-time updates
+
+    **Supported Channels:**
+    | Channel | Order Import | Inventory Sync | Tracking Push |
+    |---------|--------------|----------------|---------------|
+    | Shopify | Yes | Yes | Yes |
+    | Amazon | Yes | Yes | Yes |
+    | eBay | Yes | Yes | Yes |
+    | WooCommerce | Yes | Yes | Yes |
+
+    **Sync Types:**
+    - `orders`: Import orders from channel to WMS
+    - `inventory`: Push inventory levels to channel
+    - `tracking`: Push shipment tracking to channel
+    - `products`: Sync product catalog
+
+    **Sync Flow:**
+    1. Order created on channel
+    2. Channel-service imports order (via polling or webhook)
+    3. Order fulfilled in WMS
+    4. Tracking pushed back to channel
+    5. Inventory levels synced to channel
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8012/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Channels
+    description: Channel connection management
+  - name: Orders
+    description: Channel order operations
+  - name: Sync
+    description: Synchronization jobs
+  - name: Webhooks
+    description: Webhook handling
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /channels:
+    post:
+      summary: Create channel connection
+      description: |
+        Creates a new channel connection for a seller.
+
+        **Integration:**
+        - Publishes `ChannelConnected` event
+        - Validates credentials with external platform
+      tags: [Channels]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChannelRequest'
+            examples:
+              shopify:
+                summary: Connect Shopify store
+                value:
+                  type: "shopify"
+                  name: "My Shopify Store"
+                  storeUrl: "https://mystore.myshopify.com"
+                  credentials:
+                    accessToken: "shpat_xxxxx"
+                    storeDomain: "mystore.myshopify.com"
+                  syncSettings:
+                    autoImportOrders: true
+                    autoSyncInventory: true
+                    autoPushTracking: true
+                    orderSyncIntervalMin: 5
+                    inventorySyncIntervalMin: 15
+                    importPaidOnly: true
+              amazon:
+                summary: Connect Amazon Seller Central
+                value:
+                  type: "amazon"
+                  name: "Amazon US"
+                  credentials:
+                    refreshToken: "Atzr|xxxxx"
+                    sellerId: "A1234567890"
+                    marketplaceId: "ATVPDKIKX0DER"
+                  syncSettings:
+                    autoImportOrders: true
+                    autoSyncInventory: true
+                    autoPushTracking: true
+      responses:
+        '201':
+          description: Channel connected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelResponse'
+        '400':
+          description: Invalid credentials or configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List channels
+      description: Retrieve all channel connections for a seller.
+      tags: [Channels]
+      parameters:
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [active, paused, disconnected, error]
+        - name: type
+          in: query
+          description: Filter by channel type
+          schema:
+            type: string
+            enum: [shopify, amazon, ebay, woocommerce, custom]
+      responses:
+        '200':
+          description: List of channels
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChannelResponse'
+
+  /channels/{channelId}:
+    get:
+      summary: Get channel by ID
+      description: Retrieve channel connection details.
+      tags: [Channels]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "CH-a1b2c3d4"
+      responses:
+        '200':
+          description: Channel details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelResponse'
+        '404':
+          description: Channel not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update channel
+      description: Update channel sync settings.
+      tags: [Channels]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChannelRequest'
+      responses:
+        '200':
+          description: Channel updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelResponse'
+
+    delete:
+      summary: Disconnect channel
+      description: |
+        Disconnects a channel.
+
+        **Integration:**
+        - Publishes `ChannelDisconnected` event
+      tags: [Channels]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Channel disconnected
+        '404':
+          description: Channel not found
+
+  /channels/{channelId}/pause:
+    put:
+      summary: Pause channel
+      description: Pauses syncing for a channel.
+      tags: [Channels]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Channel paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelResponse'
+
+  /channels/{channelId}/resume:
+    put:
+      summary: Resume channel
+      description: Resumes syncing for a paused channel.
+      tags: [Channels]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Channel resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelResponse'
+        '400':
+          description: Cannot resume disconnected channel
+
+  /channels/{channelId}/test:
+    post:
+      summary: Test channel connection
+      description: Tests the channel connection and credentials.
+      tags: [Channels]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Connection test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  latency:
+                    type: integer
+                    description: Response time in ms
+
+  /orders:
+    get:
+      summary: List channel orders
+      description: Retrieve orders imported from channels.
+      tags: [Orders]
+      parameters:
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+        - name: channelId
+          in: query
+          description: Filter by channel
+          schema:
+            type: string
+        - name: imported
+          in: query
+          description: Filter by import status
+          schema:
+            type: boolean
+        - name: trackingPushed
+          in: query
+          description: Filter by tracking push status
+          schema:
+            type: boolean
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of channel orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChannelOrderResponse'
+                  total:
+                    type: integer
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /orders/{externalOrderId}:
+    get:
+      summary: Get channel order
+      description: Retrieve a specific channel order.
+      tags: [Orders]
+      parameters:
+        - name: externalOrderId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "12345678"
+        - name: channelId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Channel order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelOrderResponse'
+        '404':
+          description: Order not found
+
+  /orders/{externalOrderId}/import:
+    post:
+      summary: Import order to WMS
+      description: |
+        Manually imports a channel order to WMS.
+
+        **Process:**
+        1. Fetches order details from channel
+        2. Converts to WMS order format
+        3. Creates order in order-service
+        4. Links channel order to WMS order
+      tags: [Orders]
+      parameters:
+        - name: externalOrderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: channelId
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Order imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelOrderResponse'
+        '400':
+          description: Order already imported
+
+  /orders/{externalOrderId}/tracking:
+    post:
+      summary: Push tracking to channel
+      description: |
+        Pushes shipment tracking information to the channel.
+
+        **Data Required:**
+        - Tracking number
+        - Carrier name
+        - Tracking URL (optional)
+      tags: [Orders]
+      parameters:
+        - name: externalOrderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: channelId
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushTrackingRequest'
+            examples:
+              ups:
+                value:
+                  trackingNumber: "1Z999AA10123456784"
+                  carrier: "UPS"
+                  trackingUrl: "https://www.ups.com/track?tracknum=1Z999AA10123456784"
+                  shippedAt: "2024-12-24T10:00:00Z"
+      responses:
+        '200':
+          description: Tracking pushed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelOrderResponse'
+        '400':
+          description: Failed to push tracking
+
+  /sync/jobs:
+    post:
+      summary: Create sync job
+      description: |
+        Creates a new synchronization job.
+
+        **Sync Types:**
+        - `orders`: Import new orders from channel
+        - `inventory`: Push inventory levels to channel
+        - `tracking`: Push unfulfilled tracking to channel
+        - `products`: Sync product catalog
+      tags: [Sync]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSyncJobRequest'
+            examples:
+              orderSync:
+                summary: Import orders
+                value:
+                  channelId: "CH-a1b2c3d4"
+                  type: "orders"
+                  direction: "inbound"
+              inventorySync:
+                summary: Push inventory
+                value:
+                  channelId: "CH-a1b2c3d4"
+                  type: "inventory"
+                  direction: "outbound"
+      responses:
+        '201':
+          description: Sync job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJobResponse'
+
+    get:
+      summary: List sync jobs
+      description: Retrieve sync job history.
+      tags: [Sync]
+      parameters:
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+        - name: channelId
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [orders, inventory, tracking, products]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of sync jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SyncJobResponse'
+
+  /sync/jobs/{jobId}:
+    get:
+      summary: Get sync job
+      description: Retrieve sync job details and progress.
+      tags: [Sync]
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sync job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJobResponse'
+
+  /sync/jobs/{jobId}/cancel:
+    put:
+      summary: Cancel sync job
+      description: Cancels a running sync job.
+      tags: [Sync]
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sync job cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJobResponse'
+        '400':
+          description: Job cannot be cancelled
+
+  /webhooks/{channelType}:
+    post:
+      summary: Receive webhook
+      description: |
+        Handles incoming webhooks from channels.
+
+        **Supported Events:**
+        - Shopify: orders/create, orders/updated, orders/cancelled
+        - Amazon: ORDER_CHANGE, FULFILLMENT_ORDER_STATUS
+        - eBay: ORDER_CREATED, ORDER_PAID
+        - WooCommerce: order.created, order.updated
+      tags: [Webhooks]
+      parameters:
+        - name: channelType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [shopify, amazon, ebay, woocommerce]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed
+        '400':
+          description: Invalid webhook payload
+        '401':
+          description: Invalid webhook signature
+
+  /health:
+    get:
+      summary: Health check
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness check
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  schemas:
+    CreateChannelRequest:
+      type: object
+      required:
+        - type
+        - name
+        - credentials
+      properties:
+        type:
+          type: string
+          enum: [shopify, amazon, ebay, woocommerce, custom]
+          example: "shopify"
+        name:
+          type: string
+          example: "My Shopify Store"
+        storeUrl:
+          type: string
+          example: "https://mystore.myshopify.com"
+        credentials:
+          type: object
+          additionalProperties:
+            type: string
+          description: Channel-specific credentials
+        syncSettings:
+          $ref: '#/components/schemas/SyncSettings'
+
+    UpdateChannelRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        syncSettings:
+          $ref: '#/components/schemas/SyncSettings'
+
+    ChannelResponse:
+      type: object
+      properties:
+        channelId:
+          type: string
+          example: "CH-a1b2c3d4"
+        tenantId:
+          type: string
+        sellerId:
+          type: string
+        type:
+          type: string
+          example: "shopify"
+        name:
+          type: string
+          example: "My Shopify Store"
+        storeUrl:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, disconnected, error]
+          example: "active"
+        syncSettings:
+          $ref: '#/components/schemas/SyncSettings'
+        lastOrderSync:
+          type: string
+          format: date-time
+        lastInventorySync:
+          type: string
+          format: date-time
+        lastTrackingSync:
+          type: string
+          format: date-time
+        lastError:
+          type: string
+        lastErrorAt:
+          type: string
+          format: date-time
+        errorCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SyncSettings:
+      type: object
+      properties:
+        autoImportOrders:
+          type: boolean
+          example: true
+        autoSyncInventory:
+          type: boolean
+          example: true
+        autoPushTracking:
+          type: boolean
+          example: true
+        orderSyncIntervalMin:
+          type: integer
+          example: 5
+        inventorySyncIntervalMin:
+          type: integer
+          example: 15
+        fulfillmentLocationId:
+          type: string
+        defaultWarehouseId:
+          type: string
+        importPaidOnly:
+          type: boolean
+          example: true
+        importFulfilledOrders:
+          type: boolean
+          example: false
+        excludeTags:
+          type: array
+          items:
+            type: string
+
+    ChannelOrderResponse:
+      type: object
+      properties:
+        tenantId:
+          type: string
+        sellerId:
+          type: string
+        channelId:
+          type: string
+        externalOrderId:
+          type: string
+          example: "12345678"
+        externalOrderNumber:
+          type: string
+          example: "#1001"
+        externalCreatedAt:
+          type: string
+          format: date-time
+        wmsOrderId:
+          type: string
+        imported:
+          type: boolean
+        importedAt:
+          type: string
+          format: date-time
+        customer:
+          $ref: '#/components/schemas/ChannelCustomer'
+        shippingAddress:
+          $ref: '#/components/schemas/ChannelAddress'
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChannelLineItem'
+        currency:
+          type: string
+          example: "USD"
+        subtotal:
+          type: number
+        shippingCost:
+          type: number
+        tax:
+          type: number
+        discount:
+          type: number
+        total:
+          type: number
+        financialStatus:
+          type: string
+          example: "paid"
+        fulfillmentStatus:
+          type: string
+          example: "unfulfilled"
+        trackingPushed:
+          type: boolean
+        trackingPushedAt:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ChannelCustomer:
+      type: object
+      properties:
+        externalId:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+
+    ChannelAddress:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        company:
+          type: string
+        address1:
+          type: string
+        address2:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+        zip:
+          type: string
+        country:
+          type: string
+        phone:
+          type: string
+
+    ChannelLineItem:
+      type: object
+      properties:
+        externalId:
+          type: string
+        sku:
+          type: string
+        title:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: number
+        totalDiscount:
+          type: number
+
+    PushTrackingRequest:
+      type: object
+      required:
+        - trackingNumber
+        - carrier
+      properties:
+        trackingNumber:
+          type: string
+          example: "1Z999AA10123456784"
+        carrier:
+          type: string
+          example: "UPS"
+        trackingUrl:
+          type: string
+        shippedAt:
+          type: string
+          format: date-time
+
+    CreateSyncJobRequest:
+      type: object
+      required:
+        - channelId
+        - type
+        - direction
+      properties:
+        channelId:
+          type: string
+          example: "CH-a1b2c3d4"
+        type:
+          type: string
+          enum: [orders, inventory, tracking, products]
+          example: "orders"
+        direction:
+          type: string
+          enum: [inbound, outbound]
+          example: "inbound"
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SyncJobResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+          example: "SYNC-a1b2c3d4"
+        tenantId:
+          type: string
+        sellerId:
+          type: string
+        channelId:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        direction:
+          type: string
+        totalItems:
+          type: integer
+        processedItems:
+          type: integer
+        successItems:
+          type: integer
+        failedItems:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              itemId:
+                type: string
+              error:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        hasMore:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing
+      required: false
+      schema:
+        type: string
+        format: uuid
+
+    WMSTenantID:
+      name: X-WMS-Tenant-ID
+      in: header
+      description: Tenant identifier
+      required: true
+      schema:
+        type: string
+
+    WMSSellerID:
+      name: X-WMS-Seller-ID
+      in: header
+      description: Seller identifier
+      required: true
+      schema:
+        type: string

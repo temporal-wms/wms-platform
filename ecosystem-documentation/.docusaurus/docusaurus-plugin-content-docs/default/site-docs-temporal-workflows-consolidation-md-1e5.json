@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/consolidation",
+  "title": "ConsolidationWorkflow",
+  "description": "Coordinates the consolidation of multi-item orders from multiple pick routes or totes.",
+  "source": "@site/docs/temporal/workflows/consolidation.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/consolidation",
+  "permalink": "/temporal/workflows/consolidation",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5,
+    "slug": "/temporal/workflows/consolidation"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "OrchestratedPickingWorkflow",
+    "permalink": "/temporal/workflows/picking"
+  },
+  "next": {
+    "title": "PackingWorkflow",
+    "permalink": "/temporal/workflows/packing"
+  }
+}

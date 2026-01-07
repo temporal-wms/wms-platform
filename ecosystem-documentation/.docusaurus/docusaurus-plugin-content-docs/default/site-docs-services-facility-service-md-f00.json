@@ -1,0 +1,17 @@
+{
+  "id": "services/facility-service",
+  "title": "Facility Service",
+  "description": "The Facility Service manages warehouse stations, their capabilities, and process path routing.",
+  "source": "@site/docs/services/facility-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/facility-service",
+  "permalink": "/services/facility-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 14,
+  "frontMatter": {
+    "sidebar_position": 14
+  }
+}

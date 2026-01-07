@@ -1,0 +1,27 @@
+{
+  "id": "temporal/activities/inventory-activities",
+  "title": "Inventory Activities",
+  "description": "Activities for managing inventory operations including reservations, allocations, and shipments.",
+  "source": "@site/docs/temporal/activities/inventory-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/inventory-activities",
+  "permalink": "/temporal/activities/inventory-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3,
+    "slug": "/temporal/activities/inventory-activities"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Order Activities",
+    "permalink": "/temporal/activities/order-activities"
+  },
+  "next": {
+    "title": "Picking Activities",
+    "permalink": "/temporal/activities/picking-activities"
+  }
+}

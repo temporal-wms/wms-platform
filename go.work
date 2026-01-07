@@ -2,6 +2,8 @@ go 1.24.0
 
 use (
 	./orchestrator
+	./services/billing-service
+	./services/channel-service
 	./services/consolidation-service
 	./services/facility-service
 	./services/inventory-service
@@ -12,6 +14,8 @@ use (
 	./services/process-path-service
 	./services/receiving-service
 	./services/routing-service
+	./services/seller-portal
+	./services/seller-service
 	./services/shipping-service
 	./services/sortation-service
 	./services/stow-service
@@ -20,4 +24,6 @@ use (
 	./services/waving-service
 	./services/wes-service
 	./shared
+	./wms-runtime/validation-service
+	./wms-runtime/temporal-validator
 )

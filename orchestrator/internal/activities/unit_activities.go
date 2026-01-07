@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/wms-platform/orchestrator/internal/activities/clients"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -357,11 +358,10 @@ func (a *UnitActivities) GetUnitAuditTrail(ctx context.Context, input GetUnitAud
 
 // PersistProcessPathInput holds the input for persisting a process path
 type PersistProcessPathInput struct {
-	OrderID               string   `json:"orderId"`
-	Requirements          []string `json:"requirements"`
-	ConsolidationRequired bool     `json:"consolidationRequired"`
-	GiftWrapRequired      bool     `json:"giftWrapRequired"`
-	SpecialHandling       []string `json:"specialHandling"`
+	OrderID      string            `json:"orderId"`
+	Items        []ProcessPathItem `json:"items"` // Uses ProcessPathItem from process_path_activities.go
+	GiftWrap     bool              `json:"giftWrap"`
+	TotalValue   float64           `json:"totalValue"`
 }
 
 // PersistProcessPathOutput holds the result of persisting a process path
@@ -373,9 +373,22 @@ type PersistProcessPathOutput struct {
 // PersistProcessPath saves the process path to ensure all units follow the same path
 func (a *UnitActivities) PersistProcessPath(ctx context.Context, input PersistProcessPathInput) (*PersistProcessPathOutput, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("Persisting process path", "orderId", input.OrderID, "requirements", input.Requirements)
+	logger.Info("Persisting process path", "orderId", input.OrderID, "itemCount", len(input.Items))
 
-	result, err := a.clients.PersistProcessPath(ctx, input.OrderID, input.Requirements, input.ConsolidationRequired, input.GiftWrapRequired, input.SpecialHandling)
+	// Convert activity items to client items
+	clientItems := make([]clients.ProcessPathItem, len(input.Items))
+	for i, item := range input.Items {
+		clientItems[i] = clients.ProcessPathItem{
+			SKU:               item.SKU,
+			Quantity:          item.Quantity,
+			Weight:            item.Weight,
+			IsFragile:         item.IsFragile,
+			IsHazmat:          item.IsHazmat,
+			RequiresColdChain: item.RequiresColdChain,
+		}
+	}
+
+	result, err := a.clients.PersistProcessPath(ctx, input.OrderID, clientItems, input.GiftWrap, input.TotalValue)
 	if err != nil {
 		logger.Error("Failed to persist process path", "error", err)
 		return nil, fmt.Errorf("failed to persist process path: %w", err)

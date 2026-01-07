@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/cancel-order",
+  "title": "Cancel order",
+  "description": "Cancel order",
+  "source": "@site/docs/api/order-service/cancel-order.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/cancel-order",
+  "permalink": "/api/order-service/cancel-order",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "cancel-order",
+    "title": "Cancel order",
+    "description": "Cancel order",
+    "sidebar_label": "Cancel order",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJytVk1v2zgQ/SsCT1vAsZyeFjptmvaQQ1s3cbcHJwdamlhsKJIlR069hv/7zpByrNhSgQLVwRY538M3j9oJlOsgiqX47CvwQTxMhJNeNoC8KpY7YWghCmFZflOJiVCGlk5iTe8efrTKQyUK9C1MRChraKQodgK3js0CemXWYr9/SMoQ8J2ttqxxaltag2CQRdI5rUqJypr8e7CG985c29V3KJGScN468KggJLeyszhNgR/OIjhrQlJ+O5vxXwWh9MpxPDKIrchKaUrQGrjkP5TaoYfnuVGINqBtRsUBJbZhUOS8sl7hdkRoGxWgeg9abcBvr/BcbSIerW8kSUQlES5Q0YlzzFo5RwpXVUVNC0P1Hc9wyd4AeLPkZFLKQP//KXdtK4htbA36bQTZq8Z0psOFs+jtcM/Gqk6hhySHZAbddekNQGciUKHmrUMzaEshNP2uSO8lF366P4KG8NSOHVnVlvgpzt2A/EcrDb6uXBE81+BZ2hqFc6/Kvq1pm1WSPoNa1zgg6lUY4X9DNaRdi1LfnFTUixflX36ZUlT5Nha5k/8rdTuSs9zA2NDQsCNUvwPq1lW/Z3LamduOP0THJ6+54zqyRhYnnRwSj9a2Yr5sIwCYNQuRR3HIdx0h7PNENjw04DcH5m29JuUa0RV5rm0pdW0DFn/PZpe5dCrfXIrT8O9hA9q6hsgqS66o5r6nQK7IdvrchCn8lI3TMC1tM+ZvnrBIixd3NLzMe7dHMv+Q/PTJt3dGyjza2Ot+E7M78kYgza7mN2dBr23jPNRgAlFWdvvhbsFqGR1O6mvWSCPXEIvkgYpkHDJlMqwh+/bxLnNaIp/l9N7cm0WtQsye49XSVBpCcW8uso7nGUNcIEmyjdSqisujglaPUG5LDb24L9ILRmcmQ1BrExNCL8snKv1on6g7S8ALMQy1zhML3BuqnY871X05nU1n3W0jywjQ7vLlmuZdTdkCZENadOMoPlU6yX96JxkB6wgnlGzPwwkuXzX8ZQ4QfmJOvaMbnieFQbPrMLtMl1cg2+L4KdDBliDByGSt3W4lA3z1er/nbS6UWGFJrxvplVwxBAjalQr8TpPxKHWAs4ReLlzx1213xbzJKOBgogf6NUy+m8Qjgl6fYNv7cNk/kGoNkhvAKSTpdQp0sWAfR+uzW56nKFlclSU4/KXuQ2/w518XpLvqvnmaePcIL5/58qTfmKiNdaevF97bCS3NuiWskTy55Od/GlhZow==",
+    "sidebar_class_name": "put api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Introduction",
+    "permalink": "/api/order-service/order-service-api"
+  },
+  "next": {
+    "title": "Create a new order",
+    "permalink": "/api/order-service/create-a-new-order"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/get-retry-metadata-for-order",
+  "title": "Get retry metadata for order",
+  "description": "Get retry metadata for order",
+  "source": "@site/docs/api/order-service/get-retry-metadata-for-order.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/get-retry-metadata-for-order",
+  "permalink": "/api/order-service/get-retry-metadata-for-order",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "get-retry-metadata-for-order",
+    "title": "Get retry metadata for order",
+    "description": "Get retry metadata for order",
+    "sidebar_label": "Get retry metadata for order",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJyVVE1PGzEQ/SuWT60UsqHiUO2piALigIoCVQ8kh4l3kjV4bWN7A9Eq/70zzhKWhqrqae2dT7/3ZjqZYBVleS+n6INTGKO2KzkfSQ8BGkwY2NpJSxdZShcqDFeVHElt6eoh1XQO+NTqgJUsU2hxJKOqsQFZdjJtPIfFFDjtdjtn5+idjRjZ/mUy4U+FUQXtk3acdYopbAQVhwoSiEBXjWvkqsrZhDZxDHhvtAKOKR4iB3aHhd3iAVWiQHqcx5D0ruzrMw475P6o+plrd1V6s6ayKwxsb+BlmjuKH9sNxHQB2rQBpwh9YwdVXr2wOk2HDiO5dKEBskiCAI+SJvQpyuJLyuj8T5CO50av9MLghQs5ehC7cM4gWKJmJJNOBl/xv+7hJwvbTiYnh0T9YBiFdUksCa8qJ3nvcYkp8zegk5oUGX9qmH7WjmiQK8wksZxKWYSBFovsG4uu52xb5HxHKjNEWsOwfhVpGwyF1yn5siiMU2BqF1P5dTI5LsDrYn0s/2zwOwnLON+QqMQuFUE2zBQpFcWOn5s4xhdovMGxcs3f8t0EV7WKL/t0cx6Wpcug9wjvgLslB61QnN5cHeQ5c40PWKONeo1ien57x25v4IkGLKww983KznMQhbYi1Sh+Xd8KbyCxIMYzO7N3tY65Ia5Xg60MxnJmj8SuExUwJxBkEWswusrXNwejl6g2yuCg7t569AzUIxBdK5sbSgHUI3H3Fh8TpDaK1rMyYy7z1CIP0czS25nB3buPx5PxpB90UFnl/erhN930bxJ3CA150bBrJorI+TYgJwvRE/XU7CDDP8T4joD9gCQauYKwpH1HSbMuul6o93IoVMqwkyodyrc9OVQrKYEFyZFdt4CIP4PZbvk3g0FjeU/HNQQNC5YJKbrSkc80IkswEQ+a3O9D+WnaL+HPgqp+2Hz/E+yGIQfT8o2Oj7gZrPbtnFxrBAaFW9hZT5VCnwZxB+uXdb6f58vzOyLhNws8NyY=",
+    "sidebar_class_name": "get api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Get orders eligible for retry",
+    "permalink": "/api/order-service/get-orders-eligible-for-retry"
+  },
+  "next": {
+    "title": "Get specific DLQ entry",
+    "permalink": "/api/order-service/get-specific-dlq-entry"
+  }
+}

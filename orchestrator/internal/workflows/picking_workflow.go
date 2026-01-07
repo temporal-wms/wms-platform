@@ -31,7 +31,7 @@ func OrchestratedPickingWorkflow(ctx workflow.Context, input map[string]interfac
 	orderID, _ := input["orderId"].(string)
 	waveID, _ := input["waveId"].(string)
 
-	// Extract unit-level tracking fields
+	// Extract unit-level tracking fields (now always enabled)
 	var unitIDs []string
 	var pathID string
 	if ids, ok := input["unitIds"].([]interface{}); ok {
@@ -44,7 +44,6 @@ func OrchestratedPickingWorkflow(ctx workflow.Context, input map[string]interfac
 	if pid, ok := input["pathId"].(string); ok {
 		pathID = pid
 	}
-	useUnitTracking := len(unitIDs) > 0
 
 	logger.Info("Starting picking workflow", "orderId", orderID, "waveId", waveID, "unitCount", len(unitIDs))
 
@@ -216,8 +215,8 @@ func OrchestratedPickingWorkflow(ctx workflow.Context, input map[string]interfac
 		}
 	}
 
-	// Step 6: Unit-level pick confirmation (if unit tracking enabled)
-	if useUnitTracking && len(unitIDs) > 0 {
+	// Step 6: Unit-level pick confirmation (always enabled)
+	if len(unitIDs) > 0 {
 		logger.Info("Confirming unit-level picks", "orderId", orderID, "unitCount", len(unitIDs))
 
 		var pickedUnitIDs []string

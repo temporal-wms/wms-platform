@@ -1,0 +1,122 @@
+# Superset Dataset Configuration: Sortation Metrics
+# Dataset for the Sortation Performance dashboard
+
+dataset:
+  name: sortation_metrics_daily
+  description: "Daily sortation performance metrics"
+  database: trino
+  schema: iceberg.gold
+  table_name: sortation_metrics_daily
+
+  main_dttm_col: date
+
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of sortation metrics"
+
+    - column_name: sortation_center
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Sortation center"
+
+    - column_name: carrier_id
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Carrier identifier"
+
+    - column_name: total_batches
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total batches"
+
+    - column_name: dispatched_batches
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Dispatched batches"
+
+    - column_name: total_packages
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total packages"
+
+    - column_name: sorted_packages
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Sorted packages"
+
+    - column_name: total_weight
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Total weight"
+
+    - column_name: sort_completion_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Sort completion rate"
+
+    - column_name: avg_packages_per_batch
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average packages per batch"
+
+    - column_name: avg_sort_time_minutes
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average sort time in minutes"
+
+  metrics:
+    - metric_name: total_batches
+      expression: "SUM(total_batches)"
+      description: "Total batches"
+
+    - metric_name: dispatched_batches
+      expression: "SUM(dispatched_batches)"
+      description: "Dispatched batches"
+
+    - metric_name: dispatch_rate
+      expression: "SUM(dispatched_batches) * 100.0 / NULLIF(SUM(total_batches), 0)"
+      description: "Dispatch rate percentage"
+
+    - metric_name: total_packages
+      expression: "SUM(total_packages)"
+      description: "Total packages"
+
+    - metric_name: sorted_packages
+      expression: "SUM(sorted_packages)"
+      description: "Sorted packages"
+
+    - metric_name: sort_rate
+      expression: "SUM(sorted_packages) * 100.0 / NULLIF(SUM(total_packages), 0)"
+      description: "Sort completion rate"
+
+    - metric_name: total_weight
+      expression: "SUM(total_weight)"
+      description: "Total weight"
+
+    - metric_name: packages_per_hour
+      expression: "SUM(sorted_packages) * 60.0 / NULLIF(SUM(avg_sort_time_minutes * total_batches), 0)"
+      description: "Packages sorted per hour"
+
+---
+# Current sortation batches snapshot
+dataset:
+  name: sortation_batches_current
+  description: "Current state of sortation batches"
+  database: trino
+  schema: iceberg.silver
+  table_name: sortation_batches_current
+  main_dttm_col: created_at

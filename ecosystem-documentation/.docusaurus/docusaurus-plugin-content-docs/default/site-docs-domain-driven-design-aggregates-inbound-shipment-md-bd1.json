@@ -1,0 +1,17 @@
+{
+  "id": "domain-driven-design/aggregates/inbound-shipment",
+  "title": "InboundShipment Aggregate",
+  "description": "The InboundShipment aggregate is the root of the Receiving bounded context, managing the lifecycle of inbound shipments from suppliers.",
+  "source": "@site/docs/domain-driven-design/aggregates/inbound-shipment.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/inbound-shipment",
+  "permalink": "/domain-driven-design/aggregates/inbound-shipment",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 10,
+  "frontMatter": {
+    "sidebar_position": 10
+  }
+}

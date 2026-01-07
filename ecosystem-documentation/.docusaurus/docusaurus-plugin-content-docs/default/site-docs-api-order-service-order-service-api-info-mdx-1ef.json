@@ -1,0 +1,33 @@
+{
+  "id": "api/order-service/order-service-api",
+  "title": "Order Service API",
+  "description": "Comprehensive REST API for order management operations in the WMS platform.",
+  "source": "@site/docs/api/order-service/order-service-api.info.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/order-service-api",
+  "permalink": "/api/order-service/order-service-api",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 0,
+  "frontMatter": {
+    "id": "order-service-api",
+    "title": "Order Service API",
+    "description": "Comprehensive REST API for order management operations in the WMS platform.",
+    "sidebar_label": "Introduction",
+    "sidebar_position": 0,
+    "hide_title": true,
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Events API (AsyncAPI)",
+    "permalink": "/api/events-api"
+  },
+  "next": {
+    "title": "Cancel order",
+    "permalink": "/api/order-service/cancel-order"
+  }
+}

@@ -103,6 +103,10 @@ type StationEquipment struct {
 type Station struct {
 	ID                 primitive.ObjectID  `bson:"_id,omitempty"`
 	StationID          string              `bson:"stationId"`
+	// Multi-tenant context
+	TenantID           string              `bson:"tenantId"`
+	FacilityID         string              `bson:"facilityId"`
+	WarehouseID        string              `bson:"warehouseId,omitempty"`
 	Name               string              `bson:"name"`
 	Zone               string              `bson:"zone"`
 	StationType        StationType         `bson:"stationType"`
@@ -119,6 +123,11 @@ type Station struct {
 
 // NewStation creates a new Station aggregate
 func NewStation(stationID, name, zone string, stationType StationType, maxConcurrentTasks int) (*Station, error) {
+	return NewStationWithTenant(stationID, name, zone, stationType, maxConcurrentTasks, "", "", "")
+}
+
+// NewStationWithTenant creates a new Station aggregate with tenant context
+func NewStationWithTenant(stationID, name, zone string, stationType StationType, maxConcurrentTasks int, tenantID, facilityID, warehouseID string) (*Station, error) {
 	if !stationType.IsValid() {
 		return nil, ErrInvalidStationType
 	}
@@ -130,6 +139,9 @@ func NewStation(stationID, name, zone string, stationType StationType, maxConcur
 	now := time.Now()
 	station := &Station{
 		StationID:          stationID,
+		TenantID:           tenantID,
+		FacilityID:         facilityID,
+		WarehouseID:        warehouseID,
 		Name:               name,
 		Zone:               zone,
 		StationType:        stationType,
@@ -145,6 +157,8 @@ func NewStation(stationID, name, zone string, stationType StationType, maxConcur
 
 	station.AddDomainEvent(&StationCreatedEvent{
 		StationID:   stationID,
+		TenantID:    tenantID,
+		FacilityID:  facilityID,
 		Name:        name,
 		Zone:        zone,
 		StationType: string(stationType),
@@ -376,6 +390,8 @@ func (s *Station) GetDomainEvents() []DomainEvent {
 // StationCreatedEvent is emitted when a station is created
 type StationCreatedEvent struct {
 	StationID   string    `json:"stationId"`
+	TenantID    string    `json:"tenantId,omitempty"`
+	FacilityID  string    `json:"facilityId,omitempty"`
 	Name        string    `json:"name"`
 	Zone        string    `json:"zone"`
 	StationType string    `json:"stationType"`

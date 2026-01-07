@@ -1,0 +1,146 @@
+{
+  "expectation_suite_name": "facility_data_product_quality",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0",
+    "data_product": "facility-dp",
+    "owner": "facility-ops-team",
+    "sla": {
+      "freshness_minutes": 5,
+      "completeness_percent": 99.9
+    }
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Table should not be empty in normal operations"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "station_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "name"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "zone"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "station_type"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "station_id"
+      },
+      "meta": {
+        "notes": "Primary key - must never be null"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "station_type"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "station_id"
+      },
+      "meta": {
+        "notes": "Station ID must be unique across all records"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "station_type",
+        "value_set": [
+          "packing",
+          "consolidation",
+          "shipping",
+          "receiving",
+          "stow",
+          "slam",
+          "sortation",
+          "qc"
+        ]
+      },
+      "meta": {
+        "notes": "Valid station type values from domain model"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "status",
+        "value_set": [
+          "active",
+          "inactive",
+          "maintenance"
+        ]
+      },
+      "meta": {
+        "notes": "Valid station status values"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "max_concurrent_tasks",
+        "min_value": 1
+      },
+      "meta": {
+        "notes": "Must support at least one concurrent task"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "current_tasks",
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Current tasks cannot be negative"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_of_type",
+      "kwargs": {
+        "column": "created_at",
+        "type_": "TIMESTAMP"
+      }
+    }
+  ],
+  "ge_cloud_id": null,
+  "data_context_key": "facility_data_product"
+}

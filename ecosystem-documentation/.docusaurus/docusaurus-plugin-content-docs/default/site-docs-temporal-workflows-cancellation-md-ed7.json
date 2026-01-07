@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/cancellation",
+  "title": "Cancellation Workflows",
+  "description": "Workflows for handling order cancellation with proper inventory compensation.",
+  "source": "@site/docs/temporal/workflows/cancellation.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/cancellation",
+  "permalink": "/temporal/workflows/cancellation",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 12,
+  "frontMatter": {
+    "sidebar_position": 12,
+    "slug": "/temporal/workflows/cancellation"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "ReprocessingWorkflow",
+    "permalink": "/temporal/workflows/reprocessing"
+  },
+  "next": {
+    "title": "Picking Service - PickingWorkflow",
+    "permalink": "/temporal/workflows/service-picking"
+  }
+}

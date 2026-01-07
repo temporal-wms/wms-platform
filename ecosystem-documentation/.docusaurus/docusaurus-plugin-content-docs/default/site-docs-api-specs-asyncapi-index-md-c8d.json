@@ -1,0 +1,26 @@
+{
+  "id": "api/specs/asyncapi/index",
+  "title": "AsyncAPI Specifications",
+  "description": "All WMS Platform event APIs are documented using AsyncAPI 3.0.0. Events follow the CloudEvents 1.0 specification and are published to Apache Kafka.",
+  "source": "@site/docs/api/specs/asyncapi/index.md",
+  "sourceDirName": "api/specs/asyncapi",
+  "slug": "/api/specs/asyncapi/",
+  "permalink": "/api/specs/asyncapi/",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "OpenAPI Specifications",
+    "permalink": "/api/specs/openapi/"
+  },
+  "next": {
+    "title": "Infrastructure Overview",
+    "permalink": "/infrastructure/overview"
+  }
+}

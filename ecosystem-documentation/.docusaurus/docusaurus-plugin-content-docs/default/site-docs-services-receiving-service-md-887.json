@@ -1,0 +1,17 @@
+{
+  "id": "services/receiving-service",
+  "title": "Receiving Service",
+  "description": "The Receiving Service manages inbound shipments and the receiving process for goods arriving at the warehouse.",
+  "source": "@site/docs/services/receiving-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/receiving-service",
+  "permalink": "/services/receiving-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 11,
+  "frontMatter": {
+    "sidebar_position": 11
+  }
+}

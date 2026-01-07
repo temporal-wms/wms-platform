@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/aggregates/pick-task",
+  "title": "PickTask Aggregate",
+  "description": "The PickTask aggregate manages warehouse picking operations for orders.",
+  "source": "@site/docs/domain-driven-design/aggregates/pick-task.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/pick-task",
+  "permalink": "/domain-driven-design/aggregates/pick-task",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "WallingTask Aggregate",
+    "permalink": "/domain-driven-design/aggregates/walling-task"
+  },
+  "next": {
+    "title": "PickRoute Aggregate",
+    "permalink": "/domain-driven-design/aggregates/pick-route"
+  }
+}

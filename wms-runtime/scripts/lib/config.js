@@ -1,20 +1,58 @@
 // K6 Configuration for WMS Platform Load Testing
 
+// ============================================================================
+// Kong API Gateway Configuration
+// ============================================================================
+// All WMS services are accessible through Kong Gateway at http://localhost:8888
+// with the pattern: http://localhost:8888/{service-name}/api/v1/...
+//
+// To use Kong Gateway (default):
+//   k6 run scripts/scenarios/your-simulator.js
+//
+// To use direct port-forward (legacy mode):
+//   k6 run -e USE_KONG=false scripts/scenarios/your-simulator.js
+//
+// To use a custom Kong Gateway URL:
+//   k6 run -e KONG_GATEWAY_URL=http://custom-gateway:8888 scripts/scenarios/your-simulator.js
+// ============================================================================
+
+const KONG_GATEWAY = __ENV.KONG_GATEWAY_URL || 'http://localhost:8888';
+const USE_KONG = __ENV.USE_KONG !== 'false'; // Default to true
+
+/**
+ * Build service URL - routes through Kong Gateway or direct port-forward
+ * @param {string} serviceName - Service name for Kong routing (e.g., 'order-service')
+ * @param {number} directPort - Direct port for legacy port-forward mode
+ * @returns {string} Service base URL
+ */
+function buildServiceUrl(serviceName, directPort) {
+  if (!USE_KONG && directPort) {
+    return `http://localhost:${directPort}`;
+  }
+  return `${KONG_GATEWAY}/${serviceName}`;
+}
+
 export const BASE_URLS = {
-  orders: __ENV.ORDER_SERVICE_URL || 'http://localhost:8001',
-  inventory: __ENV.INVENTORY_SERVICE_URL || 'http://localhost:8008',
-  labor: __ENV.LABOR_SERVICE_URL || 'http://localhost:8009',
-  waving: __ENV.WAVING_SERVICE_URL || 'http://localhost:8002',
-  routing: __ENV.ROUTING_SERVICE_URL || 'http://localhost:8003',
-  picking: __ENV.PICKING_SERVICE_URL || 'http://localhost:8004',
-  consolidation: __ENV.CONSOLIDATION_SERVICE_URL || 'http://localhost:8005',
-  packing: __ENV.PACKING_SERVICE_URL || 'http://localhost:8006',
-  shipping: __ENV.SHIPPING_SERVICE_URL || 'http://localhost:8007',
-  facility: __ENV.FACILITY_SERVICE_URL || 'http://localhost:8010',
-  orchestrator: __ENV.ORCHESTRATOR_URL || 'http://localhost:30010',
-  unit: __ENV.UNIT_SERVICE_URL || 'http://localhost:8014',
-  walling: __ENV.WALLING_SERVICE_URL || 'http://localhost:8017',
-  wes: __ENV.WES_SERVICE_URL || 'http://localhost:8016',
+  orders: __ENV.ORDER_SERVICE_URL || buildServiceUrl('order-service', 8001),
+  inventory: __ENV.INVENTORY_SERVICE_URL || buildServiceUrl('inventory-service', 8008),
+  labor: __ENV.LABOR_SERVICE_URL || buildServiceUrl('labor-service', 8009),
+  waving: __ENV.WAVING_SERVICE_URL || buildServiceUrl('waving-service', 8002),
+  routing: __ENV.ROUTING_SERVICE_URL || buildServiceUrl('routing-service', 8003),
+  picking: __ENV.PICKING_SERVICE_URL || buildServiceUrl('picking-service', 8004),
+  consolidation: __ENV.CONSOLIDATION_SERVICE_URL || buildServiceUrl('consolidation-service', 8005),
+  packing: __ENV.PACKING_SERVICE_URL || buildServiceUrl('packing-service', 8006),
+  shipping: __ENV.SHIPPING_SERVICE_URL || buildServiceUrl('shipping-service', 8007),
+  facility: __ENV.FACILITY_SERVICE_URL || buildServiceUrl('facility-service', 8010),
+  orchestrator: __ENV.ORCHESTRATOR_URL || buildServiceUrl('orchestrator', 8080),
+  unit: __ENV.UNIT_SERVICE_URL || buildServiceUrl('unit-service', 8014),
+  walling: __ENV.WALLING_SERVICE_URL || buildServiceUrl('walling-service', 8017),
+  wes: __ENV.WES_SERVICE_URL || buildServiceUrl('wes-service', 8016),
+  receiving: __ENV.RECEIVING_SERVICE_URL || buildServiceUrl('receiving-service', 8013),
+  stow: __ENV.STOW_SERVICE_URL || buildServiceUrl('stow-service', 8011),
+  sortation: __ENV.SORTATION_SERVICE_URL || buildServiceUrl('sortation-service', 8012),
+  temporalValidator: __ENV.TEMPORAL_VALIDATOR_URL || 'http://localhost:8020', // Not exposed via Kong
+  sellers: __ENV.SELLER_SERVICE_URL || buildServiceUrl('seller-service', 8020),
+  billing: __ENV.BILLING_SERVICE_URL || buildServiceUrl('billing-service', 8018),
 };
 
 // Picker simulator configuration
@@ -72,6 +110,21 @@ export const GIFTWRAP_CONFIG = {
   giftWrapOrderRatio: parseFloat(__ENV.GIFTWRAP_ORDER_RATIO || '0.2'),
 };
 
+// Seller simulator configuration
+export const SELLER_CONFIG = {
+  simulationDelayMs: parseInt(__ENV.SELLER_DELAY_MS || '300'),
+  defaultBillingCycle: __ENV.DEFAULT_BILLING_CYCLE || 'monthly',
+  defaultTenantId: __ENV.DEFAULT_TENANT_ID || 'TENANT-DEFAULT',
+};
+
+// Billing simulator configuration
+export const BILLING_CONFIG = {
+  simulationDelayMs: parseInt(__ENV.BILLING_DELAY_MS || '200'),
+  enableBillingTracking: __ENV.ENABLE_BILLING_TRACKING !== 'false',
+  recordActivitiesInBatch: __ENV.BATCH_BILLING_ACTIVITIES === 'true',
+  defaultFacilityId: __ENV.DEFAULT_FACILITY_ID || 'FAC-001',
+};
+
 // Full flow orchestrator configuration
 export const FLOW_CONFIG = {
   stageDelayMs: parseInt(__ENV.STAGE_DELAY_MS || '5000'),           // 5s between stages
@@ -125,7 +178,7 @@ export const WORKFLOW_PATTERNS = {
   picking: (orderId) => `picking-${orderId}`,          // Standalone picking
   consolidation: (orderId) => `consolidation-${orderId}`, // Consolidation
   packing: (orderId) => `packing-${orderId}`,          // Standalone packing
-  wes: (orderId) => `wes-execution-${orderId}`,        // WES orchestration (walling, multi-stage)
+  wes: (orderId) => `wes-${orderId}`,                  // WES orchestration (walling, multi-stage)
   shipping: (orderId) => `shipping-${orderId}`,        // Shipping
   giftWrap: (orderId) => `giftwrap-${orderId}`,        // Gift wrapping
 };
@@ -140,6 +193,8 @@ export const SIGNAL_ENDPOINTS = {
   giftWrapCompleted: '/api/v1/signals/gift-wrap-completed',    // → giftwrap-{orderId}
   wallingCompleted: '/api/v1/signals/walling-completed',       // → wes-execution-{orderId}
   packingCompleted: '/api/v1/signals/packing-completed',       // → packing-{orderId} or wes-execution-{orderId}
+  receivingCompleted: '/api/v1/signals/receiving-completed',   // → receiving-{shipmentId}
+  stowCompleted: '/api/v1/signals/stow-completed',             // → stow-{shipmentId}
 };
 
 export const ENDPOINTS = {
@@ -240,6 +295,8 @@ export const ENDPOINTS = {
     signalShipConfirmed: '/api/v1/signals/ship-confirmed',
     signalGiftWrapCompleted: '/api/v1/signals/gift-wrap-completed',
     signalWallingCompleted: '/api/v1/signals/walling-completed',
+    signalReceivingCompleted: '/api/v1/signals/receiving-completed',
+    signalStowCompleted: '/api/v1/signals/stow-completed',
   },
   facility: {
     stations: '/api/v1/stations',
@@ -285,6 +342,78 @@ export const ENDPOINTS = {
     completeStage: (routeId) => `/api/v1/routes/${routeId}/stages/current/complete`,
     failStage: (routeId) => `/api/v1/routes/${routeId}/stages/current/fail`,
     templates: '/api/v1/templates',
+  },
+  receiving: {
+    shipments: '/api/v1/shipments',
+    get: (id) => `/api/v1/shipments/${id}`,
+    receive: (id) => `/api/v1/shipments/${id}/receive`,
+    confirmItem: (shipmentId, itemId) => `/api/v1/shipments/${shipmentId}/items/${itemId}/confirm`,
+    discrepancy: (shipmentId, itemId) => `/api/v1/shipments/${shipmentId}/items/${itemId}/discrepancy`,
+    complete: (id) => `/api/v1/shipments/${id}/complete`,
+    tasks: (id) => `/api/v1/shipments/${id}/tasks`,
+    pendingTasks: '/api/v1/tasks?status=pending',
+    byStatus: (status) => `/api/v1/shipments?status=${status}`,
+  },
+  stow: {
+    tasks: '/api/v1/tasks',
+    get: (id) => `/api/v1/tasks/${id}`,
+    assign: (id) => `/api/v1/tasks/${id}/assign`,
+    start: (id) => `/api/v1/tasks/${id}/start`,
+    stow: (id) => `/api/v1/tasks/${id}/stow`,
+    complete: (id) => `/api/v1/tasks/${id}/complete`,
+    byShipment: (shipmentId) => `/api/v1/tasks/shipment/${shipmentId}`,
+    suggestLocation: '/api/v1/locations/suggest',
+    pending: '/api/v1/tasks?status=pending',
+  },
+  sortation: {
+    batches: '/api/v1/batches',
+    get: (id) => `/api/v1/batches/${id}`,
+    byStatus: (status) => `/api/v1/batches/status/${status}`,
+    ready: '/api/v1/batches/ready',
+    addPackage: (id) => `/api/v1/batches/${id}/packages`,
+    sort: (id) => `/api/v1/batches/${id}/sort`,
+    markReady: (id) => `/api/v1/batches/${id}/ready`,
+    dispatch: (id) => `/api/v1/batches/${id}/dispatch`,
+  },
+  tracking: {
+    workflowStatus: (workflowId) => `/workflows/${workflowId}/status`,
+    workflowDescribe: (workflowId) => `/workflows/${workflowId}/describe`,
+    workflowHistory: (workflowId) => `/workflows/${workflowId}/history`,
+    workflowSignals: (workflowId) => `/workflows/${workflowId}/signals`,
+    workflowQuery: (workflowId) => `/workflows/${workflowId}/query`,
+    assertSignal: (workflowId) => `/workflows/${workflowId}/assert-signal`,
+  },
+  sellers: {
+    create: '/api/v1/sellers',
+    list: '/api/v1/sellers',
+    get: (sellerId) => `/api/v1/sellers/${sellerId}`,
+    search: '/api/v1/sellers/search',
+    activate: (sellerId) => `/api/v1/sellers/${sellerId}/activate`,
+    suspend: (sellerId) => `/api/v1/sellers/${sellerId}/suspend`,
+    close: (sellerId) => `/api/v1/sellers/${sellerId}/close`,
+    assignFacility: (sellerId) => `/api/v1/sellers/${sellerId}/facilities`,
+    removeFacility: (sellerId, facilityId) => `/api/v1/sellers/${sellerId}/facilities/${facilityId}`,
+    updateFeeSchedule: (sellerId) => `/api/v1/sellers/${sellerId}/fee-schedule`,
+    connectChannel: (sellerId) => `/api/v1/sellers/${sellerId}/integrations`,
+    disconnectChannel: (sellerId, channelId) => `/api/v1/sellers/${sellerId}/integrations/${channelId}`,
+    generateApiKey: (sellerId) => `/api/v1/sellers/${sellerId}/api-keys`,
+    listApiKeys: (sellerId) => `/api/v1/sellers/${sellerId}/api-keys`,
+    revokeApiKey: (sellerId, keyId) => `/api/v1/sellers/${sellerId}/api-keys/${keyId}`,
+  },
+  billing: {
+    recordActivity: '/api/v1/activities',
+    recordBatch: '/api/v1/activities/batch',
+    getActivity: (activityId) => `/api/v1/activities/${activityId}`,
+    listActivities: (sellerId) => `/api/v1/sellers/${sellerId}/activities`,
+    activitySummary: (sellerId) => `/api/v1/sellers/${sellerId}/activities/summary`,
+    createInvoice: '/api/v1/invoices',
+    getInvoice: (invoiceId) => `/api/v1/invoices/${invoiceId}`,
+    listInvoices: (sellerId) => `/api/v1/sellers/${sellerId}/invoices`,
+    finalizeInvoice: (invoiceId) => `/api/v1/invoices/${invoiceId}/finalize`,
+    payInvoice: (invoiceId) => `/api/v1/invoices/${invoiceId}/pay`,
+    voidInvoice: (invoiceId) => `/api/v1/invoices/${invoiceId}/void`,
+    calculateFees: '/api/v1/fees/calculate',
+    recordStorage: '/api/v1/storage/calculate',
   },
 };
 

@@ -48,8 +48,6 @@ k6 run scripts/scenarios/picker-simulator.js
 
 ```bash
 k6 run --duration 5m --vus 3 \
-  -e PICKING_SERVICE_URL=http://localhost:8004 \
-  -e ORCHESTRATOR_URL=http://localhost:8080 \
   -e PICKER_DELAY_MS=500 \
   -e MAX_TASKS_PER_ITERATION=10 \
   scripts/scenarios/picker-simulator.js
@@ -59,21 +57,62 @@ k6 run --duration 5m --vus 3 \
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PICKING_SERVICE_URL` | `http://localhost:8004` | Picking service base URL |
-| `ORCHESTRATOR_URL` | `http://localhost:8080` | Orchestrator service URL |
+| `KONG_GATEWAY_URL` | `http://localhost:8888` | Kong Gateway base URL |
+| `USE_KONG` | `true` | Enable Kong Gateway routing |
+| `PICKING_SERVICE_URL` | Kong Gateway URL | Override picking service URL |
+| `ORCHESTRATOR_URL` | Kong Gateway URL | Override orchestrator URL |
 | `PICKER_DELAY_MS` | `500` | Delay between picks (simulates walk time) |
 | `MAX_TASKS_PER_ITERATION` | `10` | Max tasks to process per VU iteration |
 
-### Kubernetes Port Forwarding
+## Kong Gateway Access
 
-When running against a Kind cluster, you need to set up port forwarding:
+**Default Behavior:** The simulator now uses Kong API Gateway by default - no port-forwarding needed!
+
+### Running with Kong Gateway (Recommended)
 
 ```bash
-# Terminal 1: Port forward orchestrator
-kubectl port-forward svc/orchestrator -n wms-platform 8080:8080
-
-# Terminal 2: Run simulator (picking-service uses NodePort 8004)
+# No setup required - just run!
 k6 run scripts/scenarios/picker-simulator.js
+```
+
+All WMS services are automatically accessible through Kong Gateway:
+- Picking Service: `http://localhost:8888/picking-service/api/v1/...`
+- Orchestrator: `http://localhost:8888/orchestrator/api/v1/...`
+
+### Service URL Mapping
+
+| Service | Kong Gateway URL |
+|---------|------------------|
+| Picking Service | `http://localhost:8888/picking-service` |
+| Orchestrator | `http://localhost:8888/orchestrator` |
+
+### Custom Kong Gateway URL
+
+```bash
+# Use different Kong Gateway endpoint
+k6 run -e KONG_GATEWAY_URL=http://custom-gateway:8888 \
+  scripts/scenarios/picker-simulator.js
+```
+
+### Legacy Mode (Direct Port-Forward)
+
+For debugging or direct service access:
+
+```bash
+# Terminal 1: Port forward services
+kubectl port-forward svc/orchestrator -n wms-platform 8080:8080
+kubectl port-forward svc/picking-service -n wms-platform 8004:8004
+
+# Terminal 2: Run simulator with Kong disabled
+k6 run -e USE_KONG=false scripts/scenarios/picker-simulator.js
+```
+
+### Individual Service Override
+
+```bash
+# Override specific service while using Kong for others
+k6 run -e ORCHESTRATOR_URL=http://localhost:9080 \
+  scripts/scenarios/picker-simulator.js
 ```
 
 ## Workflow
@@ -222,6 +261,10 @@ $ k6 run --duration 30s scripts/scenarios/picker-simulator.js
 
 1. Check if pick tasks exist with status `assigned`:
    ```bash
+   # Via Kong Gateway
+   curl "http://localhost:8888/picking-service/api/v1/tasks?status=assigned"
+
+   # Or via direct port-forward
    curl "http://localhost:8004/api/v1/tasks?status=assigned"
    ```
 
@@ -234,6 +277,10 @@ $ k6 run --duration 30s scripts/scenarios/picker-simulator.js
 
 1. Verify orchestrator is running and accessible:
    ```bash
+   # Via Kong Gateway
+   curl http://localhost:8888/orchestrator/health
+
+   # Or via direct port-forward
    curl http://localhost:8080/health
    ```
 

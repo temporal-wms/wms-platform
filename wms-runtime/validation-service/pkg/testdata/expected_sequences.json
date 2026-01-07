@@ -1,0 +1,232 @@
+{
+  "flows": {
+    "standard_flow": {
+      "name": "Standard Order Fulfillment",
+      "description": "Single-item order with pick-pack flow",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validated",
+        "wms.wave.released",
+        "wms.picking.task-created",
+        "wms.picking.task-completed",
+        "wms.packing.task-created",
+        "wms.packing.task-completed",
+        "wms.shipping.shipment-created",
+        "wms.order.shipped"
+      ],
+      "optionalEvents": [
+        "wms.inventory.reservation-created",
+        "wms.labor.task-assigned"
+      ],
+      "expectedDurationMs": {
+        "min": 5000,
+        "max": 120000
+      }
+    },
+    "multi_item_flow": {
+      "name": "Multi-Item Order with Consolidation",
+      "description": "Multi-item order requiring consolidation before packing",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validated",
+        "wms.wave.released",
+        "wms.picking.task-created",
+        "wms.picking.task-completed",
+        "wms.consolidation.consolidation-created",
+        "wms.consolidation.consolidation-completed",
+        "wms.packing.task-created",
+        "wms.packing.task-completed",
+        "wms.shipping.shipment-created",
+        "wms.order.shipped"
+      ],
+      "optionalEvents": [
+        "wms.inventory.reservation-created",
+        "wms.labor.task-assigned"
+      ],
+      "expectedDurationMs": {
+        "min": 8000,
+        "max": 180000
+      }
+    },
+    "pick_wall_pack_flow": {
+      "name": "Pick-Wall-Pack Flow",
+      "description": "Multi-zone order with put-wall consolidation",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validated",
+        "wms.wave.released",
+        "wms.picking.task-created",
+        "wms.picking.task-completed",
+        "wms.walling.task-created",
+        "wms.walling.task-completed",
+        "wms.packing.task-created",
+        "wms.packing.task-completed",
+        "wms.shipping.shipment-created",
+        "wms.order.shipped"
+      ],
+      "optionalEvents": [
+        "wms.inventory.reservation-created",
+        "wms.labor.task-assigned"
+      ],
+      "expectedDurationMs": {
+        "min": 10000,
+        "max": 200000
+      }
+    },
+    "gift_wrap_flow": {
+      "name": "Gift Wrap Flow",
+      "description": "Order with gift wrap requirement",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validated",
+        "wms.wave.released",
+        "wms.picking.task-created",
+        "wms.picking.task-completed",
+        "wms.giftwrap.task-created",
+        "wms.giftwrap.task-completed",
+        "wms.packing.task-created",
+        "wms.packing.task-completed",
+        "wms.shipping.shipment-created",
+        "wms.order.shipped"
+      ],
+      "optionalEvents": [
+        "wms.inventory.reservation-created",
+        "wms.labor.task-assigned"
+      ],
+      "expectedDurationMs": {
+        "min": 12000,
+        "max": 150000
+      }
+    },
+    "cancellation_flow": {
+      "name": "Order Cancellation",
+      "description": "Order cancelled before fulfillment",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validated",
+        "wms.order.cancellation-requested",
+        "wms.inventory.reservation-released",
+        "wms.order.cancelled"
+      ],
+      "optionalEvents": [
+        "wms.labor.task-cancelled",
+        "wms.customer.notification-sent"
+      ],
+      "expectedDurationMs": {
+        "min": 1000,
+        "max": 30000
+      }
+    },
+    "cancellation_after_picking_flow": {
+      "name": "Order Cancellation After Picking",
+      "description": "Order cancelled mid-fulfillment",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validated",
+        "wms.wave.released",
+        "wms.picking.task-created",
+        "wms.picking.task-started",
+        "wms.order.cancellation-requested",
+        "wms.picking.task-cancelled",
+        "wms.inventory.units-released",
+        "wms.order.cancelled"
+      ],
+      "optionalEvents": [
+        "wms.labor.task-cancelled",
+        "wms.customer.notification-sent"
+      ],
+      "expectedDurationMs": {
+        "min": 5000,
+        "max": 60000
+      }
+    },
+    "wave_timeout_flow": {
+      "name": "Wave Assignment Timeout",
+      "description": "Order fails to be assigned to wave within timeout",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validated",
+        "wms.order.wave-timeout",
+        "wms.inventory.reservation-released",
+        "wms.order.cancelled"
+      ],
+      "expectedDurationMs": {
+        "min": 30000,
+        "max": 240000
+      }
+    },
+    "inventory_shortage_flow": {
+      "name": "Inventory Shortage",
+      "description": "Order cannot be fulfilled due to insufficient inventory",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validation-failed",
+        "wms.inventory.shortage-detected",
+        "wms.order.on-hold"
+      ],
+      "optionalEvents": [
+        "wms.customer.notification-sent",
+        "wms.purchasing.reorder-triggered"
+      ],
+      "expectedDurationMs": {
+        "min": 1000,
+        "max": 10000
+      }
+    },
+    "multi_route_flow": {
+      "name": "Multi-Route Large Order",
+      "description": "Large order split into multiple pick routes",
+      "expectedEvents": [
+        "wms.order.received",
+        "wms.order.validated",
+        "wms.wave.released",
+        "wms.routing.multi-route-calculated",
+        "wms.picking.task-created",
+        "wms.picking.task-completed",
+        "wms.consolidation.multi-route-consolidation",
+        "wms.packing.task-created",
+        "wms.packing.task-completed",
+        "wms.shipping.shipment-created",
+        "wms.order.shipped"
+      ],
+      "optionalEvents": [
+        "wms.unit.tote-arrived",
+        "wms.labor.parallel-picking"
+      ],
+      "expectedDurationMs": {
+        "min": 15000,
+        "max": 300000
+      }
+    }
+  },
+  "signals": {
+    "waveAssigned": {
+      "workflow": "planning-{orderId}",
+      "description": "Wave assignment signal"
+    },
+    "pickCompleted": {
+      "workflow": "picking-{orderId}",
+      "description": "Picking completion signal"
+    },
+    "toteArrived": {
+      "workflow": "consolidation-{orderId}",
+      "description": "Tote arrival at consolidation station"
+    },
+    "consolidationCompleted": {
+      "workflow": "order-fulfillment-{orderId}",
+      "description": "Consolidation completion signal"
+    },
+    "giftWrapCompleted": {
+      "workflow": "giftwrap-{orderId}",
+      "description": "Gift wrap completion signal"
+    },
+    "wallingCompleted": {
+      "workflow": "wes-execution-{orderId}",
+      "description": "Put-wall completion signal"
+    },
+    "packingCompleted": {
+      "workflow": "packing-{orderId}",
+      "description": "Packing completion signal"
+    }
+  }
+}

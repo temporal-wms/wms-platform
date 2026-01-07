@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/shipping",
+  "title": "ShippingWorkflow",
+  "description": "Coordinates the SLAM (Scan, Label, Apply, Manifest) and shipping process for completed packages.",
+  "source": "@site/docs/temporal/workflows/shipping.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/shipping",
+  "permalink": "/temporal/workflows/shipping",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 8,
+  "frontMatter": {
+    "sidebar_position": 8,
+    "slug": "/temporal/workflows/shipping"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "PackingWorkflow",
+    "permalink": "/temporal/workflows/packing"
+  },
+  "next": {
+    "title": "SortationWorkflow",
+    "permalink": "/temporal/workflows/sortation"
+  }
+}

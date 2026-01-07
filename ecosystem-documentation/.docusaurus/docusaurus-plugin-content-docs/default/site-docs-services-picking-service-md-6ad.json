@@ -1,0 +1,26 @@
+{
+  "id": "services/picking-service",
+  "title": "Picking Service",
+  "description": "The Picking Service manages warehouse picking operations.",
+  "source": "@site/docs/services/picking-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/picking-service",
+  "permalink": "/services/picking-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 4,
+  "frontMatter": {
+    "sidebar_position": 4
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Routing Service",
+    "permalink": "/services/routing-service"
+  },
+  "next": {
+    "title": "Consolidation Service",
+    "permalink": "/services/consolidation-service"
+  }
+}

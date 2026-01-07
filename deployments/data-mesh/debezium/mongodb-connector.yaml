@@ -13,17 +13,17 @@ spec:
   tasksMax: 1
   config:
     # MongoDB Connection
-    mongodb.connection.string: "mongodb://mongodb.wms-platform-dev.svc.cluster.local:27017/?replicaSet=rs0"
-    mongodb.user: "${file:/opt/kafka/external-configuration/mongodb-credentials/username}"
-    mongodb.password: "${file:/opt/kafka/external-configuration/mongodb-credentials/password}"
-    mongodb.authsource: "admin"
+    mongodb.connection.string: "mongodb://mongodb-0.mongodb-headless.mongodb.svc.cluster.local:27017/?replicaSet=rs0"
+    mongodb.user: "wmsuser"
+    mongodb.password: "wmspassword"
+    mongodb.authsource: "wms"
 
     # Capture Configuration
     capture.mode: "change_streams_update_full"
 
     # Database and Collection Filters
     database.include.list: "wms"
-    collection.include.list: "wms.orders,wms.inventory,wms.waves,wms.pick_tasks,wms.pack_tasks,wms.shipments,wms.routes,wms.consolidations,wms.workers,wms.receipts,wms.stow_tasks,wms.returns"
+    collection.include.list: "wms.orders,wms.inventory,wms.waves,wms.pick_tasks,wms.pack_tasks,wms.shipments,wms.routes,wms.consolidations,wms.workers,wms.receipts,wms.stow_tasks,wms.returns,wms.billing_activities,wms.invoices,wms.sellers,wms.channels,wms.stations,wms.sortation_batches,wms.wall_assignments,wms.units,wms.process_paths,wms.wes_stages"
 
     # Topic Naming
     topic.prefix: "cdc"
@@ -242,4 +242,167 @@ spec:
   replicas: 1
   config:
     retention.ms: 604800000  # 7 days
+    cleanup.policy: delete
+---
+# ============================================
+# NEW DATA PRODUCTS - CDC Topics
+# ============================================
+---
+# Billing Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.billing-activities
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: billing-dp
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.invoices
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: billing-dp
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+# Seller Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.sellers
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: seller-dp
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+# Channel Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.channels
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: channel-dp
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+# Facility Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.stations
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: facility-dp
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+# Sortation Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.sortation-batches
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: sortation-dp
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+# Walling Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.wall-assignments
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: walling-dp
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+# Unit Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.units
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: unit-dp
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+# Process Path Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.process-paths
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: process-path-dp
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
+    cleanup.policy: delete
+---
+# WES Data Product
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cdc.wms.wes-stages
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+    data-product: wes-dp
+spec:
+  partitions: 6
+  replicas: 1
+  config:
+    retention.ms: 2592000000  # 30 days
     cleanup.policy: delete

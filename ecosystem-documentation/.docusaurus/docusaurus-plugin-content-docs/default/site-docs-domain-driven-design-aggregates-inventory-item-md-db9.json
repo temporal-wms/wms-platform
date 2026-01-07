@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/aggregates/inventory-item",
+  "title": "InventoryItem Aggregate",
+  "description": "The InventoryItem aggregate manages stock levels, locations, and reservations.",
+  "source": "@site/docs/domain-driven-design/aggregates/inventory-item.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/inventory-item",
+  "permalink": "/domain-driven-design/aggregates/inventory-item",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 8,
+  "frontMatter": {
+    "sidebar_position": 8
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Shipment Aggregate",
+    "permalink": "/domain-driven-design/aggregates/shipment"
+  },
+  "next": {
+    "title": "Worker Aggregate",
+    "permalink": "/domain-driven-design/aggregates/worker"
+  }
+}

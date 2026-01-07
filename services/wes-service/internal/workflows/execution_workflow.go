@@ -30,6 +30,7 @@ type WESExecutionInput struct {
 	MultiZone       bool            `json:"multiZone"`
 	ProcessPathID   string          `json:"processPathId,omitempty"`
 	SpecialHandling []string        `json:"specialHandling,omitempty"`
+	UnitIDs         []string        `json:"unitIds,omitempty"` // Unit IDs for unit-level tracking (always enabled)
 }
 
 // ItemInfo represents an item in the order
@@ -332,7 +333,7 @@ func executePickingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing picking stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
 
-	// Build picking input
+	// Build picking input (with unit IDs for tracking)
 	pickingInput := map[string]interface{}{
 		"orderId":  input.OrderID,
 		"waveId":   input.WaveID,
@@ -340,11 +341,15 @@ func executePickingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 		"taskId":   assignment.TaskID,
 		"pickerId": assignment.WorkerID,
 		"items":    input.Items,
+		"unitIds":  input.UnitIDs,         // Pass unit IDs for unit-level tracking
+		"pathId":   input.ProcessPathID,   // Pass process path ID
 	}
 
 	// Configure child workflow options to route to picking-service worker
+	// Use predictable workflow ID so signals can be routed correctly
 	childWorkflowOptions := workflow.ChildWorkflowOptions{
-		TaskQueue: PickingTaskQueue,
+		WorkflowID: fmt.Sprintf("picking-%s", input.OrderID),
+		TaskQueue:  PickingTaskQueue,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second,
 			BackoffCoefficient: 2.0,
@@ -481,8 +486,10 @@ func executeConsolidationStage(ctx workflow.Context, input WESExecutionInput, ro
 	}
 
 	// Configure child workflow options to route to consolidation-service worker
+	// Use predictable workflow ID so signals can be routed correctly
 	childWorkflowOptions := workflow.ChildWorkflowOptions{
-		TaskQueue: ConsolidationTaskQueue,
+		WorkflowID: fmt.Sprintf("consolidation-%s", input.OrderID),
+		TaskQueue:  ConsolidationTaskQueue,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second,
 			BackoffCoefficient: 2.0,
@@ -508,7 +515,7 @@ func executePackingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing packing stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
 
-	// Build packing input
+	// Build packing input (with unit IDs for tracking)
 	packingInput := map[string]interface{}{
 		"orderId":    input.OrderID,
 		"waveId":     input.WaveID,
@@ -517,11 +524,15 @@ func executePackingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 		"packerId":   assignment.WorkerID,
 		"sourceType": "tote",
 		"items":      input.Items,
+		"unitIds":    input.UnitIDs,        // Pass unit IDs for unit-level tracking
+		"pathId":     input.ProcessPathID,  // Pass process path ID
 	}
 
 	// Configure child workflow options to route to packing-service worker
+	// Use predictable workflow ID so signals can be routed correctly
 	childWorkflowOptions := workflow.ChildWorkflowOptions{
-		TaskQueue: PackingTaskQueue,
+		WorkflowID: fmt.Sprintf("packing-%s", input.OrderID),
+		TaskQueue:  PackingTaskQueue,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second,
 			BackoffCoefficient: 2.0,

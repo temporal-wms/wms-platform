@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/bounded-contexts",
+  "title": "Bounded Contexts",
+  "description": "This document describes the bounded contexts within the WMS Platform and their responsibilities.",
+  "source": "@site/docs/domain-driven-design/bounded-contexts.md",
+  "sourceDirName": "domain-driven-design",
+  "slug": "/domain-driven-design/bounded-contexts",
+  "permalink": "/domain-driven-design/bounded-contexts",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Domain-Driven Design Overview",
+    "permalink": "/domain-driven-design/overview"
+  },
+  "next": {
+    "title": "Context Map",
+    "permalink": "/domain-driven-design/context-map"
+  }
+}

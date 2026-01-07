@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/validate-order",
+  "title": "Validate order",
+  "description": "Validate order",
+  "source": "@site/docs/api/order-service/validate-order.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/validate-order",
+  "permalink": "/api/order-service/validate-order",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "validate-order",
+    "title": "Validate order",
+    "description": "Validate order",
+    "sidebar_label": "Validate order",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJyVVk1v2zAM/SuCThuQxulOg08rth162Jb185DmoNpsrFWWVInOmgX57yNlJ3Ube8BOsfQo8pF6IrOVqFZR5gv5I5QQolxOpFdB1YC8yhdbaWkhc+kYPy/lRGpLS6+wou8AT40OUMocQwMTGYsKaiXzrcSN52MRg7Yrudst2Th6ZyNExj/MZvxTQiyC9qgde00kxFoZXSoEDlY4i2CRTZX3RheKTbNfke23x/Hc/S8okA764DwE1G20PftjYhSiiejqUTiiwiYOQj5oFzRuRkBX6wjlFzB6DWFzhsdmE/ngQq0IkZzwCWqqNcestPdkcFaWVLQ4lN9L5RfsDYA3CybTUgb6/aP9Z1dCKmNjMWzS9b4qTHd0OHGGPgzXbCzrNvQQsicz6K6jN6CbiUSNhrf2xaAtjVD3q6JCUJz42/0RNcTHZuzKyqbA70nxA/hToyy+zlyTPFcQGG2sxnnQRf+sber7Fv0NelXhANTLMMn/nHJodx0qc/4mo168hP/8J6VkcjsWucNvlGlGOKs1jD2aAPxC/0fUjS//78jbylx0/YOQHYOve8dN1zVEeuvkknpY5UruVU2SAHesXGYJjtm2awm7bN9u+OFAWO/7XhMMmVeIPs8y4wplKhcx/zibnWbK62x9Kt9S+AJrMM7X1LBE64ry7nuK5IrOTn/XcQrPqvYGpoWrx/zNWz3S4uBuyf33waUS9msjLsmAtCfO5udHfj672geowEbqROLi6+UVmwmqeVssUSurVpB48ztJPTYKbQVWIG6/XQpvFPIVTe/snb2qdEyEOF6lbGkg5nf2RLRMkjSYMyH7Xk7LFwOjH6DYFAZ6cQ/oCYtOqBj1yiZCGFTxSCJ5Od92ZNHqKaYwTw0Eetx3lnLnG2zzPp3OprNuiKgi6a6bZpzTvMtJXIGqyYoGieaLosv51LucpENPV09kex6O5Paq5AeBIzxjRtWjoclPgJWw7aS4aKdSpLP5y3Q9qJFumgXHdtvtvYpwHcxux9ucLD34xZKtg1b3LANSbKkjf5PkH5SJcETpMEvlu4tuerwXFHKQ6r6z2k1LiluEpM9H2PT+DeyWZFqB4hIwhRY9Kwrw2Dt3NLpZx4f3Ob++oiL/Ba/79J0=",
+    "sidebar_class_name": "put api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Resolve DLQ entry",
+    "permalink": "/api/order-service/resolve-dlq-entry"
+  },
+  "next": {
+    "title": "OpenAPI Specifications",
+    "permalink": "/api/specs/openapi/"
+  }
+}

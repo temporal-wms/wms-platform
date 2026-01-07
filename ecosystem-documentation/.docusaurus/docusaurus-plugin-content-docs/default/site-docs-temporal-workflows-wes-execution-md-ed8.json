@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/wes-execution",
+  "title": "WESExecutionWorkflow",
+  "description": "The Warehouse Execution System workflow coordinates picking, walling (consolidation), and packing operations.",
+  "source": "@site/docs/temporal/workflows/wes-execution.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/wes-execution",
+  "permalink": "/temporal/workflows/wes-execution",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3,
+    "slug": "/temporal/workflows/wes-execution"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "PlanningWorkflow",
+    "permalink": "/temporal/workflows/planning"
+  },
+  "next": {
+    "title": "OrchestratedPickingWorkflow",
+    "permalink": "/temporal/workflows/picking"
+  }
+}

@@ -253,9 +253,9 @@ main() {
             deploy_trino
             deploy_debezium
             deploy_flink
-            deploy_openmetadata
+            # deploy_openmetadata - Skipped: too resource-intensive for Kind clusters
             deploy_superset
-            setup_ingestion
+            # setup_ingestion - Skipped: requires OpenMetadata
             print_summary
             ;;
         minio)

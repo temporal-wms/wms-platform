@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/aggregates/consolidation-unit",
+  "title": "ConsolidationUnit Aggregate",
+  "description": "The ConsolidationUnit aggregate manages the process of combining picked items for multi-item orders.",
+  "source": "@site/docs/domain-driven-design/aggregates/consolidation-unit.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/consolidation-unit",
+  "permalink": "/domain-driven-design/aggregates/consolidation-unit",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "PickRoute Aggregate",
+    "permalink": "/domain-driven-design/aggregates/pick-route"
+  },
+  "next": {
+    "title": "PackTask Aggregate",
+    "permalink": "/domain-driven-design/aggregates/pack-task"
+  }
+}

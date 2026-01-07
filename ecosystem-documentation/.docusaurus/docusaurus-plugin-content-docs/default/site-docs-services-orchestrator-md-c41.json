@@ -1,0 +1,26 @@
+{
+  "id": "services/orchestrator",
+  "title": "Orchestrator",
+  "description": "The Orchestrator is a Temporal worker that executes workflow orchestration for order fulfillment using the WES (Warehouse Execution System) as the central execution engine.",
+  "source": "@site/docs/services/orchestrator.md",
+  "sourceDirName": "services",
+  "slug": "/services/orchestrator",
+  "permalink": "/services/orchestrator",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 10,
+  "frontMatter": {
+    "sidebar_position": 10
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Labor Service",
+    "permalink": "/services/labor-service"
+  },
+  "next": {
+    "title": "Temporal Workflow Architecture",
+    "permalink": "/temporal/overview"
+  }
+}

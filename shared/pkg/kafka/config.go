@@ -79,6 +79,11 @@ var Topics = struct {
 	SLAMEvents       string
 	SortationEvents  string
 
+	// Multi-tenant/3PL topics
+	SellerEvents  string
+	BillingEvents string
+	ChannelEvents string
+
 	// Outbound topics
 	ShipmentsOutbound string
 }{
@@ -101,6 +106,11 @@ var Topics = struct {
 	StowEvents:       "wms.stow.events",
 	SLAMEvents:       "wms.slam.events",
 	SortationEvents:  "wms.sortation.events",
+
+	// Multi-tenant/3PL topics
+	SellerEvents:  "wms.seller.events",
+	BillingEvents: "wms.billing.events",
+	ChannelEvents: "wms.channel.events",
 
 	ShipmentsOutbound: "wms.shipments.outbound",
 }
@@ -132,6 +142,10 @@ func DefaultTopicConfigs() []TopicConfig {
 		{Name: Topics.StowEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.SLAMEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.SortationEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
+		// Multi-tenant/3PL topics
+		{Name: Topics.SellerEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 30 * 24 * 60 * 60 * 1000},  // 30 days
+		{Name: Topics.BillingEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 90 * 24 * 60 * 60 * 1000}, // 90 days for audit
+		{Name: Topics.ChannelEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.ShipmentsOutbound, Partitions: 6, ReplicationFactor: 3, RetentionMs: 30 * 24 * 60 * 60 * 1000}, // 30 days
 	}
 }

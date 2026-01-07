@@ -1,0 +1,26 @@
+{
+  "id": "architecture/sequence-diagrams/walling-workflow",
+  "title": "Walling Workflow",
+  "description": "The Walling Workflow handles the put-wall sorting process where walliners (workers) sort picked items from totes into order-specific bins before packing.",
+  "source": "@site/docs/architecture/sequence-diagrams/walling-workflow.md",
+  "sourceDirName": "architecture/sequence-diagrams",
+  "slug": "/architecture/sequence-diagrams/walling-workflow",
+  "permalink": "/architecture/sequence-diagrams/walling-workflow",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 7,
+  "frontMatter": {
+    "sidebar_position": 7
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "WES Execution Workflow",
+    "permalink": "/architecture/sequence-diagrams/wes-execution"
+  },
+  "next": {
+    "title": "Picking Workflow",
+    "permalink": "/architecture/sequence-diagrams/picking-workflow"
+  }
+}

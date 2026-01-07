@@ -1,0 +1,96 @@
+# Superset Dataset Configuration: Channel Metrics
+# Dataset for the Channel Integration dashboard
+
+dataset:
+  name: channel_sync_metrics_daily
+  description: "Daily channel synchronization metrics"
+  database: trino
+  schema: iceberg.gold
+  table_name: channel_sync_metrics_daily
+
+  main_dttm_col: date
+
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of sync metrics"
+
+    - column_name: platform
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "E-commerce platform"
+
+    - column_name: total_channels
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total channels"
+
+    - column_name: connected_channels
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Connected channels"
+
+    - column_name: error_channels
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Channels with errors"
+
+    - column_name: total_orders_imported
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Orders imported"
+
+    - column_name: total_products_synced
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Products synced"
+
+    - column_name: sync_success_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Sync success rate"
+
+  metrics:
+    - metric_name: total_channels
+      expression: "SUM(total_channels)"
+      description: "Total channels"
+
+    - metric_name: connected_channels
+      expression: "SUM(connected_channels)"
+      description: "Connected channels"
+
+    - metric_name: error_channels
+      expression: "SUM(error_channels)"
+      description: "Channels with errors"
+
+    - metric_name: connection_rate
+      expression: "SUM(connected_channels) * 100.0 / NULLIF(SUM(total_channels), 0)"
+      description: "Channel connection rate"
+
+    - metric_name: total_orders_imported
+      expression: "SUM(total_orders_imported)"
+      description: "Total orders imported"
+
+    - metric_name: avg_sync_success_rate
+      expression: "AVG(sync_success_rate)"
+      description: "Average sync success rate"
+
+---
+# Current channels snapshot dataset
+dataset:
+  name: channels_current
+  description: "Current state of all channels"
+  database: trino
+  schema: iceberg.silver
+  table_name: channels_current
+  main_dttm_col: created_at

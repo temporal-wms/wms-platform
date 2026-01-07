@@ -1,0 +1,26 @@
+{
+  "id": "services/shipping-service",
+  "title": "Shipping Service",
+  "description": "The Shipping Service handles carrier integration and the SLAM process.",
+  "source": "@site/docs/services/shipping-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/shipping-service",
+  "permalink": "/services/shipping-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 7,
+  "frontMatter": {
+    "sidebar_position": 7
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Packing Service",
+    "permalink": "/services/packing-service"
+  },
+  "next": {
+    "title": "Inventory Service",
+    "permalink": "/services/inventory-service"
+  }
+}

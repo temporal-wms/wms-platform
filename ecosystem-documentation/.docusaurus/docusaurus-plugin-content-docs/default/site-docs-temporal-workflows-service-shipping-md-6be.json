@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/service-shipping",
+  "title": "Shipping Service - ShippingWorkflow",
+  "description": "Service-level workflow that handles the SLAM (Scan, Label, Apply, Manifest) and shipping process.",
+  "source": "@site/docs/temporal/workflows/service-shipping.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/service-shipping",
+  "permalink": "/temporal/workflows/service-shipping",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 17,
+  "frontMatter": {
+    "sidebar_position": 17,
+    "slug": "/temporal/workflows/service-shipping"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Packing Service - PackingWorkflow",
+    "permalink": "/temporal/workflows/service-packing"
+  },
+  "next": {
+    "title": "WES Service - WESExecutionWorkflow",
+    "permalink": "/temporal/workflows/service-wes"
+  }
+}

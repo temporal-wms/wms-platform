@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/aggregates/walling-task",
+  "title": "WallingTask Aggregate",
+  "description": "The WallingTask aggregate is the core domain model in the Walling bounded context. It tracks the sorting of picked items from totes into order-specific bins on a put-wall.",
+  "source": "@site/docs/domain-driven-design/aggregates/walling-task.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/walling-task",
+  "permalink": "/domain-driven-design/aggregates/walling-task",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 11,
+  "frontMatter": {
+    "sidebar_position": 11
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "TaskRoute Aggregate",
+    "permalink": "/domain-driven-design/aggregates/task-route"
+  },
+  "next": {
+    "title": "PickTask Aggregate",
+    "permalink": "/domain-driven-design/aggregates/pick-task"
+  }
+}

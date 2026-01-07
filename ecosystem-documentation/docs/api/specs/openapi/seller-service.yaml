@@ -1,0 +1,1025 @@
+openapi: 3.0.3
+info:
+  title: WMS Seller Service API
+  description: |
+    REST API for seller/merchant management in the WMS Platform.
+
+    This service handles multi-tenant seller operations:
+    - Seller onboarding and account management
+    - Facility/warehouse assignments
+    - Fee schedule configuration
+    - Channel integrations (Shopify, Amazon, eBay)
+    - API key management for programmatic access
+
+    **Seller Lifecycle:**
+    1. Pending - New seller registration awaiting activation
+    2. Active - Seller can receive orders and use services
+    3. Suspended - Account temporarily disabled
+    4. Closed - Account permanently closed
+
+    **Multi-Tenant Architecture:**
+    - TenantID: The 3PL operator managing sellers
+    - SellerID: The merchant/brand using fulfillment services
+    - FacilityID: Physical warehouse locations
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8010/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Sellers
+    description: Seller account management
+  - name: Facilities
+    description: Facility assignment operations
+  - name: Fee Schedules
+    description: Pricing and fee configuration
+  - name: Integrations
+    description: Channel integration management
+  - name: API Keys
+    description: API key management
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /sellers:
+    post:
+      summary: Create seller
+      description: |
+        Creates a new seller account in pending status.
+
+        **Usage:**
+        - Called during seller onboarding
+        - Seller starts in 'pending' status
+        - Requires activation before operations
+
+        **Integration:**
+        - Publishes `SellerCreated` event on success
+      tags: [Sellers]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSTenantID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSellerRequest'
+            examples:
+              newSeller:
+                summary: Create new seller
+                value:
+                  companyName: "Acme Corporation"
+                  contactName: "John Smith"
+                  contactEmail: "john@acme.com"
+                  contactPhone: "+1-555-0123"
+                  billingCycle: "monthly"
+      responses:
+        '201':
+          description: Seller created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List sellers
+      description: Retrieve a paginated list of sellers for the tenant.
+      tags: [Sellers]
+      parameters:
+        - $ref: '#/components/parameters/WMSTenantID'
+        - name: status
+          in: query
+          description: Filter by seller status
+          schema:
+            type: string
+            enum: [pending, active, suspended, closed]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of sellers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SellerResponse'
+                  total:
+                    type: integer
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /sellers/{sellerId}:
+    get:
+      summary: Get seller by ID
+      description: Retrieve detailed seller information.
+      tags: [Sellers]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SLR-a1b2c3d4"
+      responses:
+        '200':
+          description: Seller details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+        '404':
+          description: Seller not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update seller
+      description: Update seller contact information.
+      tags: [Sellers]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSellerRequest'
+      responses:
+        '200':
+          description: Seller updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+        '404':
+          description: Seller not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sellers/{sellerId}/activate:
+    put:
+      summary: Activate seller
+      description: |
+        Activates a pending or suspended seller account.
+
+        **Integration:**
+        - Publishes `SellerActivated` event
+      tags: [Sellers]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Seller activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+        '400':
+          description: Cannot activate seller in current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sellers/{sellerId}/suspend:
+    put:
+      summary: Suspend seller
+      description: |
+        Suspends an active seller account.
+
+        **Integration:**
+        - Publishes `SellerSuspended` event
+      tags: [Sellers]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  description: Reason for suspension
+                  example: "Payment overdue"
+      responses:
+        '200':
+          description: Seller suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+
+  /sellers/{sellerId}/close:
+    put:
+      summary: Close seller account
+      description: Permanently closes a seller account.
+      tags: [Sellers]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: "Contract ended"
+      responses:
+        '200':
+          description: Seller closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+
+  /sellers/{sellerId}/facilities:
+    post:
+      summary: Assign facility
+      description: |
+        Assigns a facility/warehouse to the seller.
+
+        **Integration:**
+        - Publishes `FacilityAssigned` event
+      tags: [Facilities]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignFacilityRequest'
+            examples:
+              assign:
+                value:
+                  facilityId: "FAC-001"
+                  facilityName: "East Coast DC"
+                  warehouseIds: ["WH-001", "WH-002"]
+                  allocatedSpace: 5000
+                  isDefault: true
+      responses:
+        '200':
+          description: Facility assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+        '400':
+          description: Facility already assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List assigned facilities
+      description: Get all facilities assigned to the seller.
+      tags: [Facilities]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of assigned facilities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FacilityAssignment'
+
+  /sellers/{sellerId}/facilities/{facilityId}:
+    delete:
+      summary: Remove facility assignment
+      description: Removes a facility assignment from the seller.
+      tags: [Facilities]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: facilityId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Facility removed
+        '404':
+          description: Assignment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sellers/{sellerId}/fee-schedule:
+    put:
+      summary: Update fee schedule
+      description: Updates the seller's fee schedule.
+      tags: [Fee Schedules]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeeSchedule'
+      responses:
+        '200':
+          description: Fee schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+
+    get:
+      summary: Get fee schedule
+      description: Retrieves the seller's current fee schedule.
+      tags: [Fee Schedules]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fee schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeeSchedule'
+
+  /sellers/{sellerId}/integrations:
+    post:
+      summary: Add channel integration
+      description: |
+        Connects an external sales channel (Shopify, Amazon, etc.).
+
+        **Integration:**
+        - Publishes `ChannelConnected` event
+      tags: [Integrations]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddIntegrationRequest'
+            examples:
+              shopify:
+                summary: Connect Shopify store
+                value:
+                  channelType: "shopify"
+                  storeName: "My Shopify Store"
+                  storeUrl: "https://mystore.myshopify.com"
+                  credentials:
+                    accessToken: "shpat_xxxxx"
+                    storeDomain: "mystore.myshopify.com"
+                  syncSettings:
+                    autoImportOrders: true
+                    autoSyncInventory: true
+                    autoPushTracking: true
+                    inventorySyncMinutes: 15
+      responses:
+        '201':
+          description: Integration added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelIntegration'
+        '400':
+          description: Channel already connected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List integrations
+      description: Lists all channel integrations for the seller.
+      tags: [Integrations]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of integrations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChannelIntegration'
+
+  /sellers/{sellerId}/integrations/{channelId}:
+    delete:
+      summary: Disconnect channel
+      description: Disconnects a sales channel integration.
+      tags: [Integrations]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Channel disconnected
+        '404':
+          description: Channel not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sellers/{sellerId}/api-keys:
+    post:
+      summary: Generate API key
+      description: |
+        Generates a new API key for programmatic access.
+
+        **Important:** The raw API key is only returned once. Store it securely.
+      tags: [API Keys]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAPIKeyRequest'
+            examples:
+              fullAccess:
+                value:
+                  name: "Production API Key"
+                  scopes: ["orders:read", "orders:write", "inventory:read", "inventory:write"]
+      responses:
+        '201':
+          description: API key generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyResponse'
+              examples:
+                created:
+                  value:
+                    keyId: "key-a1b2c3d4"
+                    name: "Production API Key"
+                    prefix: "wms_live"
+                    rawKey: "wms_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    scopes: ["orders:read", "orders:write", "inventory:read", "inventory:write"]
+                    createdAt: "2024-12-24T10:00:00Z"
+
+    get:
+      summary: List API keys
+      description: Lists all active API keys (without the actual key values).
+      tags: [API Keys]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/APIKeyInfo'
+
+  /sellers/{sellerId}/api-keys/{keyId}:
+    delete:
+      summary: Revoke API key
+      description: Revokes an API key.
+      tags: [API Keys]
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: API key revoked
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  schemas:
+    CreateSellerRequest:
+      type: object
+      required:
+        - companyName
+        - contactName
+        - contactEmail
+        - billingCycle
+      properties:
+        companyName:
+          type: string
+          description: Company/brand name
+          example: "Acme Corporation"
+        contactName:
+          type: string
+          description: Primary contact name
+          example: "John Smith"
+        contactEmail:
+          type: string
+          format: email
+          description: Contact email
+          example: "john@acme.com"
+        contactPhone:
+          type: string
+          description: Contact phone
+          example: "+1-555-0123"
+        billingCycle:
+          type: string
+          enum: [daily, weekly, monthly]
+          description: Billing frequency
+          example: "monthly"
+
+    UpdateSellerRequest:
+      type: object
+      properties:
+        companyName:
+          type: string
+        contactName:
+          type: string
+        contactEmail:
+          type: string
+          format: email
+        contactPhone:
+          type: string
+
+    SellerResponse:
+      type: object
+      properties:
+        sellerId:
+          type: string
+          example: "SLR-a1b2c3d4"
+        tenantId:
+          type: string
+          example: "TNT-001"
+        companyName:
+          type: string
+          example: "Acme Corporation"
+        contactName:
+          type: string
+          example: "John Smith"
+        contactEmail:
+          type: string
+          example: "john@acme.com"
+        contactPhone:
+          type: string
+          example: "+1-555-0123"
+        status:
+          type: string
+          enum: [pending, active, suspended, closed]
+          example: "active"
+        contractStartDate:
+          type: string
+          format: date-time
+        contractEndDate:
+          type: string
+          format: date-time
+        billingCycle:
+          type: string
+          enum: [daily, weekly, monthly]
+        assignedFacilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacilityAssignment'
+        feeSchedule:
+          $ref: '#/components/schemas/FeeSchedule'
+        integrations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChannelIntegration'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FacilityAssignment:
+      type: object
+      properties:
+        facilityId:
+          type: string
+          example: "FAC-001"
+        facilityName:
+          type: string
+          example: "East Coast DC"
+        warehouseIds:
+          type: array
+          items:
+            type: string
+          example: ["WH-001", "WH-002"]
+        allocatedSpace:
+          type: number
+          description: Allocated space in square feet
+          example: 5000
+        assignedAt:
+          type: string
+          format: date-time
+        isDefault:
+          type: boolean
+          example: true
+
+    AssignFacilityRequest:
+      type: object
+      required:
+        - facilityId
+        - facilityName
+      properties:
+        facilityId:
+          type: string
+        facilityName:
+          type: string
+        warehouseIds:
+          type: array
+          items:
+            type: string
+        allocatedSpace:
+          type: number
+        isDefault:
+          type: boolean
+
+    FeeSchedule:
+      type: object
+      properties:
+        storageFeePerCubicFtPerDay:
+          type: number
+          example: 0.05
+        pickFeePerUnit:
+          type: number
+          example: 0.25
+        packFeePerOrder:
+          type: number
+          example: 1.50
+        receivingFeePerUnit:
+          type: number
+          example: 0.15
+        shippingMarkupPercent:
+          type: number
+          example: 5.0
+        returnProcessingFee:
+          type: number
+          example: 3.00
+        giftWrapFee:
+          type: number
+          example: 2.50
+        hazmatHandlingFee:
+          type: number
+          example: 5.00
+        oversizedItemFee:
+          type: number
+          example: 10.00
+        coldChainFeePerUnit:
+          type: number
+          example: 1.00
+        fragileHandlingFee:
+          type: number
+          example: 1.50
+        volumeDiscounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/VolumeDiscount'
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+
+    VolumeDiscount:
+      type: object
+      properties:
+        minUnits:
+          type: integer
+          example: 1000
+        maxUnits:
+          type: integer
+          example: 5000
+        discountPercent:
+          type: number
+          example: 10
+
+    ChannelIntegration:
+      type: object
+      properties:
+        channelId:
+          type: string
+          example: "CH-a1b2c3d4"
+        channelType:
+          type: string
+          enum: [shopify, amazon, ebay, woocommerce]
+          example: "shopify"
+        storeName:
+          type: string
+          example: "My Shopify Store"
+        storeUrl:
+          type: string
+          example: "https://mystore.myshopify.com"
+        status:
+          type: string
+          enum: [active, paused, disconnected]
+          example: "active"
+        syncSettings:
+          $ref: '#/components/schemas/ChannelSyncSettings'
+        connectedAt:
+          type: string
+          format: date-time
+        lastSyncAt:
+          type: string
+          format: date-time
+
+    ChannelSyncSettings:
+      type: object
+      properties:
+        autoImportOrders:
+          type: boolean
+          example: true
+        autoSyncInventory:
+          type: boolean
+          example: true
+        autoPushTracking:
+          type: boolean
+          example: true
+        inventorySyncMinutes:
+          type: integer
+          example: 15
+
+    AddIntegrationRequest:
+      type: object
+      required:
+        - channelType
+        - storeName
+      properties:
+        channelType:
+          type: string
+          enum: [shopify, amazon, ebay, woocommerce]
+        storeName:
+          type: string
+        storeUrl:
+          type: string
+        credentials:
+          type: object
+          additionalProperties:
+            type: string
+        syncSettings:
+          $ref: '#/components/schemas/ChannelSyncSettings'
+
+    GenerateAPIKeyRequest:
+      type: object
+      required:
+        - name
+        - scopes
+      properties:
+        name:
+          type: string
+          description: Key name for identification
+          example: "Production API Key"
+        scopes:
+          type: array
+          items:
+            type: string
+          description: Permission scopes
+          example: ["orders:read", "orders:write", "inventory:read"]
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional expiration date
+
+    APIKeyResponse:
+      type: object
+      properties:
+        keyId:
+          type: string
+          example: "key-a1b2c3d4"
+        name:
+          type: string
+          example: "Production API Key"
+        prefix:
+          type: string
+          example: "wms_live"
+        rawKey:
+          type: string
+          description: The full API key (only shown once)
+          example: "wms_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        scopes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    APIKeyInfo:
+      type: object
+      properties:
+        keyId:
+          type: string
+        name:
+          type: string
+        prefix:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        hasMore:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "seller not found"
+        code:
+          type: string
+          example: "SELLER_NOT_FOUND"
+        details:
+          type: object
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSTenantID:
+      name: X-WMS-Tenant-ID
+      in: header
+      description: Tenant identifier for multi-tenant operations
+      required: true
+      schema:
+        type: string
+      example: "TNT-001"

@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/get-orders-eligible-for-retry",
+  "title": "Get orders eligible for retry",
+  "description": "Retrieve orders that are eligible for reprocessing based on retry count and status",
+  "source": "@site/docs/api/order-service/get-orders-eligible-for-retry.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/get-orders-eligible-for-retry",
+  "permalink": "/api/order-service/get-orders-eligible-for-retry",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "get-orders-eligible-for-retry",
+    "title": "Get orders eligible for retry",
+    "description": "Retrieve orders that are eligible for reprocessing based on retry count and status",
+    "sidebar_label": "Get orders eligible for retry",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJy1VU1PGzEQ/SuWzyEJlSpVORVRipBaFQFVD5DD4J1kDV7btWeBKMp/74w3H0sDFa1ULsjrmec3895MlrrCbJKNZIPXE32BlCw+oAqpwpQV1UAKEip0dm5vHapZSCphTMFgztbP1S1krFTw/JXSQpnQek7xlcoE1GY90ATzrCfXDL5L09OBjpCgQeJ3+HapPR+YgrONJc6ywudni2nBh2xqbEBPlpoWUaKsJ5xj4qsKZ9A60pPD8Xi1GmxxGnjqqsn/Ava+D7Wt5M8wkBLIhSVscu97ZhZc8Wq14qIT5hh8xhLwbjyWf881+GIzqTDbtbzTgoFNYKKeJAVidNaApIzusuQt9wmF2zs00kvue8REtnu1AnoL7VeyC5uz6oX6mGCbKTSvXq/7+NJVMc+xeOcFXfjeQabPYF2b8AJhXfAeyiYKqyPaDxhoNm8DfCMtwAOyrK6wTsjHv0jhHLLkJO5kLdK30hXuYHcbCNxLhXR/A822rwM3Sc+xdBio5sOoP1ijjf5iNUwPmzFpEyPrmihORiMXDLg6ZJp8GI8PRxDt6OGw+LjvqE880S7Ehr2jOigt7t4hZYbi3OFjk4f4BE10ODSheQ3vPIWqNXLYwk1lOGah1LxuTWmJuuQAa1AdnZ/t4RyHJias0WfLK+fi5PJKwsqKKS5TDXiYY+EtFix2z8p63kuofny9VNEBiULDG3/jr2qbCyF5r+YV5DBPbvyB6pgUmYWzLKcHcLYqx12AszM0C8MTt3t3e3vwCMwRWJq5L4QogblnnXb5nb1VG8UquTwju4Ln5sZz7aJgV/fhcDwcr+cZTLHdetNITefrmtQVQsNRPNNWhGJxPvbEKUaLLD2T7SGcIm2W9287m8rWeqbAcrdS/tPq7/xP+EQj1or3J5MuvluuTX+t+5BS7sb2bClxtoQsl/LU9+RWK/ncbWAZhspm4FiepBm4jAN9j4vebwir3Mr7xe6vxD77nXhLwra4XfBUDslKNNOaco01AnexcOyyjozB2Oe0t8EFZbsXTk+uWOBfaU+lGw==",
+    "sidebar_class_name": "get api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Get order by ID",
+    "permalink": "/api/order-service/get-order-by-id"
+  },
+  "next": {
+    "title": "Get retry metadata for order",
+    "permalink": "/api/order-service/get-retry-metadata-for-order"
+  }
+}

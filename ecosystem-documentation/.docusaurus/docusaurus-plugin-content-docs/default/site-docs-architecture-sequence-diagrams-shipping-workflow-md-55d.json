@@ -1,0 +1,26 @@
+{
+  "id": "architecture/sequence-diagrams/shipping-workflow",
+  "title": "Shipping Workflow (SLAM Process)",
+  "description": "This diagram shows the shipping child workflow implementing the SLAM process: Scan, Label, Apply, Manifest.",
+  "source": "@site/docs/architecture/sequence-diagrams/shipping-workflow.md",
+  "sourceDirName": "architecture/sequence-diagrams",
+  "slug": "/architecture/sequence-diagrams/shipping-workflow",
+  "permalink": "/architecture/sequence-diagrams/shipping-workflow",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Packing Workflow",
+    "permalink": "/architecture/sequence-diagrams/packing-workflow"
+  },
+  "next": {
+    "title": "Domain-Driven Design Overview",
+    "permalink": "/domain-driven-design/overview"
+  }
+}

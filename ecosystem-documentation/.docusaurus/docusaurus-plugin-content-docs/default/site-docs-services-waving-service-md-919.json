@@ -1,0 +1,26 @@
+{
+  "id": "services/waving-service",
+  "title": "Waving Service",
+  "description": "The Waving Service groups orders into waves for efficient batch processing.",
+  "source": "@site/docs/services/waving-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/waving-service",
+  "permalink": "/services/waving-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Order Service",
+    "permalink": "/services/order-service"
+  },
+  "next": {
+    "title": "WES Service",
+    "permalink": "/services/wes-service"
+  }
+}

@@ -51,6 +51,13 @@ type Unit struct {
 	ID                primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	UnitID            string             `bson:"unitId" json:"unitId"`
 	SKU               string             `bson:"sku" json:"sku"`
+
+	// Multi-tenant fields for 3PL/FBA-style operations
+	TenantID    string `bson:"tenantId" json:"tenantId"`       // 3PL operator identifier
+	FacilityID  string `bson:"facilityId" json:"facilityId"`   // Physical facility/warehouse complex
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"` // Specific warehouse within facility
+	SellerID    string `bson:"sellerId,omitempty" json:"sellerId,omitempty"` // Merchant/seller who owns this unit
+
 	OrderID           string             `bson:"orderId,omitempty" json:"orderId,omitempty"`
 	ShipmentID        string             `bson:"shipmentId" json:"shipmentId"`
 	Status            UnitStatus         `bson:"status" json:"status"`
@@ -90,8 +97,21 @@ type Unit struct {
 	domainEvents []DomainEvent `bson:"-" json:"-"`
 }
 
-// NewUnit creates a new Unit at receiving
+// UnitTenantInfo holds multi-tenant identification for unit creation
+type UnitTenantInfo struct {
+	TenantID    string
+	FacilityID  string
+	WarehouseID string
+	SellerID    string
+}
+
+// NewUnit creates a new Unit at receiving (backward compatible, uses default tenant)
 func NewUnit(sku, shipmentID, locationID, createdBy string) *Unit {
+	return NewUnitWithTenant(sku, shipmentID, locationID, createdBy, nil)
+}
+
+// NewUnitWithTenant creates a new Unit at receiving with tenant context
+func NewUnitWithTenant(sku, shipmentID, locationID, createdBy string, tenant *UnitTenantInfo) *Unit {
 	now := time.Now()
 	unitID := uuid.New().String()
 
@@ -105,6 +125,19 @@ func NewUnit(sku, shipmentID, locationID, createdBy string) *Unit {
 		ReceivedAt:        now,
 		CreatedAt:         now,
 		UpdatedAt:         now,
+	}
+
+	// Set tenant information
+	if tenant != nil {
+		unit.TenantID = tenant.TenantID
+		unit.FacilityID = tenant.FacilityID
+		unit.WarehouseID = tenant.WarehouseID
+		unit.SellerID = tenant.SellerID
+	} else {
+		// Default tenant for backward compatibility
+		unit.TenantID = "DEFAULT_TENANT"
+		unit.FacilityID = "DEFAULT_FACILITY"
+		unit.WarehouseID = "DEFAULT_WAREHOUSE"
 	}
 
 	// Record initial movement

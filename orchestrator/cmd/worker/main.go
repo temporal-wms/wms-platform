@@ -67,6 +67,9 @@ func main() {
 		FacilityServiceURL:      config.FacilityServiceURL,
 		UnitServiceURL:          config.UnitServiceURL,
 		ProcessPathServiceURL:   config.ProcessPathServiceURL,
+		BillingServiceURL:       config.BillingServiceURL,
+		ChannelServiceURL:       config.ChannelServiceURL,
+		SellerServiceURL:        config.SellerServiceURL,
 	})
 
 	// Create activities with service clients
@@ -393,6 +396,8 @@ func startHealthServer(port string, temporalClient temporalclient.Client, m *met
 	mux.HandleFunc("/api/v1/signals/gift-wrap-completed", createGiftWrapCompletedHandler(temporalClient, logger))
 	mux.HandleFunc("/api/v1/signals/walling-completed", createWallingCompletedHandler(temporalClient, logger))
 	mux.HandleFunc("/api/v1/signals/packing-completed", createPackingCompletedHandler(temporalClient, logger))
+	mux.HandleFunc("/api/v1/signals/receiving-completed", createReceivingCompletedHandler(temporalClient, logger))
+	mux.HandleFunc("/api/v1/signals/stow-completed", createStowCompletedHandler(temporalClient, logger))
 
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -467,6 +472,21 @@ type PackingCompletedRequest struct {
 	OrderID     string                 `json:"orderId"`
 	TaskID      string                 `json:"taskId"`
 	PackageInfo map[string]interface{} `json:"packageInfo"`
+}
+
+// ReceivingCompletedRequest represents the request body for the receiving-completed signal
+type ReceivingCompletedRequest struct {
+	ShipmentID    string                   `json:"shipmentId"`
+	ReceivedItems []map[string]interface{} `json:"receivedItems"`
+	TotalReceived int                      `json:"totalReceived"`
+	TotalDamaged  int                      `json:"totalDamaged"`
+}
+
+// StowCompletedRequest represents the request body for the stow-completed signal
+type StowCompletedRequest struct {
+	ShipmentID  string                   `json:"shipmentId"`
+	StowedItems []map[string]interface{} `json:"stowedItems"`
+	CompletedAt string                   `json:"completedAt"`
 }
 
 // createWaveAssignedHandler creates a handler for the wave-assigned signal endpoint
@@ -602,25 +622,42 @@ func createPickCompletedHandler(temporalClient temporalclient.Client, logger *sl
 			"pickedItems": req.PickedItems,
 		}
 
-		// Send signal to Temporal workflow
-		err = temporalClient.SignalWorkflow(
-			r.Context(),
-			workflowID,
-			"", // Run ID - empty to signal the latest run
-			"pickCompleted",
-			signalPayload,
+	// Send signal to Temporal workflow
+	ctx := r.Context()
+	err = temporalClient.SignalWorkflow(
+		ctx,
+		workflowID,
+		"", // Run ID - empty to signal the latest run
+		"pickCompleted",
+		signalPayload,
+	)
+	if err != nil {
+		logger.Error("Failed to signal picking workflow",
+			"orderId", req.OrderID,
+			"workflowId", workflowID,
+			"error", err,
 		)
+
+		// If picking workflow not found, try WES workflow
+		wesWorkflowID := fmt.Sprintf("wes-%s", req.OrderID)
+		err = temporalClient.SignalWorkflow(ctx, wesWorkflowID, "", "pickCompleted", signalPayload)
 		if err != nil {
-			logger.Error("Failed to signal workflow", "workflowId", workflowID, "error", err)
+			logger.Error("Failed to signal WES workflow for picking",
+				"orderId", req.OrderID,
+				"workflowId", wesWorkflowID,
+				"error", err,
+			)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"success":    false,
 				"error":      err.Error(),
-				"workflowId": workflowID,
+				"workflowId": wesWorkflowID,
 			})
 			return
 		}
+		workflowID = wesWorkflowID
+	}
 
 		logger.Info("Successfully signaled workflow",
 			"workflowId", workflowID,
@@ -1005,7 +1042,7 @@ func createPackingCompletedHandler(temporalClient temporalclient.Client, logger 
 			)
 
 			// If packing workflow not found, try WES execution workflow
-			wesWorkflowID := fmt.Sprintf("wes-execution-%s", req.OrderID)
+			wesWorkflowID := fmt.Sprintf("wes-%s", req.OrderID)
 			err = temporalClient.SignalWorkflow(ctx, wesWorkflowID, "", "packingCompleted", signalPayload)
 			if err != nil {
 				logger.Error("Failed to signal WES workflow for packing",
@@ -1035,6 +1072,185 @@ func createPackingCompletedHandler(temporalClient temporalclient.Client, logger 
 	}
 }
 
+// createReceivingCompletedHandler creates a handler for the receiving-completed signal endpoint
+func createReceivingCompletedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"failed to read request body"}`))
+			return
+		}
+		defer r.Body.Close()
+
+		var req ReceivingCompletedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			logger.Error("Failed to parse request", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid JSON"}`))
+			return
+		}
+
+		if req.ShipmentID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"shipmentId is required"}`))
+			return
+		}
+
+		// Try to signal the inbound fulfillment workflow
+		workflowID := fmt.Sprintf("inbound-fulfillment-%s", req.ShipmentID)
+
+		signalPayload := map[string]interface{}{
+			"shipmentId":    req.ShipmentID,
+			"receivedItems": req.ReceivedItems,
+			"totalReceived": req.TotalReceived,
+			"totalDamaged":  req.TotalDamaged,
+		}
+
+		err = temporalClient.SignalWorkflow(
+			r.Context(),
+			workflowID,
+			"",
+			"receivingCompleted",
+			signalPayload,
+		)
+		if err != nil {
+			// Log the error but return success anyway since the receiving was completed
+			// The workflow might not exist if this is a standalone receiving operation
+			logger.Warn("Failed to signal inbound fulfillment workflow (may not exist)",
+				"workflowId", workflowID,
+				"shipmentId", req.ShipmentID,
+				"error", err,
+			)
+
+			// Return success - the receiving completed event is acknowledged
+			// even if there's no workflow waiting for it
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    true,
+				"workflowId": workflowID,
+				"message":    "Receiving completed acknowledged (no active workflow)",
+			})
+			return
+		}
+
+		logger.Info("Successfully signaled receiving completed",
+			"workflowId", workflowID,
+			"shipmentId", req.ShipmentID,
+			"totalReceived", req.TotalReceived,
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Receiving completed signal sent successfully",
+		})
+	}
+}
+
+// createStowCompletedHandler creates a handler for the stow-completed signal endpoint
+func createStowCompletedHandler(temporalClient temporalclient.Client, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"failed to read request body"}`))
+			return
+		}
+		defer r.Body.Close()
+
+		var req StowCompletedRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			logger.Error("Failed to parse request", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid JSON"}`))
+			return
+		}
+
+		if req.ShipmentID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"shipmentId is required"}`))
+			return
+		}
+
+		// Try to signal the inbound fulfillment workflow
+		workflowID := fmt.Sprintf("inbound-fulfillment-%s", req.ShipmentID)
+
+		signalPayload := map[string]interface{}{
+			"shipmentId":  req.ShipmentID,
+			"stowedItems": req.StowedItems,
+			"completedAt": req.CompletedAt,
+		}
+
+		err = temporalClient.SignalWorkflow(
+			r.Context(),
+			workflowID,
+			"",
+			"stowCompleted",
+			signalPayload,
+		)
+		if err != nil {
+			// Log the error but return success anyway since the stow was completed
+			// The workflow might not exist if this is a standalone stow operation
+			logger.Warn("Failed to signal inbound fulfillment workflow for stow (may not exist)",
+				"workflowId", workflowID,
+				"shipmentId", req.ShipmentID,
+				"error", err,
+			)
+
+			// Return success - the stow completed event is acknowledged
+			// even if there's no workflow waiting for it
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    true,
+				"workflowId": workflowID,
+				"message":    "Stow completed acknowledged (no active workflow)",
+			})
+			return
+		}
+
+		logger.Info("Successfully signaled stow completed",
+			"workflowId", workflowID,
+			"shipmentId", req.ShipmentID,
+			"stowedCount", len(req.StowedItems),
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"workflowId": workflowID,
+			"message":    "Stow completed signal sent successfully",
+		})
+	}
+}
+
 // Config holds application configuration
 type Config struct {
 	Temporal                *temporal.Config
@@ -1053,6 +1269,9 @@ type Config struct {
 	SortationServiceURL     string
 	UnitServiceURL          string
 	ProcessPathServiceURL   string
+	BillingServiceURL       string
+	ChannelServiceURL       string
+	SellerServiceURL        string
 }
 
 func loadConfig() *Config {
@@ -1077,6 +1296,9 @@ func loadConfig() *Config {
 		SortationServiceURL:     getEnv("SORTATION_SERVICE_URL", "http://localhost:8013"),
 		UnitServiceURL:          getEnv("UNIT_SERVICE_URL", "http://localhost:8014"),
 		ProcessPathServiceURL:   getEnv("PROCESS_PATH_SERVICE_URL", "http://localhost:8015"),
+		BillingServiceURL:       getEnv("BILLING_SERVICE_URL", "http://localhost:8018"),
+		ChannelServiceURL:       getEnv("CHANNEL_SERVICE_URL", "http://localhost:8019"),
+		SellerServiceURL:        getEnv("SELLER_SERVICE_URL", "http://localhost:8020"),
 	}
 }
 

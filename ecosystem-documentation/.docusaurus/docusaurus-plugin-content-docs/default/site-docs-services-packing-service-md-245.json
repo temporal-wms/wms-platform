@@ -1,0 +1,26 @@
+{
+  "id": "services/packing-service",
+  "title": "Packing Service",
+  "description": "The Packing Service handles package preparation and labeling.",
+  "source": "@site/docs/services/packing-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/packing-service",
+  "permalink": "/services/packing-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 6,
+  "frontMatter": {
+    "sidebar_position": 6
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Consolidation Service",
+    "permalink": "/services/consolidation-service"
+  },
+  "next": {
+    "title": "Shipping Service",
+    "permalink": "/services/shipping-service"
+  }
+}

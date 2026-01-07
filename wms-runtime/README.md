@@ -97,6 +97,114 @@ k6 run -e INVENTORY_SERVICE_URL=http://myhost:8008 scripts/setup.js
 k6 run -e LABOR_SERVICE_URL=http://myhost:8009 scripts/setup.js
 ```
 
+## Kong API Gateway Integration
+
+**The WMS emulator now defaults to using Kong API Gateway for service access.**
+
+### Quick Start with Kong
+
+No setup required - just run your tests!
+
+```bash
+# All services automatically route through Kong Gateway
+k6 run scripts/setup.js
+k6 run scripts/scenarios/load.js
+```
+
+All WMS services are accessible through a single endpoint: `http://localhost:8888`
+
+### Benefits
+
+✅ **No port-forwarding needed** - No more multiple terminal windows
+✅ **Simplified service discovery** - Single access point for all services
+✅ **Production-like routing** - Uses same gateway as production
+✅ **Easier debugging** - Unified access pattern
+✅ **Parallel execution** - No port conflicts when running multiple tests
+
+### Configuration Options
+
+#### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KONG_GATEWAY_URL` | `http://localhost:8888` | Kong Gateway base URL |
+| `USE_KONG` | `true` | Enable/disable Kong routing |
+| Individual service URLs | Kong Gateway URLs | Can still be overridden per service |
+
+#### Usage Examples
+
+**Default (Kong Gateway):**
+```bash
+# No configuration needed
+k6 run scripts/scenarios/load.js
+```
+
+**Custom Kong Gateway URL:**
+```bash
+# Point to different Kong instance
+k6 run -e KONG_GATEWAY_URL=http://staging-gateway:8888 \
+  scripts/scenarios/load.js
+```
+
+**Legacy Mode (Direct Port-Forward):**
+```bash
+# Disable Kong and use direct service connections
+k6 run -e USE_KONG=false scripts/scenarios/load.js
+
+# Then you'll need port-forwards:
+# kubectl port-forward svc/order-service -n wms-platform 8001:8001
+# kubectl port-forward svc/inventory-service -n wms-platform 8008:8008
+# etc...
+```
+
+**Override Specific Service:**
+```bash
+# Use Kong for most services, but override one
+k6 run -e ORDER_SERVICE_URL=http://localhost:9001 \
+  scripts/scenarios/load.js
+```
+
+### Service URL Mapping
+
+With Kong Gateway, services follow this pattern:
+
+| Service | Kong Gateway URL |
+|---------|------------------|
+| Order Service | `http://localhost:8888/order-service/api/v1/...` |
+| Inventory Service | `http://localhost:8888/inventory-service/api/v1/...` |
+| Labor Service | `http://localhost:8888/labor-service/api/v1/...` |
+| Picking Service | `http://localhost:8888/picking-service/api/v1/...` |
+| Packing Service | `http://localhost:8888/packing-service/api/v1/...` |
+| Shipping Service | `http://localhost:8888/shipping-service/api/v1/...` |
+| Orchestrator | `http://localhost:8888/orchestrator/api/v1/...` |
+| ... all other services | `http://localhost:8888/{service-name}/api/v1/...` |
+
+Kong strips the service prefix before forwarding, so your API calls remain unchanged.
+
+### Migration from Port-Forward
+
+If you were previously using `kubectl port-forward`:
+
+**Before (Port-Forward):**
+```bash
+# Terminal 1
+kubectl port-forward svc/order-service -n wms-platform 8001:8001
+# Terminal 2
+kubectl port-forward svc/inventory-service -n wms-platform 8008:8008
+# Terminal 3
+kubectl port-forward svc/labor-service -n wms-platform 8009:8009
+# Terminal 4
+k6 run scripts/setup.js
+```
+
+**After (Kong Gateway):**
+```bash
+# Just run - no port-forwarding needed!
+k6 run scripts/setup.js
+```
+
+For detailed migration steps, see [docs/kong-migration-guide.md](docs/kong-migration-guide.md)
+
 ## Test Scenarios
 
 ### Smoke Test
@@ -259,9 +367,29 @@ Orders are generated with:
 1. Ensure all services are running
 2. Check service health endpoints:
    ```bash
+   # Via Kong Gateway
+   curl http://localhost:8888/order-service/health
+   curl http://localhost:8888/inventory-service/health
+   curl http://localhost:8888/labor-service/health
+
+   # Or via direct port-forward (if USE_KONG=false)
    curl http://localhost:8001/health
    curl http://localhost:8008/health
    curl http://localhost:8009/health
+   ```
+
+### Kong Gateway Not Accessible
+1. Verify Kong Gateway is running:
+   ```bash
+   kubectl get pods -n kong
+   ```
+2. Check if port-forward is needed for Kong:
+   ```bash
+   kubectl port-forward -n kong svc/kong-gateway 8888:80
+   ```
+3. Fall back to legacy mode if needed:
+   ```bash
+   k6 run -e USE_KONG=false scripts/setup.js
    ```
 
 ### Orders Failing

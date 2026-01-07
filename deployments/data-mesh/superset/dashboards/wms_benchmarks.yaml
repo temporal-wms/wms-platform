@@ -1,0 +1,340 @@
+# Superset Dashboard Configuration: WMS Benchmarks
+# Executive dashboard comparing operational KPIs against industry benchmarks
+
+dashboard:
+  name: "WMS Benchmarks"
+  description: "Executive benchmarking dashboard comparing WMS performance against industry standards"
+  slug: wms-benchmarks
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 30 days"
+      filter_key: __time_range
+
+  # Dashboard layout
+  layout:
+    # Row 1: Operational KPI Cards with Benchmarks
+    - row: 1
+      charts:
+        - name: "Picks/Hour"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: wms_benchmarks_daily
+          description: "Target: 175 | Best: 250+"
+          configuration:
+            metric: avg_picks_per_hour
+            subheader: "Target: 175"
+            format: "{value:.0f}"
+
+        - name: "Order Accuracy"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: wms_benchmarks_daily
+          description: "Target: 99% | Best: 99.9%"
+          configuration:
+            metric: avg_order_accuracy
+            subheader: "Target: 99%"
+            format: "{value:.1f}%"
+
+        - name: "On-Time Shipments"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: wms_benchmarks_daily
+          description: "Target: 98% | Best: 99%"
+          configuration:
+            metric: avg_on_time_shipment
+            subheader: "Target: 98%"
+            format: "{value:.1f}%"
+
+        - name: "Cost per Order"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: wms_benchmarks_daily
+          description: "Target: <$5 | Best: <$3"
+          configuration:
+            metric: avg_cost_per_order
+            subheader: "Target: <$5"
+            format: "${value:.2f}"
+
+        - name: "Dock-to-Stock"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: wms_benchmarks_daily
+          description: "Target: <4h | Best: <2h"
+          configuration:
+            metric: avg_dock_to_stock
+            subheader: "Target: <4h"
+            format: "{value:.1f}h"
+
+        - name: "Labor Cost Ratio"
+          type: big_number_total
+          width: 2
+          height: 2
+          dataset: wms_benchmarks_daily
+          description: "Target: <60% | Best: <50%"
+          configuration:
+            metric: avg_labor_cost_ratio
+            subheader: "Target: <60%"
+            format: "{value:.1f}%"
+
+    # Row 2: Benchmark Comparison Charts
+    - row: 2
+      charts:
+        - name: "Operational KPIs vs Benchmarks"
+          type: bar
+          width: 6
+          height: 4
+          description: "Current performance vs industry targets"
+          dataset: wms_benchmarks_daily
+          configuration:
+            metrics:
+              - avg_picks_per_hour
+              - avg_order_accuracy
+              - avg_on_time_shipment
+            dimension: date
+            orientation: vertical
+            show_values: true
+            reference_lines:
+              - value: 175
+                label: "Picks/Hour Target"
+              - value: 99
+                label: "Accuracy Target"
+              - value: 98
+                label: "On-Time Target"
+
+        - name: "Financial KPIs vs Benchmarks"
+          type: bar
+          width: 6
+          height: 4
+          description: "Financial metrics vs industry standards"
+          dataset: wms_benchmarks_daily
+          configuration:
+            metrics:
+              - avg_cost_per_order
+              - avg_labor_cost_ratio
+            dimension: date
+            orientation: vertical
+            show_values: true
+
+    # Row 3: Trend Analysis
+    - row: 3
+      charts:
+        - name: "Picks per Hour Trend"
+          type: line
+          width: 4
+          height: 4
+          description: "Picks/hour trend with benchmark lines"
+          dataset: wms_benchmarks_daily
+          configuration:
+            metrics:
+              - avg_picks_per_hour
+            dimension: date
+            time_grain: day
+            reference_lines:
+              - value: 175
+                label: "Target"
+                color: "#faad14"
+              - value: 250
+                label: "Best-in-Class"
+                color: "#52c41a"
+
+        - name: "Order Accuracy Trend"
+          type: line
+          width: 4
+          height: 4
+          description: "Accuracy trend with benchmark lines"
+          dataset: wms_benchmarks_daily
+          configuration:
+            metrics:
+              - avg_order_accuracy
+            dimension: date
+            time_grain: day
+            y_axis_format: ".1%"
+            reference_lines:
+              - value: 99
+                label: "Target"
+                color: "#faad14"
+              - value: 99.9
+                label: "Best-in-Class"
+                color: "#52c41a"
+
+        - name: "Cost per Order Trend"
+          type: line
+          width: 4
+          height: 4
+          description: "Cost/order trend with benchmark lines"
+          dataset: wms_benchmarks_daily
+          configuration:
+            metrics:
+              - avg_cost_per_order
+            dimension: date
+            time_grain: day
+            y_axis_format: "$,.2f"
+            reference_lines:
+              - value: 5
+                label: "Target"
+                color: "#faad14"
+              - value: 3
+                label: "Best-in-Class"
+                color: "#52c41a"
+
+    # Row 4: Volume Metrics
+    - row: 4
+      charts:
+        - name: "Total Orders Trend"
+          type: area
+          width: 4
+          height: 3
+          description: "Order volume over time"
+          dataset: wms_benchmarks_daily
+          configuration:
+            metrics:
+              - total_orders
+            dimension: date
+            time_grain: day
+
+        - name: "Total Revenue Trend"
+          type: area
+          width: 4
+          height: 3
+          description: "Revenue over time"
+          dataset: wms_benchmarks_daily
+          configuration:
+            metrics:
+              - total_revenue
+            dimension: date
+            time_grain: day
+            y_axis_format: "$,.0f"
+
+        - name: "Total Shipments Trend"
+          type: area
+          width: 4
+          height: 3
+          description: "Shipments over time"
+          dataset: wms_benchmarks_daily
+          configuration:
+            metrics:
+              - total_shipments
+            dimension: date
+            time_grain: day
+
+    # Row 5: Benchmark Scorecard
+    - row: 5
+      charts:
+        - name: "WMS Performance Scorecard"
+          type: table
+          width: 12
+          height: 4
+          description: "Performance vs industry benchmarks"
+          dataset: wms_benchmarks_daily
+          configuration:
+            columns:
+              - date
+              - picks_per_hour
+              - order_accuracy_pct
+              - on_time_shipment_pct
+              - dock_to_stock_hours
+              - cost_per_order
+              - labor_cost_ratio
+              - total_orders
+              - total_revenue
+            order_by: date
+            order_direction: desc
+            conditional_formatting:
+              # Picks per hour
+              - column: picks_per_hour
+                conditions:
+                  - operator: ">="
+                    value: 200
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 150
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: "<"
+                    value: 150
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+              # Order accuracy
+              - column: order_accuracy_pct
+                conditions:
+                  - operator: ">="
+                    value: 99.9
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 99
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: "<"
+                    value: 99
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+              # On-time shipment
+              - column: on_time_shipment_pct
+                conditions:
+                  - operator: ">="
+                    value: 99
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 98
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: "<"
+                    value: 98
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+              # Cost per order (lower is better)
+              - column: cost_per_order
+                conditions:
+                  - operator: "<="
+                    value: 3
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: "<="
+                    value: 5
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: ">"
+                    value: 5
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+              # Labor cost ratio (lower is better)
+              - column: labor_cost_ratio
+                conditions:
+                  - operator: "<="
+                    value: 50
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: "<="
+                    value: 60
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: ">"
+                    value: 60
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: wms_benchmarks_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: wms_benchmarks_daily
+  - name: wms_benchmark_targets
+    database: trino
+    schema: iceberg.gold
+    table_name: wms_benchmark_targets

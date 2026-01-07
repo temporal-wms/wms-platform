@@ -1,0 +1,27 @@
+{
+  "id": "temporal/activities/slam-activities",
+  "title": "SLAM Activities",
+  "description": "Activities for the Scan, Label, Apply, Manifest (SLAM) process.",
+  "source": "@site/docs/temporal/activities/slam-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/slam-activities",
+  "permalink": "/temporal/activities/slam-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 10,
+  "frontMatter": {
+    "sidebar_position": 10,
+    "slug": "/temporal/activities/slam-activities"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Sortation Activities",
+    "permalink": "/temporal/activities/sortation-activities"
+  },
+  "next": {
+    "title": "Unit Activities",
+    "permalink": "/temporal/activities/unit-activities"
+  }
+}

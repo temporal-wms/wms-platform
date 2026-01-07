@@ -41,17 +41,37 @@ The WMS Platform exposes two types of APIs:
 
 ### Services
 
-| Service | Port | Base URL | OpenAPI Spec |
-|---------|------|----------|--------------|
-| **order-service** | 8001 | `/api/v1` | [order-service.yaml](openapi/order-service.yaml) |
-| **waving-service** | 8002 | `/api/v1` | [waving-service.yaml](openapi/waving-service.yaml) |
-| **routing-service** | 8003 | `/api/v1` | [routing-service.yaml](openapi/routing-service.yaml) |
-| **picking-service** | 8004 | `/api/v1` | [picking-service.yaml](openapi/picking-service.yaml) |
-| **consolidation-service** | 8005 | `/api/v1` | [consolidation-service.yaml](openapi/consolidation-service.yaml) |
-| **packing-service** | 8006 | `/api/v1` | [packing-service.yaml](openapi/packing-service.yaml) |
-| **shipping-service** | 8007 | `/api/v1` | [shipping-service.yaml](openapi/shipping-service.yaml) |
-| **inventory-service** | 8008 | `/api/v1` | [inventory-service.yaml](openapi/inventory-service.yaml) |
-| **labor-service** | 8009 | `/api/v1` | [labor-service.yaml](openapi/labor-service.yaml) |
+#### Core Warehouse Operations
+
+| Service | Port | Base URL | Description |
+|---------|------|----------|-------------|
+| **order-service** | 8001 | `/api/v1` | Order lifecycle management |
+| **waving-service** | 8002 | `/api/v1` | Batch grouping for picking |
+| **routing-service** | 8003 | `/api/v1` | Pick path optimization |
+| **picking-service** | 8004 | `/api/v1` | Warehouse picking operations |
+| **consolidation-service** | 8005 | `/api/v1` | Multi-item order combining |
+| **packing-service** | 8006 | `/api/v1` | Package preparation |
+| **shipping-service** | 8007 | `/api/v1` | Carrier integration, SLAM |
+| **inventory-service** | 8008 | `/api/v1` | Stock levels, reservations |
+| **labor-service** | 8009 | `/api/v1` | Workforce management |
+
+#### Business Services
+
+| Service | Port | Base URL | Description |
+|---------|------|----------|-------------|
+| **seller-service** | 8010 | `/api/v1` | Merchant account management |
+| **billing-service** | 8011 | `/api/v1` | Invoicing and billable activities |
+| **channel-service** | 8012 | `/api/v1` | Sales channel integrations |
+| **seller-portal** | 8013 | `/api/v1` | Seller dashboard BFF |
+
+#### System Services
+
+| Service | Port | Base URL | Description |
+|---------|------|----------|-------------|
+| **unit-service** | 8014 | `/api/v1` | Individual unit tracking |
+| **process-path-service** | 8015 | `/api/v1` | Fulfillment path determination |
+| **wes-service** | 8016 | `/api/v1` | Warehouse execution orchestration |
+| **walling-service** | 8017 | `/api/v1` | Put-wall sorting operations |
 
 ### Common Endpoints
 
@@ -130,6 +150,12 @@ curl -X POST http://localhost:8001/api/v1/orders \
 | `wms.picking.events` | picking-service | orchestrator, labor-service | Picking task events |
 | `wms.inventory.events` | inventory-service | order-service, reporting | Inventory change events |
 | `wms.labor.events` | labor-service | reporting, analytics | Labor and shift events |
+| `wms.sellers.events` | seller-service | billing-service, channel-service | Seller account events |
+| `wms.billing.events` | billing-service | seller-portal, notifications | Invoice and billing events |
+| `wms.channels.events` | channel-service | order-service, inventory-service | Channel sync events |
+| `wms.units.events` | unit-service | picking-service, consolidation-service | Unit lifecycle events |
+| `wms.wes.events` | wes-service | picking-service, packing-service | Execution route events |
+| `wms.walling.events` | walling-service | wes-service, consolidation-service | Put-wall sorting events |
 
 ### AsyncAPI Specification
 
@@ -216,6 +242,51 @@ All events follow the [CloudEvents](https://cloudevents.io/) specification:
 - `com.wms.labor.ShiftEnded` - Worker ended shift
 - `com.wms.labor.WorkerAssigned` - Worker assigned to task
 - `com.wms.labor.TaskCompleted` - Worker completed task
+
+#### Seller Events
+- `com.wms.sellers.SellerCreated` - New seller account created
+- `com.wms.sellers.SellerActivated` - Seller account activated
+- `com.wms.sellers.SellerSuspended` - Seller account suspended
+- `com.wms.sellers.SellerClosed` - Seller account closed
+- `com.wms.sellers.FacilityAssigned` - Facility assigned to seller
+- `com.wms.sellers.ChannelConnected` - Sales channel connected
+
+#### Billing Events
+- `com.wms.billing.InvoiceCreated` - Invoice created
+- `com.wms.billing.InvoiceFinalized` - Invoice finalized for payment
+- `com.wms.billing.InvoicePaid` - Invoice marked as paid
+- `com.wms.billing.InvoiceOverdue` - Invoice is overdue
+- `com.wms.billing.ActivityRecorded` - Billable activity recorded
+
+#### Channel Events
+- `com.wms.channels.ChannelConnected` - Channel connected
+- `com.wms.channels.ChannelDisconnected` - Channel disconnected
+- `com.wms.channels.OrderImported` - Order imported from channel
+- `com.wms.channels.TrackingPushed` - Tracking pushed to channel
+- `com.wms.channels.InventorySynced` - Inventory synced to channel
+
+#### Unit Events
+- `com.wms.units.UnitCreated` - Unit created at receiving
+- `com.wms.units.UnitReserved` - Unit reserved for order
+- `com.wms.units.UnitPicked` - Unit picked into tote
+- `com.wms.units.UnitConsolidated` - Unit consolidated
+- `com.wms.units.UnitPacked` - Unit packed into package
+- `com.wms.units.UnitShipped` - Unit shipped
+- `com.wms.units.UnitException` - Exception occurred
+
+#### WES Events
+- `com.wms.wes.RouteCreated` - Task route created
+- `com.wms.wes.StageAssigned` - Worker assigned to stage
+- `com.wms.wes.StageStarted` - Stage execution started
+- `com.wms.wes.StageCompleted` - Stage completed
+- `com.wms.wes.StageFailed` - Stage failed
+- `com.wms.wes.RouteCompleted` - All stages completed
+
+#### Walling Events
+- `com.wms.walling.TaskCreated` - Walling task created
+- `com.wms.walling.TaskAssigned` - Walliner assigned
+- `com.wms.walling.ItemSorted` - Item sorted to bin
+- `com.wms.walling.TaskCompleted` - All items sorted
 
 ---
 

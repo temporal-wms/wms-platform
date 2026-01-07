@@ -58,5 +58,13 @@ nodes:
       - containerPort: 30317
         hostPort: 4317
         protocol: TCP
+      # Kong API Gateway - Main proxy endpoint
+      - containerPort: 30090
+        hostPort: 8888
+        protocol: TCP
+      # Kong Admin API (development only)
+      - containerPort: 30091
+        hostPort: 8881
+        protocol: TCP
   - role: worker
   - role: worker

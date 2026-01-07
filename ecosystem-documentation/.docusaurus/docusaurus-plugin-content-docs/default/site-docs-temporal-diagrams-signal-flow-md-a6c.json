@@ -1,0 +1,27 @@
+{
+  "id": "temporal/diagrams/signal-flow",
+  "title": "Signal Flow Diagrams",
+  "description": "Visual representation of signal timing and flow between workflows and external systems.",
+  "source": "@site/docs/temporal/diagrams/signal-flow.md",
+  "sourceDirName": "temporal/diagrams",
+  "slug": "/temporal/diagrams/signal-flow",
+  "permalink": "/temporal/diagrams/signal-flow",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3,
+    "slug": "/temporal/diagrams/signal-flow"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Order Flow Diagram",
+    "permalink": "/temporal/diagrams/order-flow"
+  },
+  "next": {
+    "title": "API Catalog",
+    "permalink": "/api/catalog"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/service-wes",
+  "title": "WES Service - WESExecutionWorkflow",
+  "description": "Main execution workflow that orchestrates order processing through stages via cross-queue child workflows.",
+  "source": "@site/docs/temporal/workflows/service-wes.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/service-wes",
+  "permalink": "/temporal/workflows/service-wes",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 18,
+  "frontMatter": {
+    "sidebar_position": 18,
+    "slug": "/temporal/workflows/service-wes"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Shipping Service - ShippingWorkflow",
+    "permalink": "/temporal/workflows/service-shipping"
+  },
+  "next": {
+    "title": "Activities Overview",
+    "permalink": "/temporal/activities/overview"
+  }
+}

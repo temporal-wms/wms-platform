@@ -1,0 +1,26 @@
+{
+  "id": "services/routing-service",
+  "title": "Routing Service",
+  "description": "The Routing Service calculates optimal pick paths through the warehouse.",
+  "source": "@site/docs/services/routing-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/routing-service",
+  "permalink": "/services/routing-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Walling Service",
+    "permalink": "/services/walling-service"
+  },
+  "next": {
+    "title": "Picking Service",
+    "permalink": "/services/picking-service"
+  }
+}

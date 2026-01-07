@@ -1,0 +1,27 @@
+{
+  "id": "temporal/activities/packing-activities",
+  "title": "Packing Activities",
+  "description": "Activities for managing packing tasks, materials, and labels.",
+  "source": "@site/docs/temporal/activities/packing-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/packing-activities",
+  "permalink": "/temporal/activities/packing-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5,
+    "slug": "/temporal/activities/packing-activities"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Consolidation Activities",
+    "permalink": "/temporal/activities/consolidation-activities"
+  },
+  "next": {
+    "title": "Shipping Activities",
+    "permalink": "/temporal/activities/shipping-activities"
+  }
+}

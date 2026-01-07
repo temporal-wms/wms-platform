@@ -67,10 +67,17 @@ const (
 
 // InventoryItem is the aggregate root for the Inventory bounded context
 type InventoryItem struct {
-	ID                    primitive.ObjectID     `bson:"_id,omitempty"`
-	SKU                   string                 `bson:"sku"`
-	ProductName           string                 `bson:"productName"`
-	Locations             []StockLocation        `bson:"locations"`
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
+	SKU         string             `bson:"sku"`
+	ProductName string             `bson:"productName"`
+
+	// Multi-tenant fields for 3PL/FBA-style operations
+	TenantID    string `bson:"tenantId" json:"tenantId"`       // 3PL operator identifier
+	FacilityID  string `bson:"facilityId" json:"facilityId"`   // Physical facility/warehouse complex
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"` // Specific warehouse within facility
+	SellerID    string `bson:"sellerId,omitempty" json:"sellerId,omitempty"` // Merchant/seller who owns this inventory
+
+	Locations []StockLocation `bson:"locations"`
 	TotalQuantity         int                    `bson:"totalQuantity"`
 	ReservedQuantity      int                    `bson:"reservedQuantity"`
 	HardAllocatedQuantity int                    `bson:"hardAllocatedQuantity"`
@@ -147,10 +154,23 @@ type InventoryTransaction struct {
 	CreatedBy     string    `bson:"createdBy"`
 }
 
-// NewInventoryItem creates a new InventoryItem aggregate
+// InventoryTenantInfo holds multi-tenant identification for inventory
+type InventoryTenantInfo struct {
+	TenantID    string
+	FacilityID  string
+	WarehouseID string
+	SellerID    string
+}
+
+// NewInventoryItem creates a new InventoryItem aggregate (backward compatible, uses default tenant)
 func NewInventoryItem(sku, productName string, reorderPoint, reorderQty int) *InventoryItem {
+	return NewInventoryItemWithTenant(sku, productName, reorderPoint, reorderQty, nil)
+}
+
+// NewInventoryItemWithTenant creates a new InventoryItem aggregate with tenant context
+func NewInventoryItemWithTenant(sku, productName string, reorderPoint, reorderQty int, tenant *InventoryTenantInfo) *InventoryItem {
 	now := time.Now()
-	return &InventoryItem{
+	item := &InventoryItem{
 		SKU:                   sku,
 		ProductName:           productName,
 		Locations:             make([]StockLocation, 0),
@@ -167,6 +187,21 @@ func NewInventoryItem(sku, productName string, reorderPoint, reorderQty int) *In
 		UpdatedAt:             now,
 		DomainEvents:          make([]DomainEvent, 0),
 	}
+
+	// Set tenant information
+	if tenant != nil {
+		item.TenantID = tenant.TenantID
+		item.FacilityID = tenant.FacilityID
+		item.WarehouseID = tenant.WarehouseID
+		item.SellerID = tenant.SellerID
+	} else {
+		// Default tenant for backward compatibility
+		item.TenantID = "DEFAULT_TENANT"
+		item.FacilityID = "DEFAULT_FACILITY"
+		item.WarehouseID = "DEFAULT_WAREHOUSE"
+	}
+
+	return item
 }
 
 // ReceiveStock adds stock to a location

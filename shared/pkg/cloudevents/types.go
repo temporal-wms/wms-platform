@@ -73,6 +73,17 @@ const (
 	WallingTaskCompleted = "wms.walling.task-completed"
 )
 
+// Channel events
+const (
+	ChannelConnected     = "wms.channel.connected"
+	ChannelDisconnected  = "wms.channel.disconnected"
+	ChannelOrderImported = "wms.channel.order-imported"
+	ChannelTrackingPushed = "wms.channel.tracking-pushed"
+	ChannelInventorySynced = "wms.channel.inventory-synced"
+	ChannelSyncCompleted = "wms.channel.sync-completed"
+	ChannelWebhookReceived = "wms.channel.webhook-received"
+)
+
 // Source constants for event sources
 const (
 	SourceOrderManagement = "/wms/order-service"
@@ -86,6 +97,7 @@ const (
 	SourceLabor           = "/wms/labor-service"
 	SourceWES             = "/wms/wes-service"
 	SourceWalling         = "/wms/walling-service"
+	SourceChannel         = "/wms/channel-service"
 )
 
 // WMSCloudEvent represents a CloudEvents v1.0 compliant event for WMS

@@ -88,6 +88,10 @@ const sidebars = {
         'services/inventory-service',
         'services/labor-service',
         'services/orchestrator',
+        'services/seller-service',
+        'services/billing-service',
+        'services/channel-service',
+        'services/seller-portal',
       ],
     },
     {

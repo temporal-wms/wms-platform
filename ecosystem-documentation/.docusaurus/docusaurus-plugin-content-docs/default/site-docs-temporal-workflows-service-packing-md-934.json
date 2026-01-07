@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/service-packing",
+  "title": "Packing Service - PackingWorkflow",
+  "description": "Service-level workflow that handles the packing process with signal-based progress tracking.",
+  "source": "@site/docs/temporal/workflows/service-packing.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/service-packing",
+  "permalink": "/temporal/workflows/service-packing",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 15,
+  "frontMatter": {
+    "sidebar_position": 15,
+    "slug": "/temporal/workflows/service-packing"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Consolidation Service - ConsolidationWorkflow",
+    "permalink": "/temporal/workflows/service-consolidation"
+  },
+  "next": {
+    "title": "Shipping Service - ShippingWorkflow",
+    "permalink": "/temporal/workflows/service-shipping"
+  }
+}

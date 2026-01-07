@@ -1,0 +1,27 @@
+{
+  "id": "temporal/diagrams/workflow-hierarchy",
+  "title": "Workflow Hierarchy",
+  "description": "Visual representation of parent-child workflow relationships in the WMS Platform.",
+  "source": "@site/docs/temporal/diagrams/workflow-hierarchy.md",
+  "sourceDirName": "temporal/diagrams",
+  "slug": "/temporal/diagrams/workflow-hierarchy",
+  "permalink": "/temporal/diagrams/workflow-hierarchy",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1,
+    "slug": "/temporal/diagrams/workflow-hierarchy"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Retry Policies",
+    "permalink": "/temporal/retry-policies"
+  },
+  "next": {
+    "title": "Order Flow Diagram",
+    "permalink": "/temporal/diagrams/order-flow"
+  }
+}

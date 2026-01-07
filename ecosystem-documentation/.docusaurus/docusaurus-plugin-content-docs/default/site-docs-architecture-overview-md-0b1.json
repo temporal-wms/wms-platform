@@ -1,0 +1,26 @@
+{
+  "id": "architecture/overview",
+  "title": "Architecture Overview",
+  "description": "The WMS Platform follows a microservices architecture with event-driven communication and workflow orchestration. This document provides a high-level overview of the system design.",
+  "source": "@site/docs/architecture/overview.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/overview",
+  "permalink": "/architecture/overview",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "WMS Platform",
+    "permalink": "/"
+  },
+  "next": {
+    "title": "C4 Level 1: System Context",
+    "permalink": "/architecture/c4-diagrams/context"
+  }
+}

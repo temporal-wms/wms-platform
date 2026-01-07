@@ -1,0 +1,17 @@
+{
+  "id": "domain-driven-design/aggregates/sortation-batch",
+  "title": "SortationBatch Aggregate",
+  "description": "The SortationBatch aggregate is the root of the Sortation bounded context, managing the grouping and sorting of packages by destination for efficient dispatch.",
+  "source": "@site/docs/domain-driven-design/aggregates/sortation-batch.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/sortation-batch",
+  "permalink": "/domain-driven-design/aggregates/sortation-batch",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 12,
+  "frontMatter": {
+    "sidebar_position": 12
+  }
+}

@@ -10,7 +10,11 @@
     "shipping-service",
     "labor-service",
     "facility-service",
-    "orchestrator"
+    "orchestrator",
+    "seller-service",
+    "billing-service",
+    "channel-service",
+    "seller-portal"
   ],
   "namespace": "wms-platform-dev",
   "prometheus_datasource_uid": "prometheus",

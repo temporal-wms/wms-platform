@@ -1,0 +1,26 @@
+{
+  "id": "architecture/sequence-diagrams/order-cancellation",
+  "title": "Order Cancellation Workflow",
+  "description": "This diagram shows the order cancellation workflow implementing the Saga compensation pattern.",
+  "source": "@site/docs/architecture/sequence-diagrams/order-cancellation.md",
+  "sourceDirName": "architecture/sequence-diagrams",
+  "slug": "/architecture/sequence-diagrams/order-cancellation",
+  "permalink": "/architecture/sequence-diagrams/order-cancellation",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Order Fulfillment Workflow",
+    "permalink": "/architecture/sequence-diagrams/order-fulfillment"
+  },
+  "next": {
+    "title": "WES Execution Workflow",
+    "permalink": "/architecture/sequence-diagrams/wes-execution"
+  }
+}

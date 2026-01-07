@@ -16,15 +16,21 @@ type OrderFulfillmentInput struct {
 	Priority           string    `json:"priority"`
 	PromisedDeliveryAt time.Time `json:"promisedDeliveryAt"`
 	IsMultiItem        bool      `json:"isMultiItem"`
+	// Multi-tenant context fields
+	TenantID        string `json:"tenantId"`
+	FacilityID      string `json:"facilityId"`
+	WarehouseID     string `json:"warehouseId"`
+	SellerID        string `json:"sellerId,omitempty"`
+	ChannelID       string `json:"channelId,omitempty"`       // Channel from which order originated
+	ExternalOrderID string `json:"externalOrderId,omitempty"` // External order ID from channel
 	// Process path fields
 	GiftWrap         bool                   `json:"giftWrap"`
 	GiftWrapDetails  *GiftWrapDetailsInput  `json:"giftWrapDetails,omitempty"`
 	HazmatDetails    *HazmatDetailsInput    `json:"hazmatDetails,omitempty"`
 	ColdChainDetails *ColdChainDetailsInput `json:"coldChainDetails,omitempty"`
 	TotalValue       float64                `json:"totalValue"`
-	// Unit-level tracking fields
+	// Unit-level tracking fields (now always enabled)
 	UnitIDs         []string `json:"unitIds,omitempty"`         // Pre-reserved unit IDs if any
-	UseUnitTracking bool     `json:"useUnitTracking,omitempty"` // Feature flag for unit-level tracking
 }
 
 // WESExecutionInput represents the input for the WES execution workflow
@@ -35,6 +41,12 @@ type WESExecutionInput struct {
 	MultiZone       bool             `json:"multiZone"`
 	ProcessPathID   string           `json:"processPathId,omitempty"`
 	SpecialHandling []string         `json:"specialHandling,omitempty"`
+	UnitIDs         []string         `json:"unitIds,omitempty"` // Unit IDs for unit-level tracking (always enabled)
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
+	SellerID    string `json:"sellerId,omitempty"`
 }
 
 // WESItemInfo represents item information for WES
@@ -127,6 +139,14 @@ type OrderFulfillmentResult struct {
 	FailedUnits    []string `json:"failedUnits,omitempty"`    // Units that failed processing
 	ExceptionIDs   []string `json:"exceptionIds,omitempty"`   // Exception IDs for failed units
 	PartialSuccess bool     `json:"partialSuccess,omitempty"` // True if some units succeeded but not all
+	// Multi-tenant tracking
+	TenantID        string `json:"tenantId,omitempty"`
+	SellerID        string `json:"sellerId,omitempty"`
+	ChannelID       string `json:"channelId,omitempty"`
+	ExternalOrderID string `json:"externalOrderId,omitempty"`
+	// Billing tracking
+	BillingRecorded bool `json:"billingRecorded,omitempty"` // Whether fees were recorded
+	ChannelSynced   bool `json:"channelSynced,omitempty"`   // Whether tracking was synced to channel
 }
 
 // WaveAssignment represents a wave assignment signal
@@ -235,8 +255,12 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	logger.Info("Workflow version", "version", version)
 
 	result := &OrderFulfillmentResult{
-		OrderID: input.OrderID,
-		Status:  "in_progress",
+		OrderID:         input.OrderID,
+		Status:          "in_progress",
+		TenantID:        input.TenantID,
+		SellerID:        input.SellerID,
+		ChannelID:       input.ChannelID,
+		ExternalOrderID: input.ExternalOrderID,
 	}
 
 	// Query handler for workflow status - allows external systems to inspect current state
@@ -323,8 +347,8 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		HazmatDetails:      input.HazmatDetails,
 		ColdChainDetails:   input.ColdChainDetails,
 		TotalValue:         input.TotalValue,
-		UseUnitTracking:    input.UseUnitTracking,
 		UnitIDs:            input.UnitIDs,
+		// Unit tracking is now always enabled
 	}
 
 	var planningResult *PlanningWorkflowResult
@@ -344,11 +368,8 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	result.WaveID = planningResult.WaveID
 	result.PathID = planningResult.PathID
 
-	// Track unit IDs for downstream workflows
-	var unitIDs []string
-	if input.UseUnitTracking {
-		unitIDs = planningResult.ReservedUnitIDs
-	}
+	// Track unit IDs for downstream workflows (always enabled)
+	unitIDs := planningResult.ReservedUnitIDs
 
 	waveAssignment := WaveAssignment{
 		WaveID:         planningResult.WaveID,
@@ -389,6 +410,12 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		MultiZone:       multiZone,
 		ProcessPathID:   processPath.PathID,
 		SpecialHandling: processPath.SpecialHandling,
+		UnitIDs:         unitIDs, // Pass unit IDs for unit-level tracking (always enabled)
+		// Multi-tenant context
+		TenantID:    input.TenantID,
+		FacilityID:  input.FacilityID,
+		WarehouseID: input.WarehouseID,
+		SellerID:    input.SellerID,
 	}
 
 	wesChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
@@ -525,11 +552,16 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		"manifestId":     slamResult.ManifestID,
 		"batchId":        sortationResult.BatchID,
 		"chuteId":        sortationResult.ChuteID,
-	}
-	// Include unit-level tracking if enabled
-	if input.UseUnitTracking && len(unitIDs) > 0 {
-		shippingInput["unitIds"] = unitIDs
-		shippingInput["pathId"] = result.PathID
+		// Include unit-level tracking (always enabled)
+		"unitIds":        unitIDs,
+		"pathId":         result.PathID,
+		// Multi-tenant context
+		"tenantId":        input.TenantID,
+		"facilityId":      input.FacilityID,
+		"warehouseId":     input.WarehouseID,
+		"sellerId":        input.SellerID,
+		"channelId":       input.ChannelID,
+		"externalOrderId": input.ExternalOrderID,
 	}
 
 	err = workflow.ExecuteChildWorkflow(shippingChildCtx, "ShippingWorkflow", shippingInput).Get(ctx, nil)
@@ -540,23 +572,86 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	}
 
 	// ========================================
+	// Step 7: Record Billing Fees (for multi-tenant/seller orders)
+	// ========================================
+	if input.SellerID != "" {
+		logger.Info("Step 7: Recording billing fees", "orderId", input.OrderID, "sellerId", input.SellerID)
+
+		billingInput := map[string]interface{}{
+			"orderId":        input.OrderID,
+			"sellerId":       input.SellerID,
+			"tenantId":       input.TenantID,
+			"facilityId":     input.FacilityID,
+			"warehouseId":    input.WarehouseID,
+			"items":          input.Items,
+			"totalValue":     input.TotalValue,
+			"trackingNumber": result.TrackingNumber,
+			"carrier":        packResult.Carrier,
+			"weight":         slamResult.ActualWeight,
+			"giftWrap":       input.GiftWrap,
+			"hasHazmat":      input.HazmatDetails != nil,
+			"hasColdChain":   input.ColdChainDetails != nil,
+		}
+
+		err = workflow.ExecuteActivity(ctx, "RecordFulfillmentFees", billingInput).Get(ctx, nil)
+		if err != nil {
+			// Log warning but don't fail the workflow for billing errors
+			logger.Warn("Failed to record billing fees", "orderId", input.OrderID, "error", err)
+		} else {
+			result.BillingRecorded = true
+			logger.Info("Billing fees recorded", "orderId", input.OrderID, "sellerId", input.SellerID)
+		}
+	}
+
+	// ========================================
+	// Step 8: Sync Tracking to Channel (for channel orders)
+	// ========================================
+	if input.ChannelID != "" && input.ExternalOrderID != "" {
+		logger.Info("Step 8: Syncing tracking to channel",
+			"orderId", input.OrderID,
+			"channelId", input.ChannelID,
+			"externalOrderId", input.ExternalOrderID,
+		)
+
+		channelSyncInput := map[string]interface{}{
+			"channelId":       input.ChannelID,
+			"externalOrderId": input.ExternalOrderID,
+			"trackingNumber":  result.TrackingNumber,
+			"carrier":         packResult.Carrier,
+			"notifyCustomer":  true,
+		}
+
+		err = workflow.ExecuteActivity(ctx, "SyncTrackingToChannel", channelSyncInput).Get(ctx, nil)
+		if err != nil {
+			// Log warning but don't fail the workflow for channel sync errors
+			logger.Warn("Failed to sync tracking to channel",
+				"orderId", input.OrderID,
+				"channelId", input.ChannelID,
+				"error", err,
+			)
+		} else {
+			result.ChannelSynced = true
+			logger.Info("Tracking synced to channel",
+				"orderId", input.OrderID,
+				"channelId", input.ChannelID,
+			)
+		}
+	}
+
+	// ========================================
 	// Workflow Complete
 	// ========================================
-	// Determine final status based on unit tracking
-	if input.UseUnitTracking {
-		if len(result.FailedUnits) > 0 && len(result.CompletedUnits) > 0 {
-			result.Status = "partial_success"
-			result.PartialSuccess = true
-			logger.Info("Order fulfillment completed with partial success",
-				"orderId", input.OrderID,
-				"completedUnits", len(result.CompletedUnits),
-				"failedUnits", len(result.FailedUnits),
-			)
-		} else if len(result.FailedUnits) > 0 {
-			result.Status = "failed"
-		} else {
-			result.Status = "completed"
-		}
+	// Determine final status based on unit tracking (always enabled)
+	if len(result.FailedUnits) > 0 && len(result.CompletedUnits) > 0 {
+		result.Status = "partial_success"
+		result.PartialSuccess = true
+		logger.Info("Order fulfillment completed with partial success",
+			"orderId", input.OrderID,
+			"completedUnits", len(result.CompletedUnits),
+			"failedUnits", len(result.FailedUnits),
+		)
+	} else if len(result.FailedUnits) > 0 {
+		result.Status = "failed"
 	} else {
 		result.Status = "completed"
 	}
@@ -572,6 +667,10 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		"status", result.Status,
 		"waveId", result.WaveID,
 		"trackingNumber", result.TrackingNumber,
+		"tenantId", input.TenantID,
+		"sellerId", input.SellerID,
+		"billingRecorded", result.BillingRecorded,
+		"channelSynced", result.ChannelSynced,
 	)
 
 	return result, nil

@@ -1,0 +1,26 @@
+{
+  "id": "services/inventory-service",
+  "title": "Inventory Service",
+  "description": "The Inventory Service manages stock levels and warehouse locations.",
+  "source": "@site/docs/services/inventory-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/inventory-service",
+  "permalink": "/services/inventory-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 8,
+  "frontMatter": {
+    "sidebar_position": 8
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Shipping Service",
+    "permalink": "/services/shipping-service"
+  },
+  "next": {
+    "title": "Labor Service",
+    "permalink": "/services/labor-service"
+  }
+}

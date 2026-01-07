@@ -1,0 +1,26 @@
+{
+  "id": "infrastructure/mongodb",
+  "title": "MongoDB",
+  "description": "MongoDB is used as the primary database for all WMS Platform services.",
+  "source": "@site/docs/infrastructure/mongodb.md",
+  "sourceDirName": "infrastructure",
+  "slug": "/infrastructure/mongodb",
+  "permalink": "/infrastructure/mongodb",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Infrastructure Overview",
+    "permalink": "/infrastructure/overview"
+  },
+  "next": {
+    "title": "Apache Kafka",
+    "permalink": "/infrastructure/kafka"
+  }
+}

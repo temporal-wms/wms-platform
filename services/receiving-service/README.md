@@ -4,7 +4,7 @@ The Receiving Service manages inbound shipments and the receiving process within
 
 ## Overview
 
-- **Port**: 8010
+- **Port**: 8013
 - **Database**: receiving_db (MongoDB)
 - **Aggregate Root**: InboundShipment
 

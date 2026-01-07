@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/aggregates/shipment",
+  "title": "Shipment Aggregate",
+  "description": "The Shipment aggregate manages carrier integration and the SLAM (Scan, Label, Apply, Manifest) process.",
+  "source": "@site/docs/domain-driven-design/aggregates/shipment.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/shipment",
+  "permalink": "/domain-driven-design/aggregates/shipment",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 7,
+  "frontMatter": {
+    "sidebar_position": 7
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "PackTask Aggregate",
+    "permalink": "/domain-driven-design/aggregates/pack-task"
+  },
+  "next": {
+    "title": "InventoryItem Aggregate",
+    "permalink": "/domain-driven-design/aggregates/inventory-item"
+  }
+}

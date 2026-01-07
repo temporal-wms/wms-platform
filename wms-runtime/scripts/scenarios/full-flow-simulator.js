@@ -29,6 +29,12 @@
 //   GIFTWRAP_ORDER_RATIO  - Ratio of orders with gift wrap (default: 0.2)
 //   SKIP_FACILITY_SETUP   - Set to 'true' to skip facility setup phase
 //
+// Billing Configuration (optional):
+//   ENABLE_BILLING        - Set to 'true' to enable billing activity recording (default: depends on ENABLE_BILLING_TRACKING)
+//   TEST_SELLER_ID        - Seller ID for billing activities (default: SLR-TEST-DEFAULT)
+//   TEST_TENANT_ID        - Tenant ID for billing activities (default: TENANT-DEFAULT)
+//   TEST_FACILITY_ID      - Facility ID for billing activities (default: FAC-001)
+//
 // Order Type Configuration:
 //   SINGLE_ITEM_RATIO     - Ratio of single-item orders (default: 0.4 = 40%)
 //   MULTI_ITEM_RATIO      - Ratio of multi-item orders (default: 0.6 = 60%)
@@ -107,6 +113,24 @@ import {
   getUnitsForOrder,
   checkHealth as checkUnitHealth,
 } from '../lib/unit.js';
+import {
+  PROCESS_PATHS,
+  STAGE_TYPES,
+  resolveProcessPath,
+  createExecutionPlan,
+  getExecutionPlanByOrder,
+  executeAllStages,
+} from '../lib/wes.js';
+import {
+  recordPickActivity,
+  recordPackActivity,
+  recordShippingActivity,
+  recordGiftWrapActivity,
+  recordSpecialHandlingActivities,
+  createBillingContext,
+  checkHealth as checkBillingHealth,
+  BILLING_CONFIG,
+} from '../lib/billing.js';
 
 // Load station test data for facility setup
 const stationData = new SharedArray('stations', function () {
@@ -158,6 +182,28 @@ const multiRouteOrders = new Counter('flow_multi_route_orders');
 const totalRoutesCreated = new Counter('flow_total_routes_created');
 const parallelPickingTasks = new Counter('flow_parallel_picking_tasks');
 const toteArrivalsSignaled = new Counter('flow_tote_arrivals_signaled');
+
+// WES execution metrics
+const wesExecutionsCreated = new Counter('flow_wes_executions_created');
+const wesExecutionsCompleted = new Counter('flow_wes_executions_completed');
+const wesPathPickPack = new Counter('flow_wes_path_pick_pack');
+const wesPathPickWallPack = new Counter('flow_wes_path_pick_wall_pack');
+const wesPathPickConsolidatePack = new Counter('flow_wes_path_pick_consolidate_pack');
+
+// Billing metrics (optional - controlled by ENABLE_BILLING_TRACKING env var)
+const billingPickActivities = new Counter('flow_billing_pick_activities');
+const billingPackActivities = new Counter('flow_billing_pack_activities');
+const billingShippingActivities = new Counter('flow_billing_shipping_activities');
+const billingGiftWrapActivities = new Counter('flow_billing_giftwrap_activities');
+const billingSpecialHandling = new Counter('flow_billing_special_handling');
+
+// Billing configuration
+const BILLING_FLOW_CONFIG = {
+  enableBillingIntegration: __ENV.ENABLE_BILLING !== 'false' && BILLING_CONFIG.enableBillingTracking,
+  testSellerId: __ENV.TEST_SELLER_ID || 'SLR-TEST-DEFAULT',
+  testTenantId: __ENV.TEST_TENANT_ID || 'TENANT-DEFAULT',
+  testFacilityId: __ENV.TEST_FACILITY_ID || 'FAC-001',
+};
 
 // Stage constants for gauge (WES-aligned flow)
 const STAGE = {
@@ -396,6 +442,81 @@ function createTestOrders(count) {
   console.log(`  - Requirements: hazmat=${requirementCounts.hazmat}, fragile=${requirementCounts.fragile}, ` +
               `oversized=${requirementCounts.oversized}, heavy=${requirementCounts.heavy}, high_value=${requirementCounts.high_value}`);
   return orders;
+}
+
+/**
+ * Record billing activities for completed orders
+ * @param {Object[]} orders - Array of order objects
+ * @param {string} stage - Current stage (picking, packing, shipping, giftwrap)
+ */
+function recordBillingForOrders(orders, stage) {
+  if (!BILLING_FLOW_CONFIG.enableBillingIntegration) {
+    return { recorded: 0, skipped: orders.length };
+  }
+
+  const billingContext = createBillingContext({
+    sellerId: BILLING_FLOW_CONFIG.testSellerId,
+    tenantId: BILLING_FLOW_CONFIG.testTenantId,
+  }, BILLING_FLOW_CONFIG.testFacilityId);
+
+  let recorded = 0;
+
+  for (const order of orders) {
+    try {
+      switch (stage) {
+        case 'picking':
+          // Record pick activity based on item count
+          const pickResult = recordPickActivity(billingContext, order.orderId, order.itemCount || 1);
+          if (pickResult) {
+            billingPickActivities.add(1);
+            recorded++;
+          }
+          // Record special handling if requirements exist
+          if (order.requirements && order.requirements.length > 0) {
+            const specialResult = recordSpecialHandlingActivities(billingContext, order.orderId, order.requirements);
+            billingSpecialHandling.add(specialResult.recorded);
+          }
+          break;
+
+        case 'packing':
+          const packResult = recordPackActivity(billingContext, order.orderId, 1);
+          if (packResult) {
+            billingPackActivities.add(1);
+            recorded++;
+          }
+          break;
+
+        case 'giftwrap':
+          if (order.giftWrap) {
+            const giftWrapResult = recordGiftWrapActivity(billingContext, order.orderId, 1);
+            if (giftWrapResult) {
+              billingGiftWrapActivities.add(1);
+              recorded++;
+            }
+          }
+          break;
+
+        case 'shipping':
+          // Use a simulated shipping cost based on item count
+          const shippingCost = 5.00 + (order.itemCount || 1) * 0.50;
+          const shipmentId = `SHP-${order.orderId}`;
+          const shippingResult = recordShippingActivity(billingContext, shipmentId, shippingCost);
+          if (shippingResult) {
+            billingShippingActivities.add(1);
+            recorded++;
+          }
+          break;
+      }
+    } catch (e) {
+      console.warn(`Failed to record billing for order ${order.orderId} at ${stage}: ${e.message}`);
+    }
+  }
+
+  if (recorded > 0) {
+    console.log(`[Billing] Recorded ${recorded} ${stage} activities`);
+  }
+
+  return { recorded, skipped: orders.length - recorded };
 }
 
 /**
@@ -675,6 +796,52 @@ export default function (data) {
     console.log(`Unit reservation complete: ${totalUnitsReserved} reserved, ${reservationsFailed} failed`);
   }
 
+  // Phase 1c: Create WES Execution Plans for each order
+  console.log('\nPhase 1c: Creating WES Execution Plans');
+  const wesPlans = [];
+  for (const order of orders) {
+    // Resolve process path based on order characteristics
+    const processPath = resolveProcessPath({
+      items: order.items || [],
+      requirements: order.requirements || [],
+    });
+
+    // Track path distribution
+    switch (processPath) {
+      case PROCESS_PATHS.PICK_PACK:
+        wesPathPickPack.add(1);
+        break;
+      case PROCESS_PATHS.PICK_WALL_PACK:
+        wesPathPickWallPack.add(1);
+        break;
+      case PROCESS_PATHS.PICK_CONSOLIDATE_PACK:
+        wesPathPickConsolidatePack.add(1);
+        break;
+    }
+
+    // Create execution plan
+    const execution = createExecutionPlan(order.orderId, {
+      items: order.items || [],
+      requirements: order.requirements || [],
+      processPath: processPath,
+      giftWrap: order.giftWrap || false,
+    });
+
+    if (execution) {
+      wesExecutionsCreated.add(1);
+      wesPlans.push({
+        orderId: order.orderId,
+        executionId: execution.executionId || execution.id,
+        processPath: processPath,
+      });
+      console.log(`Created WES execution for ${order.orderId}: path=${processPath}`);
+    } else {
+      console.log(`WES execution plan creation skipped for ${order.orderId} (service may not support it)`);
+    }
+    sleep(0.1);
+  }
+  console.log(`Created ${wesPlans.length} WES execution plans`);
+
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
 
   // Phase 2: Waving - Create wave, release it, and signal workflows
@@ -729,6 +896,13 @@ export default function (data) {
     stagePickingProcessed,
     orderIds
   );
+
+  // Record billing activities for picked orders (optional)
+  if (BILLING_FLOW_CONFIG.enableBillingIntegration) {
+    console.log('\n[Billing] Recording picking activities');
+    recordBillingForOrders(orders, 'picking');
+  }
+
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
 
   // Verify orders have progressed past picking
@@ -766,6 +940,16 @@ export default function (data) {
   flowCurrentStage.add(STAGE.GIFT_WRAP);
   console.log('\nPhase 6: Processing Gift Wrap');
   const giftWrapResults = processGiftWrapOrders(orders);
+
+  // Record billing activities for gift wrap orders (optional)
+  if (BILLING_FLOW_CONFIG.enableBillingIntegration) {
+    const giftWrapOrders = orders.filter(o => o.giftWrap);
+    if (giftWrapOrders.length > 0) {
+      console.log('\n[Billing] Recording gift wrap activities');
+      recordBillingForOrders(giftWrapOrders, 'giftwrap');
+    }
+  }
+
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
 
   // Phase 7: WES Packing
@@ -778,6 +962,13 @@ export default function (data) {
     stagePackingProcessed,
     orderIds
   );
+
+  // Record billing activities for packed orders (optional)
+  if (BILLING_FLOW_CONFIG.enableBillingIntegration) {
+    console.log('\n[Billing] Recording packing activities');
+    recordBillingForOrders(orders, 'packing');
+  }
+
   sleep(FLOW_CONFIG.stageDelayMs / 1000);
 
   // Verify orders have been packed
@@ -793,6 +984,12 @@ export default function (data) {
     stageShippingProcessed,
     orderIds
   );
+
+  // Record billing activities for shipped orders (optional)
+  if (BILLING_FLOW_CONFIG.enableBillingIntegration) {
+    console.log('\n[Billing] Recording shipping activities');
+    recordBillingForOrders(orders, 'shipping');
+  }
 
   // Calculate final metrics
   flowCurrentStage.add(STAGE.COMPLETE);
@@ -853,6 +1050,15 @@ export default function (data) {
   console.log(`--- Post-WES ---`);
   console.log(`Gift Wrap Processed: ${giftWrapResults.processed}`);
   console.log(`Shipments Processed: ${shippingResults.processed}`);
+  if (BILLING_FLOW_CONFIG.enableBillingIntegration) {
+    console.log(`--- Billing ---`);
+    console.log(`Billing Integration: ENABLED`);
+    console.log(`  - Seller ID: ${BILLING_FLOW_CONFIG.testSellerId}`);
+    console.log(`  - Tenant ID: ${BILLING_FLOW_CONFIG.testTenantId}`);
+  } else {
+    console.log(`--- Billing ---`);
+    console.log(`Billing Integration: DISABLED (set ENABLE_BILLING=true to enable)`);
+  }
   console.log(`Total Duration: ${flowDuration}ms (${(flowDuration / 1000).toFixed(1)}s)`);
   console.log(`Success Rate: ${((completedOrders / orders.length) * 100).toFixed(1)}%`);
   console.log('='.repeat(60));

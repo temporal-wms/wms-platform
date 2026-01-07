@@ -30,6 +30,9 @@ type Config struct {
 	FacilityServiceURL      string
 	UnitServiceURL          string
 	ProcessPathServiceURL   string
+	BillingServiceURL       string
+	ChannelServiceURL       string
+	SellerServiceURL        string
 }
 
 // NewServiceClients creates a new ServiceClients instance
@@ -85,6 +88,38 @@ func (c *ServiceClients) doRequest(ctx context.Context, method, url string, body
 	}
 
 	return nil
+}
+
+// PostJSON performs an HTTP POST request with JSON body to a named service and returns the response
+func (c *ServiceClients) PostJSON(ctx context.Context, serviceName string, path string, body interface{}) (interface{}, error) {
+	baseURL := c.getServiceURL(serviceName)
+	if baseURL == "" {
+		return nil, fmt.Errorf("unknown service: %s", serviceName)
+	}
+	url := baseURL + path
+	var result map[string]interface{}
+	if err := c.doRequest(ctx, http.MethodPost, url, body, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// getServiceURL returns the base URL for a named service
+func (c *ServiceClients) getServiceURL(serviceName string) string {
+	switch serviceName {
+	case "billing":
+		return c.config.BillingServiceURL
+	case "channel":
+		return c.config.ChannelServiceURL
+	case "order":
+		return c.config.OrderServiceURL
+	case "inventory":
+		return c.config.InventoryServiceURL
+	case "seller":
+		return c.config.SellerServiceURL
+	default:
+		return ""
+	}
 }
 
 // OrderService methods
@@ -784,14 +819,13 @@ type PersistProcessPathResult struct {
 }
 
 // PersistProcessPath saves the process path to ensure all units follow the same path
-func (c *ServiceClients) PersistProcessPath(ctx context.Context, orderID string, requirements []string, consolidationRequired, giftWrapRequired bool, specialHandling []string) (*PersistProcessPathResult, error) {
-	url := fmt.Sprintf("%s/api/v1/process-paths", c.config.OrderServiceURL)
+func (c *ServiceClients) PersistProcessPath(ctx context.Context, orderID string, items []ProcessPathItem, giftWrap bool, totalValue float64) (*PersistProcessPathResult, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths/determine", c.config.ProcessPathServiceURL)
 	req := map[string]interface{}{
-		"orderId":               orderID,
-		"requirements":          requirements,
-		"consolidationRequired": consolidationRequired,
-		"giftWrapRequired":      giftWrapRequired,
-		"specialHandling":       specialHandling,
+		"orderId":    orderID,
+		"items":      items,
+		"giftWrap":   giftWrap,
+		"totalValue": totalValue,
 	}
 	var result PersistProcessPathResult
 	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
@@ -813,7 +847,7 @@ type ProcessPathInfo struct {
 
 // GetProcessPath retrieves a persisted process path by ID
 func (c *ServiceClients) GetProcessPath(ctx context.Context, pathID string) (*ProcessPathInfo, error) {
-	url := fmt.Sprintf("%s/api/v1/process-paths/%s", c.config.OrderServiceURL, pathID)
+	url := fmt.Sprintf("%s/api/v1/process-paths/%s", c.config.ProcessPathServiceURL, pathID)
 	var result ProcessPathInfo
 	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
 		return nil, err

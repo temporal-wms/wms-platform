@@ -28,7 +28,7 @@ func ShippingWorkflow(ctx workflow.Context, input map[string]interface{}) error 
 	trackingNumber, _ := input["trackingNumber"].(string)
 	carrier, _ := input["carrier"].(string)
 
-	// Extract unit-level tracking fields
+	// Extract unit-level tracking fields (now always enabled)
 	var unitIDs []string
 	var pathID string
 	if ids, ok := input["unitIds"].([]interface{}); ok {
@@ -41,7 +41,6 @@ func ShippingWorkflow(ctx workflow.Context, input map[string]interface{}) error 
 	if pid, ok := input["pathId"].(string); ok {
 		pathID = pid
 	}
-	useUnitTracking := len(unitIDs) > 0
 
 	logger.Info("Starting shipping workflow (SLAM)",
 		"orderId", orderID,
@@ -189,8 +188,8 @@ func ShippingWorkflow(ctx workflow.Context, input map[string]interface{}) error 
 		logger.Warn("Failed to notify customer", "orderId", orderID, "error", err)
 	}
 
-	// Step 9: Unit-level shipping confirmation (if unit tracking enabled)
-	if useUnitTracking && len(unitIDs) > 0 {
+	// Step 9: Unit-level shipping confirmation (always enabled)
+	if len(unitIDs) > 0 {
 		logger.Info("Confirming unit-level shipping", "orderId", orderID, "unitCount", len(unitIDs))
 
 		handlerID := "shipping-workflow"

@@ -1,7 +1,42 @@
 #!/bin/bash
 
 # WMS Platform - Port Forward Script
-# This script manages kubectl port-forwards for all WMS platform UIs and databases
+# This script manages kubectl port-forwards for infrastructure services only
+#
+# ╔════════════════════════════════════════════════════════════════════════════╗
+# ║                    IMPORTANT: Kong API Gateway Integration                 ║
+# ╚════════════════════════════════════════════════════════════════════════════╝
+#
+# WMS SERVICES ARE NOW ACCESSIBLE VIA KONG API GATEWAY:
+#   All WMS microservices (order-service, picking-service, etc.) are exposed
+#   through Kong Gateway at: http://localhost:8888/{service-name}/api/v1/...
+#
+#   NO PORT-FORWARDING NEEDED FOR WMS SERVICES!
+#
+#   Examples:
+#     - Order Service:    http://localhost:8888/order-service/api/v1/orders
+#     - Picking Service:  http://localhost:8888/picking-service/api/v1/picks
+#     - Inventory:        http://localhost:8888/inventory-service/api/v1/stock
+#
+# INFRASTRUCTURE SERVICES STILL NEED PORT-FORWARDING:
+#   This script manages port-forwards for infrastructure UIs and databases:
+#     - Grafana (monitoring)
+#     - Temporal UI (workflow orchestration)
+#     - Kafka UI (message broker management)
+#     - Prometheus (metrics)
+#     - MongoDB (direct database access)
+#     - Trino (data mesh query engine)
+#     - Superset (BI dashboard)
+#     - MinIO Console (object storage)
+#
+# Kong Gateway Access:
+#   - Port-forward Kong Gateway: kubectl port-forward -n kong svc/kong-gateway 8888:80
+#   - Or use the emulator with default Kong settings (no port-forward needed)
+#
+# For legacy direct service access (debugging/development):
+#   Set USE_KONG=false in your environment to use direct port-forward mode
+#
+# ══════════════════════════════════════════════════════════════════════════════
 
 set -e
 
@@ -28,6 +63,16 @@ SERVICES=(
     "OpenMetadata|data-mesh|svc/openmetadata|8585|8585|Data Catalog"
     "Airflow|data-mesh|svc/airflow-api-server|8080|8083|Workflow Scheduler"
     "MongoDB|mongodb|svc/mongodb-headless|27017|27017|Document Database"
+    # Microfrontends
+    "WMS Shell|wms-frontend|svc/wms-shell|80|3100|Main Frontend App"
+    "Orders MF|wms-frontend|svc/wms-orders-mf|80|3101|Orders Microfrontend"
+    "Waves MF|wms-frontend|svc/wms-waves-mf|80|3102|Waves Microfrontend"
+    "Inventory MF|wms-frontend|svc/wms-inventory-mf|80|3103|Inventory Microfrontend"
+    "Picking MF|wms-frontend|svc/wms-picking-mf|80|3104|Picking Microfrontend"
+    "Packing MF|wms-frontend|svc/wms-packing-mf|80|3105|Packing Microfrontend"
+    "Shipping MF|wms-frontend|svc/wms-shipping-mf|80|3106|Shipping Microfrontend"
+    "Labor MF|wms-frontend|svc/wms-labor-mf|80|3107|Labor Microfrontend"
+    "Dashboard MF|wms-frontend|svc/wms-dashboard-mf|80|3108|Dashboard Microfrontend"
 )
 
 # Print banner

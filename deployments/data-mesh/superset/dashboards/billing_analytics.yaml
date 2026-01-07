@@ -1,0 +1,185 @@
+# Superset Dashboard Configuration: Billing Analytics
+# Dashboard for monitoring financial performance and billing metrics
+
+dashboard:
+  name: "Billing Analytics"
+  description: "Financial performance dashboard with revenue, cost analysis, and billing metrics"
+  slug: billing-analytics
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 30 days"
+      filter_key: __time_range
+
+    - name: seller_id
+      type: select
+      title: "Seller"
+      description: "Filter by seller"
+      required: false
+      filter_key: seller_id
+
+    - name: activity_type
+      type: select
+      title: "Activity Type"
+      description: "Filter by activity type"
+      required: false
+      options:
+        - storage
+        - pick
+        - pack
+        - receiving
+        - shipping
+        - return_processing
+        - gift_wrap
+        - hazmat
+        - oversized
+        - cold_chain
+      filter_key: activity_type
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Total Revenue"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: billing_metrics_daily
+          configuration:
+            metric: total_revenue
+            subheader: "USD"
+            format: "${value:,.2f}"
+
+        - name: "Cost per Order"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: billing_metrics_daily
+          configuration:
+            metric: avg_revenue_per_activity
+            subheader: "Benchmark: $3.00-$5.00"
+            format: "${value:.2f}"
+
+        - name: "Total Activities"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: billing_metrics_daily
+          configuration:
+            metric: total_activities
+            subheader: "Billable Activities"
+
+        - name: "Invoiced %"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: billing_metrics_daily
+          configuration:
+            metric: invoiced_percentage
+            subheader: "Revenue Invoiced"
+            format: "{value:.1f}%"
+
+    # Row 2: Revenue Analysis
+    - row: 2
+      charts:
+        - name: "Revenue by Activity Type"
+          type: bar
+          width: 6
+          height: 4
+          description: "Revenue breakdown by activity type"
+          dataset: billing_metrics_daily
+          configuration:
+            metric: total_revenue
+            dimension: activity_type
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Revenue by Seller"
+          type: bar
+          width: 6
+          height: 4
+          description: "Top sellers by revenue"
+          dataset: billing_metrics_daily
+          configuration:
+            metric: total_revenue
+            dimension: seller_id
+            orientation: horizontal
+            sort: descending
+            show_values: true
+            row_limit: 10
+
+    # Row 3: Trends
+    - row: 3
+      charts:
+        - name: "Revenue Trend"
+          type: line
+          width: 8
+          height: 4
+          description: "Revenue over time by activity type"
+          dataset: billing_metrics_daily
+          configuration:
+            metrics:
+              - total_revenue
+            dimension: date
+            time_grain: day
+            show_legend: true
+            breakdown_by: activity_type
+
+        - name: "Activity Distribution"
+          type: pie
+          width: 4
+          height: 4
+          description: "Activities by type"
+          dataset: billing_metrics_daily
+          configuration:
+            metric: total_activities
+            dimension: activity_type
+            show_labels: true
+
+    # Row 4: Detailed Table
+    - row: 4
+      charts:
+        - name: "Billing Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Detailed billing metrics"
+          dataset: billing_metrics_daily
+          configuration:
+            columns:
+              - date
+              - seller_id
+              - activity_type
+              - total_activities
+              - total_revenue
+              - avg_unit_price
+              - invoiced_amount
+              - uninvoiced_amount
+            order_by: total_revenue
+            order_direction: desc
+            conditional_formatting:
+              - column: total_revenue
+                conditions:
+                  - operator: ">="
+                    value: 10000
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 5000
+                    background_color: "#faad14"
+                    text_color: "#000000"
+
+# Dataset references
+datasets:
+  - name: billing_metrics_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: billing_metrics_daily
