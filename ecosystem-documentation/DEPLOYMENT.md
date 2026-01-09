@@ -9,7 +9,7 @@ This guide covers deploying the WMS Platform documentation to GitHub Pages.
 - **Deployment Branch:** `gh-pages`
 - **Deployment Method:** Automatic via GitHub Actions
 - **Build Tool:** Docusaurus 3.6.0
-- **Node Version:** 18+
+- **Node Version:** 20+
 
 ## Deployment Architecture
 
@@ -41,7 +41,7 @@ Deployment automatically runs when:
 
 1. **Build Job:**
    - Checkout repository with full history
-   - Setup Node.js 18 with npm caching
+   - Setup Node.js 20 with npm caching
    - Install dependencies (`npm ci`)
    - Build static site (`npm run build`)
    - Upload build artifact

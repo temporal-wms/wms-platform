@@ -4,7 +4,7 @@ This website is built using [Docusaurus 2](https://docusaurus.io/), a modern sta
 
 ## Prerequisites
 
-- Node.js version 18.0 or above:
+- Node.js version 20.0 or above:
   - Check your version with `node -v`
   - [Download Node.js](https://nodejs.org/)
 
