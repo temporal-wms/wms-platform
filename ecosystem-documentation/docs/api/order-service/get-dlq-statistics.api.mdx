@@ -1,0 +1,63 @@
+---
+id: get-dlq-statistics
+title: "Get DLQ statistics"
+description: "Retrieve statistics about dead letter queue entries"
+sidebar_label: "Get DLQ statistics"
+hide_title: true
+hide_table_of_contents: true
+api: eJylVMFOGzEQ/RXLZ5INPVU5FQFFlagKJKgHwmHiHbIGr+3as4Eoyr93xpuSQFqpak+7tt+8mXnz7LWuMZtkI9ng9VjfICWLS1SZgGwma7KCeehI1Qi1ckiESf3osEOFXrBZH2mCRdbjO30mmMsecy0YfX+kE+YYfGbgeK0/jEbyeZv07PK65MsqbdPXTGqCJ04hcIjRWQMCrx6zxKx1Ng22IH+0isgsYf6IhjgwphAxke0zUiBw59tSd2jL5AtMenOkO88lBsdZT0PXJzwE/QVkvvoM1nUJJ9xLl39XGtS1lS7AXb0t8h1ZYbuRlF2v0X9RBcd60+1rmyf7DWRWxi+Y8CGkFvhE10A4INtiCSZLDvshSV+ZNzey3yI1oeaDBRbRgRpeVGKTQW+TQbFJVSbLiIxpiUl8stZdcgxuiOK4qlww4JqQafxxNDquINpqecwB70zCtnAhtmwJ1VOx5vtMmak4dvjc5iG+QBsdDk1o/8THqtWdkcUrHZvV+odQxNl2/S3V7OUJA6xBdXL15YDnNLQxYYM+W742N+eTqcAUq6lCCW7BwwJL3TKn4uKsrFfUoPr+daKiAxLxhzM/89PG5lKQ5GvA1w7zeOYHqq/EJCwEik/UEpyty3IHcPYBzco43Mv7ejp4Bq4RcrYLXwqiBOaJx7+Lz8W7qoviglzS8Bjl8sw89y4T7Ps+Ho6Go+01BVMc5aEVzaSnq21PaorQMoqvqpVB8XA+7Q2nOCzy6LnYPYYLJPXrUegfofeyr3fPw7++Wb39CV+o4glYX54CcdN6a+Y7fWBmsXGxM1tFHCug9XoOGW+T22xkW9Ra8T7/LiFZmIuP7u6ZvGE2tpn4/wkZok+MwSiXhwfZSTEH75xY8vWiXZxPWa+fvBkA6Q==
+sidebar_class_name: "get api-method"
+info_path: api/order-service/order-service-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get DLQ statistics"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/dead-letter-queue/stats"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Retrieve statistics about dead letter queue entries
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"DLQ stats retrieved","content":{"application/json":{"schema":{"type":"object","properties":{"totalEntries":{"type":"integer"},"unresolvedCount":{"type":"integer"},"resolvedCount":{"type":"integer"},"byFailureStatus":{"type":"object","additionalProperties":{"type":"integer"}},"byResolution":{"type":"object","additionalProperties":{"type":"integer"}},"oldestUnresolvedAt":{"type":"string","format":"date-time"}},"title":"DLQStats"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,133 @@
+# Grafana Helm Values for WMS Platform
+# Pre-configured with Loki, Tempo, and Prometheus datasources
+
+# Admin credentials for dev
+adminUser: admin
+adminPassword: wms-admin-2024
+
+# Resource settings for dev
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Persistence
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClassName: standard
+
+# Service configuration
+service:
+  type: NodePort
+  port: 80
+  nodePort: 30300
+
+# Enable anonymous access for dev
+grafana.ini:
+  server:
+    root_url: "%(protocol)s://%(domain)s/"
+  auth.anonymous:
+    enabled: true
+    org_role: Viewer
+  auth:
+    disable_login_form: false
+  security:
+    allow_embedding: true
+  log:
+    mode: console
+    level: info
+  dataproxy:
+    logging: true
+
+# Pre-configure datasources
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      # Loki for logs
+      - name: Loki
+        type: loki
+        uid: loki
+        url: http://loki-gateway.observability.svc.cluster.local:80
+        access: proxy
+        isDefault: false
+        jsonData:
+          maxLines: 1000
+          derivedFields:
+            # Link to Tempo traces via trace_id
+            - name: TraceID
+              matcherRegex: '"trace_id":"([a-f0-9]+)"'
+              url: '$${__value.raw}'
+              datasourceUid: tempo
+              urlDisplayLabel: View Trace
+
+      # Tempo for traces
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        url: http://tempo.observability.svc.cluster.local:3200
+        access: proxy
+        isDefault: false
+        jsonData:
+          httpMethod: GET
+          tracesToLogs:
+            datasourceUid: loki
+            tags: ['service.name', 'wms_correlation_id']
+            mappedTags: [{ key: 'service.name', value: 'service' }]
+            filterByTraceID: true
+            filterBySpanID: false
+          tracesToMetrics:
+            datasourceUid: prometheus
+            tags: [{ key: 'service.name', value: 'service' }]
+          serviceMap:
+            datasourceUid: prometheus
+          nodeGraph:
+            enabled: true
+          lokiSearch:
+            datasourceUid: loki
+
+      # Prometheus for metrics
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        url: http://prometheus-server.observability.svc.cluster.local:80
+        access: proxy
+        isDefault: true
+        jsonData:
+          timeInterval: "15s"
+          exemplarTraceIdDestinations:
+            - name: trace_id
+              datasourceUid: tempo
+
+# Dashboard providers (dashboards can be added later via ConfigMaps)
+dashboardProviders: {}
+
+# Sidecar for dashboard/datasource discovery
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    folder: /var/lib/grafana/dashboards
+    provider:
+      foldersFromFilesStructure: true
+  datasources:
+    enabled: true
+    label: grafana_datasource
+    labelValue: "1"
+
+# Plugins to install
+plugins:
+  - grafana-clock-panel
+  - grafana-piechart-panel
+
+# Replica count
+replicas: 1
+
+# Enable test framework
+testFramework:
+  enabled: false

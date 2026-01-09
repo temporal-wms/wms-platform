@@ -1,0 +1,202 @@
+{
+  "expectation_suite_name": "returns_data_product_quality",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0",
+    "data_product": "returns-dp",
+    "owner": "returns-team",
+    "sla": {
+      "freshness_minutes": 5,
+      "completeness_percent": 99.9
+    }
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Table should not be empty in normal operations"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "return_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "order_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "customer_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "reason"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "return_id"
+      },
+      "meta": {
+        "notes": "Primary key - must never be null"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "order_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "reason"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "return_id"
+      },
+      "meta": {
+        "notes": "Return ID must be unique across all records"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "status",
+        "value_set": [
+          "received",
+          "inspecting",
+          "restocking",
+          "disposed",
+          "completed",
+          "rejected"
+        ]
+      },
+      "meta": {
+        "notes": "Valid return status values from domain model"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "reason",
+        "value_set": [
+          "damaged",
+          "wrong_item",
+          "not_needed",
+          "defective",
+          "size_issue",
+          "quality_issue",
+          "other"
+        ]
+      },
+      "meta": {
+        "notes": "Valid return reason values from domain model"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "disposition",
+        "value_set": [
+          "restock",
+          "refurbish",
+          "dispose",
+          "return_to_vendor",
+          "pending"
+        ]
+      },
+      "meta": {
+        "notes": "Valid disposition values for returned items"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "return_id",
+        "regex": "^RTN-[A-Z0-9]{8,}$"
+      },
+      "meta": {
+        "notes": "Return ID format: RTN-XXXXXXXX"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "order_id",
+        "regex": "^ORD-[A-Z0-9]{8,}$"
+      },
+      "meta": {
+        "notes": "Order ID format: ORD-XXXXXXXX"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "refund_amount",
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Refund amount must be non-negative"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_of_type",
+      "kwargs": {
+        "column": "received_at",
+        "type_": "TIMESTAMP"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "received_at",
+        "min_value": "2024-01-01T00:00:00",
+        "parse_strings_as_datetimes": true
+      },
+      "meta": {
+        "notes": "Returns should not have dates before system launch"
+      }
+    },
+    {
+      "expectation_type": "expect_column_pair_values_A_to_be_greater_than_B",
+      "kwargs": {
+        "column_A": "completed_at",
+        "column_B": "received_at",
+        "or_equal": true
+      },
+      "meta": {
+        "notes": "Completed timestamp must be >= received timestamp"
+      }
+    }
+  ],
+  "ge_cloud_id": null,
+  "data_context_key": "returns_data_product"
+}

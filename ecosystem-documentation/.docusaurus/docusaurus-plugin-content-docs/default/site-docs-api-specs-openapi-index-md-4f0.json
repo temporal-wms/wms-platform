@@ -1,0 +1,26 @@
+{
+  "id": "api/specs/openapi/index",
+  "title": "OpenAPI Specifications",
+  "description": "All WMS Platform REST APIs are documented using OpenAPI 3.0.3. Each service exposes a RESTful API with consistent conventions.",
+  "source": "@site/docs/api/specs/openapi/index.md",
+  "sourceDirName": "api/specs/openapi",
+  "slug": "/api/specs/openapi/",
+  "permalink": "/wms-platform/api/specs/openapi/",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Validate order",
+    "permalink": "/wms-platform/api/order-service/validate-order"
+  },
+  "next": {
+    "title": "AsyncAPI Specifications",
+    "permalink": "/wms-platform/api/specs/asyncapi/"
+  }
+}

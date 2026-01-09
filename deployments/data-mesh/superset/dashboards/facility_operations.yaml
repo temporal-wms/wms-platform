@@ -1,0 +1,242 @@
+# Superset Dashboard Configuration: Facility Operations
+# Dashboard for monitoring facility utilization and station performance
+
+dashboard:
+  name: "Facility Operations"
+  description: "Facility utilization dashboard with station metrics, zone performance, and equipment status"
+  slug: facility-operations
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: facility_id
+      type: select
+      title: "Facility"
+      description: "Filter by facility"
+      required: false
+      filter_key: facility_id
+
+    - name: zone
+      type: select
+      title: "Zone"
+      description: "Filter by zone"
+      required: false
+      options:
+        - ZONE-1
+        - ZONE-2
+        - ZONE-3
+        - ZONE-4
+        - ZONE-5
+        - ZONE-6
+      filter_key: zone
+
+    - name: station_type
+      type: select
+      title: "Station Type"
+      description: "Filter by station type"
+      required: false
+      options:
+        - packing
+        - consolidation
+        - shipping
+        - receiving
+        - stow
+        - slam
+        - sortation
+        - qc
+      filter_key: station_type
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Total Stations"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: facility_utilization_daily
+          configuration:
+            metric: total_stations
+            subheader: "Stations"
+
+        - name: "Active Stations"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: facility_utilization_daily
+          configuration:
+            metric: active_stations
+            subheader: "Online"
+
+        - name: "Avg Utilization"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: facility_utilization_daily
+          configuration:
+            metric: avg_utilization
+            subheader: "Target: 80-85%"
+            format: "{value:.1f}%"
+
+        - name: "In Maintenance"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: facility_utilization_daily
+          configuration:
+            metric: maintenance_stations
+            subheader: "Stations"
+
+    # Row 2: Station Analysis
+    - row: 2
+      charts:
+        - name: "Stations by Type"
+          type: bar
+          width: 6
+          height: 4
+          description: "Station count by type"
+          dataset: facility_utilization_daily
+          configuration:
+            metric: total_stations
+            dimension: station_type
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Utilization by Zone"
+          type: bar
+          width: 6
+          height: 4
+          description: "Average utilization by zone"
+          dataset: facility_utilization_daily
+          configuration:
+            metric: avg_utilization
+            dimension: zone
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+    # Row 3: Tasks and Performance
+    - row: 3
+      charts:
+        - name: "Tasks per Station Type"
+          type: bar
+          width: 6
+          height: 4
+          description: "Tasks processed by station type"
+          dataset: facility_utilization_daily
+          configuration:
+            metric: total_tasks
+            dimension: station_type
+            orientation: horizontal
+            sort: descending
+
+        - name: "Station Distribution"
+          type: pie
+          width: 3
+          height: 4
+          description: "Station distribution by type"
+          dataset: stations_current
+          configuration:
+            metric: "COUNT(*)"
+            dimension: station_type
+            show_labels: true
+
+        - name: "Status Distribution"
+          type: pie
+          width: 3
+          height: 4
+          description: "Stations by status"
+          dataset: stations_current
+          configuration:
+            metric: "COUNT(*)"
+            dimension: status
+            show_labels: true
+
+    # Row 4: Trends
+    - row: 4
+      charts:
+        - name: "Utilization Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Utilization trend over time"
+          dataset: facility_utilization_daily
+          configuration:
+            metrics:
+              - avg_utilization
+            dimension: date
+            time_grain: day
+            show_legend: true
+            breakdown_by: station_type
+
+        - name: "Tasks Trend"
+          type: area
+          width: 6
+          height: 4
+          description: "Tasks processed over time"
+          dataset: facility_utilization_daily
+          configuration:
+            metrics:
+              - total_tasks
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+    # Row 5: Station Details
+    - row: 5
+      charts:
+        - name: "Station Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Detailed station information"
+          dataset: stations_current
+          configuration:
+            columns:
+              - station_id
+              - name
+              - zone
+              - station_type
+              - status
+              - max_concurrent_tasks
+              - current_tasks
+              - assigned_worker_id
+              - updated_at
+            order_by: updated_at
+            order_direction: desc
+            conditional_formatting:
+              - column: status
+                conditions:
+                  - operator: "=="
+                    value: "active"
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: "=="
+                    value: "maintenance"
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: "=="
+                    value: "inactive"
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: facility_utilization_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: facility_utilization_daily
+  - name: stations_current
+    database: trino
+    schema: iceberg.silver
+    table_name: stations_current

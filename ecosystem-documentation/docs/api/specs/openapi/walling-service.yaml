@@ -1,0 +1,944 @@
+openapi: 3.0.3
+info:
+  title: WMS Walling Service API
+  description: |
+    REST API for put-wall sorting operations in the WMS Platform.
+
+    This service manages the consolidation of picked items into order-specific bins on a put-wall,
+    enabling efficient multi-order fulfillment where items are gathered before packing.
+
+    ## Put-Wall Concept
+
+    A put-wall is a physical structure with multiple bins/slots, each assigned to a specific order.
+    Workers ("walliners") scan items from pick totes and sort them into the correct order bin.
+    This is essential for multi-item orders where items may be picked from different zones.
+
+    ```
+    [Tote with picked items] → [Walliner scans item] → [System shows bin] → [Item sorted to bin]
+                                                                                    ↓
+                                                                          [Bin complete → Pack]
+    ```
+
+    ## When Walling is Used
+
+    - **Multi-item orders**: Items from different warehouse zones need consolidation
+    - **Batch picking**: Multiple orders picked together need sorting
+    - **Process path requires consolidation**: Orders with `consolidationRequired: true`
+
+    ## Task Lifecycle
+    ```
+    pending → assigned → in_progress → completed
+                                    ↓
+                                (triggers packing)
+    ```
+
+    ## Integration Points
+    - **WES Service**: Creates walling tasks during `pick_wall_pack` process
+    - **Picking Service**: Provides source totes with picked items
+    - **Packing Service**: Receives notification when bin is complete
+    - **Temporal Workflow**: Receives `wallingCompleted` signal upon completion
+
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8017
+    description: Development server
+  - url: https://api.wms.example.com
+    description: Production server
+
+tags:
+  - name: Tasks
+    description: Walling task management
+  - name: Sorting
+    description: Item sorting operations
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /api/v1/tasks:
+    post:
+      summary: Create walling task
+      description: |
+        Creates a new walling task for an order. The task tracks items to be sorted
+        from source totes into the destination bin on the put-wall.
+
+        **Triggered by:**
+        - WES workflow when order requires consolidation
+        - After picking is complete for multi-item orders
+
+        **State Transition:** None → `pending`
+      tags: [Tasks]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWallingTaskRequest'
+            examples:
+              singleItemOrder:
+                summary: Single item from one tote
+                description: Simple consolidation with one item from one tote
+                value:
+                  orderId: "ORD-2026-0108-001"
+                  waveId: "WV-2026-0108-AM-001"
+                  routeId: "RT-a1b2c3d4-e5f6-7890"
+                  putWallId: "PUTWALL-A"
+                  destinationBin: "BIN-A-12"
+                  sourceTotes:
+                    - toteId: "TOTE-PICK-001"
+                      pickTaskId: "PT-2026-0108-001"
+                      itemCount: 1
+                  itemsToSort:
+                    - sku: "ELEC-HDMI-CBL-6FT"
+                      quantity: 1
+                      fromToteId: "TOTE-PICK-001"
+              multiItemSingleTote:
+                summary: Multiple items from one tote
+                description: Order with multiple items picked into same tote
+                value:
+                  orderId: "ORD-2026-0108-002"
+                  waveId: "WV-2026-0108-AM-001"
+                  routeId: "RT-b2c3d4e5-f6a7-8901"
+                  putWallId: "PUTWALL-A"
+                  destinationBin: "BIN-A-15"
+                  sourceTotes:
+                    - toteId: "TOTE-PICK-002"
+                      pickTaskId: "PT-2026-0108-002"
+                      itemCount: 4
+                  itemsToSort:
+                    - sku: "APPAREL-TSHIRT-BLK-M"
+                      quantity: 2
+                      fromToteId: "TOTE-PICK-002"
+                    - sku: "APPAREL-JEANS-BLU-32"
+                      quantity: 1
+                      fromToteId: "TOTE-PICK-002"
+                    - sku: "FOOTWEAR-SNEAKER-WHT-10"
+                      quantity: 1
+                      fromToteId: "TOTE-PICK-002"
+              multiItemMultiTote:
+                summary: Items from multiple totes (multi-zone pick)
+                description: Order with items picked from different warehouse zones
+                value:
+                  orderId: "ORD-2026-0108-003"
+                  waveId: "WV-2026-0108-AM-001"
+                  routeId: "RT-c3d4e5f6-a7b8-9012"
+                  putWallId: "PUTWALL-B"
+                  destinationBin: "BIN-B-08"
+                  sourceTotes:
+                    - toteId: "TOTE-PICK-003A"
+                      pickTaskId: "PT-2026-0108-003A"
+                      itemCount: 2
+                    - toteId: "TOTE-PICK-003B"
+                      pickTaskId: "PT-2026-0108-003B"
+                      itemCount: 1
+                  itemsToSort:
+                    - sku: "ELEC-TV-65IN-OLED"
+                      quantity: 1
+                      fromToteId: "TOTE-PICK-003A"
+                    - sku: "ELEC-SOUNDBAR-5.1"
+                      quantity: 1
+                      fromToteId: "TOTE-PICK-003A"
+                    - sku: "ELEC-HDMI-CBL-6FT"
+                      quantity: 1
+                      fromToteId: "TOTE-PICK-003B"
+              priorityOrder:
+                summary: Priority order (same-day)
+                description: High-priority order requiring expedited processing
+                value:
+                  orderId: "ORD-2026-0108-004"
+                  waveId: "WV-2026-0108-PRIORITY-001"
+                  routeId: "RT-d4e5f6a7-b8c9-0123"
+                  putWallId: "PUTWALL-PRIORITY"
+                  destinationBin: "BIN-P-01"
+                  sourceTotes:
+                    - toteId: "TOTE-PRIORITY-001"
+                      pickTaskId: "PT-2026-0108-004"
+                      itemCount: 2
+                  itemsToSort:
+                    - sku: "FOOD-STEAK-WAGYU-8OZ"
+                      quantity: 4
+                      fromToteId: "TOTE-PRIORITY-001"
+                    - sku: "FOOD-LOBSTER-TAIL-2PK"
+                      quantity: 2
+                      fromToteId: "TOTE-PRIORITY-001"
+                  priority: 1
+      responses:
+        '201':
+          description: Walling task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+              examples:
+                created:
+                  summary: Task successfully created
+                  value:
+                    taskId: "WT-2026-0108-001"
+                    orderId: "ORD-2026-0108-001"
+                    waveId: "WV-2026-0108-AM-001"
+                    routeId: "RT-a1b2c3d4-e5f6-7890"
+                    status: "pending"
+                    putWallId: "PUTWALL-A"
+                    destinationBin: "BIN-A-12"
+                    sourceTotes:
+                      - toteId: "TOTE-PICK-001"
+                        pickTaskId: "PT-2026-0108-001"
+                        itemCount: 1
+                    itemsToSort:
+                      - sku: "ELEC-HDMI-CBL-6FT"
+                        quantity: 1
+                        fromToteId: "TOTE-PICK-001"
+                        sortedQty: 0
+                    sortedItems: []
+                    priority: 5
+                    createdAt: "2026-01-08T10:30:00Z"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingTote:
+                  summary: Source tote not found
+                  value:
+                    error: "Source tote not found"
+                    code: "TOTE_NOT_FOUND"
+                    details:
+                      toteId: "TOTE-INVALID-001"
+                binOccupied:
+                  summary: Destination bin already occupied
+                  value:
+                    error: "Bin already occupied"
+                    code: "BIN_OCCUPIED"
+                    details:
+                      binId: "BIN-A-12"
+                      currentOrderId: "ORD-2026-0108-099"
+
+  /api/v1/tasks/pending:
+    get:
+      summary: Get pending tasks by put wall
+      description: |
+        Retrieves pending walling tasks for a specific put-wall.
+
+        Used by walliners to see their work queue at their assigned wall.
+      tags: [Tasks]
+      parameters:
+        - name: putWallId
+          in: query
+          required: true
+          description: Put-wall ID to filter by
+          schema:
+            type: string
+          example: "PUTWALL-A"
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of tasks to return
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        '200':
+          description: List of pending tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WallingTask'
+        '400':
+          description: Missing putWallId parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingParam:
+                  value:
+                    error: "putWallId parameter required"
+                    code: "MISSING_PARAMETER"
+
+  /api/v1/tasks/walliner/{wallinerId}/active:
+    get:
+      summary: Get active task by walliner
+      description: |
+        Retrieves the currently active task for a walliner.
+
+        Used by mobile devices to resume work after interruption.
+      tags: [Tasks]
+      parameters:
+        - name: wallinerId
+          in: path
+          required: true
+          description: Walliner (worker) ID
+          schema:
+            type: string
+          example: "WALLINER-001"
+      responses:
+        '200':
+          description: Active task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+              examples:
+                activeTask:
+                  summary: Task in progress
+                  value:
+                    taskId: "WT-2026-0108-002"
+                    orderId: "ORD-2026-0108-002"
+                    status: "in_progress"
+                    wallinerId: "WALLINER-001"
+                    station: "STATION-1"
+                    putWallId: "PUTWALL-A"
+                    destinationBin: "BIN-A-15"
+                    itemsToSort:
+                      - sku: "APPAREL-TSHIRT-BLK-M"
+                        quantity: 2
+                        fromToteId: "TOTE-PICK-002"
+                        sortedQty: 1
+                      - sku: "APPAREL-JEANS-BLU-32"
+                        quantity: 1
+                        fromToteId: "TOTE-PICK-002"
+                        sortedQty: 0
+        '404':
+          description: No active task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                noActiveTask:
+                  value:
+                    error: "No active task found"
+                    code: "NO_ACTIVE_TASK"
+                    details:
+                      wallinerId: "WALLINER-001"
+
+  /api/v1/tasks/{taskId}:
+    get:
+      summary: Get walling task
+      description: Retrieves a walling task by its ID with complete details.
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+          example: "WT-2026-0108-001"
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    error: "Task not found"
+                    code: "TASK_NOT_FOUND"
+                    details:
+                      taskId: "WT-INVALID-001"
+
+  /api/v1/tasks/{taskId}/assign:
+    post:
+      summary: Assign walliner to task
+      description: |
+        Assigns a walliner (worker) to a walling task.
+
+        **Prerequisites:**
+        - Task must be in `pending` status
+        - Walliner must not have another active task
+
+        **State Transition:** `pending` → `assigned`
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WT-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignWallinerRequest'
+            examples:
+              standardAssignment:
+                summary: Standard walliner assignment
+                value:
+                  wallinerId: "WALLINER-001"
+                  station: "STATION-1"
+              priorityStation:
+                summary: Assignment to priority station
+                value:
+                  wallinerId: "WALLINER-PRIORITY-001"
+                  station: "STATION-PRIORITY"
+      responses:
+        '200':
+          description: Walliner assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+              examples:
+                assigned:
+                  value:
+                    taskId: "WT-2026-0108-001"
+                    status: "assigned"
+                    wallinerId: "WALLINER-001"
+                    station: "STATION-1"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyAssigned:
+                  summary: Task already assigned
+                  value:
+                    error: "Task already assigned"
+                    code: "TASK_ALREADY_ASSIGNED"
+                    details:
+                      currentWallinerId: "WALLINER-002"
+                wallinerBusy:
+                  summary: Walliner has active task
+                  value:
+                    error: "Walliner has active task"
+                    code: "WALLINER_BUSY"
+                    details:
+                      wallinerId: "WALLINER-001"
+                      activeTaskId: "WT-2026-0108-099"
+
+  /api/v1/tasks/{taskId}/sort:
+    post:
+      summary: Sort item to bin
+      description: |
+        Sorts an item from a tote into the destination bin.
+
+        **Behavior:**
+        - First item sorted: task status changes to `in_progress`
+        - `sortedQty` on the item is incremented
+        - All items sorted: task auto-completes and sends `wallingCompleted` signal
+
+        **Validation:**
+        - Cannot sort more than the remaining quantity
+        - SKU must exist in the items to sort
+        - Tote ID must match the item's source tote
+      tags: [Sorting]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WT-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SortItemRequest'
+            examples:
+              singleItem:
+                summary: Sort single item
+                description: Standard single item sort from tote to bin
+                value:
+                  sku: "ELEC-HDMI-CBL-6FT"
+                  quantity: 1
+                  fromToteId: "TOTE-PICK-001"
+              multipleUnits:
+                summary: Sort multiple units
+                description: Sort multiple units of same SKU at once
+                value:
+                  sku: "APPAREL-TSHIRT-BLK-M"
+                  quantity: 2
+                  fromToteId: "TOTE-PICK-002"
+              lastItem:
+                summary: Sort last item (completes task)
+                description: Sorting this item will complete the task
+                value:
+                  sku: "FOOTWEAR-SNEAKER-WHT-10"
+                  quantity: 1
+                  fromToteId: "TOTE-PICK-002"
+      responses:
+        '200':
+          description: Item sorted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+              examples:
+                partialProgress:
+                  summary: Partial sort (more items remaining)
+                  value:
+                    taskId: "WT-2026-0108-002"
+                    status: "in_progress"
+                    itemsToSort:
+                      - sku: "APPAREL-TSHIRT-BLK-M"
+                        quantity: 2
+                        sortedQty: 2
+                      - sku: "APPAREL-JEANS-BLU-32"
+                        quantity: 1
+                        sortedQty: 0
+                    sortedItems:
+                      - sku: "APPAREL-TSHIRT-BLK-M"
+                        quantity: 2
+                        fromToteId: "TOTE-PICK-002"
+                        toBinId: "BIN-A-15"
+                        sortedAt: "2026-01-08T10:45:00Z"
+                        verified: true
+                completed:
+                  summary: All items sorted (task completed)
+                  value:
+                    taskId: "WT-2026-0108-002"
+                    status: "completed"
+                    itemsToSort:
+                      - sku: "APPAREL-TSHIRT-BLK-M"
+                        quantity: 2
+                        sortedQty: 2
+                      - sku: "APPAREL-JEANS-BLU-32"
+                        quantity: 1
+                        sortedQty: 1
+                    completedAt: "2026-01-08T10:48:00Z"
+        '400':
+          description: Invalid request (wrong SKU, quantity, or tote)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrongSku:
+                  summary: SKU not in task
+                  value:
+                    error: "SKU not found in task"
+                    code: "SKU_NOT_FOUND"
+                    details:
+                      sku: "UNKNOWN-SKU-001"
+                      taskId: "WT-2026-0108-001"
+                wrongTote:
+                  summary: Wrong source tote
+                  value:
+                    error: "Item not in specified tote"
+                    code: "WRONG_TOTE"
+                    details:
+                      sku: "ELEC-HDMI-CBL-6FT"
+                      expectedTote: "TOTE-PICK-001"
+                      providedTote: "TOTE-PICK-002"
+                quantityExceeded:
+                  summary: Quantity exceeds remaining
+                  value:
+                    error: "Quantity exceeds remaining"
+                    code: "QUANTITY_EXCEEDED"
+                    details:
+                      sku: "APPAREL-TSHIRT-BLK-M"
+                      requested: 3
+                      remaining: 1
+
+  /api/v1/tasks/{taskId}/complete:
+    post:
+      summary: Complete walling task
+      description: |
+        Manually completes a walling task.
+
+        **Note:** Tasks auto-complete when all items are sorted. This endpoint is for
+        manual completion in edge cases (e.g., damaged item, short shipment).
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WT-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for manual completion
+                  example: "Short shipment - 1 item missing from tote"
+            examples:
+              shortShipment:
+                summary: Short shipment completion
+                value:
+                  reason: "Short shipment - 1 item missing from tote, proceeding with partial order"
+              damagedItem:
+                summary: Damaged item completion
+                value:
+                  reason: "Item damaged during sorting, removed from order"
+      responses:
+        '200':
+          description: Task completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+              examples:
+                completed:
+                  value:
+                    taskId: "WT-2026-0108-001"
+                    status: "completed"
+                    completedAt: "2026-01-08T10:50:00Z"
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyCompleted:
+                  value:
+                    error: "Task already completed"
+                    code: "INVALID_STATE_TRANSITION"
+                    details:
+                      currentStatus: "completed"
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the service.
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                timestamp: "2026-01-08T10:30:00Z"
+                version: "1.0.0"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service.
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
+
+components:
+  schemas:
+    CreateWallingTaskRequest:
+      type: object
+      description: Request to create a new walling task
+      required:
+        - orderId
+        - waveId
+        - putWallId
+        - destinationBin
+        - sourceTotes
+        - itemsToSort
+      properties:
+        orderId:
+          type: string
+          description: Order ID being consolidated
+          example: "ORD-2026-0108-001"
+        waveId:
+          type: string
+          description: Wave ID containing this order
+          example: "WV-2026-0108-AM-001"
+        routeId:
+          type: string
+          description: Task route ID from WES
+          example: "RT-a1b2c3d4-e5f6-7890"
+        putWallId:
+          type: string
+          description: Put-wall ID where sorting occurs
+          example: "PUTWALL-A"
+        destinationBin:
+          type: string
+          description: Target bin on the put-wall for this order
+          example: "BIN-A-12"
+        sourceTotes:
+          type: array
+          description: Totes containing items to sort
+          items:
+            $ref: '#/components/schemas/SourceTote'
+        itemsToSort:
+          type: array
+          description: Items to be sorted from totes to bin
+          items:
+            $ref: '#/components/schemas/ItemToSort'
+        priority:
+          type: integer
+          description: Task priority (1=highest)
+          default: 5
+          minimum: 1
+          maximum: 10
+
+    WallingTask:
+      type: object
+      description: Complete walling task information
+      properties:
+        taskId:
+          type: string
+          description: Unique task identifier
+          example: "WT-2026-0108-001"
+        orderId:
+          type: string
+          description: Associated order ID
+          example: "ORD-2026-0108-001"
+        waveId:
+          type: string
+          description: Associated wave ID
+          example: "WV-2026-0108-AM-001"
+        routeId:
+          type: string
+          description: Task route ID from WES
+          example: "RT-a1b2c3d4-e5f6-7890"
+        wallinerId:
+          type: string
+          description: Assigned walliner ID
+          example: "WALLINER-001"
+        status:
+          $ref: '#/components/schemas/WallingTaskStatus'
+        sourceTotes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceTote'
+        destinationBin:
+          type: string
+          description: Target bin on the put-wall
+          example: "BIN-A-12"
+        putWallId:
+          type: string
+          description: Put-wall ID
+          example: "PUTWALL-A"
+        itemsToSort:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemToSort'
+        sortedItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortedItem'
+        station:
+          type: string
+          description: Walliner station
+          example: "STATION-1"
+        priority:
+          type: integer
+          description: Task priority (1=highest)
+          example: 5
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-01-08T10:30:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-01-08T10:50:00Z"
+
+    SourceTote:
+      type: object
+      description: Source tote containing items to sort
+      properties:
+        toteId:
+          type: string
+          description: Tote identifier
+          example: "TOTE-PICK-001"
+        pickTaskId:
+          type: string
+          description: Pick task that filled this tote
+          example: "PT-2026-0108-001"
+        itemCount:
+          type: integer
+          description: Number of items in the tote
+          example: 3
+
+    ItemToSort:
+      type: object
+      description: Item that needs to be sorted from tote to bin
+      properties:
+        sku:
+          type: string
+          description: Product SKU
+          example: "ELEC-HDMI-CBL-6FT"
+        quantity:
+          type: integer
+          description: Total quantity to sort
+          example: 2
+        fromToteId:
+          type: string
+          description: Source tote ID
+          example: "TOTE-PICK-001"
+        sortedQty:
+          type: integer
+          description: Quantity already sorted
+          default: 0
+          example: 1
+
+    SortedItem:
+      type: object
+      description: Record of a sorted item
+      properties:
+        sku:
+          type: string
+          description: Product SKU
+          example: "ELEC-HDMI-CBL-6FT"
+        quantity:
+          type: integer
+          description: Quantity sorted in this action
+          example: 1
+        fromToteId:
+          type: string
+          description: Source tote ID
+          example: "TOTE-PICK-001"
+        toBinId:
+          type: string
+          description: Destination bin ID
+          example: "BIN-A-12"
+        sortedAt:
+          type: string
+          format: date-time
+          description: When the item was sorted
+          example: "2026-01-08T10:45:00Z"
+        verified:
+          type: boolean
+          description: Whether the sort was verified
+          default: false
+
+    AssignWallinerRequest:
+      type: object
+      description: Request to assign a walliner to a task
+      required:
+        - wallinerId
+      properties:
+        wallinerId:
+          type: string
+          description: Walliner (worker) ID to assign
+          example: "WALLINER-001"
+        station:
+          type: string
+          description: Station where walliner is working
+          example: "STATION-1"
+
+    SortItemRequest:
+      type: object
+      description: Request to sort an item from tote to bin
+      required:
+        - sku
+        - quantity
+        - fromToteId
+      properties:
+        sku:
+          type: string
+          description: Product SKU to sort
+          example: "ELEC-HDMI-CBL-6FT"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity to sort
+          example: 1
+        fromToteId:
+          type: string
+          description: Source tote ID
+          example: "TOTE-PICK-001"
+
+    WallingTaskStatus:
+      type: string
+      description: |
+        Task status:
+        - `pending`: Task created, waiting for walliner assignment
+        - `assigned`: Walliner assigned, ready to start sorting
+        - `in_progress`: Items actively being sorted
+        - `completed`: All items sorted, ready for packing
+        - `cancelled`: Task cancelled
+      enum:
+        - pending
+        - assigned
+        - in_progress
+        - completed
+        - cancelled
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          example: "1.0.0"
+
+    ErrorResponse:
+      type: object
+      description: Standard error response format
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Task not found"
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "TASK_NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: |
+        Correlation ID for distributed tracing (CloudEvents format).
+        If not provided, the service will generate one.
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      description: |
+        Idempotency key for safe request retries.
+        Requests with the same key within 24 hours return cached response.
+      required: false
+      schema:
+        type: string
+      example: "idem-2026-0108-wall-001"

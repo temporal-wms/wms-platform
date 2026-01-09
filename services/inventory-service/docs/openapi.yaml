@@ -1,0 +1,1239 @@
+openapi: 3.0.3
+info:
+  title: WMS Inventory Service API
+  description: |
+    REST API for inventory management operations in the WMS Platform.
+
+    This service handles:
+    - Stock level tracking across warehouse locations
+    - Inventory reservations for order fulfillment
+    - Stock receiving from inbound shipments
+    - Inventory adjustments and cycle counts
+    - Low-stock monitoring and alerts
+    - Release of reserved inventory
+
+    **Inventory Lifecycle:**
+    1. Receive - New stock arrives and is put away to locations
+    2. Available - Stock is available for picking
+    3. Reserved - Stock is allocated to orders
+    4. Picked - Stock is removed from inventory
+    5. Adjusted - Stock levels corrected via cycle count or exception
+
+    **Stock States:**
+    - `available`: Ready to be reserved for orders
+    - `reserved`: Allocated to an order, awaiting pick
+    - `damaged`: Identified as unsellable
+    - `quarantine`: Held for inspection
+
+    **Location Format:**
+    Locations follow the pattern: Zone-Aisle-Bay-Level (e.g., A-1-2-3)
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8008/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Inventory
+    description: Core inventory item management
+  - name: Receiving
+    description: Inbound stock receiving operations
+  - name: Reservations
+    description: Stock reservation and release for orders
+  - name: Adjustments
+    description: Inventory adjustments and corrections
+  - name: Alerts
+    description: Low-stock monitoring and alerts
+  - name: Queries
+    description: Inventory lookups and searches
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /inventory:
+    post:
+      summary: Create inventory item
+      description: |
+        Creates a new inventory item (SKU) in the system.
+
+        **Usage:**
+        - Called when onboarding new products
+        - Sets reorder points for low-stock alerts
+        - Initial quantity is zero until stock is received
+
+        **Integration:**
+        - Publishes `InventoryItemCreated` event on success
+      tags: [Inventory]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInventoryItemRequest'
+            examples:
+              widget:
+                summary: Create widget SKU
+                value:
+                  sku: "WIDGET-001"
+                  productName: "Premium Widget"
+                  reorderPoint: 10
+                  reorderQuantity: 100
+              gadget:
+                summary: Create gadget SKU with low reorder point
+                value:
+                  sku: "GADGET-002"
+                  productName: "Smart Gadget"
+                  reorderPoint: 5
+                  reorderQuantity: 50
+      responses:
+        '201':
+          description: Inventory item created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+              examples:
+                created:
+                  value:
+                    sku: "WIDGET-001"
+                    productName: "Premium Widget"
+                    totalQuantity: 0
+                    reservedQuantity: 0
+                    availableQuantity: 0
+                    reorderPoint: 10
+                    reorderQuantity: 100
+                    locations: []
+                    createdAt: "2024-12-24T10:00:00Z"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: SKU already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List inventory items
+      description: |
+        Retrieve a paginated list of inventory items with optional filtering.
+
+        **Filters:**
+        - By SKU pattern (partial match)
+        - By low-stock status (below reorder point)
+        - By zone for location-specific queries
+      tags: [Queries]
+      parameters:
+        - name: sku
+          in: query
+          description: Filter by SKU (partial match)
+          schema:
+            type: string
+          example: "WIDGET"
+        - name: lowStock
+          in: query
+          description: Filter for items below reorder point
+          schema:
+            type: boolean
+          example: true
+        - name: zone
+          in: query
+          description: Filter by warehouse zone
+          schema:
+            type: string
+          example: "A"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of inventory items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryItemResponse'
+                  total:
+                    type: integer
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+              examples:
+                list:
+                  value:
+                    data:
+                      - sku: "WIDGET-001"
+                        productName: "Premium Widget"
+                        totalQuantity: 150
+                        reservedQuantity: 25
+                        availableQuantity: 125
+                        reorderPoint: 10
+                        reorderQuantity: 100
+                        locations:
+                          - locationId: "A-1-2-3"
+                            zone: "A"
+                            quantity: 100
+                            reserved: 20
+                            available: 80
+                          - locationId: "A-2-1-1"
+                            zone: "A"
+                            quantity: 50
+                            reserved: 5
+                            available: 45
+                    total: 1
+                    pagination:
+                      page: 1
+                      pageSize: 50
+                      total: 1
+                      hasMore: false
+
+  /inventory/{sku}:
+    get:
+      summary: Get inventory by SKU
+      description: |
+        Retrieve detailed inventory information for a specific SKU,
+        including quantities at each warehouse location.
+      tags: [Queries]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          description: Product SKU
+          schema:
+            type: string
+          example: "WIDGET-001"
+      responses:
+        '200':
+          description: Inventory item details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+              examples:
+                item:
+                  value:
+                    sku: "WIDGET-001"
+                    productName: "Premium Widget"
+                    totalQuantity: 150
+                    reservedQuantity: 25
+                    availableQuantity: 125
+                    reorderPoint: 10
+                    reorderQuantity: 100
+                    locations:
+                      - locationId: "A-1-2-3"
+                        zone: "A"
+                        quantity: 100
+                        reserved: 20
+                        available: 80
+                      - locationId: "A-2-1-1"
+                        zone: "A"
+                        quantity: 50
+                        reserved: 5
+                        available: 45
+                    createdAt: "2024-12-20T08:00:00Z"
+                    updatedAt: "2024-12-24T10:30:00Z"
+        '404':
+          description: SKU not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inventory/{sku}/receive:
+    post:
+      summary: Receive stock
+      description: |
+        Records receipt of new inventory at a warehouse location.
+
+        **Usage:**
+        - Called during inbound receiving process
+        - Creates location entry if not exists
+        - Increments available quantity
+
+        **Integration:**
+        - Publishes `InventoryReceived` event
+        - May clear low-stock alert if quantity restored
+      tags: [Receiving]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WIDGET-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiveStockRequest'
+            examples:
+              receive:
+                summary: Receive stock to location
+                value:
+                  locationId: "A-1-2-3"
+                  quantity: 100
+                  zone: "A"
+              receiveLarge:
+                summary: Receive large quantity
+                value:
+                  locationId: "B-3-4-2"
+                  quantity: 500
+                  zone: "B"
+                  lotNumber: "LOT-20241224-001"
+                  expiryDate: "2025-12-24"
+      responses:
+        '200':
+          description: Stock received successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+              examples:
+                received:
+                  value:
+                    sku: "WIDGET-001"
+                    productName: "Premium Widget"
+                    totalQuantity: 200
+                    reservedQuantity: 0
+                    availableQuantity: 200
+                    reorderPoint: 10
+                    reorderQuantity: 100
+                    locations:
+                      - locationId: "A-1-2-3"
+                        zone: "A"
+                        quantity: 200
+                        reserved: 0
+                        available: 200
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: SKU not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inventory/{sku}/reserve:
+    post:
+      summary: Reserve stock
+      description: |
+        Reserves inventory for an order, moving it from available to reserved state.
+
+        **Behavior:**
+        - Decrements available quantity
+        - Increments reserved quantity
+        - Tracks reservation by order ID
+
+        **Validation:**
+        - Cannot reserve more than available
+        - Validates location has sufficient stock
+
+        **Integration:**
+        - Called by order fulfillment workflow
+        - Publishes `InventoryReserved` event
+      tags: [Reservations]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WIDGET-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveStockRequest'
+            examples:
+              reserve:
+                summary: Reserve for order
+                value:
+                  orderId: "ORD-A1B2C3D4"
+                  quantity: 5
+              reserveWithLocation:
+                summary: Reserve from specific location
+                value:
+                  orderId: "ORD-E5F6G7H8"
+                  locationId: "A-1-2-3"
+                  quantity: 10
+      responses:
+        '200':
+          description: Stock reserved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+              examples:
+                reserved:
+                  value:
+                    reservationId: "RSV-a1b2c3d4"
+                    sku: "WIDGET-001"
+                    orderId: "ORD-A1B2C3D4"
+                    quantity: 5
+                    locationId: "A-1-2-3"
+                    reservedAt: "2024-12-24T10:00:00Z"
+        '400':
+          description: Insufficient available stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                insufficient:
+                  value:
+                    error: "insufficient available stock"
+                    code: "INSUFFICIENT_STOCK"
+                    details:
+                      requested: 100
+                      available: 50
+        '404':
+          description: SKU not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inventory/{sku}/release:
+    post:
+      summary: Release reserved stock
+      description: |
+        Releases previously reserved inventory back to available state.
+
+        **Use Cases:**
+        - Order cancellation
+        - Pick exception (short pick, damaged)
+        - Reservation timeout
+
+        **Integration:**
+        - Publishes `InventoryReleased` event
+      tags: [Reservations]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WIDGET-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseStockRequest'
+            examples:
+              release:
+                summary: Release for cancelled order
+                value:
+                  orderId: "ORD-A1B2C3D4"
+                  quantity: 5
+                  reason: "order_cancelled"
+              partialRelease:
+                summary: Partial release due to short pick
+                value:
+                  orderId: "ORD-E5F6G7H8"
+                  locationId: "A-1-2-3"
+                  quantity: 2
+                  reason: "short_pick"
+      responses:
+        '200':
+          description: Stock released successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '400':
+          description: Cannot release more than reserved quantity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No reservation found for order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inventory/{sku}/pick:
+    post:
+      summary: Confirm stock picked
+      description: |
+        Confirms that reserved stock has been physically picked.
+        Removes the quantity from inventory.
+
+        **Behavior:**
+        - Decrements reserved quantity
+        - Decrements total quantity
+        - Publishes `InventoryPicked` event
+
+        **Validation:**
+        - Must have existing reservation for the order
+        - Cannot pick more than reserved
+
+        **Integration:**
+        - Called by picking service after successful pick
+        - May trigger low-stock alert
+      tags: [Reservations]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WIDGET-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PickStockRequest'
+            examples:
+              pick:
+                summary: Confirm pick for order
+                value:
+                  orderId: "ORD-A1B2C3D4"
+                  locationId: "A-1-2-3"
+                  quantity: 5
+      responses:
+        '200':
+          description: Pick confirmed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '400':
+          description: Invalid pick request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: SKU or reservation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inventory/{sku}/adjust:
+    post:
+      summary: Adjust inventory
+      description: |
+        Adjusts inventory quantity at a location. Used for:
+        - Cycle count corrections
+        - Damage write-offs
+        - Found inventory additions
+
+        **Behavior:**
+        - Sets the quantity to the new value
+        - Records the adjustment with reason
+        - May trigger low-stock alert
+
+        **Integration:**
+        - Publishes `InventoryAdjusted` event
+      tags: [Adjustments]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WIDGET-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdjustInventoryRequest'
+            examples:
+              cycleCount:
+                summary: Cycle count correction
+                value:
+                  locationId: "A-1-2-3"
+                  newQuantity: 95
+                  reason: "cycle_count"
+              damage:
+                summary: Damage write-off
+                value:
+                  locationId: "A-1-2-3"
+                  newQuantity: 90
+                  reason: "damage"
+                  notes: "5 units water damaged"
+              found:
+                summary: Found inventory
+                value:
+                  locationId: "B-2-1-1"
+                  newQuantity: 25
+                  reason: "found"
+                  notes: "Located during warehouse reorganization"
+      responses:
+        '200':
+          description: Inventory adjusted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdjustmentResponse'
+              examples:
+                adjusted:
+                  value:
+                    adjustmentId: "ADJ-a1b2c3d4"
+                    sku: "WIDGET-001"
+                    locationId: "A-1-2-3"
+                    previousQuantity: 100
+                    newQuantity: 95
+                    quantityChange: -5
+                    reason: "cycle_count"
+                    adjustedAt: "2024-12-24T10:30:00Z"
+        '400':
+          description: Invalid adjustment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: SKU or location not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inventory/low-stock:
+    get:
+      summary: Get low stock items
+      description: |
+        Retrieves all inventory items that are below their reorder point.
+
+        **Usage:**
+        - Used by procurement for replenishment planning
+        - Dashboard displays for warehouse managers
+        - Automated reorder triggers
+      tags: [Alerts]
+      parameters:
+        - name: zone
+          in: query
+          description: Filter by warehouse zone
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Low stock items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LowStockItem'
+                  total:
+                    type: integer
+              examples:
+                lowStock:
+                  value:
+                    data:
+                      - sku: "WIDGET-001"
+                        productName: "Premium Widget"
+                        availableQuantity: 8
+                        reorderPoint: 10
+                        reorderQuantity: 100
+                        deficit: 2
+                        alertedAt: "2024-12-24T09:00:00Z"
+                      - sku: "GADGET-002"
+                        productName: "Smart Gadget"
+                        availableQuantity: 3
+                        reorderPoint: 5
+                        reorderQuantity: 50
+                        deficit: 2
+                        alertedAt: "2024-12-24T08:30:00Z"
+                    total: 2
+
+  /inventory/{sku}/reservations:
+    get:
+      summary: Get reservations for SKU
+      description: |
+        Retrieves all active reservations for a specific SKU.
+        Useful for debugging and order tracking.
+      tags: [Queries]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WIDGET-001"
+        - name: orderId
+          in: query
+          description: Filter by order ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reservations for SKU
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sku:
+                    type: string
+                  reservations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReservationResponse'
+                  totalReserved:
+                    type: integer
+              examples:
+                reservations:
+                  value:
+                    sku: "WIDGET-001"
+                    reservations:
+                      - reservationId: "RSV-a1b2c3d4"
+                        orderId: "ORD-A1B2C3D4"
+                        quantity: 5
+                        locationId: "A-1-2-3"
+                        reservedAt: "2024-12-24T10:00:00Z"
+                      - reservationId: "RSV-e5f6g7h8"
+                        orderId: "ORD-E5F6G7H8"
+                        quantity: 3
+                        locationId: "A-2-1-1"
+                        reservedAt: "2024-12-24T10:15:00Z"
+                    totalReserved: 8
+        '404':
+          description: SKU not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inventory/{sku}/history:
+    get:
+      summary: Get inventory history
+      description: |
+        Retrieves the transaction history for a SKU, including
+        receives, reservations, picks, and adjustments.
+      tags: [Queries]
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WIDGET-001"
+        - name: startDate
+          in: query
+          description: Start date for history range
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: End date for history range
+          schema:
+            type: string
+            format: date
+        - name: transactionType
+          in: query
+          description: Filter by transaction type
+          schema:
+            type: string
+            enum: [receive, reserve, release, pick, adjust]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Inventory transaction history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sku:
+                    type: string
+                  transactions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryTransaction'
+                  total:
+                    type: integer
+              examples:
+                history:
+                  value:
+                    sku: "WIDGET-001"
+                    transactions:
+                      - transactionId: "TXN-001"
+                        type: "receive"
+                        quantity: 100
+                        locationId: "A-1-2-3"
+                        timestamp: "2024-12-24T08:00:00Z"
+                      - transactionId: "TXN-002"
+                        type: "reserve"
+                        quantity: -5
+                        orderId: "ORD-A1B2C3D4"
+                        locationId: "A-1-2-3"
+                        timestamp: "2024-12-24T10:00:00Z"
+                    total: 2
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
+
+components:
+  schemas:
+    CreateInventoryItemRequest:
+      type: object
+      required:
+        - sku
+        - productName
+      properties:
+        sku:
+          type: string
+          description: Unique product SKU
+          example: "WIDGET-001"
+        productName:
+          type: string
+          description: Product display name
+          example: "Premium Widget"
+        reorderPoint:
+          type: integer
+          minimum: 0
+          description: Quantity threshold for low-stock alerts
+          example: 10
+        reorderQuantity:
+          type: integer
+          minimum: 1
+          description: Suggested quantity to reorder
+          example: 100
+
+    InventoryItemResponse:
+      type: object
+      properties:
+        sku:
+          type: string
+          description: Product SKU
+          example: "WIDGET-001"
+        productName:
+          type: string
+          description: Product display name
+          example: "Premium Widget"
+        totalQuantity:
+          type: integer
+          description: Total quantity across all locations
+          example: 150
+        reservedQuantity:
+          type: integer
+          description: Quantity reserved for orders
+          example: 25
+        availableQuantity:
+          type: integer
+          description: Quantity available for new orders
+          example: 125
+        reorderPoint:
+          type: integer
+          description: Low-stock alert threshold
+          example: 10
+        reorderQuantity:
+          type: integer
+          description: Suggested reorder quantity
+          example: 100
+        isLowStock:
+          type: boolean
+          description: Whether available quantity is below reorder point
+          example: false
+        locations:
+          type: array
+          description: Stock breakdown by location
+          items:
+            $ref: '#/components/schemas/LocationStock'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LocationStock:
+      type: object
+      properties:
+        locationId:
+          type: string
+          description: Location identifier (Zone-Aisle-Bay-Level)
+          example: "A-1-2-3"
+        zone:
+          type: string
+          description: Warehouse zone
+          example: "A"
+        quantity:
+          type: integer
+          description: Total quantity at location
+          example: 100
+        reserved:
+          type: integer
+          description: Reserved quantity at location
+          example: 20
+        available:
+          type: integer
+          description: Available quantity at location
+          example: 80
+
+    ReceiveStockRequest:
+      type: object
+      required:
+        - locationId
+        - quantity
+      properties:
+        locationId:
+          type: string
+          description: Warehouse location to receive into
+          example: "A-1-2-3"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity being received
+          example: 100
+        zone:
+          type: string
+          description: Warehouse zone (derived from location if not provided)
+          example: "A"
+        lotNumber:
+          type: string
+          description: Lot/batch number for traceability
+          example: "LOT-20241224-001"
+        expiryDate:
+          type: string
+          format: date
+          description: Expiry date for perishable items
+
+    ReserveStockRequest:
+      type: object
+      required:
+        - orderId
+        - quantity
+      properties:
+        orderId:
+          type: string
+          description: Order ID for which stock is reserved
+          example: "ORD-A1B2C3D4"
+        locationId:
+          type: string
+          description: Specific location to reserve from (optional, system selects if not provided)
+          example: "A-1-2-3"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity to reserve
+          example: 5
+
+    ReleaseStockRequest:
+      type: object
+      required:
+        - orderId
+        - quantity
+      properties:
+        orderId:
+          type: string
+          description: Order ID for which stock was reserved
+          example: "ORD-A1B2C3D4"
+        locationId:
+          type: string
+          description: Specific location to release from (optional)
+          example: "A-1-2-3"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity to release
+          example: 5
+        reason:
+          type: string
+          description: Reason for release
+          enum: [order_cancelled, short_pick, damaged, adjustment, timeout]
+          example: "order_cancelled"
+
+    PickStockRequest:
+      type: object
+      required:
+        - orderId
+        - locationId
+        - quantity
+      properties:
+        orderId:
+          type: string
+          description: Order ID for the pick
+          example: "ORD-A1B2C3D4"
+        locationId:
+          type: string
+          description: Location picked from
+          example: "A-1-2-3"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity picked
+          example: 5
+
+    AdjustInventoryRequest:
+      type: object
+      required:
+        - locationId
+        - newQuantity
+        - reason
+      properties:
+        locationId:
+          type: string
+          description: Location to adjust
+          example: "A-1-2-3"
+        newQuantity:
+          type: integer
+          minimum: 0
+          description: New quantity at location
+          example: 95
+        reason:
+          type: string
+          description: Reason for adjustment
+          enum: [cycle_count, damage, found, shrinkage, correction]
+          example: "cycle_count"
+        notes:
+          type: string
+          description: Additional notes about the adjustment
+          example: "Quarterly cycle count"
+
+    ReservationResponse:
+      type: object
+      properties:
+        reservationId:
+          type: string
+          description: Unique reservation identifier
+          example: "RSV-a1b2c3d4"
+        sku:
+          type: string
+          example: "WIDGET-001"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        quantity:
+          type: integer
+          example: 5
+        locationId:
+          type: string
+          example: "A-1-2-3"
+        reservedAt:
+          type: string
+          format: date-time
+
+    AdjustmentResponse:
+      type: object
+      properties:
+        adjustmentId:
+          type: string
+          description: Unique adjustment identifier
+          example: "ADJ-a1b2c3d4"
+        sku:
+          type: string
+          example: "WIDGET-001"
+        locationId:
+          type: string
+          example: "A-1-2-3"
+        previousQuantity:
+          type: integer
+          example: 100
+        newQuantity:
+          type: integer
+          example: 95
+        quantityChange:
+          type: integer
+          description: Difference (negative for reduction)
+          example: -5
+        reason:
+          type: string
+          example: "cycle_count"
+        notes:
+          type: string
+        adjustedAt:
+          type: string
+          format: date-time
+
+    LowStockItem:
+      type: object
+      properties:
+        sku:
+          type: string
+          example: "WIDGET-001"
+        productName:
+          type: string
+          example: "Premium Widget"
+        availableQuantity:
+          type: integer
+          example: 8
+        reorderPoint:
+          type: integer
+          example: 10
+        reorderQuantity:
+          type: integer
+          example: 100
+        deficit:
+          type: integer
+          description: How much below reorder point
+          example: 2
+        alertedAt:
+          type: string
+          format: date-time
+
+    InventoryTransaction:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          example: "TXN-001"
+        type:
+          type: string
+          enum: [receive, reserve, release, pick, adjust]
+        quantity:
+          type: integer
+          description: Positive for additions, negative for removals
+        orderId:
+          type: string
+          description: Order ID (for reserve/release/pick)
+        locationId:
+          type: string
+        reason:
+          type: string
+          description: Reason (for adjustments/releases)
+        notes:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        hasMore:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "insufficient available stock"
+        code:
+          type: string
+          description: Error code
+          example: "INSUFFICIENT_STOCK"
+        details:
+          type: object
+          description: Additional error details
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

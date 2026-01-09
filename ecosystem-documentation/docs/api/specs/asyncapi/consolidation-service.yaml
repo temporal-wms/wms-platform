@@ -1,0 +1,335 @@
+asyncapi: 3.0.0
+info:
+  title: WMS Consolidation Service Events
+  version: 1.0.0
+  description: |
+    AsyncAPI specification for Consolidation Service domain events.
+
+    The Consolidation service publishes events to track order consolidation
+    for multi-item orders. Events follow the CloudEvents 1.0 specification.
+
+    **Event Flow:**
+    1. ConsolidationStarted - When a consolidation task is created
+    2. ItemConsolidated - When each item arrives at the station
+    3. ConsolidationCompleted - When all items are consolidated
+    4. ConsolidationCancelled - When a consolidation is cancelled
+
+    **Integration:**
+    - WES listens for ConsolidationCompleted to advance to packing
+    - Picking routes trigger ItemConsolidated upon delivery
+    - Analytics tracks consolidation times and throughput
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  kafka:
+    host: localhost:9092
+    protocol: kafka
+    description: Local Kafka broker
+
+defaultContentType: application/json
+
+channels:
+  wms.consolidation.events:
+    address: wms.consolidation.events
+    description: Order consolidation events topic (3 partitions, keyed by orderId)
+    messages:
+      consolidationStarted:
+        $ref: '#/components/messages/ConsolidationStartedEvent'
+      itemConsolidated:
+        $ref: '#/components/messages/ItemConsolidatedEvent'
+      consolidationCompleted:
+        $ref: '#/components/messages/ConsolidationCompletedEvent'
+      consolidationCancelled:
+        $ref: '#/components/messages/ConsolidationCancelledEvent'
+
+operations:
+  publishConsolidationStarted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.consolidation.events'
+    summary: Publish consolidation started event
+    description: Published when a consolidation task is created for a multi-item order
+    messages:
+      - $ref: '#/channels/wms.consolidation.events/messages/consolidationStarted'
+
+  publishItemConsolidated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.consolidation.events'
+    summary: Publish item consolidated event
+    description: Published when an item arrives at the consolidation station
+    messages:
+      - $ref: '#/channels/wms.consolidation.events/messages/itemConsolidated'
+
+  publishConsolidationCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.consolidation.events'
+    summary: Publish consolidation completed event
+    description: Published when all items are consolidated for an order
+    messages:
+      - $ref: '#/channels/wms.consolidation.events/messages/consolidationCompleted'
+
+  publishConsolidationCancelled:
+    action: send
+    channel:
+      $ref: '#/channels/wms.consolidation.events'
+    summary: Publish consolidation cancelled event
+    description: Published when a consolidation task is cancelled
+    messages:
+      - $ref: '#/channels/wms.consolidation.events/messages/consolidationCancelled'
+
+components:
+  messages:
+    ConsolidationStartedEvent:
+      name: ConsolidationStartedEvent
+      title: Consolidation Started
+      summary: Published when consolidation begins for a multi-item order
+      description: |
+        Triggered when a consolidation task is created.
+        Contains expected items and station assignment.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/ConsolidationStartedPayload'
+      examples:
+        - name: consolidationStarted
+          summary: Consolidation created for 3-item order
+          payload:
+            consolidationId: "CONSOL-a1b2c3d4"
+            orderId: "ORD-A1B2C3D4"
+            waveId: "WAVE-2024-00123"
+            stationId: "CONSOL-STATION-01"
+            expectedItemCount: 2
+            expectedTotalQuantity: 3
+            startedAt: "2024-12-24T10:00:00Z"
+
+    ItemConsolidatedEvent:
+      name: ItemConsolidatedEvent
+      title: Item Consolidated
+      summary: Published when an item is added to consolidation
+      description: |
+        Triggered when an item arrives at the consolidation station.
+        Includes source route and tote information.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/ItemConsolidatedPayload'
+      examples:
+        - name: itemConsolidated
+          summary: Widget consolidated from picking route
+          payload:
+            consolidationId: "CONSOL-a1b2c3d4"
+            orderId: "ORD-A1B2C3D4"
+            sku: "WIDGET-001"
+            productName: "Premium Widget"
+            quantity: 2
+            toteId: "TOTE-001"
+            routeId: "RT-abc123"
+            workerId: "PICKER-001"
+            consolidatedAt: "2024-12-24T10:02:00Z"
+            itemsRemaining: 1
+            quantityRemaining: 1
+
+    ConsolidationCompletedEvent:
+      name: ConsolidationCompletedEvent
+      title: Consolidation Completed
+      summary: Published when all items are consolidated for an order
+      description: |
+        Triggered when consolidation is complete.
+        WES workflow listens for this to advance to packing.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/ConsolidationCompletedPayload'
+      examples:
+        - name: consolidationCompleted
+          summary: All items consolidated
+          payload:
+            consolidationId: "CONSOL-a1b2c3d4"
+            orderId: "ORD-A1B2C3D4"
+            waveId: "WAVE-2024-00123"
+            stationId: "CONSOL-STATION-01"
+            totalItems: 2
+            totalQuantity: 3
+            duration: "PT5M30S"
+            completedAt: "2024-12-24T10:05:30Z"
+
+    ConsolidationCancelledEvent:
+      name: ConsolidationCancelledEvent
+      title: Consolidation Cancelled
+      summary: Published when a consolidation task is cancelled
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/ConsolidationCancelledPayload'
+      examples:
+        - name: consolidationCancelled
+          summary: Consolidation cancelled due to order cancellation
+          payload:
+            consolidationId: "CONSOL-a1b2c3d4"
+            orderId: "ORD-A1B2C3D4"
+            reason: "Order cancelled by customer"
+            consolidatedItems: 1
+            consolidatedQuantity: 2
+            cancelledAt: "2024-12-24T10:03:00Z"
+
+  schemas:
+    CloudEventHeaders:
+      type: object
+      description: CloudEvents 1.0 headers with WMS extensions
+      properties:
+        ce_specversion:
+          type: string
+          const: '1.0'
+        ce_type:
+          type: string
+          description: Event type (e.g., consolidation.started)
+        ce_source:
+          type: string
+          const: '/wms/consolidation-service'
+        ce_subject:
+          type: string
+          description: Consolidation ID
+        ce_id:
+          type: string
+          format: uuid
+        ce_time:
+          type: string
+          format: date-time
+        ce_datacontenttype:
+          type: string
+          const: 'application/json'
+        ce_wmscorrelationid:
+          type: string
+          description: WMS correlation ID for distributed tracing
+        ce_wmswavenumber:
+          type: string
+          description: Wave number for wave-based correlation
+        ce_wmsworkflowid:
+          type: string
+          description: Temporal workflow ID
+
+    ConsolidationStartedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+          example: "CONSOL-a1b2c3d4"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        waveId:
+          type: string
+          example: "WAVE-2024-00123"
+        stationId:
+          type: string
+          example: "CONSOL-STATION-01"
+        expectedItemCount:
+          type: integer
+          description: Number of distinct items expected
+          example: 2
+        expectedTotalQuantity:
+          type: integer
+          description: Total quantity expected
+          example: 3
+        startedAt:
+          type: string
+          format: date-time
+
+    ItemConsolidatedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+          example: "CONSOL-a1b2c3d4"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        sku:
+          type: string
+          example: "WIDGET-001"
+        productName:
+          type: string
+          example: "Premium Widget"
+        quantity:
+          type: integer
+          example: 2
+        toteId:
+          type: string
+          example: "TOTE-001"
+        routeId:
+          type: string
+          example: "RT-abc123"
+        workerId:
+          type: string
+          example: "PICKER-001"
+        consolidatedAt:
+          type: string
+          format: date-time
+        itemsRemaining:
+          type: integer
+          description: Number of distinct items still expected
+          example: 1
+        quantityRemaining:
+          type: integer
+          description: Total quantity still expected
+          example: 1
+
+    ConsolidationCompletedPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+          example: "CONSOL-a1b2c3d4"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        waveId:
+          type: string
+          example: "WAVE-2024-00123"
+        stationId:
+          type: string
+          example: "CONSOL-STATION-01"
+        totalItems:
+          type: integer
+          example: 2
+        totalQuantity:
+          type: integer
+          example: 3
+        duration:
+          type: string
+          description: ISO 8601 duration
+          example: "PT5M30S"
+        completedAt:
+          type: string
+          format: date-time
+
+    ConsolidationCancelledPayload:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+          example: "CONSOL-a1b2c3d4"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        reason:
+          type: string
+          example: "Order cancelled by customer"
+        consolidatedItems:
+          type: integer
+          description: Items consolidated before cancellation
+          example: 1
+        consolidatedQuantity:
+          type: integer
+          example: 2
+        cancelledAt:
+          type: string
+          format: date-time

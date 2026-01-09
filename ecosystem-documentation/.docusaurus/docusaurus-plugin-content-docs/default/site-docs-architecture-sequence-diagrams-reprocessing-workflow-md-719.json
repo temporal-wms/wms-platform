@@ -1,0 +1,17 @@
+{
+  "id": "architecture/sequence-diagrams/reprocessing-workflow",
+  "title": "Reprocessing Workflow",
+  "description": "This document describes the order reprocessing flow for handling failed workflow executions, including retry logic and dead letter queue management.",
+  "source": "@site/docs/architecture/sequence-diagrams/reprocessing-workflow.md",
+  "sourceDirName": "architecture/sequence-diagrams",
+  "slug": "/architecture/sequence-diagrams/reprocessing-workflow",
+  "permalink": "/wms-platform/architecture/sequence-diagrams/reprocessing-workflow",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 10,
+  "frontMatter": {
+    "sidebar_position": 10
+  }
+}

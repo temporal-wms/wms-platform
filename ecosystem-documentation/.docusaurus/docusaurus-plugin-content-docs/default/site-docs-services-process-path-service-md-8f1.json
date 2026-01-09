@@ -1,0 +1,17 @@
+{
+  "id": "services/process-path-service",
+  "title": "Process Path Service",
+  "description": "The Process Path Service determines the optimal fulfillment process path for orders based on item characteristics and special handling requirements.",
+  "source": "@site/docs/services/process-path-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/process-path-service",
+  "permalink": "/wms-platform/services/process-path-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 15,
+  "frontMatter": {
+    "sidebar_position": 15
+  }
+}

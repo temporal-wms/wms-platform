@@ -1,0 +1,27 @@
+{
+  "id": "temporal/retry-policies",
+  "title": "Retry Policies",
+  "description": "Reference for retry configuration and timeout settings in the WMS Platform.",
+  "source": "@site/docs/temporal/retry-policies.md",
+  "sourceDirName": "temporal",
+  "slug": "/temporal/retry-policies",
+  "permalink": "/wms-platform/temporal/retry-policies",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 22,
+  "frontMatter": {
+    "sidebar_position": 22,
+    "slug": "/temporal/retry-policies"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Task Queues",
+    "permalink": "/wms-platform/temporal/task-queues"
+  },
+  "next": {
+    "title": "Workflow Hierarchy",
+    "permalink": "/wms-platform/temporal/diagrams/workflow-hierarchy"
+  }
+}

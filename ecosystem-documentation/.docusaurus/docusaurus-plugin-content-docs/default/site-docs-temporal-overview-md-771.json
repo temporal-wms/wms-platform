@@ -1,0 +1,27 @@
+{
+  "id": "temporal/overview",
+  "title": "Temporal Workflow Architecture",
+  "description": "The WMS Platform uses Temporal as its workflow orchestration engine to coordinate complex, long-running business processes across distributed microservices.",
+  "source": "@site/docs/temporal/overview.md",
+  "sourceDirName": "temporal",
+  "slug": "/temporal/overview",
+  "permalink": "/wms-platform/temporal/overview",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1,
+    "slug": "/temporal/overview"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Seller Portal",
+    "permalink": "/wms-platform/services/seller-portal"
+  },
+  "next": {
+    "title": "OrderFulfillmentWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/order-fulfillment"
+  }
+}

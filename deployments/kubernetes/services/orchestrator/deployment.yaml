@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: wms-platform
+  labels:
+    app: orchestrator
+    tier: backend
+    component: worker
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: orchestrator
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+        tier: backend
+        component: worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: wms-platform
+      containers:
+      - name: orchestrator
+        image: wms-platform/orchestrator:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: SERVICE_NAME
+          value: "orchestrator"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: TEMPORAL_HOST
+          value: "temporal-frontend.wms-platform.svc.cluster.local:7233"
+        - name: TEMPORAL_NAMESPACE
+          value: "wms-platform"
+        - name: TEMPORAL_TASK_QUEUE
+          value: "order-fulfillment"
+        - name: TEMPORAL_WORKER_CONCURRENCY
+          value: "10"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://jaeger-collector.observability.svc.cluster.local:4317"
+        - name: TRACING_ENABLED
+          value: "true"
+        - name: ORDER_SERVICE_URL
+          value: "http://order-service.wms-platform.svc.cluster.local:8001"
+        - name: INVENTORY_SERVICE_URL
+          value: "http://inventory-service.wms-platform.svc.cluster.local:8008"
+        - name: ROUTING_SERVICE_URL
+          value: "http://routing-service.wms-platform.svc.cluster.local:8003"
+        - name: PICKING_SERVICE_URL
+          value: "http://picking-service.wms-platform.svc.cluster.local:8004"
+        - name: CONSOLIDATION_SERVICE_URL
+          value: "http://consolidation-service.wms-platform.svc.cluster.local:8005"
+        - name: PACKING_SERVICE_URL
+          value: "http://packing-service.wms-platform.svc.cluster.local:8006"
+        - name: SHIPPING_SERVICE_URL
+          value: "http://shipping-service.wms-platform.svc.cluster.local:8007"
+        - name: LABOR_SERVICE_URL
+          value: "http://labor-service.wms-platform.svc.cluster.local:8009"
+        - name: WAVING_SERVICE_URL
+          value: "http://waving-service.wms-platform.svc.cluster.local:8002"
+        - name: FACILITY_SERVICE_URL
+          value: "http://facility-service.wms-platform.svc.cluster.local:8010"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: metrics
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: metrics
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      terminationGracePeriodSeconds: 60

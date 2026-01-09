@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/aggregates/worker",
+  "title": "Worker Aggregate",
+  "description": "The Worker aggregate manages warehouse workforce and task assignments.",
+  "source": "@site/docs/domain-driven-design/aggregates/worker.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/worker",
+  "permalink": "/wms-platform/domain-driven-design/aggregates/worker",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 9,
+  "frontMatter": {
+    "sidebar_position": 9
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "InventoryItem Aggregate",
+    "permalink": "/wms-platform/domain-driven-design/aggregates/inventory-item"
+  },
+  "next": {
+    "title": "Domain Events",
+    "permalink": "/wms-platform/domain-driven-design/domain-events"
+  }
+}

@@ -1,0 +1,256 @@
+asyncapi: 3.0.0
+info:
+  title: Order Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Order Service.
+
+    This service publishes events related to order lifecycle management including
+    order creation, validation, wave assignment, shipping, and completion.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.orders.events:
+    address: wms.orders.events
+    messages:
+      OrderReceived:
+        $ref: '#/components/messages/OrderReceived'
+      OrderValidated:
+        $ref: '#/components/messages/OrderValidated'
+      OrderCancelled:
+        $ref: '#/components/messages/OrderCancelled'
+      OrderAssignedToWave:
+        $ref: '#/components/messages/OrderAssignedToWave'
+      OrderShipped:
+        $ref: '#/components/messages/OrderShipped'
+      OrderCompleted:
+        $ref: '#/components/messages/OrderCompleted'
+    description: Order lifecycle events
+
+operations:
+  publishOrderReceived:
+    action: send
+    channel:
+      $ref: '#/channels/wms.orders.events'
+    messages:
+      - $ref: '#/channels/wms.orders.events/messages/OrderReceived'
+    description: Published when a new order is received
+
+  publishOrderValidated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.orders.events'
+    messages:
+      - $ref: '#/channels/wms.orders.events/messages/OrderValidated'
+    description: Published when an order passes validation
+
+  publishOrderCancelled:
+    action: send
+    channel:
+      $ref: '#/channels/wms.orders.events'
+    messages:
+      - $ref: '#/channels/wms.orders.events/messages/OrderCancelled'
+    description: Published when an order is cancelled
+
+  publishOrderAssignedToWave:
+    action: send
+    channel:
+      $ref: '#/channels/wms.orders.events'
+    messages:
+      - $ref: '#/channels/wms.orders.events/messages/OrderAssignedToWave'
+    description: Published when an order is assigned to a wave
+
+  publishOrderShipped:
+    action: send
+    channel:
+      $ref: '#/channels/wms.orders.events'
+    messages:
+      - $ref: '#/channels/wms.orders.events/messages/OrderShipped'
+    description: Published when an order is shipped
+
+  publishOrderCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.orders.events'
+    messages:
+      - $ref: '#/channels/wms.orders.events/messages/OrderCompleted'
+    description: Published when an order fulfillment is completed
+
+components:
+  messages:
+    OrderReceived:
+      name: OrderReceived
+      title: Order Received Event
+      summary: Published when a new order is created and validated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderReceivedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderValidated:
+      name: OrderValidated
+      title: Order Validated Event
+      summary: Published when an order passes validation checks
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderValidatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderCancelled:
+      name: OrderCancelled
+      title: Order Cancelled Event
+      summary: Published when an order is cancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderCancelledPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderAssignedToWave:
+      name: OrderAssignedToWave
+      title: Order Assigned to Wave Event
+      summary: Published when an order is assigned to a wave for picking
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderAssignedToWavePayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderShipped:
+      name: OrderShipped
+      title: Order Shipped Event
+      summary: Published when an order is shipped to the customer
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderShippedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    OrderCompleted:
+      name: OrderCompleted
+      title: Order Completed Event
+      summary: Published when an order fulfillment is completed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OrderCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      properties:
+        ce-specversion:
+          type: string
+          const: '1.0'
+        ce-type:
+          type: string
+        ce-source:
+          type: string
+        ce-id:
+          type: string
+        ce-time:
+          type: string
+          format: date-time
+        ce-wmscorrelationid:
+          type: string
+        ce-wmsworkflowid:
+          type: string
+        content-type:
+          type: string
+          const: application/json
+
+    OrderReceivedPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+          example: ORD-a1b2c3d4
+        customerId:
+          type: string
+          example: CUST-123
+        orderLines:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLine'
+        priority:
+          type: string
+          enum: [same_day, next_day, standard]
+        promisedDeliveryAt:
+          type: string
+          format: date-time
+
+    OrderLine:
+      type: object
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        weight:
+          type: number
+          format: float
+
+    OrderValidatedPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        validatedAt:
+          type: string
+          format: date-time
+
+    OrderCancelledPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+
+    OrderAssignedToWavePayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        waveId:
+          type: string
+        assignedAt:
+          type: string
+          format: date-time
+
+    OrderShippedPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        shippedAt:
+          type: string
+          format: date-time
+
+    OrderCompletedPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        completedAt:
+          type: string
+          format: date-time

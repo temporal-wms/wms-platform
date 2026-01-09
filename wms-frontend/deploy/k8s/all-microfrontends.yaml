@@ -1,0 +1,270 @@
+---
+# Inventory MF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-inventory-mf
+  namespace: wms-frontend
+  labels:
+    app: wms-inventory-mf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-inventory-mf
+  template:
+    metadata:
+      labels:
+        app: wms-inventory-mf
+    spec:
+      containers:
+        - name: inventory
+          image: wms-platform/wms-inventory-mf:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-inventory-mf
+  namespace: wms-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: wms-inventory-mf
+---
+# Picking MF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-picking-mf
+  namespace: wms-frontend
+  labels:
+    app: wms-picking-mf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-picking-mf
+  template:
+    metadata:
+      labels:
+        app: wms-picking-mf
+    spec:
+      containers:
+        - name: picking
+          image: wms-platform/wms-picking-mf:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-picking-mf
+  namespace: wms-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: wms-picking-mf
+---
+# Packing MF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-packing-mf
+  namespace: wms-frontend
+  labels:
+    app: wms-packing-mf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-packing-mf
+  template:
+    metadata:
+      labels:
+        app: wms-packing-mf
+    spec:
+      containers:
+        - name: packing
+          image: wms-platform/wms-packing-mf:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-packing-mf
+  namespace: wms-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: wms-packing-mf
+---
+# Shipping MF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-shipping-mf
+  namespace: wms-frontend
+  labels:
+    app: wms-shipping-mf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-shipping-mf
+  template:
+    metadata:
+      labels:
+        app: wms-shipping-mf
+    spec:
+      containers:
+        - name: shipping
+          image: wms-platform/wms-shipping-mf:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-shipping-mf
+  namespace: wms-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: wms-shipping-mf
+---
+# Labor MF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-labor-mf
+  namespace: wms-frontend
+  labels:
+    app: wms-labor-mf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-labor-mf
+  template:
+    metadata:
+      labels:
+        app: wms-labor-mf
+    spec:
+      containers:
+        - name: labor
+          image: wms-platform/wms-labor-mf:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-labor-mf
+  namespace: wms-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: wms-labor-mf
+---
+# Dashboard MF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-dashboard-mf
+  namespace: wms-frontend
+  labels:
+    app: wms-dashboard-mf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wms-dashboard-mf
+  template:
+    metadata:
+      labels:
+        app: wms-dashboard-mf
+    spec:
+      containers:
+        - name: dashboard
+          image: wms-platform/wms-dashboard-mf:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-dashboard-mf
+  namespace: wms-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: wms-dashboard-mf

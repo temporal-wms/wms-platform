@@ -1,0 +1,143 @@
+# Superset Dataset Configuration: Receiving Metrics
+# Dataset for the Receiving dashboard
+
+dataset:
+  name: receiving_metrics_daily
+  description: "Daily receiving metrics by dock door"
+  database: trino
+  schema: iceberg.gold
+  table_name: receiving_metrics_daily
+
+  # Main time column for time series
+  main_dttm_col: date
+
+  # Columns
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of the metrics"
+
+    - column_name: dock_door
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Dock door identifier"
+
+    - column_name: total_receipts
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total receipts processed"
+
+    - column_name: completed_receipts
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Completed receipts"
+
+    - column_name: completion_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Receipt completion rate"
+
+    - column_name: total_units_expected
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total units expected"
+
+    - column_name: total_units_received
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total units received"
+
+    - column_name: total_units_damaged
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total units damaged"
+
+    - column_name: receiving_accuracy
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Receiving accuracy rate"
+
+    - column_name: avg_dock_to_stock_minutes
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average dock-to-stock time (minutes)"
+
+    - column_name: p50_dock_to_stock_minutes
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Median dock-to-stock time (minutes)"
+
+    - column_name: p95_dock_to_stock_minutes
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "95th percentile dock-to-stock time"
+
+    - column_name: on_time_arrivals
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "On-time arrivals"
+
+    - column_name: late_arrivals
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Late arrivals"
+
+    - column_name: on_time_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "On-time arrival rate"
+
+    - column_name: unique_vendors
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Unique vendors"
+
+  # Metrics
+  metrics:
+    - metric_name: total_receipts_sum
+      expression: "SUM(total_receipts)"
+      description: "Total receipts"
+
+    - metric_name: total_units_sum
+      expression: "SUM(total_units_received)"
+      description: "Total units received"
+
+    - metric_name: avg_dock_to_stock
+      expression: "AVG(avg_dock_to_stock_minutes)"
+      description: "Average dock-to-stock time"
+
+    - metric_name: avg_accuracy
+      expression: "AVG(receiving_accuracy)"
+      description: "Average receiving accuracy"
+
+    - metric_name: on_time_rate_avg
+      expression: "AVG(on_time_rate) * 100"
+      description: "Average on-time rate (%)"
+
+---
+# Vendor performance dataset
+dataset:
+  name: vendor_performance_daily
+  description: "Daily vendor performance metrics"
+  database: trino
+  schema: iceberg.gold
+  table_name: vendor_performance_daily
+  main_dttm_col: date

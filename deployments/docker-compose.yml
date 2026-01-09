@@ -1,0 +1,400 @@
+version: '3.8'
+
+services:
+  # =====================
+  # Infrastructure
+  # =====================
+
+  # MongoDB Replica Set
+  mongodb:
+    image: mongo:7.0
+    container_name: wms-mongodb
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb/init-replica.js:/docker-entrypoint-initdb.d/init-replica.js:ro
+      - ./mongodb/init-locations.js:/docker-entrypoint-initdb.d/init-locations.js:ro
+    environment:
+      MONGO_INITDB_DATABASE: admin
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate() }" | mongosh --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - wms-network
+
+  # Kafka with KRaft (no Zookeeper)
+  kafka:
+    image: bitnami/kafka:3.6
+    container_name: wms-kafka
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
+    volumes:
+      - kafka_data:/bitnami/kafka
+    healthcheck:
+      test: kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - wms-network
+
+  # Kafka UI
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: wms-kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=wms-kafka
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+
+  # Temporal Server
+  temporal:
+    image: temporalio/auto-setup:1.22
+    container_name: wms-temporal
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    volumes:
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+    depends_on:
+      temporal-postgres:
+        condition: service_healthy
+    networks:
+      - wms-network
+
+  temporal-postgres:
+    image: postgres:15
+    container_name: wms-temporal-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+    volumes:
+      - temporal_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wms-network
+
+  temporal-ui:
+    image: temporalio/ui:2.22.0
+    container_name: wms-temporal-ui
+    ports:
+      - "8088:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      - temporal
+    networks:
+      - wms-network
+
+  # =====================
+  # WMS Microservices
+  # =====================
+
+  order-service:
+    build:
+      context: ..
+      dockerfile: services/order-service/Dockerfile
+    container_name: wms-order-service
+    ports:
+      - "8001:8001"
+    environment:
+      - SERVER_ADDR=:8001
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=orders_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    networks:
+      - wms-network
+    restart: unless-stopped
+
+  waving-service:
+    build:
+      context: ..
+      dockerfile: services/waving-service/Dockerfile
+    container_name: wms-waving-service
+    ports:
+      - "8002:8002"
+    environment:
+      - SERVER_ADDR=:8002
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=waves_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  routing-service:
+    build:
+      context: ..
+      dockerfile: services/routing-service/Dockerfile
+    container_name: wms-routing-service
+    ports:
+      - "8003:8003"
+    environment:
+      - SERVER_ADDR=:8003
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=routing_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  picking-service:
+    build:
+      context: ..
+      dockerfile: services/picking-service/Dockerfile
+    container_name: wms-picking-service
+    ports:
+      - "8004:8004"
+    environment:
+      - SERVER_ADDR=:8004
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=picking_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  consolidation-service:
+    build:
+      context: ..
+      dockerfile: services/consolidation-service/Dockerfile
+    container_name: wms-consolidation-service
+    ports:
+      - "8005:8005"
+    environment:
+      - SERVER_ADDR=:8005
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=consolidation_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  packing-service:
+    build:
+      context: ..
+      dockerfile: services/packing-service/Dockerfile
+    container_name: wms-packing-service
+    ports:
+      - "8006:8006"
+    environment:
+      - SERVER_ADDR=:8006
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=packing_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  shipping-service:
+    build:
+      context: ..
+      dockerfile: services/shipping-service/Dockerfile
+    container_name: wms-shipping-service
+    ports:
+      - "8007:8007"
+    environment:
+      - SERVER_ADDR=:8007
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=shipping_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  inventory-service:
+    build:
+      context: ..
+      dockerfile: services/inventory-service/Dockerfile
+    container_name: wms-inventory-service
+    ports:
+      - "8008:8008"
+    environment:
+      - SERVER_ADDR=:8008
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=inventory_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  labor-service:
+    build:
+      context: ..
+      dockerfile: services/labor-service/Dockerfile
+    container_name: wms-labor-service
+    ports:
+      - "8009:8009"
+    environment:
+      - SERVER_ADDR=:8009
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=labor_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  process-path-service:
+    build:
+      context: ..
+      dockerfile: services/process-path-service/Dockerfile
+    container_name: wms-process-path-service
+    ports:
+      - "8015:8015"
+    environment:
+      - SERVER_ADDR=:8015
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=process_path_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+      - LOG_LEVEL=debug
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: orchestrator/Dockerfile
+    container_name: wms-orchestrator
+    environment:
+      - TEMPORAL_HOST=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+      - KAFKA_BROKERS=kafka:9092
+    depends_on:
+      temporal:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+networks:
+  wms-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  kafka_data:
+  temporal_postgres_data:

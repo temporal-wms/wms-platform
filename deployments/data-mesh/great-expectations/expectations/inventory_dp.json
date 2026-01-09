@@ -1,0 +1,127 @@
+{
+  "expectation_suite_name": "inventory_data_product_quality",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0",
+    "data_product": "inventory-dp",
+    "owner": "inventory-team",
+    "sla": {
+      "freshness_minutes": 1,
+      "accuracy_percent": 99.99
+    }
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "sku"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "total_quantity"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "available_quantity"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "reserved_quantity"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "sku"
+      },
+      "meta": {
+        "notes": "SKU is the primary identifier"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "sku"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "total_quantity",
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Quantity cannot be negative"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "reserved_quantity",
+        "min_value": 0
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "available_quantity",
+        "min_value": 0
+      }
+    },
+    {
+      "expectation_type": "expect_column_pair_values_A_to_be_greater_than_B",
+      "kwargs": {
+        "column_A": "total_quantity",
+        "column_B": "reserved_quantity",
+        "or_equal": true
+      },
+      "meta": {
+        "notes": "Total must be >= reserved"
+      }
+    },
+    {
+      "expectation_type": "expect_compound_columns_to_be_unique",
+      "kwargs": {
+        "column_list": ["sku", "location_id"]
+      },
+      "meta": {
+        "notes": "SKU + Location combination must be unique"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "sku",
+        "regex": "^[A-Z0-9]{3,20}$"
+      },
+      "meta": {
+        "notes": "SKU format: alphanumeric, 3-20 characters"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "location_id",
+        "regex": "^[A-Z]-\\d{2}-\\d{2}-\\d{2}$",
+        "mostly": 0.95
+      },
+      "meta": {
+        "notes": "Location format: ZONE-AISLE-RACK-LEVEL (e.g., A-01-02-03)"
+      }
+    }
+  ],
+  "ge_cloud_id": null,
+  "data_context_key": "inventory_data_product"
+}

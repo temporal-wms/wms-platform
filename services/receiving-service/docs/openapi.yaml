@@ -1,0 +1,549 @@
+openapi: 3.0.3
+info:
+  title: Receiving Service API
+  description: |
+    REST API for inbound shipment receiving operations in the WMS platform.
+
+    This service handles:
+    - Advance Shipping Notice (ASN) processing
+    - Shipment arrival tracking
+    - Item receiving with condition tracking
+    - Discrepancy detection and reporting
+    - Putaway task creation trigger
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8013/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Shipments
+    description: Shipment management operations
+  - name: Receiving
+    description: Receiving process operations
+  - name: Queries
+    description: Shipment query operations
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /shipments:
+    post:
+      summary: Create a new shipment
+      description: Creates a new inbound shipment with ASN and expected items
+      tags:
+        - Shipments
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShipmentRequest'
+            example:
+              purchaseOrderId: "PO-2024-001234"
+              asn:
+                asnId: "ASN-001234"
+                shippingCarrier: "FedEx"
+                trackingNumber: "794644790132"
+                estimatedArrival: "2024-01-15T10:00:00Z"
+              supplier:
+                supplierId: "SUP-001"
+                name: "Acme Supplies"
+                code: "ACME"
+              expectedItems:
+                - sku: "SKU-12345"
+                  productName: "Widget A"
+                  expectedQuantity: 100
+                  unitCost: 9.99
+                  weight: 0.5
+      responses:
+        '201':
+          description: Shipment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List shipments
+      description: Retrieve a paginated list of shipments
+      tags:
+        - Shipments
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of shipments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shipments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ShipmentResponse'
+                  total:
+                    type: integer
+
+  /shipments/status/{status}:
+    get:
+      summary: Get shipments by status
+      tags:
+        - Queries
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShipmentStatus'
+      responses:
+        '200':
+          description: List of shipments with status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShipmentResponse'
+
+  /shipments/expected:
+    get:
+      summary: Get expected arrivals
+      description: Retrieve shipments expected to arrive
+      tags:
+        - Queries
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of expected shipments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShipmentResponse'
+
+  /shipments/{shipmentId}:
+    get:
+      summary: Get shipment by ID
+      tags:
+        - Shipments
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Shipment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '404':
+          description: Shipment not found
+
+  /shipments/{shipmentId}/arrive:
+    post:
+      summary: Mark shipment as arrived
+      description: Record that a shipment has arrived at the receiving dock
+      tags:
+        - Receiving
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - dockId
+              properties:
+                dockId:
+                  type: string
+                  example: "DOCK-A1"
+      responses:
+        '200':
+          description: Shipment marked as arrived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Invalid status transition
+
+  /shipments/{shipmentId}/start:
+    post:
+      summary: Start receiving process
+      description: Begin the receiving process for a shipment
+      tags:
+        - Receiving
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workerId
+              properties:
+                workerId:
+                  type: string
+                  example: "WORKER-001"
+      responses:
+        '200':
+          description: Receiving started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+
+  /shipments/{shipmentId}/receive:
+    post:
+      summary: Receive an item
+      description: Record receipt of an item from the shipment
+      tags:
+        - Receiving
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiveItemRequest'
+            example:
+              sku: "SKU-12345"
+              quantity: 25
+              condition: "good"
+              toteId: "TOTE-001"
+              locationId: "RCV-STAGE-01"
+              workerId: "WORKER-001"
+      responses:
+        '200':
+          description: Item received successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Invalid receive request
+
+  /shipments/{shipmentId}/complete:
+    post:
+      summary: Complete receiving
+      description: Mark the receiving process as complete and trigger putaway
+      tags:
+        - Receiving
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Receiving completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+
+  /health:
+    get:
+      summary: Health check
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+
+components:
+  schemas:
+    CreateShipmentRequest:
+      type: object
+      required:
+        - purchaseOrderId
+        - asn
+        - supplier
+        - expectedItems
+      properties:
+        purchaseOrderId:
+          type: string
+        asn:
+          $ref: '#/components/schemas/ASN'
+        supplier:
+          $ref: '#/components/schemas/Supplier'
+        expectedItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpectedItem'
+
+    ASN:
+      type: object
+      required:
+        - asnId
+        - shippingCarrier
+        - trackingNumber
+        - estimatedArrival
+      properties:
+        asnId:
+          type: string
+        shippingCarrier:
+          type: string
+        trackingNumber:
+          type: string
+        estimatedArrival:
+          type: string
+          format: date-time
+
+    Supplier:
+      type: object
+      required:
+        - supplierId
+        - name
+      properties:
+        supplierId:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        contactEmail:
+          type: string
+
+    ExpectedItem:
+      type: object
+      required:
+        - sku
+        - productName
+        - expectedQuantity
+      properties:
+        sku:
+          type: string
+        productName:
+          type: string
+        expectedQuantity:
+          type: integer
+        unitCost:
+          type: number
+        weight:
+          type: number
+        isHazmat:
+          type: boolean
+          default: false
+        requiresColdChain:
+          type: boolean
+          default: false
+
+    ReceiveItemRequest:
+      type: object
+      required:
+        - sku
+        - quantity
+        - condition
+        - workerId
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+        condition:
+          $ref: '#/components/schemas/ItemCondition'
+        toteId:
+          type: string
+        locationId:
+          type: string
+        workerId:
+          type: string
+        notes:
+          type: string
+
+    ShipmentResponse:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+        purchaseOrderId:
+          type: string
+        asn:
+          $ref: '#/components/schemas/ASN'
+        supplier:
+          $ref: '#/components/schemas/Supplier'
+        expectedItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpectedItemResponse'
+        receiptRecords:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReceiptRecord'
+        discrepancies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Discrepancy'
+        status:
+          $ref: '#/components/schemas/ShipmentStatus'
+        receivingDockId:
+          type: string
+        assignedWorkerId:
+          type: string
+        arrivedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ExpectedItemResponse:
+      type: object
+      properties:
+        sku:
+          type: string
+        productName:
+          type: string
+        expectedQuantity:
+          type: integer
+        receivedQuantity:
+          type: integer
+        damagedQuantity:
+          type: integer
+        unitCost:
+          type: number
+
+    ReceiptRecord:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        sku:
+          type: string
+        receivedQty:
+          type: integer
+        condition:
+          $ref: '#/components/schemas/ItemCondition'
+        toteId:
+          type: string
+        locationId:
+          type: string
+        receivedBy:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+
+    Discrepancy:
+      type: object
+      properties:
+        sku:
+          type: string
+        type:
+          $ref: '#/components/schemas/DiscrepancyType'
+        expectedQty:
+          type: integer
+        actualQty:
+          type: integer
+        description:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+
+    ShipmentStatus:
+      type: string
+      enum:
+        - expected
+        - arrived
+        - receiving
+        - inspection
+        - completed
+        - cancelled
+
+    ItemCondition:
+      type: string
+      enum:
+        - good
+        - damaged
+        - rejected
+
+    DiscrepancyType:
+      type: string
+      enum:
+        - shortage
+        - overage
+        - damage
+        - wrong_item
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing
+      required: false
+      schema:
+        type: string
+        format: uuid

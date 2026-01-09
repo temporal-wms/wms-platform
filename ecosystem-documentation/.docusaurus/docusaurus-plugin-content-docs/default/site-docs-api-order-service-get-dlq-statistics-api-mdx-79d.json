@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/get-dlq-statistics",
+  "title": "Get DLQ statistics",
+  "description": "Retrieve statistics about dead letter queue entries",
+  "source": "@site/docs/api/order-service/get-dlq-statistics.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/get-dlq-statistics",
+  "permalink": "/wms-platform/api/order-service/get-dlq-statistics",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "get-dlq-statistics",
+    "title": "Get DLQ statistics",
+    "description": "Retrieve statistics about dead letter queue entries",
+    "sidebar_label": "Get DLQ statistics",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJylVMFOGzEQ/RXLZ5INPVU5FQFFlagKJKgHwmHiHbIGr+3as4Eoyr93xpuSQFqpak+7tt+8mXnz7LWuMZtkI9ng9VjfICWLS1SZgGwma7KCeehI1Qi1ckiESf3osEOFXrBZH2mCRdbjO30mmMsecy0YfX+kE+YYfGbgeK0/jEbyeZv07PK65MsqbdPXTGqCJ04hcIjRWQMCrx6zxKx1Ng22IH+0isgsYf6IhjgwphAxke0zUiBw59tSd2jL5AtMenOkO88lBsdZT0PXJzwE/QVkvvoM1nUJJ9xLl39XGtS1lS7AXb0t8h1ZYbuRlF2v0X9RBcd60+1rmyf7DWRWxi+Y8CGkFvhE10A4INtiCSZLDvshSV+ZNzey3yI1oeaDBRbRgRpeVGKTQW+TQbFJVSbLiIxpiUl8stZdcgxuiOK4qlww4JqQafxxNDquINpqecwB70zCtnAhtmwJ1VOx5vtMmak4dvjc5iG+QBsdDk1o/8THqtWdkcUrHZvV+odQxNl2/S3V7OUJA6xBdXL15YDnNLQxYYM+W742N+eTqcAUq6lCCW7BwwJL3TKn4uKsrFfUoPr+daKiAxLxhzM/89PG5lKQ5GvA1w7zeOYHqq/EJCwEik/UEpyty3IHcPYBzco43Mv7ejp4Bq4RcrYLXwqiBOaJx7+Lz8W7qoviglzS8Bjl8sw89y4T7Ps+Ho6Go+01BVMc5aEVzaSnq21PaorQMoqvqpVB8XA+7Q2nOCzy6LnYPYYLJPXrUegfofeyr3fPw7++Wb39CV+o4glYX54CcdN6a+Y7fWBmsXGxM1tFHCug9XoOGW+T22xkW9Ra8T7/LiFZmIuP7u6ZvGE2tpn4/wkZok+MwSiXhwfZSTEH75xY8vWiXZxPWa+fvBkA6Q==",
+    "sidebar_class_name": "get api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Create a new order",
+    "permalink": "/wms-platform/api/order-service/create-a-new-order"
+  },
+  "next": {
+    "title": "Get order by ID",
+    "permalink": "/wms-platform/api/order-service/get-order-by-id"
+  }
+}

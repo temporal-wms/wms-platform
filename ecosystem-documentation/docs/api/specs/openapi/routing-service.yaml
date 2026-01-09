@@ -1,0 +1,1283 @@
+openapi: 3.0.3
+info:
+  title: WMS Routing Service API
+  description: |
+    REST API for pick route optimization and management in the WMS Platform.
+
+    This service handles:
+    - Route calculation with multiple optimization strategies
+    - Route lifecycle management (start, pause, resume, complete)
+    - Route analysis and efficiency metrics
+    - Picker route assignments and tracking
+    - Real-time stop completion tracking
+
+    **Routing Strategies:**
+    - `shortest_path`: Optimizes for minimum travel distance
+    - `zone_based`: Groups picks by warehouse zone to minimize zone transitions
+    - `priority_first`: Prioritizes high-priority items first
+    - `batch_pick`: Optimizes for batch picking multiple orders
+
+    **Route Lifecycle:**
+    1. Calculated - Route optimized and ready for assignment
+    2. In Progress - Picker actively working on route
+    3. Paused - Route temporarily paused (break, equipment issue)
+    4. Completed - All stops finished
+    5. Cancelled - Route cancelled before completion
+
+    **Integration:**
+    - Called by WES workflow to calculate optimal pick routes
+    - Publishes route events for real-time tracking
+    - Integrates with Labor Service for picker availability
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8005/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Routes
+    description: |
+      Route management operations including creation, lifecycle management, and completion.
+      Routes represent optimized pick paths through the warehouse.
+  - name: Analysis
+    description: |
+      Route analysis and optimization operations for performance insights
+      and strategy recommendations.
+  - name: Queries
+    description: |
+      Query operations for retrieving routes by various criteria
+      such as order, wave, picker, or status.
+  - name: Health
+    description: Service health and readiness checks
+
+paths:
+  /routes:
+    post:
+      summary: Calculate optimal route
+      description: |
+        Calculates an optimized pick route based on the specified strategy.
+
+        **Behavior:**
+        - Analyzes pick locations and calculates optimal path
+        - Considers warehouse layout and zone configuration
+        - Returns estimated time and distance metrics
+
+        **Integration:**
+        - Called by WES workflow during wave execution
+        - Publishes `RouteCreated` event on success
+      tags: [Routes]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRouteRequest'
+            examples:
+              shortestPath:
+                summary: Shortest path routing
+                value:
+                  waveId: "WAVE-2024-00123"
+                  orderId: "ORD-A1B2C3D4"
+                  pickerId: "PICKER-001"
+                  strategy: "shortest_path"
+                  items:
+                    - sku: "WIDGET-001"
+                      locationId: "A-01-02-03"
+                      quantity: 2
+                    - sku: "GADGET-002"
+                      locationId: "B-02-01-04"
+                      quantity: 1
+              zoneBased:
+                summary: Zone-based routing
+                value:
+                  waveId: "WAVE-2024-00124"
+                  pickerId: "PICKER-002"
+                  strategy: "zone_based"
+                  items:
+                    - sku: "PART-001"
+                      locationId: "A-01-01-01"
+                      quantity: 5
+                    - sku: "PART-002"
+                      locationId: "A-01-01-02"
+                      quantity: 3
+              batchPick:
+                summary: Batch pick for multiple orders
+                value:
+                  waveId: "WAVE-2024-00125"
+                  pickerId: "PICKER-003"
+                  strategy: "batch_pick"
+                  items:
+                    - sku: "ITEM-001"
+                      locationId: "C-03-02-01"
+                      quantity: 10
+      responses:
+        '201':
+          description: Route calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+              examples:
+                created:
+                  value:
+                    routeId: "RT-a1b2c3d4"
+                    waveId: "WAVE-2024-00123"
+                    orderId: "ORD-A1B2C3D4"
+                    pickerId: "PICKER-001"
+                    status: "calculated"
+                    strategy: "shortest_path"
+                    totalDistance: 125.5
+                    estimatedTimeMinutes: 8
+                    stopsTotal: 5
+                    stopsCompleted: 0
+                    stopsSkipped: 0
+                    stops:
+                      - sequence: 1
+                        locationId: "A-01-02-03"
+                        zone: "zone-a"
+                        aisle: "01"
+                        bay: "02"
+                        level: "03"
+                        sku: "WIDGET-001"
+                        quantity: 2
+                        status: "pending"
+                    createdAt: "2024-12-24T10:00:00Z"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid strategy specified"
+                code: "INVALID_STRATEGY"
+
+    get:
+      summary: List all routes
+      description: Retrieve a paginated list of all routes with optional filtering
+      tags: [Queries]
+      parameters:
+        - name: status
+          in: query
+          description: Filter by route status
+          schema:
+            type: string
+            enum: [calculated, in_progress, paused, completed, cancelled]
+        - name: strategy
+          in: query
+          description: Filter by routing strategy
+          schema:
+            type: string
+            enum: [shortest_path, zone_based, priority_first, batch_pick]
+        - name: limit
+          in: query
+          description: Maximum number of routes to return
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of routes to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of routes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RouteResponse'
+                  total:
+                    type: integer
+                    description: Total number of routes matching criteria
+
+  /routes/{routeId}:
+    get:
+      summary: Get route by ID
+      description: Retrieve detailed information about a specific route including all stops
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          description: Unique route identifier
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+      responses:
+        '200':
+          description: Route details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Route not found"
+                code: "NOT_FOUND"
+
+    delete:
+      summary: Delete route
+      description: |
+        Delete a route. Only routes in `calculated` status can be deleted.
+        Routes that have been started must be cancelled instead.
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '204':
+          description: Route deleted successfully
+        '400':
+          description: Cannot delete route in current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Route not found
+
+  /routes/{routeId}/start:
+    post:
+      summary: Start route
+      description: |
+        Start execution of a calculated route.
+
+        **State Transition:** `calculated` -> `in_progress`
+
+        **Behavior:**
+        - Records start timestamp
+        - Publishes `RouteStarted` event
+        - Route becomes active for the picker
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      responses:
+        '200':
+          description: Route started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Route already in progress"
+                code: "INVALID_STATE_TRANSITION"
+
+  /routes/{routeId}/stops/{stopNumber}/complete:
+    post:
+      summary: Complete a stop
+      description: |
+        Mark a stop on the route as completed.
+
+        **Behavior:**
+        - Records actual quantity picked
+        - Updates stop status to `completed`
+        - Publishes `StopCompleted` event
+        - If all stops complete, route transitions to `completed`
+
+        **Validation:**
+        - Stop must be in `pending` status
+        - Actual quantity cannot exceed expected quantity
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+        - name: stopNumber
+          in: path
+          required: true
+          description: Sequence number of the stop (1-based)
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actualQuantity:
+                  type: integer
+                  minimum: 0
+                  description: Actual quantity picked at this location
+                notes:
+                  type: string
+                  description: Optional notes about the pick
+            example:
+              actualQuantity: 2
+              notes: "All items in good condition"
+      responses:
+        '200':
+          description: Stop completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '400':
+          description: Invalid stop completion request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /routes/{routeId}/stops/{stopNumber}/skip:
+    post:
+      summary: Skip a stop
+      description: |
+        Skip a stop due to unavailability or other issues.
+
+        **Behavior:**
+        - Records skip reason
+        - Updates stop status to `skipped`
+        - Publishes `StopSkipped` event
+        - Creates exception record for inventory discrepancy
+
+        **Common Skip Reasons:**
+        - `out_of_stock`: Location empty or insufficient quantity
+        - `location_blocked`: Physical access blocked
+        - `item_damaged`: Items at location are damaged
+        - `other`: Other reason (specify in notes)
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: stopNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  enum: [out_of_stock, location_blocked, item_damaged, other]
+                  description: Reason for skipping the stop
+                notes:
+                  type: string
+                  description: Additional details about the skip reason
+            examples:
+              outOfStock:
+                summary: Location out of stock
+                value:
+                  reason: "out_of_stock"
+                  notes: "Location empty, no inventory found"
+              blocked:
+                summary: Location blocked
+                value:
+                  reason: "location_blocked"
+                  notes: "Pallet blocking access to location"
+      responses:
+        '200':
+          description: Stop skipped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '400':
+          description: Invalid skip request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /routes/{routeId}/complete:
+    post:
+      summary: Complete route
+      description: |
+        Mark a route as completed.
+
+        **State Transition:** `in_progress` -> `completed`
+
+        **Behavior:**
+        - Validates all stops are either completed or skipped
+        - Records completion timestamp and duration
+        - Publishes `RouteCompleted` event
+        - Signals WES workflow for next stage
+
+        **Integration:**
+        - WES workflow advances to packing/consolidation stage
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      responses:
+        '200':
+          description: Route completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+              example:
+                routeId: "RT-a1b2c3d4"
+                status: "completed"
+                stopsCompleted: 4
+                stopsSkipped: 1
+                actualTimeMinutes: 10
+                completedAt: "2024-12-24T10:10:00Z"
+        '400':
+          description: Cannot complete route - not all stops processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /routes/{routeId}/pause:
+    post:
+      summary: Pause route
+      description: |
+        Pause an in-progress route.
+
+        **State Transition:** `in_progress` -> `paused`
+
+        **Use Cases:**
+        - Worker break
+        - Equipment issue
+        - Higher priority task
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for pausing the route
+            example:
+              reason: "Worker taking scheduled break"
+      responses:
+        '200':
+          description: Route paused successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /routes/{routeId}/resume:
+    post:
+      summary: Resume route
+      description: |
+        Resume a paused route.
+
+        **State Transition:** `paused` -> `in_progress`
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Route resumed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '400':
+          description: Route not in paused state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /routes/{routeId}/cancel:
+    post:
+      summary: Cancel route
+      description: |
+        Cancel a route that hasn't been completed.
+
+        **State Transition:** Any non-completed state -> `cancelled`
+
+        **Behavior:**
+        - Marks route as cancelled
+        - Publishes `RouteCancelled` event
+        - Returns unpicked items to available pool
+      tags: [Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for cancellation
+            example:
+              reason: "Order cancelled by customer"
+      responses:
+        '200':
+          description: Route cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '400':
+          description: Cannot cancel completed route
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /routes/order/{orderId}:
+    get:
+      summary: Get routes by order
+      description: Retrieve all routes associated with a specific order
+      tags: [Queries]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Order identifier
+          schema:
+            type: string
+          example: "ORD-A1B2C3D4"
+      responses:
+        '200':
+          description: Routes for order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RouteResponse'
+                  total:
+                    type: integer
+
+  /routes/wave/{waveId}:
+    get:
+      summary: Get routes by wave
+      description: Retrieve all routes associated with a specific wave
+      tags: [Queries]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          description: Wave identifier
+          schema:
+            type: string
+          example: "WAVE-2024-00123"
+      responses:
+        '200':
+          description: Routes for wave
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RouteResponse'
+                  total:
+                    type: integer
+
+  /routes/picker/{pickerId}:
+    get:
+      summary: Get routes by picker
+      description: Retrieve all routes assigned to a specific picker
+      tags: [Queries]
+      parameters:
+        - name: pickerId
+          in: path
+          required: true
+          description: Picker (worker) identifier
+          schema:
+            type: string
+          example: "PICKER-001"
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [calculated, in_progress, paused, completed, cancelled]
+      responses:
+        '200':
+          description: Routes for picker
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RouteResponse'
+                  total:
+                    type: integer
+
+  /routes/picker/{pickerId}/active:
+    get:
+      summary: Get active route for picker
+      description: |
+        Retrieve the currently active (in_progress or paused) route for a picker.
+        A picker can only have one active route at a time.
+      tags: [Queries]
+      parameters:
+        - name: pickerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "PICKER-001"
+      responses:
+        '200':
+          description: Active route for picker
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '404':
+          description: No active route found for picker
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "No active route for picker"
+                code: "NO_ACTIVE_ROUTE"
+
+  /routes/status/{status}:
+    get:
+      summary: Get routes by status
+      description: Retrieve all routes with a specific status
+      tags: [Queries]
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [calculated, in_progress, paused, completed, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Routes with specified status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RouteResponse'
+                  total:
+                    type: integer
+
+  /routes/pending:
+    get:
+      summary: Get pending routes
+      description: Get routes that are calculated but not yet started (ready for assignment)
+      tags: [Queries]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Pending routes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RouteResponse'
+                  total:
+                    type: integer
+
+  /analysis/route/{routeId}:
+    get:
+      summary: Analyze route
+      description: |
+        Get efficiency analysis for a completed route.
+
+        **Metrics Provided:**
+        - Efficiency score (0-100)
+        - Estimated vs actual time comparison
+        - Distance metrics per stop
+        - Completion rate
+        - Recommendations for improvement
+      tags: [Analysis]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+      responses:
+        '200':
+          description: Route analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteAnalysis'
+              example:
+                routeId: "RT-a1b2c3d4"
+                efficiency: 85.5
+                estimatedVsActualTime:
+                  estimatedMinutes: 8
+                  actualMinutes: 10
+                  variance: 0.25
+                distanceMetrics:
+                  totalDistance: 125.5
+                  averagePerStop: 25.1
+                completionRate: 0.8
+                skippedStops: 1
+                recommendations:
+                  - "Consider zone-based routing for this area"
+                  - "High skip rate indicates inventory accuracy issues"
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /analysis/suggest-strategy:
+    post:
+      summary: Suggest routing strategy
+      description: |
+        Suggest the best routing strategy for a set of items based on
+        their locations, quantities, and optional constraints.
+
+        **Considerations:**
+        - Warehouse layout and zone configuration
+        - Item locations and distribution
+        - Picker's current location
+        - Time and distance constraints
+      tags: [Analysis]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                      locationId:
+                        type: string
+                      quantity:
+                        type: integer
+                pickerId:
+                  type: string
+                  description: Picker ID for location-aware suggestions
+                constraints:
+                  type: object
+                  properties:
+                    maxDistance:
+                      type: number
+                      description: Maximum allowed route distance
+                    maxTime:
+                      type: integer
+                      description: Maximum time in minutes
+            example:
+              items:
+                - sku: "WIDGET-001"
+                  locationId: "A-01-02-03"
+                  quantity: 2
+                - sku: "GADGET-002"
+                  locationId: "A-01-02-05"
+                  quantity: 1
+                - sku: "PART-003"
+                  locationId: "B-02-01-01"
+                  quantity: 3
+              pickerId: "PICKER-001"
+              constraints:
+                maxTime: 15
+      responses:
+        '200':
+          description: Strategy suggestion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategySuggestion'
+              example:
+                recommendedStrategy: "zone_based"
+                confidence: 0.92
+                estimatedDistance: 85.3
+                estimatedTimeMinutes: 6
+                alternatives:
+                  - strategy: "shortest_path"
+                    estimatedDistance: 78.5
+                    estimatedTimeMinutes: 7
+                  - strategy: "priority_first"
+                    estimatedDistance: 95.2
+                    estimatedTimeMinutes: 8
+                reasoning: "Items are clustered in 2 zones. Zone-based routing minimizes zone transitions while maintaining efficiency."
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                service: "routing-service"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Returns Prometheus-formatted metrics for monitoring
+      tags: [Health]
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    CreateRouteRequest:
+      type: object
+      required: [waveId, pickerId]
+      properties:
+        waveId:
+          type: string
+          description: Wave ID this route belongs to
+          example: "WAVE-2024-00123"
+        orderId:
+          type: string
+          description: Order ID (for single-order routes)
+          example: "ORD-A1B2C3D4"
+        pickerId:
+          type: string
+          description: Picker assigned to this route
+          example: "PICKER-001"
+        strategy:
+          type: string
+          enum: [shortest_path, zone_based, priority_first, batch_pick]
+          default: shortest_path
+          description: |
+            Routing strategy:
+            - `shortest_path`: Minimize travel distance
+            - `zone_based`: Group by warehouse zones
+            - `priority_first`: High priority items first
+            - `batch_pick`: Optimize for multiple orders
+        items:
+          type: array
+          description: Items to include in the route
+          items:
+            type: object
+            required: [sku, locationId, quantity]
+            properties:
+              sku:
+                type: string
+                description: Product SKU
+                example: "WIDGET-001"
+              locationId:
+                type: string
+                description: Storage location ID
+                example: "A-01-02-03"
+              quantity:
+                type: integer
+                minimum: 1
+                description: Quantity to pick
+                example: 2
+              priority:
+                type: integer
+                minimum: 1
+                description: Item priority (1 = highest)
+                example: 1
+
+    RouteResponse:
+      type: object
+      properties:
+        routeId:
+          type: string
+          description: Unique route identifier
+          example: "RT-a1b2c3d4"
+        waveId:
+          type: string
+          description: Associated wave ID
+          example: "WAVE-2024-00123"
+        orderId:
+          type: string
+          description: Associated order ID
+          example: "ORD-A1B2C3D4"
+        pickerId:
+          type: string
+          description: Assigned picker ID
+          example: "PICKER-001"
+        status:
+          $ref: '#/components/schemas/RouteStatus'
+        strategy:
+          type: string
+          enum: [shortest_path, zone_based, priority_first, batch_pick]
+          description: Routing strategy used
+        totalDistance:
+          type: number
+          description: Total route distance in meters
+          example: 125.5
+        estimatedTimeMinutes:
+          type: integer
+          description: Estimated completion time in minutes
+          example: 8
+        actualTimeMinutes:
+          type: integer
+          description: Actual completion time (when completed)
+          example: 10
+        stopsTotal:
+          type: integer
+          description: Total number of stops
+          example: 5
+        stopsCompleted:
+          type: integer
+          description: Number of completed stops
+          example: 3
+        stopsSkipped:
+          type: integer
+          description: Number of skipped stops
+          example: 0
+        stops:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteStop'
+        startedAt:
+          type: string
+          format: date-time
+          description: When route was started
+        completedAt:
+          type: string
+          format: date-time
+          description: When route was completed
+        pausedAt:
+          type: string
+          format: date-time
+          description: When route was paused (if paused)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RouteStop:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          description: Stop sequence number (1-based)
+          example: 1
+        locationId:
+          type: string
+          description: Storage location ID
+          example: "A-01-02-03"
+        zone:
+          type: string
+          description: Warehouse zone
+          example: "zone-a"
+        aisle:
+          type: string
+          description: Aisle identifier
+          example: "01"
+        bay:
+          type: string
+          description: Bay identifier
+          example: "02"
+        level:
+          type: string
+          description: Level/shelf identifier
+          example: "03"
+        sku:
+          type: string
+          description: Product SKU to pick
+          example: "WIDGET-001"
+        quantity:
+          type: integer
+          description: Expected quantity to pick
+          example: 2
+        actualQuantity:
+          type: integer
+          description: Actual quantity picked
+          example: 2
+        status:
+          type: string
+          enum: [pending, completed, skipped]
+          description: Stop status
+        skipReason:
+          type: string
+          description: Reason if stop was skipped
+        notes:
+          type: string
+          description: Notes about the pick
+        completedAt:
+          type: string
+          format: date-time
+
+    RouteStatus:
+      type: string
+      enum:
+        - calculated
+        - in_progress
+        - paused
+        - completed
+        - cancelled
+      description: |
+        Route status:
+        - `calculated`: Route optimized, ready to start
+        - `in_progress`: Picker actively working
+        - `paused`: Temporarily paused
+        - `completed`: All stops finished
+        - `cancelled`: Route cancelled
+
+    RouteAnalysis:
+      type: object
+      properties:
+        routeId:
+          type: string
+          example: "RT-a1b2c3d4"
+        efficiency:
+          type: number
+          description: Efficiency score 0-100
+          example: 85.5
+        estimatedVsActualTime:
+          type: object
+          properties:
+            estimatedMinutes:
+              type: integer
+              example: 8
+            actualMinutes:
+              type: integer
+              example: 10
+            variance:
+              type: number
+              description: Variance ratio (actual/estimated - 1)
+              example: 0.25
+        distanceMetrics:
+          type: object
+          properties:
+            totalDistance:
+              type: number
+              description: Total distance traveled
+              example: 125.5
+            averagePerStop:
+              type: number
+              description: Average distance per stop
+              example: 25.1
+        completionRate:
+          type: number
+          description: Ratio of completed stops to total stops
+          example: 0.8
+        skippedStops:
+          type: integer
+          description: Number of skipped stops
+          example: 1
+        recommendations:
+          type: array
+          items:
+            type: string
+          description: Improvement recommendations
+
+    StrategySuggestion:
+      type: object
+      properties:
+        recommendedStrategy:
+          type: string
+          enum: [shortest_path, zone_based, priority_first, batch_pick]
+          description: Recommended routing strategy
+        confidence:
+          type: number
+          description: Confidence level 0-1
+          example: 0.92
+        estimatedDistance:
+          type: number
+          description: Estimated route distance
+          example: 85.3
+        estimatedTimeMinutes:
+          type: integer
+          description: Estimated completion time
+          example: 6
+        alternatives:
+          type: array
+          items:
+            type: object
+            properties:
+              strategy:
+                type: string
+              estimatedDistance:
+                type: number
+              estimatedTimeMinutes:
+                type: integer
+        reasoning:
+          type: string
+          description: Explanation of the recommendation
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        service:
+          type: string
+          example: "routing-service"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Route not found"
+        code:
+          type: string
+          description: Error code
+          example: "NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

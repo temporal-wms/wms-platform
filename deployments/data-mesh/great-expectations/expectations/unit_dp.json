@@ -1,0 +1,128 @@
+{
+  "expectation_suite_name": "unit_data_product_quality",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0",
+    "data_product": "unit-dp",
+    "owner": "inventory-team",
+    "sla": {
+      "freshness_minutes": 1,
+      "completeness_percent": 99.99
+    }
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Table should not be empty in normal operations"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "unit_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "sku"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "location"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "unit_id"
+      },
+      "meta": {
+        "notes": "Primary key - must never be null"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "sku"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "unit_id"
+      },
+      "meta": {
+        "notes": "Unit ID must be unique across all records"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "status",
+        "value_set": [
+          "received",
+          "stowed",
+          "available",
+          "reserved",
+          "picked",
+          "packed",
+          "shipped",
+          "damaged",
+          "disposed"
+        ]
+      },
+      "meta": {
+        "notes": "Valid unit status values tracking lifecycle"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "sku",
+        "regex": "^[A-Z0-9]{3,20}$"
+      },
+      "meta": {
+        "notes": "SKU format validation"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "location",
+        "regex": "^[A-Z]-\\d{2}-\\d{2}-\\d{2}$"
+      },
+      "meta": {
+        "notes": "Location format: Zone-Aisle-Rack-Level (e.g., A-01-02-03)"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_of_type",
+      "kwargs": {
+        "column": "created_at",
+        "type_": "TIMESTAMP"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_of_type",
+      "kwargs": {
+        "column": "last_movement_at",
+        "type_": "TIMESTAMP"
+      }
+    }
+  ],
+  "ge_cloud_id": null,
+  "data_context_key": "unit_data_product"
+}

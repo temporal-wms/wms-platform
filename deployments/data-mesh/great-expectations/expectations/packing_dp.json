@@ -1,0 +1,191 @@
+{
+  "expectation_suite_name": "packing_data_product_quality",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0",
+    "data_product": "packing-dp",
+    "owner": "operations-team",
+    "sla": {
+      "freshness_minutes": 5,
+      "completeness_percent": 99.9
+    }
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Table should not be empty in normal operations"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "task_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "order_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "consolidation_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "packer_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "package_type"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "station"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "task_id"
+      },
+      "meta": {
+        "notes": "Primary key - must never be null"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "order_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "task_id"
+      },
+      "meta": {
+        "notes": "Pack task ID must be unique across all records"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "status",
+        "value_set": [
+          "pending",
+          "in_progress",
+          "packed",
+          "labeled",
+          "completed",
+          "cancelled"
+        ]
+      },
+      "meta": {
+        "notes": "Valid pack task status values from domain model"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "package_type",
+        "value_set": [
+          "box",
+          "envelope",
+          "bag",
+          "padded_envelope",
+          "custom"
+        ],
+        "mostly": 0.95
+      },
+      "meta": {
+        "notes": "Valid package type values from domain model"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_of_type",
+      "kwargs": {
+        "column": "created_at",
+        "type_": "TIMESTAMP"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "created_at",
+        "min_value": "2024-01-01T00:00:00",
+        "parse_strings_as_datetimes": true
+      },
+      "meta": {
+        "notes": "Pack tasks should not have dates before system launch"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "task_id",
+        "regex": "^PACK-[A-Z0-9-]+$"
+      },
+      "meta": {
+        "notes": "Pack task ID format: PACK-XXXXXXXX"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "total_weight",
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Package weight must be non-negative"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "tracking_number",
+        "mostly": 0.90
+      },
+      "meta": {
+        "notes": "Tracking number required for completed tasks"
+      }
+    },
+    {
+      "expectation_type": "expect_column_pair_values_A_to_be_greater_than_B",
+      "kwargs": {
+        "column_A": "updated_at",
+        "column_B": "created_at",
+        "or_equal": true
+      },
+      "meta": {
+        "notes": "Updated timestamp must be >= created timestamp"
+      }
+    }
+  ],
+  "ge_cloud_id": null,
+  "data_context_key": "packing_data_product"
+}

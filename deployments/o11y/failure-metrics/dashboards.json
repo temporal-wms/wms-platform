@@ -1,0 +1,398 @@
+{
+  "services": [
+    "order-service",
+    "orchestrator"
+  ],
+  "namespace": "wms-platform-dev",
+  "prometheus_datasource_uid": "prometheus",
+  "dashboard_template": {
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Order Failures by Type",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "description": "Rate of order failures by failure type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{failure_type}}",
+            "expr": "sum(rate(wms_order_failures_total{service=\"${SERVICE}\"}[5m])) by (failure_type)"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Retry Outcomes",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "description": "Rate of retry outcomes (success, failure, DLQ)",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{outcome}}",
+            "expr": "sum(rate(wms_order_retry_outcome_total{service=\"${SERVICE}\"}[5m])) by (outcome)"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Total Order Failures (last hour)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
+        "description": "Total number of order failures in the last hour",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "red", "value": 50}
+              ]
+            }
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(wms_order_failures_total{service=\"${SERVICE}\"}[1h]))"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Retry Success Rate (%)",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
+        "description": "Percentage of retries that succeeded",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 50},
+                {"color": "green", "value": 80}
+              ]
+            }
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(rate(wms_order_retry_outcome_total{service=\"${SERVICE}\", outcome=\"success\"}[1h])) / sum(rate(wms_order_retry_outcome_total{service=\"${SERVICE}\"}[1h])) * 100"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "DLQ Entries Pending",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 8, "w": 6, "h": 4},
+        "description": "Current number of unresolved DLQ entries",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 20}
+              ]
+            }
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(wms_dlq_entries_pending{service=\"${SERVICE}\"})"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Total DLQ Entries (last hour)",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 8, "w": 6, "h": 4},
+        "description": "Orders moved to DLQ in the last hour",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 20}
+              ]
+            }
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(wms_dlq_entries_total{service=\"${SERVICE}\"}[1h]))"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Retry Attempts by Failure Type",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+        "description": "Rate of retry attempts by failure type and attempt number",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{failure_type}} (attempt {{attempt_number}})",
+            "expr": "sum(rate(wms_order_retry_attempts_total{service=\"${SERVICE}\"}[5m])) by (failure_type, attempt_number)"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "DLQ Entries by Failure Type",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+        "description": "Rate of DLQ entries by failure type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{failure_type}}",
+            "expr": "sum(rate(wms_dlq_entries_total{service=\"${SERVICE}\"}[5m])) by (failure_type)"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Workflow Failures by Stage",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+        "description": "Rate of workflow failures by stage and type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{stage}} - {{failure_type}}",
+            "expr": "sum(rate(wms_workflow_failures_total{service=\"${SERVICE}\"}[5m])) by (stage, failure_type)"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Workflow Retries",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+        "description": "Rate of workflow retries by workflow type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{workflow_type}}",
+            "expr": "sum(rate(wms_workflow_retries_total{service=\"${SERVICE}\"}[5m])) by (workflow_type)"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "DLQ Resolutions by Type",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 28, "w": 8, "h": 8},
+        "description": "Distribution of DLQ resolution types",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "right"},
+          "pieType": "pie"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{resolution_type}}",
+            "expr": "sum(increase(wms_dlq_resolutions_total{service=\"${SERVICE}\"}[24h])) by (resolution_type)"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "DLQ Age Distribution (when resolved)",
+        "type": "heatmap",
+        "gridPos": {"x": 8, "y": 28, "w": 8, "h": 8},
+        "description": "Age of DLQ entries when resolved",
+        "options": {
+          "calculate": false,
+          "color": {
+            "scheme": "Oranges"
+          },
+          "yAxis": {
+            "unit": "s"
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{le}}",
+            "expr": "sum(increase(wms_dlq_age_seconds_bucket{service=\"${SERVICE}\"}[1h])) by (le)",
+            "format": "heatmap"
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Reprocessing Batch Outcomes",
+        "type": "timeseries",
+        "gridPos": {"x": 16, "y": 28, "w": 8, "h": 8},
+        "description": "Outcomes of reprocessing batches",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{outcome}}",
+            "expr": "sum(rate(wms_reprocessing_batches_total{service=\"${SERVICE}\"}[5m])) by (outcome)"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Failures by Priority",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 36, "w": 12, "h": 8},
+        "description": "Order failures grouped by failure type and priority",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "failure_type"},
+              "properties": [{"id": "custom.width", "value": 150}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "priority"},
+              "properties": [{"id": "custom.width", "value": 100}]
+            }
+          ]
+        },
+        "transformations": [
+          {"id": "sortBy", "options": {"sort": [{"field": "Value", "desc": true}]}}
+        ],
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "topk(20, sum(increase(wms_order_failures_total{service=\"${SERVICE}\"}[1h])) by (failure_type, priority))",
+            "format": "table",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Retry Duration Percentiles",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 36, "w": 12, "h": 8},
+        "description": "Time between failure and retry (p50, p95, p99)",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "p50",
+            "expr": "histogram_quantile(0.50, sum(rate(wms_order_retry_duration_seconds_bucket{service=\"${SERVICE}\"}[5m])) by (le))"
+          },
+          {
+            "refId": "B",
+            "legendFormat": "p95",
+            "expr": "histogram_quantile(0.95, sum(rate(wms_order_retry_duration_seconds_bucket{service=\"${SERVICE}\"}[5m])) by (le))"
+          },
+          {
+            "refId": "C",
+            "legendFormat": "p99",
+            "expr": "histogram_quantile(0.99, sum(rate(wms_order_retry_duration_seconds_bucket{service=\"${SERVICE}\"}[5m])) by (le))"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+# Tempo Helm Values for WMS Platform
+# Single-binary mode optimized for Kind cluster development
+
+# Tempo configuration
+tempo:
+  # Receivers configuration - enable OTLP
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+  # Retention configuration
+  retention: 24h
+
+  # Query configuration
+  querier:
+    max_concurrent_queries: 20
+
+  # Metrics generator disabled (no prometheus remote write available)
+  metricsGenerator:
+    enabled: false
+
+# Resource settings for dev
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Persistence
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClassName: standard
+
+# Service configuration
+service:
+  type: NodePort
+  nodePort: 30320
+
+# Replica count
+replicas: 1

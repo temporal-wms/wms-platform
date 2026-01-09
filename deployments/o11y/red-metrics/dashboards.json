@@ -1,0 +1,302 @@
+{
+  "services": [
+    "order-service",
+    "inventory-service",
+    "waving-service",
+    "routing-service",
+    "picking-service",
+    "consolidation-service",
+    "packing-service",
+    "shipping-service",
+    "labor-service",
+    "facility-service",
+    "orchestrator",
+    "seller-service",
+    "billing-service",
+    "channel-service",
+    "seller-portal"
+  ],
+  "namespace": "wms-platform-dev",
+  "prometheus_datasource_uid": "prometheus",
+  "dashboard_template": {
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate (req/sec)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "description": "Rate of incoming requests per second",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{method}} {{path}}",
+            "expr": "sum(rate(wms_http_requests_total{service=\"${SERVICE}\"}[5m])) by (method, path)"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Error Rate (errors/sec)",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "description": "Rate of 4xx and 5xx errors per second",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "4xx Errors",
+            "expr": "sum(rate(wms_http_requests_total{service=\"${SERVICE}\", status=~\"4..\"}[5m]))"
+          },
+          {
+            "refId": "B",
+            "legendFormat": "5xx Errors",
+            "expr": "sum(rate(wms_http_requests_total{service=\"${SERVICE}\", status=~\"5..\"}[5m]))"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Error Rate (%)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
+        "description": "Percentage of requests returning errors",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(rate(wms_http_requests_total{service=\"${SERVICE}\", status=~\"[45]..\"}[5m])) / sum(rate(wms_http_requests_total{service=\"${SERVICE}\"}[5m])) * 100"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Requests In-Flight",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
+        "description": "Current number of requests being processed",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 100}
+              ]
+            }
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(wms_http_requests_in_flight{service=\"${SERVICE}\"})"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Total Requests (last hour)",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 8, "w": 6, "h": 4},
+        "description": "Total number of requests in the last hour",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(wms_http_requests_total{service=\"${SERVICE}\"}[1h]))"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Total Errors (last hour)",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 8, "w": 6, "h": 4},
+        "description": "Total number of errors in the last hour",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "red", "value": 50}
+              ]
+            }
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(wms_http_requests_total{service=\"${SERVICE}\", status=~\"[45]..\"}[1h]))"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Latency Percentiles",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+        "description": "Request latency at p50, p95, and p99 percentiles",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "p50",
+            "expr": "histogram_quantile(0.50, sum(rate(wms_http_request_duration_seconds_bucket{service=\"${SERVICE}\"}[5m])) by (le))"
+          },
+          {
+            "refId": "B",
+            "legendFormat": "p95",
+            "expr": "histogram_quantile(0.95, sum(rate(wms_http_request_duration_seconds_bucket{service=\"${SERVICE}\"}[5m])) by (le))"
+          },
+          {
+            "refId": "C",
+            "legendFormat": "p99",
+            "expr": "histogram_quantile(0.99, sum(rate(wms_http_request_duration_seconds_bucket{service=\"${SERVICE}\"}[5m])) by (le))"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Latency Heatmap",
+        "type": "heatmap",
+        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+        "description": "Distribution of request latencies over time",
+        "options": {
+          "calculate": false,
+          "color": {
+            "scheme": "Oranges"
+          },
+          "yAxis": {
+            "unit": "s"
+          }
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{le}}",
+            "expr": "sum(increase(wms_http_request_duration_seconds_bucket{service=\"${SERVICE}\"}[1m])) by (le)",
+            "format": "heatmap"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Top Endpoints by Request Rate",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+        "description": "Endpoints with highest request rates",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "method"},
+              "properties": [{"id": "custom.width", "value": 80}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "path"},
+              "properties": [{"id": "custom.width", "value": 250}]
+            }
+          ]
+        },
+        "transformations": [
+          {"id": "sortBy", "options": {"sort": [{"field": "Value", "desc": true}]}}
+        ],
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "topk(10, sum(rate(wms_http_requests_total{service=\"${SERVICE}\"}[5m])) by (method, path))",
+            "format": "table",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Top Endpoints by Error Rate",
+        "type": "table",
+        "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+        "description": "Endpoints with highest error rates",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "method"},
+              "properties": [{"id": "custom.width", "value": 80}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "path"},
+              "properties": [{"id": "custom.width", "value": 250}]
+            }
+          ]
+        },
+        "transformations": [
+          {"id": "sortBy", "options": {"sort": [{"field": "Value", "desc": true}]}}
+        ],
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "topk(10, sum(rate(wms_http_requests_total{service=\"${SERVICE}\", status=~\"[45]..\"}[5m])) by (method, path, status))",
+            "format": "table",
+            "instant": true
+          }
+        ]
+      }
+    ]
+  }
+}

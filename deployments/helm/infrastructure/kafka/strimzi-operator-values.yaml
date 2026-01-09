@@ -1,0 +1,16 @@
+# Strimzi Kafka Operator Helm Chart Values
+# Chart: strimzi/strimzi-kafka-operator
+#
+# Install:
+#   helm repo add strimzi https://strimzi.io/charts/
+#   helm install strimzi-kafka-operator strimzi/strimzi-kafka-operator \
+#     -n kafka --create-namespace -f strimzi-operator-values.yaml
+
+# Watch all namespaces for Kafka resources
+watchAnyNamespace: true
+
+# Operator replicas
+replicas: 1
+
+# Log level
+logLevel: INFO

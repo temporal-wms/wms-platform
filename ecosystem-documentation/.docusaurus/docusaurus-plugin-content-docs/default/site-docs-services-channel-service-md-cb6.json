@@ -1,0 +1,26 @@
+{
+  "id": "services/channel-service",
+  "title": "Channel Service",
+  "description": "The Channel Service manages external sales channel integrations, enabling order import, inventory synchronization, and tracking updates with platforms like Shopify, Amazon, eBay, and WooCommerce.",
+  "source": "@site/docs/services/channel-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/channel-service",
+  "permalink": "/wms-platform/services/channel-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 15,
+  "frontMatter": {
+    "sidebar_position": 15
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Billing Service",
+    "permalink": "/wms-platform/services/billing-service"
+  },
+  "next": {
+    "title": "Seller Portal",
+    "permalink": "/wms-platform/services/seller-portal"
+  }
+}

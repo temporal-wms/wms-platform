@@ -1,0 +1,108 @@
+# Superset Dataset Configuration: Facility Utilization
+# Dataset for the Facility Operations dashboard
+
+dataset:
+  name: facility_utilization_daily
+  description: "Daily facility and station utilization metrics"
+  database: trino
+  schema: iceberg.gold
+  table_name: facility_utilization_daily
+
+  main_dttm_col: date
+
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of utilization metrics"
+
+    - column_name: facility_id
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Facility identifier"
+
+    - column_name: zone
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Warehouse zone"
+
+    - column_name: station_type
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Station type"
+
+    - column_name: total_stations
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total stations"
+
+    - column_name: active_stations
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Active stations"
+
+    - column_name: maintenance_stations
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Stations in maintenance"
+
+    - column_name: avg_utilization_pct
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average utilization percentage"
+
+    - column_name: total_tasks_processed
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total tasks processed"
+
+    - column_name: tasks_per_station
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Tasks per station"
+
+  metrics:
+    - metric_name: total_stations
+      expression: "SUM(total_stations)"
+      description: "Total stations"
+
+    - metric_name: active_stations
+      expression: "SUM(active_stations)"
+      description: "Active stations"
+
+    - metric_name: maintenance_stations
+      expression: "SUM(maintenance_stations)"
+      description: "Stations in maintenance"
+
+    - metric_name: availability_rate
+      expression: "SUM(active_stations) * 100.0 / NULLIF(SUM(total_stations), 0)"
+      description: "Station availability rate"
+
+    - metric_name: avg_utilization
+      expression: "AVG(avg_utilization_pct)"
+      description: "Average utilization"
+
+    - metric_name: total_tasks
+      expression: "SUM(total_tasks_processed)"
+      description: "Total tasks processed"
+
+---
+# Current stations snapshot dataset
+dataset:
+  name: stations_current
+  description: "Current state of all stations"
+  database: trino
+  schema: iceberg.silver
+  table_name: stations_current
+  main_dttm_col: created_at

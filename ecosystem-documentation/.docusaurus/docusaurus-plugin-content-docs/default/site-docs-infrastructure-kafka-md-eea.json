@@ -1,0 +1,26 @@
+{
+  "id": "infrastructure/kafka",
+  "title": "Apache Kafka",
+  "description": "Apache Kafka serves as the event streaming platform for the WMS Platform.",
+  "source": "@site/docs/infrastructure/kafka.md",
+  "sourceDirName": "infrastructure",
+  "slug": "/infrastructure/kafka",
+  "permalink": "/wms-platform/infrastructure/kafka",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "MongoDB",
+    "permalink": "/wms-platform/infrastructure/mongodb"
+  },
+  "next": {
+    "title": "Temporal",
+    "permalink": "/wms-platform/infrastructure/temporal"
+  }
+}

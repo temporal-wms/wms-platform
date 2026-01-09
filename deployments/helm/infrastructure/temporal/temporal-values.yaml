@@ -1,0 +1,145 @@
+# Temporal Helm Chart Values
+# Chart: temporalio/temporal
+#
+# Install:
+#   helm repo add temporalio https://temporalio.github.io/helm-charts
+#   helm install temporal temporalio/temporal \
+#     -n wms-platform -f temporal-values.yaml
+
+# Server configuration
+server:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  config:
+    persistence:
+      default:
+        driver: sql
+        sql:
+          driver: postgres12
+          host: temporal-postgresql
+          port: 5432
+          database: temporal
+          user: temporal
+          password: temporal
+          maxConns: 20
+          maxConnLifetime: "1h"
+      visibility:
+        driver: sql
+        sql:
+          driver: postgres12
+          host: temporal-postgresql
+          port: 5432
+          database: temporal_visibility
+          user: temporal
+          password: temporal
+          maxConns: 20
+          maxConnLifetime: "1h"
+
+# Disable internal databases (using external PostgreSQL)
+cassandra:
+  enabled: false
+
+mysql:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+# Temporal components
+frontend:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 500m
+  service:
+    type: ClusterIP
+    port: 7233
+
+history:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+matching:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 500m
+
+worker:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 500m
+
+# Web UI
+web:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 200m
+  service:
+    type: NodePort
+    port: 8080
+    nodePort: 30080
+
+# Admin tools
+admintools:
+  enabled: true
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 200m
+
+# Schema setup
+schema:
+  setup:
+    enabled: true
+  update:
+    enabled: true
+
+# Prometheus metrics
+prometheus:
+  enabled: true
+
+# Grafana dashboards
+grafana:
+  enabled: false
+
+# Elasticsearch (disabled - using PostgreSQL for visibility)
+elasticsearch:
+  enabled: false
+
+# Dynamic config
+dynamicConfig: {}

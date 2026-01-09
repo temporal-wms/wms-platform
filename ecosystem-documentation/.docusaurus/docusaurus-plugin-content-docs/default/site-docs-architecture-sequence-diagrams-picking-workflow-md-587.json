@@ -1,0 +1,26 @@
+{
+  "id": "architecture/sequence-diagrams/picking-workflow",
+  "title": "Picking Workflow",
+  "description": "This diagram shows the detailed picking child workflow, including task creation, worker assignment, and pick completion signaling.",
+  "source": "@site/docs/architecture/sequence-diagrams/picking-workflow.md",
+  "sourceDirName": "architecture/sequence-diagrams",
+  "slug": "/architecture/sequence-diagrams/picking-workflow",
+  "permalink": "/wms-platform/architecture/sequence-diagrams/picking-workflow",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Walling Workflow",
+    "permalink": "/wms-platform/architecture/sequence-diagrams/walling-workflow"
+  },
+  "next": {
+    "title": "Packing Workflow",
+    "permalink": "/wms-platform/architecture/sequence-diagrams/packing-workflow"
+  }
+}

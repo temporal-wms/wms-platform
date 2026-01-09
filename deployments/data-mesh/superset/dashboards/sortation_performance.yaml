@@ -1,0 +1,232 @@
+# Superset Dashboard Configuration: Sortation Performance
+# Dashboard for monitoring package sortation and dispatch metrics
+
+dashboard:
+  name: "Sortation Performance"
+  description: "Sortation analytics dashboard with sort rates, dispatch metrics, and carrier performance"
+  slug: sortation-performance
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: sortation_center
+      type: select
+      title: "Sortation Center"
+      description: "Filter by sortation center"
+      required: false
+      filter_key: sortation_center
+
+    - name: carrier_id
+      type: select
+      title: "Carrier"
+      description: "Filter by carrier"
+      required: false
+      options:
+        - UPS
+        - FedEx
+        - USPS
+        - DHL
+        - OnTrac
+      filter_key: carrier_id
+
+    - name: status
+      type: select
+      title: "Batch Status"
+      description: "Filter by batch status"
+      required: false
+      options:
+        - receiving
+        - sorting
+        - ready
+        - dispatching
+        - dispatched
+      filter_key: status
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Packages Sorted Today"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: sortation_metrics_daily
+          configuration:
+            metric: sorted_packages
+            subheader: "Packages"
+
+        - name: "Sort Rate"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: sortation_metrics_daily
+          configuration:
+            metric: sort_rate
+            subheader: "Completion %"
+            format: "{value:.1f}%"
+
+        - name: "Packages/Hour"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: sortation_metrics_daily
+          configuration:
+            metric: packages_per_hour
+            subheader: "Target: 1000+"
+            format: "{value:.0f}"
+
+        - name: "Dispatch Rate"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: sortation_metrics_daily
+          configuration:
+            metric: dispatch_rate
+            subheader: "%"
+            format: "{value:.1f}%"
+
+    # Row 2: Carrier Analysis
+    - row: 2
+      charts:
+        - name: "Packages by Carrier"
+          type: bar
+          width: 6
+          height: 4
+          description: "Package distribution by carrier"
+          dataset: sortation_metrics_daily
+          configuration:
+            metric: total_packages
+            dimension: carrier_id
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Batches by Center"
+          type: bar
+          width: 6
+          height: 4
+          description: "Batch count by sortation center"
+          dataset: sortation_metrics_daily
+          configuration:
+            metric: total_batches
+            dimension: sortation_center
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+    # Row 3: Performance Trends
+    - row: 3
+      charts:
+        - name: "Sortation Volume Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Packages sorted over time"
+          dataset: sortation_metrics_daily
+          configuration:
+            metrics:
+              - sorted_packages
+              - total_packages
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+        - name: "Sort Rate Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Sort completion rate trend"
+          dataset: sortation_metrics_daily
+          configuration:
+            metrics:
+              - sort_rate
+            dimension: date
+            time_grain: day
+            y_axis_format: ".1%"
+
+    # Row 4: Weight and Distribution
+    - row: 4
+      charts:
+        - name: "Weight by Carrier"
+          type: bar
+          width: 6
+          height: 4
+          description: "Total weight by carrier"
+          dataset: sortation_metrics_daily
+          configuration:
+            metric: total_weight
+            dimension: carrier_id
+            orientation: horizontal
+            sort: descending
+
+        - name: "Avg Packages per Batch"
+          type: bar
+          width: 6
+          height: 4
+          description: "Average packages per batch by carrier"
+          dataset: sortation_metrics_daily
+          configuration:
+            metric: avg_packages_per_batch
+            dimension: carrier_id
+            orientation: horizontal
+            sort: descending
+
+    # Row 5: Batch Details
+    - row: 5
+      charts:
+        - name: "Active Batch Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Current sortation batch status"
+          dataset: sortation_batches_current
+          configuration:
+            columns:
+              - batch_id
+              - sortation_center
+              - carrier_id
+              - destination_group
+              - status
+              - total_packages
+              - sorted_count
+              - total_weight
+              - trailer_id
+              - dispatch_dock
+              - created_at
+            order_by: created_at
+            order_direction: desc
+            conditional_formatting:
+              - column: status
+                conditions:
+                  - operator: "=="
+                    value: "dispatched"
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: "=="
+                    value: "sorting"
+                    background_color: "#1890ff"
+                    text_color: "#ffffff"
+                  - operator: "=="
+                    value: "ready"
+                    background_color: "#faad14"
+                    text_color: "#000000"
+
+# Dataset references
+datasets:
+  - name: sortation_metrics_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: sortation_metrics_daily
+  - name: sortation_batches_current
+    database: trino
+    schema: iceberg.silver
+    table_name: sortation_batches_current

@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/inbound-fulfillment",
+  "title": "InboundFulfillmentWorkflow",
+  "description": "Orchestrates the inbound fulfillment process from ASN (Advanced Shipping Notice) through stow.",
+  "source": "@site/docs/temporal/workflows/inbound-fulfillment.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/inbound-fulfillment",
+  "permalink": "/wms-platform/temporal/workflows/inbound-fulfillment",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 10,
+  "frontMatter": {
+    "sidebar_position": 10,
+    "slug": "/temporal/workflows/inbound-fulfillment"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "GiftWrapWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/gift-wrap"
+  },
+  "next": {
+    "title": "StockShortageWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/stock-shortage"
+  }
+}

@@ -1,0 +1,117 @@
+# Superset Dataset Configuration: Inventory Analytics
+# Dataset for the Inventory Analytics dashboard
+
+dataset:
+  name: inventory_current
+  description: "Current inventory levels and stock status"
+  database: trino
+  schema: iceberg.silver
+  table_name: inventory_current
+
+  # Columns
+  columns:
+    - column_name: sku
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Stock Keeping Unit"
+
+    - column_name: product_name
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Product name"
+
+    - column_name: total_quantity
+      type: INTEGER
+      filterable: false
+      groupby: false
+      description: "Total quantity in warehouse"
+
+    - column_name: reserved_quantity
+      type: INTEGER
+      filterable: false
+      groupby: false
+      description: "Reserved quantity (soft allocations)"
+
+    - column_name: available_quantity
+      type: INTEGER
+      filterable: false
+      groupby: false
+      description: "Available quantity for new orders"
+
+    - column_name: reorder_point
+      type: INTEGER
+      filterable: false
+      groupby: false
+      description: "Reorder trigger point"
+
+    - column_name: updated_at
+      type: TIMESTAMP
+      is_dttm: true
+      filterable: true
+      groupby: false
+      description: "Last update timestamp"
+
+  # Metrics
+  metrics:
+    - metric_name: total_skus
+      expression: "COUNT(DISTINCT sku)"
+      description: "Total unique SKUs"
+
+    - metric_name: total_units
+      expression: "SUM(total_quantity)"
+      description: "Total units in inventory"
+
+    - metric_name: available_units
+      expression: "SUM(available_quantity)"
+      description: "Total available units"
+
+    - metric_name: reserved_units
+      expression: "SUM(reserved_quantity)"
+      description: "Total reserved units"
+
+    - metric_name: low_stock_count
+      expression: "SUM(CASE WHEN available_quantity <= reorder_point THEN 1 ELSE 0 END)"
+      description: "SKUs below reorder point"
+
+    - metric_name: out_of_stock_count
+      expression: "SUM(CASE WHEN available_quantity = 0 THEN 1 ELSE 0 END)"
+      description: "SKUs with zero availability"
+
+---
+# Inventory metrics daily
+dataset:
+  name: inventory_metrics_daily
+  description: "Daily inventory movement and turnover metrics"
+  database: trino
+  schema: iceberg.gold
+  table_name: inventory_metrics_daily
+  main_dttm_col: date
+
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+
+    - column_name: sku
+      type: STRING
+      filterable: true
+      groupby: true
+
+    - column_name: turnover_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+
+    - column_name: days_of_supply
+      type: INTEGER
+      filterable: false
+      groupby: false
+
+    - column_name: is_low_stock
+      type: BOOLEAN
+      filterable: true
+      groupby: true

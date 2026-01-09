@@ -1,0 +1,166 @@
+{
+  "expectation_suite_name": "labor_data_product_quality",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0",
+    "data_product": "labor-dp",
+    "owner": "operations-team",
+    "sla": {
+      "freshness_minutes": 5,
+      "completeness_percent": 99.9
+    }
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Table should not be empty in normal operations"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "worker_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "name"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "shift_type"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "zone"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "worker_id"
+      },
+      "meta": {
+        "notes": "Primary key - must never be null"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "name"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "worker_id"
+      },
+      "meta": {
+        "notes": "Worker ID must be unique across all records"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "status",
+        "value_set": [
+          "available",
+          "working",
+          "break",
+          "offline",
+          "training"
+        ]
+      },
+      "meta": {
+        "notes": "Valid worker status values from domain model"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "shift_type",
+        "value_set": [
+          "morning",
+          "afternoon",
+          "night",
+          "flex"
+        ]
+      },
+      "meta": {
+        "notes": "Valid shift types from domain model"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "worker_id",
+        "regex": "^WKR-[A-Z0-9]{6,}$"
+      },
+      "meta": {
+        "notes": "Worker ID format: WKR-XXXXXX"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "accuracy_rate",
+        "min_value": 0.0,
+        "max_value": 1.0
+      },
+      "meta": {
+        "notes": "Accuracy rate must be between 0 and 1"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "items_per_hour",
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Items per hour must be non-negative"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_of_type",
+      "kwargs": {
+        "column": "shift_start",
+        "type_": "TIMESTAMP"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "shift_start",
+        "min_value": "2024-01-01T00:00:00",
+        "parse_strings_as_datetimes": true
+      },
+      "meta": {
+        "notes": "Shifts should not have dates before system launch"
+      }
+    }
+  ],
+  "ge_cloud_id": null,
+  "data_context_key": "labor_data_product"
+}

@@ -1,0 +1,105 @@
+# Promtail Helm Chart Values
+# Chart: grafana/promtail
+#
+# Install:
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm install promtail grafana/promtail \
+#     -n observability --create-namespace -f promtail-values.yaml
+
+# Loki endpoint configuration
+config:
+  clients:
+    - url: http://loki-gateway.observability.svc.cluster.local/loki/api/v1/push
+
+  # Scrape configurations
+  snippets:
+    # Common labels
+    common:
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_pod_node_name
+        target_label: node_name
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_namespace
+        target_label: namespace
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_pod_name
+        target_label: pod
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_pod_container_name
+        target_label: container
+      - action: replace
+        replacement: /var/log/pods/*$1/*.log
+        separator: /
+        source_labels:
+          - __meta_kubernetes_pod_uid
+          - __meta_kubernetes_pod_container_name
+        target_label: __path__
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_pod_label_app
+        target_label: app
+
+    # Pipeline stages for WMS services
+    pipelineStages:
+      - cri: {}
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            trace_id: trace_id
+            span_id: span_id
+            service: service
+            ce_type: ce_type
+            ce_source: ce_source
+      - labels:
+          level:
+          service:
+          ce_type:
+          ce_source:
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+
+# DaemonSet configuration
+daemonSet:
+  enabled: true
+
+# Resources
+resources:
+  requests:
+    memory: 64Mi
+    cpu: 50m
+  limits:
+    memory: 128Mi
+    cpu: 100m
+
+# Tolerations to run on all nodes
+tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+# Service account
+serviceAccount:
+  create: true
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3101"
+
+# Security context
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  allowPrivilegeEscalation: false
+

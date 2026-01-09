@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wms-frontend
+  labels:
+    app.kubernetes.io/name: wms-frontend
+    app.kubernetes.io/part-of: wms-platform

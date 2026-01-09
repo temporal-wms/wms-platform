@@ -1,0 +1,99 @@
+# Trino Helm Values for Data Mesh Query Engine
+# Chart: trino/trino
+
+image:
+  repository: trinodb/trino
+  tag: "436"
+  pullPolicy: IfNotPresent
+
+server:
+  workers: 2
+  node:
+    environment: production
+    dataDir: /data/trino
+  log:
+    trino:
+      level: INFO
+  config:
+    path: /etc/trino
+    http:
+      port: 8080
+    query:
+      maxMemory: "4GB"
+      maxMemoryPerNode: "1GB"
+      maxTotalMemory: "8GB"
+      maxTotalMemoryPerNode: "2GB"
+  jvm:
+    maxHeapSize: "4G"
+    gcMethod:
+      type: "UseG1GC"
+      g1:
+        heapRegionSize: "32M"
+
+coordinator:
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+worker:
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30808
+
+# Environment variables for coordinator and workers
+env:
+  - name: AWS_REGION
+    value: "us-east-1"
+  - name: AWS_ACCESS_KEY_ID
+    value: "datamesh"
+  - name: AWS_SECRET_ACCESS_KEY
+    value: "datamesh123456"
+
+# Additional catalogs mounted as ConfigMaps
+additionalCatalogs:
+  iceberg: |
+    connector.name=iceberg
+    iceberg.catalog.type=hive_metastore
+    hive.metastore.uri=thrift://hive-metastore.data-mesh.svc.cluster.local:9083
+    iceberg.file-format=PARQUET
+    iceberg.compression-codec=ZSTD
+    fs.native-s3.enabled=true
+    s3.endpoint=http://minio.data-mesh.svc.cluster.local:9000
+    s3.path-style-access=true
+    s3.aws-access-key=datamesh
+    s3.aws-secret-key=datamesh123456
+    s3.region=us-east-1
+
+  mongodb: |
+    connector.name=mongodb
+    mongodb.connection-url=mongodb://wmsuser:wmspassword@mongodb.mongodb.svc.cluster.local:27017/?authSource=wmsdb
+    mongodb.schema-collection=_schema
+
+  kafka: |
+    connector.name=kafka
+    kafka.nodes=wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+    kafka.table-description-supplier=FILE
+    kafka.table-description-dir=/etc/trino/catalog/kafka-tables
+    kafka.hide-internal-columns=false
+
+# Prometheus metrics (disabled - enable if Prometheus Operator is installed)
+serviceMonitor:
+  enabled: false
+  # labels:
+  #   release: prometheus
+
+# Access control (optional - disabled for dev)
+accessControl: {}

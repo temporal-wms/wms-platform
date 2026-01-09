@@ -1,0 +1,152 @@
+# Superset Dataset Configuration for Orders by Tote Lookup
+# This dataset connects to Trino/MongoDB for real-time tote lookup
+
+dataset:
+  name: orders_by_tote
+  description: "Lookup orders by tote ID - finds all orders with items in a specific tote"
+  database: trino
+  schema: mongodb.wms
+  sql: |
+    SELECT
+      c.order_id,
+      c.consolidation_id,
+      c.status AS consolidation_status,
+      c.station,
+      c.worker_id,
+      c.total_expected,
+      c.total_consolidated,
+      c.ready_for_packing,
+      c.created_at,
+      c.updated_at
+    FROM mongodb.wms.consolidations c
+    WHERE ARRAY_CONTAINS(c.source_totes, '{{ tote_id }}')
+      {% if from_date %}AND c.created_at >= TIMESTAMP '{{ from_date }}'{% endif %}
+      {% if to_date %}AND c.created_at <= TIMESTAMP '{{ to_date }}'{% endif %}
+    ORDER BY c.created_at DESC
+
+  # Virtual dataset columns
+  columns:
+    - column_name: order_id
+      type: VARCHAR
+      description: "Order identifier"
+      is_filterable: true
+
+    - column_name: consolidation_id
+      type: VARCHAR
+      description: "Consolidation unit identifier"
+
+    - column_name: consolidation_status
+      type: VARCHAR
+      description: "Current status (pending, in_progress, completed)"
+      is_filterable: true
+
+    - column_name: station
+      type: VARCHAR
+      description: "Consolidation station"
+      is_filterable: true
+
+    - column_name: worker_id
+      type: VARCHAR
+      description: "Worker assigned to consolidation"
+
+    - column_name: total_expected
+      type: INTEGER
+      description: "Total items expected in consolidation"
+
+    - column_name: total_consolidated
+      type: INTEGER
+      description: "Total items consolidated so far"
+
+    - column_name: ready_for_packing
+      type: BOOLEAN
+      description: "Whether consolidation is ready for packing"
+
+    - column_name: created_at
+      type: TIMESTAMP
+      is_dttm: true
+      description: "Consolidation creation timestamp"
+
+    - column_name: updated_at
+      type: TIMESTAMP
+      is_dttm: true
+      description: "Last update timestamp"
+
+  # Metrics
+  metrics:
+    - metric_name: order_count
+      expression: COUNT(DISTINCT order_id)
+      description: "Number of unique orders"
+      verbose_name: "Order Count"
+
+    - metric_name: total_items
+      expression: SUM(total_expected)
+      description: "Total items across all orders"
+      verbose_name: "Total Items"
+
+    - metric_name: consolidated_items
+      expression: SUM(total_consolidated)
+      description: "Total items consolidated"
+      verbose_name: "Consolidated Items"
+
+    - metric_name: consolidation_progress
+      expression: SUM(total_consolidated) * 100.0 / NULLIF(SUM(total_expected), 0)
+      description: "Overall consolidation progress percentage"
+      verbose_name: "Consolidation Progress %"
+
+    - metric_name: ready_count
+      expression: COUNT(CASE WHEN ready_for_packing = TRUE THEN 1 END)
+      description: "Count of orders ready for packing"
+      verbose_name: "Ready for Packing"
+
+  # Template parameters
+  template_params:
+    - name: tote_id
+      type: text
+      required: true
+      description: "Tote ID to search for"
+
+    - name: from_date
+      type: datetime
+      required: false
+      description: "Start date filter"
+
+    - name: to_date
+      type: datetime
+      required: false
+      description: "End date filter"
+
+# Chart configuration
+chart:
+  name: "Orders by Tote"
+  description: "Table showing all orders containing items from a specific tote"
+  type: table
+
+  configuration:
+    columns:
+      - order_id
+      - consolidation_id
+      - consolidation_status
+      - station
+      - worker_id
+      - total_expected
+      - total_consolidated
+      - ready_for_packing
+      - created_at
+    query_mode: raw
+    row_limit: 100
+    order_by: created_at
+    order_direction: desc
+
+    # Conditional formatting
+    conditional_formatting:
+      - column: consolidation_status
+        conditions:
+          - value: "completed"
+            background_color: "#52c41a"
+            text_color: "#ffffff"
+          - value: "in_progress"
+            background_color: "#faad14"
+            text_color: "#000000"
+          - value: "pending"
+            background_color: "#d9d9d9"
+            text_color: "#595959"

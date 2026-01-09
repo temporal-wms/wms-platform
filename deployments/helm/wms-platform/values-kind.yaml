@@ -1,0 +1,1685 @@
+# Kind-specific values for WMS Platform
+# Use with: helm upgrade --install wms-platform ./deployments/helm/wms-platform -f ./deployments/helm/wms-platform/values-kind.yaml -n wms-platform-dev
+
+# Gateway Configuration - Kong API Gateway with Gateway API
+gateway:
+  enabled: true
+  namespace: kong
+  httpPort: 80
+  httpsPort: 443
+  tls:
+    enabled: false
+
+global:
+  namespace: wms-platform-dev
+  imageRegistry: wms-platform
+  imagePullPolicy: Never
+  environment: development
+  region: local
+
+# Service Account
+serviceAccount:
+  create: true
+  name: wms-platform
+  annotations: {}
+
+# Platform-wide ConfigMap
+platformConfig:
+  enabled: true
+  data:
+    # Kafka Configuration (Strimzi)
+    KAFKA_BROKERS: "wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+    KAFKA_CONSUMER_GROUP_PREFIX: "wms-platform"
+    KAFKA_PRODUCER_ACKS: "all"
+    KAFKA_PRODUCER_RETRIES: "3"
+
+    # Temporal Configuration
+    TEMPORAL_HOST: "temporal-frontend.temporal.svc.cluster.local:7233"
+    TEMPORAL_NAMESPACE: "wms"
+
+    # Observability Configuration
+    OTEL_EXPORTER_OTLP_ENDPOINT: "tempo.observability.svc.cluster.local:4317"
+    LOKI_URL: "http://loki-gateway.observability.svc.cluster.local"
+    TRACING_ENABLED: "true"
+    METRICS_ENABLED: "true"
+
+    # Logging Configuration
+    LOG_LEVEL: "debug"
+    LOG_FORMAT: "json"
+
+# MongoDB Secret
+mongodb:
+  secretName: mongodb-credentials
+  createSecret: true
+  uri: "mongodb://wmsuser:wmspassword@mongodb-0.mongodb-headless.mongodb.svc.cluster.local:27017/wms?authSource=wms&replicaSet=rs0"
+
+# Services configuration
+services:
+  # Order Service
+  order-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: order-service
+      tag: latest
+
+    ports:
+      http: 8001
+
+    service:
+      type: NodePort
+      nodePort: 30001
+      annotations: {}
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "order-service"
+      - name: MONGODB_DATABASE
+        value: "orders_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 3
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8001"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Waving Service
+  waving-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: waving-service
+      tag: latest
+
+    ports:
+      http: 8002
+
+    service:
+      type: NodePort
+      nodePort: 30002
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "waving-service"
+      - name: MONGODB_DATABASE
+        value: "waves_db"
+      - name: CONTINUOUS_WAVING_ENABLED
+        value: "true"
+      - name: ORDER_SERVICE_URL
+        value: "http://order-service.wms-platform-dev.svc.cluster.local:8001"
+      - name: INVENTORY_SERVICE_URL
+        value: "http://inventory-service.wms-platform-dev.svc.cluster.local:8008"
+      - name: LABOR_SERVICE_URL
+        value: "http://labor-service.wms-platform-dev.svc.cluster.local:8009"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8002"
+
+    terminationGracePeriodSeconds: 30
+
+  # Routing Service
+  routing-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: routing-service
+      tag: latest
+
+    ports:
+      http: 8003
+
+    service:
+      type: NodePort
+      nodePort: 30003
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "routing-service"
+      - name: MONGODB_DATABASE
+        value: "routing_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8003"
+
+    terminationGracePeriodSeconds: 30
+
+  # Picking Service
+  picking-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: picking-service
+      tag: latest
+
+    ports:
+      http: 8004
+
+    service:
+      type: NodePort
+      nodePort: 30004
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "picking-service"
+      - name: MONGODB_DATABASE
+        value: "picking_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8004"
+
+    terminationGracePeriodSeconds: 30
+
+  # Picking Service Worker - Temporal workflow worker
+  picking-service-worker:
+    enabled: true
+    type: worker
+    replicaCount: 1
+    image:
+      repository: picking-service
+      tag: latest
+      command: ["/app/worker"]
+
+    ports:
+      metrics: 9090
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "picking-service-worker"
+      - name: TEMPORAL_TASK_QUEUE
+        value: "picking-queue"
+      - name: MONGODB_DATABASE
+        value: "picking_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    terminationGracePeriodSeconds: 30
+
+  # Consolidation Service
+  consolidation-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: consolidation-service
+      tag: latest
+
+    ports:
+      http: 8005
+
+    service:
+      type: NodePort
+      nodePort: 30005
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "consolidation-service"
+      - name: MONGODB_DATABASE
+        value: "consolidation_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8005"
+
+    terminationGracePeriodSeconds: 30
+
+  consolidation-service-worker:
+    enabled: true
+    type: worker
+    replicaCount: 1
+    image:
+      repository: consolidation-service
+      tag: latest
+      command: ["/app/worker"]
+
+    ports:
+      metrics: 9091
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "consolidation-service-worker"
+      - name: TEMPORAL_TASK_QUEUE
+        value: "consolidation-queue"
+      - name: MONGODB_DATABASE
+        value: "consolidation_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    terminationGracePeriodSeconds: 30
+
+  # Packing Service
+  packing-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: packing-service
+      tag: latest
+
+    ports:
+      http: 8006
+
+    service:
+      type: NodePort
+      nodePort: 30006
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "packing-service"
+      - name: MONGODB_DATABASE
+        value: "packing_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8006"
+
+    terminationGracePeriodSeconds: 30
+
+  # Shipping Service
+  shipping-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: shipping-service
+      tag: latest
+
+    ports:
+      http: 8007
+
+    service:
+      type: NodePort
+      nodePort: 30007
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "shipping-service"
+      - name: MONGODB_DATABASE
+        value: "shipping_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8007"
+
+    terminationGracePeriodSeconds: 30
+
+  # Inventory Service
+  inventory-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: inventory-service
+      tag: latest
+
+    ports:
+      http: 8008
+
+    service:
+      type: NodePort
+      nodePort: 30008
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "inventory-service"
+      - name: MONGODB_DATABASE
+        value: "inventory_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8008"
+
+    terminationGracePeriodSeconds: 30
+
+  # Labor Service
+  labor-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: labor-service
+      tag: latest
+
+    ports:
+      http: 8009
+
+    service:
+      type: NodePort
+      nodePort: 30009
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "labor-service"
+      - name: MONGODB_DATABASE
+        value: "labor_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8009"
+
+    terminationGracePeriodSeconds: 30
+
+  # Facility Service - Station management, process path routing
+  facility-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: facility-service
+      tag: latest
+
+    ports:
+      http: 8010
+
+    service:
+      type: NodePort
+      nodePort: 30011
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "facility-service"
+      - name: MONGODB_DATABASE
+        value: "facility_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8010"
+
+    terminationGracePeriodSeconds: 30
+
+  # Unit Service - Unit-level tracking
+  unit-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: unit-service
+      tag: latest
+
+    ports:
+      http: 8014
+
+    service:
+      type: NodePort
+      nodePort: 30014
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "unit-service"
+      - name: MONGODB_DATABASE
+        value: "unit_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8014"
+
+    terminationGracePeriodSeconds: 30
+
+  # Process Path Service - Process path determination
+  process-path-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: process-path-service
+      tag: latest
+
+    ports:
+      http: 8015
+
+    service:
+      type: NodePort
+      nodePort: 30015
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "process-path-service"
+      - name: MONGODB_DATABASE
+        value: "process_path_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8015"
+
+    terminationGracePeriodSeconds: 30
+
+  # Walling Service - Wall/Put-wall sorting operations
+  walling-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: walling-service
+      tag: latest
+
+    ports:
+      http: 8017
+
+    service:
+      type: NodePort
+      nodePort: 30017
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "walling-service"
+      - name: MONGODB_DATABASE
+        value: "walling_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8017"
+
+    terminationGracePeriodSeconds: 30
+
+  # WES Service - Warehouse Execution System
+  wes-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: wes-service
+      tag: latest
+
+    ports:
+      http: 8016
+
+    service:
+      type: NodePort
+      nodePort: 30016
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "wes-service"
+      - name: MONGODB_DATABASE
+        value: "wes_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8016"
+
+    terminationGracePeriodSeconds: 30
+
+  # WES Service Worker - Temporal workflow worker
+  wes-service-worker:
+    enabled: true
+    type: worker
+    replicaCount: 1
+    image:
+      repository: wes-service
+      tag: latest
+      command: ["/app/worker"]
+
+    ports:
+      metrics: 9090
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "wes-service-worker"
+      - name: TEMPORAL_TASK_QUEUE
+        value: "wes-execution-queue"
+      - name: MONGODB_DATABASE
+        value: "wes_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    terminationGracePeriodSeconds: 30
+
+  # Billing Service - Billable activity tracking and invoicing
+  billing-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: billing-service
+      tag: latest
+
+    ports:
+      http: 8018
+
+    service:
+      type: NodePort
+      nodePort: 30018
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "billing-service"
+      - name: SERVER_ADDR
+        value: ":8018"
+      - name: MONGODB_DATABASE
+        value: "billing_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8018"
+
+    terminationGracePeriodSeconds: 30
+
+  # Channel Service - Multi-channel order synchronization
+  channel-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: channel-service
+      tag: latest
+
+    ports:
+      http: 8019
+
+    service:
+      type: NodePort
+      nodePort: 30022
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "channel-service"
+      - name: SERVER_ADDR
+        value: ":8019"
+      - name: MONGODB_DATABASE
+        value: "channel_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8019"
+
+    terminationGracePeriodSeconds: 30
+
+  # Seller Service - Seller/merchant account management
+  seller-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: seller-service
+      tag: latest
+
+    ports:
+      http: 8020
+
+    service:
+      type: NodePort
+      nodePort: 30023
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "seller-service"
+      - name: SERVER_ADDR
+        value: ":8020"
+      - name: MONGODB_DATABASE
+        value: "sellers_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8020"
+
+    terminationGracePeriodSeconds: 30
+
+  # Seller Portal - Backend-for-Frontend for seller dashboard
+  seller-portal:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: seller-portal
+      tag: latest
+
+    ports:
+      http: 8021
+
+    service:
+      type: NodePort
+      nodePort: 30024
+
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "25m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "seller-portal"
+      - name: SERVER_ADDR
+        value: ":8021"
+      - name: SELLER_SERVICE_URL
+        value: "http://seller-service.wms-platform-dev.svc.cluster.local:8020"
+      - name: ORDER_SERVICE_URL
+        value: "http://order-service.wms-platform-dev.svc.cluster.local:8001"
+      - name: INVENTORY_SERVICE_URL
+        value: "http://inventory-service.wms-platform-dev.svc.cluster.local:8008"
+      - name: BILLING_SERVICE_URL
+        value: "http://billing-service.wms-platform-dev.svc.cluster.local:8018"
+      - name: CHANNEL_SERVICE_URL
+        value: "http://channel-service.wms-platform-dev.svc.cluster.local:8019"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets: []
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8021"
+
+    terminationGracePeriodSeconds: 30
+
+  # Receiving Service - Inbound shipment receiving
+  receiving-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: receiving-service
+      tag: latest
+
+    ports:
+      http: 8013
+
+    service:
+      type: NodePort
+      nodePort: 30013
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "receiving-service"
+      - name: MONGODB_DATABASE
+        value: "receiving_db"
+      - name: SERVER_ADDR
+        value: ":8013"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8013"
+
+    terminationGracePeriodSeconds: 30
+
+  # Stow Service - Putaway tasks and storage
+  stow-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: stow-service
+      tag: latest
+
+    ports:
+      http: 8011
+
+    service:
+      type: NodePort
+      nodePort: 30019
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "stow-service"
+      - name: MONGODB_DATABASE
+        value: "stow_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8011"
+
+    terminationGracePeriodSeconds: 30
+
+  # Sortation Service - Package sortation by destination
+  sortation-service:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: sortation-service
+      tag: latest
+
+    ports:
+      http: 8012
+
+    service:
+      type: NodePort
+      nodePort: 30012
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "sortation-service"
+      - name: MONGODB_DATABASE
+        value: "sortation_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8012"
+
+    terminationGracePeriodSeconds: 30
+
+  # Orchestrator - Worker with HTTP signal bridge
+  orchestrator:
+    enabled: true
+    type: api
+    replicaCount: 1
+    image:
+      repository: orchestrator
+      tag: latest
+
+    ports:
+      http: 8080
+
+    service:
+      enabled: true
+      type: NodePort
+      nodePort: 30010
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: false
+
+    podDisruptionBudget:
+      enabled: false
+
+    env:
+      - name: SERVICE_NAME
+        value: "orchestrator"
+      - name: TEMPORAL_TASK_QUEUE
+        value: "orchestrator-queue"
+      - name: ORDER_SERVICE_URL
+        value: "http://order-service.wms-platform-dev.svc.cluster.local:8001"
+      - name: WAVING_SERVICE_URL
+        value: "http://waving-service.wms-platform-dev.svc.cluster.local:8002"
+      - name: ROUTING_SERVICE_URL
+        value: "http://routing-service.wms-platform-dev.svc.cluster.local:8003"
+      - name: PICKING_SERVICE_URL
+        value: "http://picking-service.wms-platform-dev.svc.cluster.local:8004"
+      - name: CONSOLIDATION_SERVICE_URL
+        value: "http://consolidation-service.wms-platform-dev.svc.cluster.local:8005"
+      - name: PACKING_SERVICE_URL
+        value: "http://packing-service.wms-platform-dev.svc.cluster.local:8006"
+      - name: SHIPPING_SERVICE_URL
+        value: "http://shipping-service.wms-platform-dev.svc.cluster.local:8007"
+      - name: INVENTORY_SERVICE_URL
+        value: "http://inventory-service.wms-platform-dev.svc.cluster.local:8008"
+      - name: LABOR_SERVICE_URL
+        value: "http://labor-service.wms-platform-dev.svc.cluster.local:8009"
+      - name: FACILITY_SERVICE_URL
+        value: "http://facility-service.wms-platform-dev.svc.cluster.local:8010"
+      - name: UNIT_SERVICE_URL
+        value: "http://unit-service.wms-platform-dev.svc.cluster.local:8014"
+      - name: PROCESS_PATH_SERVICE_URL
+        value: "http://process-path-service.wms-platform-dev.svc.cluster.local:8015"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets: []
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /health
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+
+    terminationGracePeriodSeconds: 60
+
+  # Wave UI - disabled for now (not built)
+  wave-ui:
+    enabled: false

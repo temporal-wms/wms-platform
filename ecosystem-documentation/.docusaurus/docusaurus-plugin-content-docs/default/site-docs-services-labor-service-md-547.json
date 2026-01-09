@@ -1,0 +1,26 @@
+{
+  "id": "services/labor-service",
+  "title": "Labor Service",
+  "description": "The Labor Service manages workforce and task assignments.",
+  "source": "@site/docs/services/labor-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/labor-service",
+  "permalink": "/wms-platform/services/labor-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 9,
+  "frontMatter": {
+    "sidebar_position": 9
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Inventory Service",
+    "permalink": "/wms-platform/services/inventory-service"
+  },
+  "next": {
+    "title": "Orchestrator",
+    "permalink": "/wms-platform/services/orchestrator"
+  }
+}

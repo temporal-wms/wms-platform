@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-01-06T20:21:53.558Z",
+  "simulator": "complete-e2e-simulator",
+  "metrics": {
+    "orders_started": 150,
+    "orders_completed": 0,
+    "orders_failed": 150,
+    "success_rate": 0,
+    "avg_total_duration_ms": 0.41333333333333333,
+    "p95_total_duration_ms": 1,
+    "stages": {
+      "receiving": 0,
+      "stow": 0,
+      "order": 0,
+      "wave": 0,
+      "wes": 0,
+      "pick": 0,
+      "consolidate": 0,
+      "pack": 0,
+      "ship": 0
+    },
+    "stage_durations": {
+      "receiving_avg_ms": 0,
+      "stow_avg_ms": 0,
+      "pick_avg_ms": 0,
+      "pack_avg_ms": 0,
+      "ship_avg_ms": 0
+    },
+    "tracking": {
+      "snapshots_captured": 0,
+      "state_changes": 0,
+      "signals_tracked": 0,
+      "workflow_query_avg_ms": 0,
+      "entity_query_avg_ms": 0
+    }
+  },
+  "configuration": {
+    "enableReceiving": true,
+    "enableChaos": false,
+    "chaosProbability": 0.05,
+    "orderCount": 3,
+    "processPath": "auto",
+    "verifyInventory": true,
+    "verifyCompensation": true,
+    "stageTimeoutMs": 60000,
+    "pollIntervalMs": 3000,
+    "enableTracking": true,
+    "trackingLogLevel": "standard",
+    "captureEntitySnapshots": true,
+    "captureWorkflowSnapshots": true,
+    "trackSignals": true
+  }
+}

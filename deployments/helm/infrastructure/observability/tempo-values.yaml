@@ -1,0 +1,88 @@
+# Tempo Helm Chart Values
+# Chart: grafana/tempo
+#
+# Install:
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm install tempo grafana/tempo \
+#     -n observability --create-namespace -f tempo-values.yaml
+
+# Tempo configuration
+tempo:
+  # Storage configuration
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+
+  # Retention
+  retention: 168h
+
+  # Receivers configuration
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+    jaeger:
+      protocols:
+        thrift_http:
+          endpoint: "0.0.0.0:14268"
+        grpc:
+          endpoint: "0.0.0.0:14250"
+    zipkin:
+      endpoint: "0.0.0.0:9411"
+
+  # Search configuration
+  searchEnabled: true
+  metricsGenerator:
+    enabled: false
+
+# Resources
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 512Mi
+    cpu: 500m
+
+# Persistence
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: ""
+
+# Service configuration
+service:
+  type: NodePort
+  port: 3100
+  nodePort: 30311
+
+# Additional service for OTLP ingestion
+serviceOtlp:
+  type: NodePort
+  grpcPort: 4317
+  grpcNodePort: 30317
+  httpPort: 4318
+  httpNodePort: 30318
+
+# Pod configuration
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3100"
+
+# Service account
+serviceAccount:
+  create: true
+
+# Security context
+securityContext:
+  fsGroup: 10001
+  runAsGroup: 10001
+  runAsNonRoot: true
+  runAsUser: 10001

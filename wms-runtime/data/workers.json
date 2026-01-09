@@ -1,0 +1,621 @@
+{
+  "workers": [
+    {
+      "workerId": "WRK-001",
+      "employeeId": "EMP-001",
+      "name": "John Picker",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 3, "certified": false }
+      ],
+      "zone": "ZONE-A",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-002",
+      "employeeId": "EMP-002",
+      "name": "Sarah Chen",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 3, "certified": false }
+      ],
+      "zone": "ZONE-A",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-003",
+      "employeeId": "EMP-003",
+      "name": "Mike Rodriguez",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-A",
+      "shiftType": "afternoon"
+    },
+    {
+      "workerId": "WRK-004",
+      "employeeId": "EMP-004",
+      "name": "Emily Watson",
+      "skills": [
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-A",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-005",
+      "employeeId": "EMP-005",
+      "name": "David Kim",
+      "skills": [
+        { "taskType": "receiving", "level": 5, "certified": true },
+        { "taskType": "replenishment", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-A",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-006",
+      "employeeId": "EMP-006",
+      "name": "Jessica Martinez",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-A",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-007",
+      "employeeId": "EMP-007",
+      "name": "Robert Lee",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-A",
+      "shiftType": "night"
+    },
+    {
+      "workerId": "WRK-008",
+      "employeeId": "EMP-008",
+      "name": "Amanda Brown",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-B",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-009",
+      "employeeId": "EMP-009",
+      "name": "James Wilson",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 3, "certified": false }
+      ],
+      "zone": "ZONE-B",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-010",
+      "employeeId": "EMP-010",
+      "name": "Lisa Thompson",
+      "skills": [
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-B",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-011",
+      "employeeId": "EMP-011",
+      "name": "Carlos Garcia",
+      "skills": [
+        { "taskType": "picking", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-B",
+      "shiftType": "afternoon"
+    },
+    {
+      "workerId": "WRK-012",
+      "employeeId": "EMP-012",
+      "name": "Jennifer Davis",
+      "skills": [
+        { "taskType": "receiving", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-B",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-013",
+      "employeeId": "EMP-013",
+      "name": "Michael Chang",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "packing", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-B",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-014",
+      "employeeId": "EMP-014",
+      "name": "Maria Hernandez",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-B",
+      "shiftType": "night"
+    },
+    {
+      "workerId": "WRK-015",
+      "employeeId": "EMP-015",
+      "name": "Daniel Park",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 3, "certified": false }
+      ],
+      "zone": "ZONE-C",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-016",
+      "employeeId": "EMP-016",
+      "name": "Ashley Johnson",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-C",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-017",
+      "employeeId": "EMP-017",
+      "name": "Kevin White",
+      "skills": [
+        { "taskType": "packing", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-C",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-018",
+      "employeeId": "EMP-018",
+      "name": "Rachel Green",
+      "skills": [
+        { "taskType": "picking", "level": 3, "certified": true },
+        { "taskType": "packing", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-C",
+      "shiftType": "afternoon"
+    },
+    {
+      "workerId": "WRK-019",
+      "employeeId": "EMP-019",
+      "name": "Brian Taylor",
+      "skills": [
+        { "taskType": "replenishment", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-C",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-020",
+      "employeeId": "EMP-020",
+      "name": "Nicole Adams",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-C",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-021",
+      "employeeId": "EMP-021",
+      "name": "Steven Moore",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-C",
+      "shiftType": "night"
+    },
+    {
+      "workerId": "WRK-022",
+      "employeeId": "EMP-022",
+      "name": "Stephanie Clark",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-D",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-023",
+      "employeeId": "EMP-023",
+      "name": "Christopher Hall",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 3, "certified": false }
+      ],
+      "zone": "ZONE-D",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-024",
+      "employeeId": "EMP-024",
+      "name": "Lauren Young",
+      "skills": [
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-D",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-025",
+      "employeeId": "EMP-025",
+      "name": "Andrew Scott",
+      "skills": [
+        { "taskType": "picking", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-D",
+      "shiftType": "afternoon"
+    },
+    {
+      "workerId": "WRK-026",
+      "employeeId": "EMP-026",
+      "name": "Megan King",
+      "skills": [
+        { "taskType": "receiving", "level": 5, "certified": true },
+        { "taskType": "replenishment", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-D",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-027",
+      "employeeId": "EMP-027",
+      "name": "Jason Wright",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "packing", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-D",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-028",
+      "employeeId": "EMP-028",
+      "name": "Patricia Lopez",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-D",
+      "shiftType": "night"
+    },
+    {
+      "workerId": "WRK-029",
+      "employeeId": "EMP-029",
+      "name": "Ryan Hill",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 3, "certified": false }
+      ],
+      "zone": "ZONE-E",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-030",
+      "employeeId": "EMP-030",
+      "name": "Samantha Allen",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-E",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-031",
+      "employeeId": "EMP-031",
+      "name": "Brandon Turner",
+      "skills": [
+        { "taskType": "packing", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-E",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-032",
+      "employeeId": "EMP-032",
+      "name": "Victoria Baker",
+      "skills": [
+        { "taskType": "picking", "level": 3, "certified": true },
+        { "taskType": "packing", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-E",
+      "shiftType": "afternoon"
+    },
+    {
+      "workerId": "WRK-033",
+      "employeeId": "EMP-033",
+      "name": "Justin Nelson",
+      "skills": [
+        { "taskType": "replenishment", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-E",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-034",
+      "employeeId": "EMP-034",
+      "name": "Rebecca Carter",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-E",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-035",
+      "employeeId": "EMP-035",
+      "name": "Nathan Mitchell",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-E",
+      "shiftType": "night"
+    },
+    {
+      "workerId": "WRK-036",
+      "employeeId": "EMP-036",
+      "name": "Angela Perez",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-F",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-037",
+      "employeeId": "EMP-037",
+      "name": "Tyler Roberts",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 3, "certified": false }
+      ],
+      "zone": "ZONE-F",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-038",
+      "employeeId": "EMP-038",
+      "name": "Christina Phillips",
+      "skills": [
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-F",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-039",
+      "employeeId": "EMP-039",
+      "name": "Eric Campbell",
+      "skills": [
+        { "taskType": "picking", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-F",
+      "shiftType": "afternoon"
+    },
+    {
+      "workerId": "WRK-040",
+      "employeeId": "EMP-040",
+      "name": "Diana Evans",
+      "skills": [
+        { "taskType": "receiving", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-F",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-041",
+      "employeeId": "EMP-041",
+      "name": "Jeremy Edwards",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "packing", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 3, "certified": true },
+        { "taskType": "replenishment", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-F",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-042",
+      "employeeId": "EMP-042",
+      "name": "Kayla Collins",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-F",
+      "shiftType": "night"
+    },
+    {
+      "workerId": "WRK-043",
+      "employeeId": "EMP-043",
+      "name": "Benjamin Stewart",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-G",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-044",
+      "employeeId": "EMP-044",
+      "name": "Heather Sanchez",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-G",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-045",
+      "employeeId": "EMP-045",
+      "name": "Adam Morris",
+      "skills": [
+        { "taskType": "packing", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-G",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-046",
+      "employeeId": "EMP-046",
+      "name": "Courtney Rogers",
+      "skills": [
+        { "taskType": "picking", "level": 3, "certified": true },
+        { "taskType": "packing", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-G",
+      "shiftType": "afternoon"
+    },
+    {
+      "workerId": "WRK-047",
+      "employeeId": "EMP-047",
+      "name": "Marcus Reed",
+      "skills": [
+        { "taskType": "replenishment", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-G",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-048",
+      "employeeId": "EMP-048",
+      "name": "Julia Cook",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-G",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-049",
+      "employeeId": "EMP-049",
+      "name": "Derek Morgan",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-G",
+      "shiftType": "night"
+    },
+    {
+      "workerId": "WRK-050",
+      "employeeId": "EMP-050",
+      "name": "Tiffany Bell",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-H",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-051",
+      "employeeId": "EMP-051",
+      "name": "Gregory Murphy",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true },
+        { "taskType": "consolidation", "level": 3, "certified": false }
+      ],
+      "zone": "ZONE-H",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-052",
+      "employeeId": "EMP-052",
+      "name": "Michelle Bailey",
+      "skills": [
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-H",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-053",
+      "employeeId": "EMP-053",
+      "name": "Patrick Rivera",
+      "skills": [
+        { "taskType": "picking", "level": 3, "certified": true }
+      ],
+      "zone": "ZONE-H",
+      "shiftType": "afternoon"
+    },
+    {
+      "workerId": "WRK-054",
+      "employeeId": "EMP-054",
+      "name": "Kimberly Cooper",
+      "skills": [
+        { "taskType": "receiving", "level": 5, "certified": true },
+        { "taskType": "replenishment", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-H",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-055",
+      "employeeId": "EMP-055",
+      "name": "Jonathan Richardson",
+      "skills": [
+        { "taskType": "picking", "level": 5, "certified": true },
+        { "taskType": "packing", "level": 5, "certified": true },
+        { "taskType": "consolidation", "level": 5, "certified": true },
+        { "taskType": "receiving", "level": 4, "certified": true },
+        { "taskType": "replenishment", "level": 5, "certified": true }
+      ],
+      "zone": "ZONE-H",
+      "shiftType": "morning"
+    },
+    {
+      "workerId": "WRK-056",
+      "employeeId": "EMP-056",
+      "name": "Hannah Cox",
+      "skills": [
+        { "taskType": "picking", "level": 4, "certified": true }
+      ],
+      "zone": "ZONE-H",
+      "shiftType": "night"
+    }
+  ]
+}

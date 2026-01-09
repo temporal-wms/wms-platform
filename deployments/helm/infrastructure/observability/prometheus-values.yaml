@@ -1,0 +1,174 @@
+# Prometheus Helm Chart Values for WMS Platform
+# Chart: prometheus-community/prometheus
+#
+# Install:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm install prometheus prometheus-community/prometheus \
+#     -n observability -f prometheus-values.yaml
+
+# Server configuration
+server:
+  enabled: true
+  replicaCount: 1
+
+  # Retention
+  retention: "7d"
+
+  # Persistence - disabled for Kind
+  persistentVolume:
+    enabled: false
+
+  # Resources
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  # Service
+  service:
+    type: ClusterIP
+    servicePort: 80
+
+  # Global scrape configuration
+  global:
+    scrape_interval: 15s
+    evaluation_interval: 15s
+
+# Alertmanager - disabled for Kind
+alertmanager:
+  enabled: false
+
+# Kube-state-metrics - disabled for Kind (port conflicts)
+kube-state-metrics:
+  enabled: false
+
+# Node exporter - disabled for Kind (uses host ports that conflict)
+prometheus-node-exporter:
+  enabled: false
+
+# Pushgateway - disabled
+prometheus-pushgateway:
+  enabled: false
+
+# Scrape configs for WMS services
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      # WMS Platform services - scrape by pod annotations
+      - job_name: wms-platform-services
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - wms-platform-dev
+        relabel_configs:
+          # Only scrape pods with prometheus.io/scrape annotation
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          # Use custom port if specified
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: (.+)
+            replacement: ${1}
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: (.+);(.+)
+            replacement: ${1}:${2}
+          # Use custom path if specified
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          # Add pod labels
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          # Add namespace label
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          # Add pod name label
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          # Add service name from app label
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: replace
+            target_label: service
+
+      # MongoDB metrics
+      - job_name: mongodb
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - mongodb
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: (.+);(.+)
+            replacement: ${1}:${2}
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+
+      # Kafka metrics (Strimzi)
+      - job_name: kafka
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - kafka
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_strimzi_io_kind]
+            action: keep
+            regex: Kafka
+          - source_labels: [__meta_kubernetes_pod_ip]
+            action: replace
+            target_label: __address__
+            replacement: ${1}:9404
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+
+      # Temporal metrics
+      - job_name: temporal
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - temporal
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: keep
+            regex: temporal
+          - source_labels: [__meta_kubernetes_pod_ip]
+            action: replace
+            target_label: __address__
+            replacement: ${1}:9090
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+
+# ConfigMap reload
+configmapReload:
+  prometheus:
+    enabled: true

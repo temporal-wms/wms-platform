@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/context-map",
+  "title": "Context Map",
+  "description": "This document shows the relationships between bounded contexts in the WMS Platform.",
+  "source": "@site/docs/domain-driven-design/context-map.md",
+  "sourceDirName": "domain-driven-design",
+  "slug": "/domain-driven-design/context-map",
+  "permalink": "/wms-platform/domain-driven-design/context-map",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Bounded Contexts",
+    "permalink": "/wms-platform/domain-driven-design/bounded-contexts"
+  },
+  "next": {
+    "title": "Order Aggregate",
+    "permalink": "/wms-platform/domain-driven-design/aggregates/order"
+  }
+}

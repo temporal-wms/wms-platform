@@ -1,0 +1,194 @@
+# Superset Dashboard Configuration: Route Performance
+# Dashboard for analyzing picking route efficiency across zones
+
+dashboard:
+  name: "Route Performance by Zone"
+  description: "Analyze picking efficiency and route metrics across warehouse zones"
+  slug: route-performance
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: zone
+      type: select
+      title: "Zone"
+      description: "Filter by warehouse zone"
+      required: false
+      options:
+        - ZONE-1
+        - ZONE-2
+        - ZONE-3
+        - ZONE-4
+        - ZONE-5
+        - ZONE-6
+      filter_key: zone
+
+    - name: status
+      type: select
+      title: "Route Status"
+      description: "Filter by route status"
+      required: false
+      options:
+        - completed
+        - in_progress
+        - pending
+        - cancelled
+      filter_key: status
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Total Routes"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: route_performance_by_zone_daily
+          configuration:
+            metric: total_routes_sum
+            subheader: "Routes"
+
+        - name: "Items Picked"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: route_performance_by_zone_daily
+          configuration:
+            metric: total_items_sum
+            subheader: "Items"
+
+        - name: "Completion Rate"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: route_performance_by_zone_daily
+          configuration:
+            metric: avg_completion_rate
+            subheader: "%"
+            format: "{value:.1f}%"
+
+        - name: "Avg Duration"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: route_performance_by_zone_daily
+          configuration:
+            metric: avg_duration
+            subheader: "Minutes"
+            format: "{value:.1f}"
+
+    # Row 2: Routes by Zone
+    - row: 2
+      charts:
+        - name: "Routes by Zone"
+          type: bar
+          width: 6
+          height: 4
+          description: "Number of routes per zone"
+          dataset: route_performance_by_zone_daily
+          configuration:
+            metric: total_routes_sum
+            dimension: zone
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Pick Rate by Zone"
+          type: bar
+          width: 6
+          height: 4
+          description: "Average items per minute by zone"
+          dataset: route_performance_by_zone_daily
+          configuration:
+            metric: avg_pick_rate_overall
+            dimension: zone
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+    # Row 3: Time Series
+    - row: 3
+      charts:
+        - name: "Routes Over Time"
+          type: line
+          width: 6
+          height: 4
+          description: "Route volume trend"
+          dataset: route_performance_by_zone_daily
+          configuration:
+            metrics:
+              - total_routes_sum
+            dimension: date
+            time_grain: day
+            show_legend: true
+            breakdown_by: zone
+
+        - name: "Duration Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Average route duration over time"
+          dataset: route_performance_by_zone_daily
+          configuration:
+            metrics:
+              - avg_duration
+            dimension: date
+            time_grain: day
+            show_legend: true
+            breakdown_by: zone
+
+    # Row 4: Detailed Table
+    - row: 4
+      charts:
+        - name: "Zone Performance Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Detailed zone metrics"
+          dataset: route_performance_by_zone_daily
+          configuration:
+            columns:
+              - date
+              - zone
+              - total_routes
+              - completed_routes
+              - completion_rate
+              - total_items_picked
+              - avg_items_per_route
+              - avg_duration_minutes
+              - avg_pick_rate
+              - unique_pickers
+              - routes_per_picker
+            order_by: date
+            order_direction: desc
+            conditional_formatting:
+              - column: completion_rate
+                conditions:
+                  - operator: ">="
+                    value: 0.95
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 0.80
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: "<"
+                    value: 0.80
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: route_performance_by_zone_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: route_performance_by_zone_daily

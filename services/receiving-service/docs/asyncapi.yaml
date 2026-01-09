@@ -1,0 +1,380 @@
+asyncapi: 3.0.0
+info:
+  title: Receiving Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Receiving Service.
+
+    This service publishes events related to inbound shipment receiving including
+    shipment lifecycle events, item receiving, discrepancy detection, and putaway triggers.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.receiving.events:
+    address: wms.receiving.events
+    messages:
+      ShipmentExpected:
+        $ref: '#/components/messages/ShipmentExpected'
+      ShipmentArrived:
+        $ref: '#/components/messages/ShipmentArrived'
+      ItemReceived:
+        $ref: '#/components/messages/ItemReceived'
+      ReceivingCompleted:
+        $ref: '#/components/messages/ReceivingCompleted'
+      ReceivingDiscrepancy:
+        $ref: '#/components/messages/ReceivingDiscrepancy'
+      PutawayTaskCreated:
+        $ref: '#/components/messages/PutawayTaskCreated'
+    description: Inbound shipment receiving lifecycle events
+
+operations:
+  publishShipmentExpected:
+    action: send
+    channel:
+      $ref: '#/channels/wms.receiving.events'
+    messages:
+      - $ref: '#/channels/wms.receiving.events/messages/ShipmentExpected'
+    description: Published when a new shipment is expected (ASN received)
+
+  publishShipmentArrived:
+    action: send
+    channel:
+      $ref: '#/channels/wms.receiving.events'
+    messages:
+      - $ref: '#/channels/wms.receiving.events/messages/ShipmentArrived'
+    description: Published when a shipment arrives at the dock
+
+  publishItemReceived:
+    action: send
+    channel:
+      $ref: '#/channels/wms.receiving.events'
+    messages:
+      - $ref: '#/channels/wms.receiving.events/messages/ItemReceived'
+    description: Published when an item is received and scanned
+
+  publishReceivingCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.receiving.events'
+    messages:
+      - $ref: '#/channels/wms.receiving.events/messages/ReceivingCompleted'
+    description: Published when receiving is completed for a shipment
+
+  publishReceivingDiscrepancy:
+    action: send
+    channel:
+      $ref: '#/channels/wms.receiving.events'
+    messages:
+      - $ref: '#/channels/wms.receiving.events/messages/ReceivingDiscrepancy'
+    description: Published when a discrepancy is detected during receiving
+
+  publishPutawayTaskCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.receiving.events'
+    messages:
+      - $ref: '#/channels/wms.receiving.events/messages/PutawayTaskCreated'
+    description: Published when putaway task is created for received items
+
+components:
+  messages:
+    ShipmentExpected:
+      name: ShipmentExpected
+      title: Shipment Expected Event
+      summary: Published when a new inbound shipment is expected
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShipmentExpectedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ShipmentArrived:
+      name: ShipmentArrived
+      title: Shipment Arrived Event
+      summary: Published when a shipment arrives at receiving dock
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ShipmentArrivedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ItemReceived:
+      name: ItemReceived
+      title: Item Received Event
+      summary: Published when an item is received and scanned
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ItemReceivedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ReceivingCompleted:
+      name: ReceivingCompleted
+      title: Receiving Completed Event
+      summary: Published when receiving is completed for a shipment
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ReceivingCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ReceivingDiscrepancy:
+      name: ReceivingDiscrepancy
+      title: Receiving Discrepancy Event
+      summary: Published when a discrepancy is detected (shortage, overage, damage)
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ReceivingDiscrepancyPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PutawayTaskCreated:
+      name: PutawayTaskCreated
+      title: Putaway Task Created Event
+      summary: Published when a putaway task is created for received items
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PutawayTaskCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      description: |
+        CloudEvents 1.0 specification headers for event metadata.
+        These headers provide standardized event routing and tracing capabilities.
+      required:
+        - ce_specversion
+        - ce_type
+        - ce_source
+        - ce_id
+        - ce_time
+      properties:
+        ce_specversion:
+          type: string
+          const: '1.0'
+          description: CloudEvents specification version
+          example: '1.0'
+        ce_type:
+          type: string
+          description: Event type following the pattern 'wms.receiving.<event>'
+          example: 'wms.receiving.shipment.arrived'
+        ce_source:
+          type: string
+          description: Event source URI identifying the receiving-service
+          example: '/wms/receiving-service'
+        ce_subject:
+          type: string
+          description: Event subject (typically the shipment ID)
+          example: 'SHIP-001234'
+        ce_id:
+          type: string
+          format: uuid
+          description: Unique event identifier (UUID v4)
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        ce_time:
+          type: string
+          format: date-time
+          description: Event timestamp in RFC 3339 format
+          example: '2024-01-15T10:30:00Z'
+        ce_datacontenttype:
+          type: string
+          const: 'application/json'
+          description: Content type of the event data
+          example: 'application/json'
+        ce_wmscorrelationid:
+          type: string
+          format: uuid
+          description: WMS correlation ID for distributed tracing across services
+          example: '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+        ce_wmswavenumber:
+          type: string
+          description: Wave number for batch processing correlation (if applicable)
+          example: 'WAVE-2024-00123'
+        ce_wmsworkflowid:
+          type: string
+          description: Temporal workflow ID for workflow correlation
+          example: 'inbound-receiving-SHIP-001234'
+
+    ShipmentExpectedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        purchaseOrderId:
+          type: string
+          example: PO-2024-001234
+        supplierId:
+          type: string
+          example: SUP-001
+        supplierName:
+          type: string
+          example: Acme Supplies
+        asnId:
+          type: string
+          example: ASN-001234
+        expectedArrival:
+          type: string
+          format: date-time
+        itemCount:
+          type: integer
+          example: 5
+        totalQuantity:
+          type: integer
+          example: 500
+        createdAt:
+          type: string
+          format: date-time
+
+    ShipmentArrivedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        dockId:
+          type: string
+          example: DOCK-A1
+        arrivedAt:
+          type: string
+          format: date-time
+        carrier:
+          type: string
+          example: FedEx
+        trackingNumber:
+          type: string
+          example: "794644790132"
+
+    ItemReceivedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        receiptId:
+          type: string
+          example: RCV-001234-001
+        sku:
+          type: string
+          example: SKU-12345
+        productName:
+          type: string
+          example: Widget A
+        quantity:
+          type: integer
+          example: 25
+        condition:
+          type: string
+          enum: [good, damaged, rejected]
+          example: good
+        toteId:
+          type: string
+          example: TOTE-001
+        locationId:
+          type: string
+          example: RCV-STAGE-01
+        receivedBy:
+          type: string
+          example: WORKER-001
+        receivedAt:
+          type: string
+          format: date-time
+
+    ReceivingCompletedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        totalReceived:
+          type: integer
+          example: 480
+        totalDamaged:
+          type: integer
+          example: 20
+        totalExpected:
+          type: integer
+          example: 500
+        discrepancyCount:
+          type: integer
+          example: 1
+        completedBy:
+          type: string
+          example: WORKER-001
+        completedAt:
+          type: string
+          format: date-time
+
+    ReceivingDiscrepancyPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        discrepancyId:
+          type: string
+          example: DISC-001234-001
+        type:
+          type: string
+          enum: [shortage, overage, damage, wrong_item]
+          example: shortage
+        sku:
+          type: string
+          example: SKU-12345
+        expectedQuantity:
+          type: integer
+          example: 100
+        actualQuantity:
+          type: integer
+          example: 80
+        description:
+          type: string
+          example: Short shipment - 20 units missing
+        detectedAt:
+          type: string
+          format: date-time
+
+    PutawayTaskCreatedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        taskId:
+          type: string
+          example: PTW-001234-001
+        sku:
+          type: string
+          example: SKU-12345
+        productName:
+          type: string
+          example: Widget A
+        quantity:
+          type: integer
+          example: 25
+        toteId:
+          type: string
+          example: TOTE-001
+        sourceLocation:
+          type: string
+          example: RCV-STAGE-01
+        strategy:
+          type: string
+          enum: [chaotic, directed, velocity, zone_based]
+          example: chaotic
+        priority:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time

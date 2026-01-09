@@ -1,0 +1,173 @@
+# Superset Dashboard Configuration: Order Flow Tracker
+# Dashboard for tracking individual order flow through fulfillment stages
+
+dashboard:
+  name: "Order Flow Tracker"
+  description: "Track the complete flow of a specific order through all fulfillment stages"
+  slug: order-flow-tracker
+  published: true
+
+  # Native filters
+  filters:
+    - name: order_id
+      type: text_input
+      title: "Order ID"
+      description: "Enter the Order ID to track (e.g., ORD-XXXXXXXX)"
+      required: true
+      default_value: ""
+      filter_key: order_id
+
+  # Dashboard layout (grid-based)
+  layout:
+    # Row 1: Order Summary Card
+    - row: 1
+      charts:
+        - name: "Order Summary"
+          type: table
+          width: 12
+          height: 2
+          description: "Summary information for the selected order"
+          dataset: order_flow_summary
+          configuration:
+            columns:
+              - order_id
+              - customer_id
+              - priority
+              - current_status
+              - current_stage
+              - tracking_number
+              - carrier
+            query_mode: raw
+            filter_params:
+              order_id: "{{ filters.order_id }}"
+
+    # Row 2: Visual Flow Diagram
+    - row: 2
+      charts:
+        - name: "Order Flow Stages"
+          type: table
+          width: 12
+          height: 2
+          description: "Visual representation of order progress through stages"
+          dataset: order_flow_summary
+          configuration:
+            columns:
+              - stage_1_received
+              - stage_2_validated
+              - stage_3_wave
+              - stage_4_picking
+              - stage_5_consolidation
+              - stage_6_packing
+              - stage_7_shipped
+            # Conditional formatting applied via SQL
+            conditional_formatting:
+              - column: "*"
+                conditions:
+                  - value: "COMPLETE"
+                    background_color: "#52c41a"  # Green
+                    text_color: "#ffffff"
+                  - value: "IN_PROGRESS"
+                    background_color: "#faad14"  # Yellow
+                    text_color: "#000000"
+                  - value: "PENDING"
+                    background_color: "#d9d9d9"  # Gray
+                    text_color: "#595959"
+
+    # Row 3: Timeline View
+    - row: 3
+      charts:
+        - name: "Order Timeline"
+          type: table
+          width: 8
+          height: 4
+          description: "Chronological events for the order"
+          dataset: order_events_timeline
+          configuration:
+            columns:
+              - event_timestamp
+              - event_stage
+              - event_type
+              - entity_id
+              - duration_from_prev_minutes
+            order_by: event_timestamp
+            order_direction: asc
+            filter_params:
+              order_id: "{{ filters.order_id }}"
+
+        - name: "Stage Durations"
+          type: bar
+          width: 4
+          height: 4
+          description: "Time spent in each fulfillment stage"
+          dataset: order_flow_summary
+          configuration:
+            metric: duration_minutes
+            dimension: stage
+            orientation: horizontal
+            sort: natural  # Keep stage order
+            show_values: true
+            filter_params:
+              order_id: "{{ filters.order_id }}"
+
+    # Row 4: Detailed Metrics
+    - row: 4
+      charts:
+        - name: "Order Details"
+          type: table
+          width: 6
+          height: 3
+          description: "Complete order flow details"
+          dataset: order_flow_summary
+          configuration:
+            columns:
+              - order_received_at
+              - order_validated_at
+              - wave_assigned_at
+              - wave_id
+              - picking_started_at
+              - picking_completed_at
+              - pick_task_id
+              - picker_id
+              - consolidation_started_at
+              - consolidation_completed_at
+              - packing_started_at
+              - packing_completed_at
+              - shipped_at
+            filter_params:
+              order_id: "{{ filters.order_id }}"
+
+        - name: "Duration Metrics"
+          type: big_number_total
+          width: 6
+          height: 3
+          description: "Key duration metrics"
+          dataset: order_flow_summary
+          configuration:
+            metrics:
+              - name: "Total Fulfillment Time"
+                column: total_fulfillment_duration_min
+                format: "{value:.0f} min"
+              - name: "Picking Time"
+                column: picking_duration_min
+                format: "{value:.0f} min"
+              - name: "Packing Time"
+                column: packing_duration_min
+                format: "{value:.0f} min"
+            filter_params:
+              order_id: "{{ filters.order_id }}"
+
+# Dataset references
+datasets:
+  - name: order_flow_summary
+    database: trino
+    schema: iceberg.gold
+    table_name: order_flow_summary
+
+  - name: order_events_timeline
+    database: trino
+    sql: |
+      -- Virtual dataset using SQL query
+      -- See queries/order_flow_lookup.sql for full query
+      SELECT * FROM iceberg.gold.order_events_timeline
+      WHERE order_id = '{{ order_id }}'
+      ORDER BY event_sequence

@@ -1,0 +1,70 @@
+# Kind cluster configuration for WMS Platform
+# Creates a 3-node cluster with port mappings for local development
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: wms
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # WMS Service ports (NodePort -> Host)
+      - containerPort: 30001
+        hostPort: 8001
+        protocol: TCP
+      - containerPort: 30002
+        hostPort: 8002
+        protocol: TCP
+      - containerPort: 30003
+        hostPort: 8003
+        protocol: TCP
+      - containerPort: 30004
+        hostPort: 8004
+        protocol: TCP
+      - containerPort: 30005
+        hostPort: 8005
+        protocol: TCP
+      - containerPort: 30006
+        hostPort: 8006
+        protocol: TCP
+      - containerPort: 30007
+        hostPort: 8007
+        protocol: TCP
+      - containerPort: 30008
+        hostPort: 8008
+        protocol: TCP
+      - containerPort: 30009
+        hostPort: 8009
+        protocol: TCP
+      # Temporal UI
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      # Observability ports (Grafana stack)
+      - containerPort: 30300
+        hostPort: 3000
+        protocol: TCP
+      - containerPort: 30310
+        hostPort: 3100
+        protocol: TCP
+      - containerPort: 30320
+        hostPort: 3200
+        protocol: TCP
+      # Tempo OTLP gRPC
+      - containerPort: 30317
+        hostPort: 4317
+        protocol: TCP
+      # Kong API Gateway - Main proxy endpoint
+      - containerPort: 30090
+        hostPort: 8888
+        protocol: TCP
+      # Kong Admin API (development only)
+      - containerPort: 30091
+        hostPort: 8881
+        protocol: TCP
+  - role: worker
+  - role: worker

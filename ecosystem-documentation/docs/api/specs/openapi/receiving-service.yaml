@@ -1,0 +1,1201 @@
+openapi: 3.0.3
+info:
+  title: Receiving Service API
+  description: |
+    REST API for inbound shipment receiving operations in the WMS platform.
+
+    This service handles the complete inbound logistics workflow from ASN creation
+    through putaway task generation.
+
+    ## Key Capabilities
+    - **Advance Shipping Notice (ASN) Processing**: Create and track expected shipments from suppliers
+    - **Shipment Arrival Tracking**: Record dock arrivals and assign receiving workers
+    - **Item Receiving with Condition Tracking**: Receive items with condition assessment (good, damaged, rejected)
+    - **Discrepancy Detection**: Automatically detect and report shortages, overages, wrong items
+    - **Putaway Task Trigger**: Generate putaway tasks upon receiving completion
+
+    ## Shipment Lifecycle
+    ```
+    expected → arrived → receiving → inspection → completed
+                                                      ↓
+                                                  (triggers putaway)
+    ```
+
+    ## Integration Points
+    - **Inventory Service**: Updates inventory upon receiving completion
+    - **Stow Service**: Receives putaway task requests
+    - **Facility Service**: Validates dock and location assignments
+
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8013/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Shipments
+    description: Shipment management operations
+  - name: Receiving
+    description: Receiving process operations
+  - name: Queries
+    description: Shipment query operations
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /shipments:
+    post:
+      summary: Create a new shipment
+      description: |
+        Creates a new inbound shipment with ASN (Advance Shipping Notice) and expected items.
+
+        **Use Cases:**
+        - Supplier replenishment orders
+        - Customer returns processing
+        - Transfer shipments between warehouses
+        - Hazmat and cold chain deliveries
+
+        **Integration:**
+        - Publishes `ShipmentCreated` event on success
+        - Validates supplier exists in master data
+
+        **State Transition:** None → `expected`
+      tags:
+        - Shipments
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShipmentRequest'
+            examples:
+              electronicsReplenishment:
+                summary: Electronics inventory replenishment
+                description: Standard replenishment order from electronics supplier
+                value:
+                  purchaseOrderId: "PO-2026-0108-001"
+                  asn:
+                    asnId: "ASN-ELEC-2026-001234"
+                    shippingCarrier: "UPS"
+                    trackingNumber: "1Z999AA10123456784"
+                    estimatedArrival: "2026-01-10T09:00:00Z"
+                  supplier:
+                    supplierId: "SUP-ELEC-001"
+                    name: "TechParts Distributors"
+                    code: "TECHPARTS"
+                    contactEmail: "orders@techparts.example.com"
+                  expectedItems:
+                    - sku: "ELEC-TV-65IN-OLED"
+                      productName: "65-inch OLED Smart TV 4K"
+                      expectedQuantity: 25
+                      unitCost: 899.99
+                      weight: 22.0
+                      isHazmat: false
+                      requiresColdChain: false
+                    - sku: "ELEC-LAPTOP-PRO-15"
+                      productName: "Professional Laptop 15-inch"
+                      expectedQuantity: 50
+                      unitCost: 1299.99
+                      weight: 2.1
+                      isHazmat: false
+                      requiresColdChain: false
+                    - sku: "ELEC-HDMI-CBL-6FT"
+                      productName: "HDMI Cable 6ft Premium"
+                      expectedQuantity: 200
+                      unitCost: 8.99
+                      weight: 0.15
+                      isHazmat: false
+                      requiresColdChain: false
+              groceryDelivery:
+                summary: Cold chain grocery receiving
+                description: Temperature-sensitive grocery items requiring cold chain handling
+                value:
+                  purchaseOrderId: "PO-2026-0108-002"
+                  asn:
+                    asnId: "ASN-FOOD-2026-005678"
+                    shippingCarrier: "Refrigerated Express"
+                    trackingNumber: "REF-2026-0108-001"
+                    estimatedArrival: "2026-01-08T06:00:00Z"
+                  supplier:
+                    supplierId: "SUP-FOOD-001"
+                    name: "Fresh Foods Co"
+                    code: "FRESHFOODS"
+                    contactEmail: "orders@freshfoods.example.com"
+                  expectedItems:
+                    - sku: "FOOD-STEAK-WAGYU-8OZ"
+                      productName: "Premium Wagyu Beef Steak 8oz"
+                      expectedQuantity: 100
+                      unitCost: 45.99
+                      weight: 0.25
+                      isHazmat: false
+                      requiresColdChain: true
+                    - sku: "FOOD-LOBSTER-TAIL-2PK"
+                      productName: "Maine Lobster Tails (2-pack)"
+                      expectedQuantity: 50
+                      unitCost: 39.99
+                      weight: 0.5
+                      isHazmat: false
+                      requiresColdChain: true
+                    - sku: "FOOD-ICECREAM-VAN-PT"
+                      productName: "Premium Vanilla Ice Cream Pint"
+                      expectedQuantity: 200
+                      unitCost: 6.99
+                      weight: 0.5
+                      isHazmat: false
+                      requiresColdChain: true
+              returnedMerchandise:
+                summary: Customer returns processing
+                description: RMA shipment containing customer returns for inspection
+                value:
+                  purchaseOrderId: "RMA-2026-0108-003"
+                  asn:
+                    asnId: "ASN-RMA-2026-009012"
+                    shippingCarrier: "FedEx"
+                    trackingNumber: "794644790132"
+                    estimatedArrival: "2026-01-09T14:00:00Z"
+                  supplier:
+                    supplierId: "INTERNAL-RETURNS"
+                    name: "Customer Returns Center"
+                    code: "RETURNS"
+                  expectedItems:
+                    - sku: "APPAREL-JACKET-BLK-L"
+                      productName: "Winter Jacket Black Large"
+                      expectedQuantity: 5
+                      unitCost: 0.00
+                      weight: 1.2
+                      isHazmat: false
+                      requiresColdChain: false
+                    - sku: "FOOTWEAR-SNEAKER-WHT-10"
+                      productName: "Running Sneakers White Size 10"
+                      expectedQuantity: 3
+                      unitCost: 0.00
+                      weight: 0.8
+                      isHazmat: false
+                      requiresColdChain: false
+              hazmatChemicals:
+                summary: Hazmat chemicals receiving
+                description: Hazardous materials requiring compliance documentation
+                value:
+                  purchaseOrderId: "PO-2026-0108-004"
+                  asn:
+                    asnId: "ASN-HAZMAT-2026-003456"
+                    shippingCarrier: "Hazmat Carriers Inc"
+                    trackingNumber: "HAZ-2026-0108-001"
+                    estimatedArrival: "2026-01-11T10:00:00Z"
+                  supplier:
+                    supplierId: "SUP-AUTO-001"
+                    name: "AutoParts Warehouse"
+                    code: "AUTOPARTS"
+                    contactEmail: "hazmat@autoparts.example.com"
+                  expectedItems:
+                    - sku: "AUTO-BATT-12V-750CCA"
+                      productName: "Car Battery 12V 750 CCA"
+                      expectedQuantity: 50
+                      unitCost: 89.99
+                      weight: 18.5
+                      isHazmat: true
+                      requiresColdChain: false
+                    - sku: "AUTO-PAINT-RED-GAL"
+                      productName: "Automotive Paint Red 1 Gallon"
+                      expectedQuantity: 24
+                      unitCost: 45.99
+                      weight: 4.5
+                      isHazmat: true
+                      requiresColdChain: false
+              oversizedFurniture:
+                summary: Oversized furniture receiving
+                description: Large items requiring special handling equipment
+                value:
+                  purchaseOrderId: "PO-2026-0108-005"
+                  asn:
+                    asnId: "ASN-FURN-2026-007890"
+                    shippingCarrier: "Freight Masters"
+                    trackingNumber: "FM-2026-0108-001"
+                    estimatedArrival: "2026-01-12T08:00:00Z"
+                  supplier:
+                    supplierId: "SUP-FURN-001"
+                    name: "Quality Furniture Mfg"
+                    code: "QUALFURN"
+                    contactEmail: "orders@qualityfurn.example.com"
+                  expectedItems:
+                    - sku: "FURN-SOFA-SECT-GRY"
+                      productName: "Sectional Sofa Gray 3-Piece"
+                      expectedQuantity: 10
+                      unitCost: 1499.99
+                      weight: 95.0
+                      isHazmat: false
+                      requiresColdChain: false
+                    - sku: "FURN-DESK-EXEC-WAL"
+                      productName: "Executive Desk Walnut"
+                      expectedQuantity: 15
+                      unitCost: 799.99
+                      weight: 45.0
+                      isHazmat: false
+                      requiresColdChain: false
+      responses:
+        '201':
+          description: Shipment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+              examples:
+                created:
+                  summary: Successfully created shipment
+                  value:
+                    shipmentId: "SHIP-2026-0108-001"
+                    purchaseOrderId: "PO-2026-0108-001"
+                    asn:
+                      asnId: "ASN-ELEC-2026-001234"
+                      shippingCarrier: "UPS"
+                      trackingNumber: "1Z999AA10123456784"
+                      estimatedArrival: "2026-01-10T09:00:00Z"
+                    supplier:
+                      supplierId: "SUP-ELEC-001"
+                      name: "TechParts Distributors"
+                      code: "TECHPARTS"
+                    expectedItems:
+                      - sku: "ELEC-TV-65IN-OLED"
+                        productName: "65-inch OLED Smart TV 4K"
+                        expectedQuantity: 25
+                        receivedQuantity: 0
+                        damagedQuantity: 0
+                        unitCost: 899.99
+                    status: "expected"
+                    createdAt: "2026-01-08T10:30:00Z"
+                    updatedAt: "2026-01-08T10:30:00Z"
+        '400':
+          description: Invalid request (validation errors)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingASN:
+                  summary: Missing ASN information
+                  value:
+                    error: "Validation failed"
+                    code: "VALIDATION_ERROR"
+                    details:
+                      field: "asn"
+                      message: "ASN information is required"
+                invalidSupplier:
+                  summary: Unknown supplier
+                  value:
+                    error: "Supplier not found"
+                    code: "SUPPLIER_NOT_FOUND"
+                    details:
+                      supplierId: "SUP-UNKNOWN-001"
+                      message: "Supplier does not exist in master data"
+        '409':
+          description: Duplicate shipment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicateASN:
+                  summary: ASN already exists
+                  value:
+                    error: "Duplicate ASN"
+                    code: "DUPLICATE_ASN"
+                    details:
+                      asnId: "ASN-ELEC-2026-001234"
+                      existingShipmentId: "SHIP-2026-0107-042"
+
+    get:
+      summary: List shipments
+      description: |
+        Retrieve a paginated list of shipments with optional filtering.
+
+        Results are sorted by creation date descending (newest first).
+      tags:
+        - Shipments
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of shipments to return (1-100)
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of shipments to skip for pagination
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of shipments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shipments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ShipmentResponse'
+                  total:
+                    type: integer
+                    description: Total number of shipments matching the query
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+  /shipments/status/{status}:
+    get:
+      summary: Get shipments by status
+      description: |
+        Retrieve all shipments with a specific status.
+
+        **Common Use Cases:**
+        - Dashboard widgets showing shipments in each state
+        - Receiving worker queues (status=arrived)
+        - Pending putaway tasks (status=completed)
+      tags:
+        - Queries
+      parameters:
+        - name: status
+          in: path
+          required: true
+          description: The shipment status to filter by
+          schema:
+            $ref: '#/components/schemas/ShipmentStatus'
+      responses:
+        '200':
+          description: List of shipments with the specified status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShipmentResponse'
+
+  /shipments/expected:
+    get:
+      summary: Get expected arrivals
+      description: |
+        Retrieve shipments expected to arrive on a specific date.
+
+        Used for dock scheduling and labor planning.
+      tags:
+        - Queries
+      parameters:
+        - name: date
+          in: query
+          description: Date to check for expected arrivals (YYYY-MM-DD format)
+          schema:
+            type: string
+            format: date
+          example: "2026-01-10"
+      responses:
+        '200':
+          description: List of expected shipments for the date
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShipmentResponse'
+
+  /shipments/{shipmentId}:
+    get:
+      summary: Get shipment by ID
+      description: Retrieve complete details for a specific shipment including all receipt records and discrepancies.
+      tags:
+        - Shipments
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          description: Unique identifier of the shipment
+          schema:
+            type: string
+          example: "SHIP-2026-0108-001"
+      responses:
+        '200':
+          description: Shipment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '404':
+          description: Shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    error: "Shipment not found"
+                    code: "SHIPMENT_NOT_FOUND"
+                    details:
+                      shipmentId: "SHIP-INVALID-001"
+
+  /shipments/{shipmentId}/arrive:
+    post:
+      summary: Mark shipment as arrived
+      description: |
+        Record that a shipment has arrived at the receiving dock.
+
+        **Prerequisites:**
+        - Shipment must be in `expected` status
+
+        **State Transition:** `expected` → `arrived`
+
+        **Triggered Actions:**
+        - Publishes `ShipmentArrived` event
+        - Updates arrival timestamp
+        - Assigns receiving dock
+      tags:
+        - Receiving
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SHIP-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - dockId
+              properties:
+                dockId:
+                  type: string
+                  description: Receiving dock where the shipment arrived
+                  example: "DOCK-A1"
+            examples:
+              standardDock:
+                summary: Standard receiving dock
+                value:
+                  dockId: "DOCK-A1"
+              refrigeratedDock:
+                summary: Refrigerated receiving dock
+                description: For cold chain shipments
+                value:
+                  dockId: "DOCK-COLD-01"
+              hazmatDock:
+                summary: Hazmat receiving dock
+                description: For hazardous materials
+                value:
+                  dockId: "DOCK-HAZMAT-01"
+              oversizedDock:
+                summary: Oversized receiving dock
+                description: For large items requiring forklift
+                value:
+                  dockId: "DOCK-OVERSIZED-01"
+      responses:
+        '200':
+          description: Shipment marked as arrived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidTransition:
+                  value:
+                    error: "Invalid status transition"
+                    code: "INVALID_STATUS_TRANSITION"
+                    details:
+                      currentStatus: "receiving"
+                      attemptedAction: "arrive"
+                      message: "Cannot mark shipment as arrived when already in receiving"
+
+  /shipments/{shipmentId}/start:
+    post:
+      summary: Start receiving process
+      description: |
+        Begin the receiving process for a shipment.
+
+        **Prerequisites:**
+        - Shipment must be in `arrived` status
+        - Worker must be available
+
+        **State Transition:** `arrived` → `receiving`
+
+        **Triggered Actions:**
+        - Assigns worker to shipment
+        - Publishes `ReceivingStarted` event
+        - Records start timestamp
+      tags:
+        - Receiving
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SHIP-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workerId
+              properties:
+                workerId:
+                  type: string
+                  description: ID of the worker starting the receiving process
+                  example: "WORKER-RCV-001"
+            examples:
+              standardWorker:
+                summary: Standard receiving worker
+                value:
+                  workerId: "WORKER-RCV-001"
+              hazmatCertified:
+                summary: Hazmat-certified worker
+                description: Required for hazardous materials
+                value:
+                  workerId: "WORKER-HAZMAT-001"
+      responses:
+        '200':
+          description: Receiving started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+
+  /shipments/{shipmentId}/receive:
+    post:
+      summary: Receive an item
+      description: |
+        Record receipt of an item from the shipment with condition assessment.
+
+        **Condition Tracking:**
+        - `good`: Item in sellable condition
+        - `damaged`: Item has damage, may need inspection
+        - `rejected`: Item unacceptable, will be returned to supplier
+
+        **Discrepancy Detection:**
+        - System automatically detects overages/shortages on completion
+        - Wrong item discrepancies tracked via notes
+      tags:
+        - Receiving
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SHIP-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiveItemRequest'
+            examples:
+              goodCondition:
+                summary: Item in good condition
+                description: Standard receiving of sellable inventory
+                value:
+                  sku: "ELEC-TV-65IN-OLED"
+                  quantity: 10
+                  condition: "good"
+                  toteId: "TOTE-RCV-001"
+                  locationId: "RCV-STAGE-A01"
+                  workerId: "WORKER-RCV-001"
+              damagedItem:
+                summary: Item with visible damage
+                description: Item received with damage requiring inspection
+                value:
+                  sku: "ELEC-LAPTOP-PRO-15"
+                  quantity: 2
+                  condition: "damaged"
+                  toteId: "TOTE-DMG-001"
+                  locationId: "RCV-INSPECT-01"
+                  workerId: "WORKER-RCV-001"
+                  notes: "Box crushed, screen may be cracked. Photo documentation attached."
+              partialReceive:
+                summary: Partial quantity received
+                description: Receiving subset of expected quantity (discrepancy will be detected)
+                value:
+                  sku: "ELEC-HDMI-CBL-6FT"
+                  quantity: 150
+                  condition: "good"
+                  toteId: "TOTE-RCV-002"
+                  locationId: "RCV-STAGE-A02"
+                  workerId: "WORKER-RCV-001"
+                  notes: "150 of 200 expected received. Supplier confirmed remaining 50 on backorder."
+              wrongItemReceived:
+                summary: Wrong item received
+                description: SKU mismatch - received different product than expected
+                value:
+                  sku: "ELEC-HDMI-CBL-3FT"
+                  quantity: 50
+                  condition: "good"
+                  toteId: "TOTE-RCV-003"
+                  locationId: "RCV-STAGE-A03"
+                  workerId: "WORKER-RCV-001"
+                  notes: "WRONG ITEM: Received 3ft cables instead of expected 6ft cables (ELEC-HDMI-CBL-6FT). Holding for supplier confirmation."
+              conditionDowngrade:
+                summary: Open box / refurbished condition
+                description: Item is usable but condition is less than new
+                value:
+                  sku: "APPAREL-JACKET-BLK-L"
+                  quantity: 3
+                  condition: "good"
+                  toteId: "TOTE-RETURNS-001"
+                  locationId: "RCV-RETURNS-01"
+                  workerId: "WORKER-RCV-002"
+                  notes: "Return items: 2 like-new, 1 shows wear. All resalable as open-box."
+      responses:
+        '200':
+          description: Item received successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+              examples:
+                received:
+                  summary: Item successfully received
+                  value:
+                    shipmentId: "SHIP-2026-0108-001"
+                    purchaseOrderId: "PO-2026-0108-001"
+                    status: "receiving"
+                    expectedItems:
+                      - sku: "ELEC-TV-65IN-OLED"
+                        productName: "65-inch OLED Smart TV 4K"
+                        expectedQuantity: 25
+                        receivedQuantity: 10
+                        damagedQuantity: 0
+                    receiptRecords:
+                      - receiptId: "RCV-2026-0108-001-001"
+                        sku: "ELEC-TV-65IN-OLED"
+                        receivedQty: 10
+                        condition: "good"
+                        toteId: "TOTE-RCV-001"
+                        locationId: "RCV-STAGE-A01"
+                        receivedBy: "WORKER-RCV-001"
+                        receivedAt: "2026-01-08T11:45:00Z"
+        '400':
+          description: Invalid receive request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unknownSKU:
+                  summary: SKU not in shipment
+                  value:
+                    error: "SKU not found in shipment"
+                    code: "SKU_NOT_IN_SHIPMENT"
+                    details:
+                      sku: "ELEC-UNKNOWN-001"
+                      shipmentId: "SHIP-2026-0108-001"
+                invalidQuantity:
+                  summary: Invalid quantity
+                  value:
+                    error: "Invalid quantity"
+                    code: "INVALID_QUANTITY"
+                    details:
+                      message: "Quantity must be greater than 0"
+
+  /shipments/{shipmentId}/complete:
+    post:
+      summary: Complete receiving
+      description: |
+        Mark the receiving process as complete and trigger putaway task generation.
+
+        **Prerequisites:**
+        - Shipment must be in `receiving` status
+        - All items should be received (warnings issued for discrepancies)
+
+        **State Transition:** `receiving` → `completed`
+
+        **Triggered Actions:**
+        - Calculates and records discrepancies
+        - Publishes `ReceivingCompleted` event
+        - Triggers putaway task creation for received items
+        - Updates inventory records
+      tags:
+        - Receiving
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SHIP-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Receiving completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+              examples:
+                completedPerfect:
+                  summary: Completed with no discrepancies
+                  value:
+                    shipmentId: "SHIP-2026-0108-001"
+                    status: "completed"
+                    expectedItems:
+                      - sku: "ELEC-TV-65IN-OLED"
+                        expectedQuantity: 25
+                        receivedQuantity: 25
+                        damagedQuantity: 0
+                    discrepancies: []
+                    completedAt: "2026-01-08T14:30:00Z"
+                completedWithDiscrepancy:
+                  summary: Completed with shortage discrepancy
+                  value:
+                    shipmentId: "SHIP-2026-0108-002"
+                    status: "completed"
+                    expectedItems:
+                      - sku: "ELEC-HDMI-CBL-6FT"
+                        expectedQuantity: 200
+                        receivedQuantity: 150
+                        damagedQuantity: 5
+                    discrepancies:
+                      - sku: "ELEC-HDMI-CBL-6FT"
+                        type: "shortage"
+                        expectedQty: 200
+                        actualQty: 150
+                        description: "50 units short - supplier confirmed backorder"
+                        detectedAt: "2026-01-08T14:30:00Z"
+                      - sku: "ELEC-HDMI-CBL-6FT"
+                        type: "damage"
+                        expectedQty: 0
+                        actualQty: 5
+                        description: "5 units damaged in transit"
+                        detectedAt: "2026-01-08T14:30:00Z"
+                    completedAt: "2026-01-08T14:30:00Z"
+
+  /health:
+    get:
+      summary: Health check
+      description: Check if the service is healthy and ready to accept requests
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+components:
+  schemas:
+    CreateShipmentRequest:
+      type: object
+      description: Request to create a new inbound shipment
+      required:
+        - purchaseOrderId
+        - asn
+        - supplier
+        - expectedItems
+      properties:
+        purchaseOrderId:
+          type: string
+          description: Reference to the purchase order or RMA generating this shipment
+          example: "PO-2026-0108-001"
+        asn:
+          $ref: '#/components/schemas/ASN'
+        supplier:
+          $ref: '#/components/schemas/Supplier'
+        expectedItems:
+          type: array
+          description: List of items expected in this shipment
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ExpectedItem'
+
+    ASN:
+      type: object
+      description: Advance Shipping Notice details from the supplier
+      required:
+        - asnId
+        - shippingCarrier
+        - trackingNumber
+        - estimatedArrival
+      properties:
+        asnId:
+          type: string
+          description: Unique ASN identifier from the supplier
+          example: "ASN-ELEC-2026-001234"
+        shippingCarrier:
+          type: string
+          description: Name of the shipping carrier
+          example: "UPS"
+        trackingNumber:
+          type: string
+          description: Carrier tracking number
+          example: "1Z999AA10123456784"
+        estimatedArrival:
+          type: string
+          format: date-time
+          description: Expected arrival date and time
+          example: "2026-01-10T09:00:00Z"
+
+    Supplier:
+      type: object
+      description: Supplier information for the shipment
+      required:
+        - supplierId
+        - name
+      properties:
+        supplierId:
+          type: string
+          description: Unique supplier identifier
+          example: "SUP-ELEC-001"
+        name:
+          type: string
+          description: Supplier company name
+          example: "TechParts Distributors"
+        code:
+          type: string
+          description: Short code for the supplier (used in reports)
+          example: "TECHPARTS"
+        contactEmail:
+          type: string
+          format: email
+          description: Supplier contact email for discrepancy communication
+          example: "orders@techparts.example.com"
+
+    ExpectedItem:
+      type: object
+      description: An item expected to be in the shipment
+      required:
+        - sku
+        - productName
+        - expectedQuantity
+      properties:
+        sku:
+          type: string
+          description: Stock Keeping Unit - unique product identifier
+          example: "ELEC-TV-65IN-OLED"
+        productName:
+          type: string
+          description: Human-readable product name
+          example: "65-inch OLED Smart TV 4K"
+        expectedQuantity:
+          type: integer
+          description: Number of units expected
+          minimum: 1
+          example: 25
+        unitCost:
+          type: number
+          format: double
+          description: Cost per unit for inventory valuation
+          example: 899.99
+        weight:
+          type: number
+          format: double
+          description: Weight per unit in kilograms
+          example: 22.0
+        isHazmat:
+          type: boolean
+          description: Whether the item requires hazmat handling
+          default: false
+        requiresColdChain:
+          type: boolean
+          description: Whether the item requires temperature-controlled storage
+          default: false
+
+    ReceiveItemRequest:
+      type: object
+      description: Request to record receipt of items from a shipment
+      required:
+        - sku
+        - quantity
+        - condition
+        - workerId
+      properties:
+        sku:
+          type: string
+          description: SKU of the item being received
+          example: "ELEC-TV-65IN-OLED"
+        quantity:
+          type: integer
+          description: Number of units being received
+          minimum: 1
+          example: 10
+        condition:
+          $ref: '#/components/schemas/ItemCondition'
+        toteId:
+          type: string
+          description: ID of the tote where items are placed
+          example: "TOTE-RCV-001"
+        locationId:
+          type: string
+          description: Staging location where items are placed
+          example: "RCV-STAGE-A01"
+        workerId:
+          type: string
+          description: ID of the worker performing the receiving
+          example: "WORKER-RCV-001"
+        notes:
+          type: string
+          description: Additional notes about the receipt (damage details, discrepancies, etc.)
+          example: "All items inspected and verified"
+
+    ShipmentResponse:
+      type: object
+      description: Complete shipment information including status and receipt records
+      properties:
+        shipmentId:
+          type: string
+          description: Unique identifier for the shipment
+          example: "SHIP-2026-0108-001"
+        purchaseOrderId:
+          type: string
+          description: Reference purchase order
+          example: "PO-2026-0108-001"
+        asn:
+          $ref: '#/components/schemas/ASN'
+        supplier:
+          $ref: '#/components/schemas/Supplier'
+        expectedItems:
+          type: array
+          description: List of expected items with receiving progress
+          items:
+            $ref: '#/components/schemas/ExpectedItemResponse'
+        receiptRecords:
+          type: array
+          description: Individual receipt transactions
+          items:
+            $ref: '#/components/schemas/ReceiptRecord'
+        discrepancies:
+          type: array
+          description: Detected discrepancies (shortages, overages, damage)
+          items:
+            $ref: '#/components/schemas/Discrepancy'
+        status:
+          $ref: '#/components/schemas/ShipmentStatus'
+        receivingDockId:
+          type: string
+          description: Dock where shipment was received
+          example: "DOCK-A1"
+        assignedWorkerId:
+          type: string
+          description: Worker assigned to receive this shipment
+          example: "WORKER-RCV-001"
+        arrivedAt:
+          type: string
+          format: date-time
+          description: Timestamp when shipment arrived at dock
+        completedAt:
+          type: string
+          format: date-time
+          description: Timestamp when receiving was completed
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when shipment record was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp of last update
+
+    ExpectedItemResponse:
+      type: object
+      description: Expected item with receiving progress tracking
+      properties:
+        sku:
+          type: string
+          example: "ELEC-TV-65IN-OLED"
+        productName:
+          type: string
+          example: "65-inch OLED Smart TV 4K"
+        expectedQuantity:
+          type: integer
+          description: Original expected quantity
+          example: 25
+        receivedQuantity:
+          type: integer
+          description: Total quantity received so far
+          example: 20
+        damagedQuantity:
+          type: integer
+          description: Quantity received in damaged condition
+          example: 1
+        unitCost:
+          type: number
+          format: double
+          example: 899.99
+
+    ReceiptRecord:
+      type: object
+      description: Individual receipt transaction record
+      properties:
+        receiptId:
+          type: string
+          description: Unique receipt transaction ID
+          example: "RCV-2026-0108-001-001"
+        sku:
+          type: string
+          example: "ELEC-TV-65IN-OLED"
+        receivedQty:
+          type: integer
+          description: Quantity received in this transaction
+          example: 10
+        condition:
+          $ref: '#/components/schemas/ItemCondition'
+        toteId:
+          type: string
+          example: "TOTE-RCV-001"
+        locationId:
+          type: string
+          example: "RCV-STAGE-A01"
+        receivedBy:
+          type: string
+          description: Worker ID who performed this receipt
+          example: "WORKER-RCV-001"
+        receivedAt:
+          type: string
+          format: date-time
+          example: "2026-01-08T11:45:00Z"
+
+    Discrepancy:
+      type: object
+      description: Detected discrepancy between expected and received items
+      properties:
+        sku:
+          type: string
+          example: "ELEC-HDMI-CBL-6FT"
+        type:
+          $ref: '#/components/schemas/DiscrepancyType'
+        expectedQty:
+          type: integer
+          description: Expected quantity based on ASN
+          example: 200
+        actualQty:
+          type: integer
+          description: Actual quantity received
+          example: 150
+        description:
+          type: string
+          description: Human-readable description of the discrepancy
+          example: "50 units short - supplier confirmed backorder"
+        detectedAt:
+          type: string
+          format: date-time
+          example: "2026-01-08T14:30:00Z"
+
+    ShipmentStatus:
+      type: string
+      description: |
+        Current status of the shipment in the receiving lifecycle:
+        - `expected`: ASN received, awaiting shipment arrival
+        - `arrived`: Shipment arrived at dock, awaiting receiving
+        - `receiving`: Actively being received by warehouse worker
+        - `inspection`: Items under quality inspection
+        - `completed`: All items received, putaway triggered
+        - `cancelled`: Shipment cancelled (not expected to arrive)
+      enum:
+        - expected
+        - arrived
+        - receiving
+        - inspection
+        - completed
+        - cancelled
+
+    ItemCondition:
+      type: string
+      description: |
+        Condition of received items:
+        - `good`: Item in sellable condition, ready for inventory
+        - `damaged`: Item has damage, may require inspection or return
+        - `rejected`: Item unacceptable, will be returned to supplier
+      enum:
+        - good
+        - damaged
+        - rejected
+
+    DiscrepancyType:
+      type: string
+      description: |
+        Type of discrepancy detected:
+        - `shortage`: Received less than expected
+        - `overage`: Received more than expected
+        - `damage`: Items received in damaged condition
+        - `wrong_item`: Different item received than expected
+      enum:
+        - shortage
+        - overage
+        - damage
+        - wrong_item
+
+    ErrorResponse:
+      type: object
+      description: Standard error response format
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Validation failed"
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "VALIDATION_ERROR"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: |
+        Correlation ID for distributed tracing (CloudEvents format).
+        If not provided, the service will generate one.
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      description: |
+        Idempotency key for safe request retries.
+        Requests with the same key within 24 hours return cached response.
+      required: false
+      schema:
+        type: string
+      example: "idem-2026-0108-ship-001"

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: kong-gateway
+description: Kong API Gateway for WMS Platform using Kubernetes Gateway API
+type: application
+version: 1.0.0
+appVersion: "3.5"
+
+dependencies:
+  - name: kong
+    version: "2.35.0"
+    repository: "https://charts.konghq.com"

@@ -1,0 +1,27 @@
+{
+  "id": "temporal/signals-queries",
+  "title": "Signals & Queries",
+  "description": "Reference for all workflow signals and query handlers in the WMS Platform.",
+  "source": "@site/docs/temporal/signals-queries.md",
+  "sourceDirName": "temporal",
+  "slug": "/temporal/signals-queries",
+  "permalink": "/wms-platform/temporal/signals-queries",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 20,
+  "frontMatter": {
+    "sidebar_position": 20,
+    "slug": "/temporal/signals-queries"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Process Path Activities",
+    "permalink": "/wms-platform/temporal/activities/process-path-activities"
+  },
+  "next": {
+    "title": "Task Queues",
+    "permalink": "/wms-platform/temporal/task-queues"
+  }
+}

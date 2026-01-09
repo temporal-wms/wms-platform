@@ -1,0 +1,17 @@
+{
+  "id": "domain-driven-design/aggregates/process-path",
+  "title": "ProcessPath Aggregate",
+  "description": "The ProcessPath aggregate determines the optimal fulfillment process path for orders based on item characteristics and special handling requirements.",
+  "source": "@site/docs/domain-driven-design/aggregates/process-path.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/process-path",
+  "permalink": "/wms-platform/domain-driven-design/aggregates/process-path",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 10,
+  "frontMatter": {
+    "sidebar_position": 10
+  }
+}

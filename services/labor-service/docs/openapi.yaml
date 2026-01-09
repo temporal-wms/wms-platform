@@ -1,0 +1,1235 @@
+openapi: 3.0.3
+info:
+  title: WMS Labor Service API
+  description: |
+    REST API for workforce and labor management in the WMS Platform.
+
+    This service handles:
+    - Worker registration and profile management
+    - Skill tracking and certification
+    - Shift management (start, end, break tracking)
+    - Task assignment and completion tracking
+    - Worker availability and capacity management
+    - Productivity metrics and performance tracking
+
+    **Worker Lifecycle:**
+    1. Registered - Worker profile created with skills
+    2. Off Shift - Worker not currently working
+    3. On Shift - Worker clocked in and available
+    4. Assigned - Worker assigned to a task
+    5. On Break - Worker on scheduled break
+
+    **Skill Types:**
+    - `picking`: Authorized to perform pick operations
+    - `packing`: Authorized to perform pack operations
+    - `consolidation`: Authorized for consolidation tasks
+    - `receiving`: Authorized for inbound receiving
+    - `stowing`: Authorized for putaway operations
+    - `forklift`: Certified for forklift operation
+    - `hazmat`: Certified for hazmat handling
+
+    **Integration:**
+    - Routing Service queries available pickers
+    - WES assigns tasks to workers
+    - Publishes events for productivity tracking
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8009/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Workers
+    description: |
+      Worker registration and profile management operations.
+      Includes skill tracking and certification management.
+  - name: Shifts
+    description: |
+      Shift management operations including clock-in/out,
+      break tracking, and zone assignments.
+  - name: Tasks
+    description: |
+      Task assignment and completion tracking.
+      Manages worker task lifecycle.
+  - name: Queries
+    description: |
+      Query operations for finding workers by various criteria
+      including availability, skills, and zone.
+  - name: Health
+    description: Service health and readiness checks
+
+paths:
+  /workers:
+    post:
+      summary: Create worker
+      description: |
+        Registers a new worker in the system with their skills.
+
+        **Behavior:**
+        - Creates worker profile with unique ID
+        - Associates initial skills/certifications
+        - Worker status is set to `offline`
+        - Publishes `WorkerRegistered` event
+      tags: [Workers]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkerRequest'
+            examples:
+              picker:
+                summary: Picker with basic skills
+                value:
+                  workerId: "PICKER-001"
+                  name: "John Doe"
+                  email: "john.doe@example.com"
+                  skills: ["picking", "packing"]
+                  certifications: []
+                  preferredZones: ["zone-a", "zone-b"]
+              forkliftOperator:
+                summary: Forklift certified worker
+                value:
+                  workerId: "WORKER-042"
+                  name: "Jane Smith"
+                  email: "jane.smith@example.com"
+                  skills: ["stowing", "receiving"]
+                  certifications: ["forklift", "hazmat"]
+                  preferredZones: ["zone-c"]
+      responses:
+        '201':
+          description: Worker created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+              examples:
+                created:
+                  value:
+                    workerId: "PICKER-001"
+                    name: "John Doe"
+                    email: "john.doe@example.com"
+                    skills: ["picking", "packing"]
+                    certifications: []
+                    status: "offline"
+                    preferredZones: ["zone-a", "zone-b"]
+                    createdAt: "2024-12-24T10:00:00Z"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Worker ID already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Worker ID already exists"
+                code: "DUPLICATE_WORKER"
+
+    get:
+      summary: List workers
+      description: Retrieve a paginated list of workers with optional filtering
+      tags: [Queries]
+      parameters:
+        - name: skill
+          in: query
+          description: Filter by skill
+          schema:
+            type: string
+            enum: [picking, packing, consolidation, receiving, stowing, forklift, hazmat]
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [offline, on_shift, assigned, on_break]
+        - name: zone
+          in: query
+          description: Filter by current zone
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of workers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkerResponse'
+                  total:
+                    type: integer
+
+  /workers/{workerId}:
+    get:
+      summary: Get worker by ID
+      description: Retrieve detailed information about a specific worker
+      tags: [Workers]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          description: Unique worker identifier
+          schema:
+            type: string
+          example: "PICKER-001"
+      responses:
+        '200':
+          description: Worker details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '404':
+          description: Worker not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update worker
+      description: Update worker profile information
+      tags: [Workers]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkerRequest'
+            example:
+              name: "John Doe Jr."
+              email: "john.doe.jr@example.com"
+              preferredZones: ["zone-a", "zone-b", "zone-c"]
+      responses:
+        '200':
+          description: Worker updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '404':
+          description: Worker not found
+
+    delete:
+      summary: Delete worker
+      description: |
+        Remove a worker from the system.
+        Worker must not have any active tasks or be on shift.
+      tags: [Workers]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '204':
+          description: Worker deleted successfully
+        '400':
+          description: Cannot delete worker with active tasks
+        '404':
+          description: Worker not found
+
+  /workers/{workerId}/skills:
+    put:
+      summary: Update worker skills
+      description: Replace all skills for a worker
+      tags: [Workers]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skills]
+              properties:
+                skills:
+                  type: array
+                  items:
+                    type: string
+                    enum: [picking, packing, consolidation, receiving, stowing, forklift, hazmat]
+            example:
+              skills: ["picking", "packing", "consolidation"]
+      responses:
+        '200':
+          description: Skills updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '404':
+          description: Worker not found
+
+  /workers/{workerId}/skills/{skill}:
+    post:
+      summary: Add skill to worker
+      description: Add a single skill to a worker's profile
+      tags: [Workers]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skill
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [picking, packing, consolidation, receiving, stowing, forklift, hazmat]
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Skill added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '404':
+          description: Worker not found
+        '409':
+          description: Worker already has this skill
+
+    delete:
+      summary: Remove skill from worker
+      description: Remove a single skill from a worker's profile
+      tags: [Workers]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skill
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Skill removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '404':
+          description: Worker or skill not found
+
+  /workers/{workerId}/shift/start:
+    post:
+      summary: Start shift
+      description: |
+        Clock in a worker and start their shift.
+
+        **State Transition:** `offline` -> `on_shift`
+
+        **Behavior:**
+        - Records shift start time
+        - Assigns worker to specified zone
+        - Worker becomes available for task assignment
+        - Publishes `ShiftStarted` event
+      tags: [Shifts]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "PICKER-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartShiftRequest'
+            examples:
+              morningShift:
+                summary: Morning shift in zone A
+                value:
+                  zone: "zone-a"
+                  shiftType: "morning"
+                  stationId: "STATION-A1"
+              eveningShift:
+                summary: Evening shift
+                value:
+                  zone: "zone-b"
+                  shiftType: "evening"
+      responses:
+        '200':
+          description: Shift started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+              example:
+                workerId: "PICKER-001"
+                name: "John Doe"
+                status: "on_shift"
+                currentZone: "zone-a"
+                currentShiftId: "SHIFT-001234"
+                shiftStartedAt: "2024-12-24T08:00:00Z"
+        '400':
+          description: Worker already on shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Worker not found
+
+  /workers/{workerId}/shift/end:
+    post:
+      summary: End shift
+      description: |
+        Clock out a worker and end their shift.
+
+        **State Transition:** `on_shift` or `on_break` -> `offline`
+
+        **Behavior:**
+        - Records shift end time and duration
+        - Calculates shift productivity metrics
+        - Worker becomes unavailable
+        - Publishes `ShiftEnded` event
+
+        **Validation:**
+        - Worker must not have active tasks
+      tags: [Shifts]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "PICKER-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  description: Optional end-of-shift notes
+            example:
+              notes: "Completed all assigned tasks"
+      responses:
+        '200':
+          description: Shift ended successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSummary'
+              example:
+                shiftId: "SHIFT-001234"
+                workerId: "PICKER-001"
+                startedAt: "2024-12-24T08:00:00Z"
+                endedAt: "2024-12-24T16:00:00Z"
+                duration: "PT8H"
+                tasksCompleted: 45
+                itemsProcessed: 523
+                productivity: 92.5
+        '400':
+          description: Worker has active tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Worker not found or not on shift
+
+  /workers/{workerId}/shift/break/start:
+    post:
+      summary: Start break
+      description: |
+        Record that a worker is starting a break.
+
+        **State Transition:** `on_shift` or `assigned` -> `on_break`
+
+        **Behavior:**
+        - Records break start time
+        - Worker becomes temporarily unavailable
+        - Active tasks are paused (if any)
+      tags: [Shifts]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                breakType:
+                  type: string
+                  enum: [short, lunch, other]
+                  default: short
+                expectedDuration:
+                  type: integer
+                  description: Expected break duration in minutes
+                  example: 15
+      responses:
+        '200':
+          description: Break started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '400':
+          description: Invalid state for starting break
+        '404':
+          description: Worker not found
+
+  /workers/{workerId}/shift/break/end:
+    post:
+      summary: End break
+      description: |
+        Record that a worker is returning from break.
+
+        **State Transition:** `on_break` -> `on_shift` (or `assigned` if had active task)
+      tags: [Shifts]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Break ended successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '400':
+          description: Worker not on break
+        '404':
+          description: Worker not found
+
+  /workers/{workerId}/task/assign:
+    post:
+      summary: Assign task to worker
+      description: |
+        Assign a task to a worker.
+
+        **State Transition:** `on_shift` -> `assigned`
+
+        **Behavior:**
+        - Associates task with worker
+        - Worker status changes to assigned
+        - Publishes `WorkerAssigned` event
+
+        **Validation:**
+        - Worker must be on shift and available
+        - Worker must have required skill for task type
+      tags: [Tasks]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "PICKER-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignTaskRequest'
+            examples:
+              pickTask:
+                summary: Assign picking task
+                value:
+                  taskId: "RT-a1b2c3d4"
+                  taskType: "picking"
+                  priority: 1
+              packTask:
+                summary: Assign packing task
+                value:
+                  taskId: "PK-e5f6g7h8"
+                  taskType: "packing"
+                  priority: 2
+      responses:
+        '200':
+          description: Task assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '400':
+          description: Worker unavailable or lacks required skill
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Worker does not have required skill: picking"
+                code: "MISSING_SKILL"
+        '404':
+          description: Worker not found
+
+  /workers/{workerId}/task/complete:
+    post:
+      summary: Complete current task
+      description: |
+        Mark the worker's current task as completed.
+
+        **State Transition:** `assigned` -> `on_shift`
+
+        **Behavior:**
+        - Records task completion time and duration
+        - Updates worker productivity metrics
+        - Worker becomes available for new assignments
+        - Publishes `TaskCompleted` event
+      tags: [Tasks]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "PICKER-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                taskId:
+                  type: string
+                  description: Task ID to complete (if worker has multiple tasks)
+                notes:
+                  type: string
+                  description: Optional completion notes
+                itemsProcessed:
+                  type: integer
+                  description: Number of items processed in this task
+            example:
+              taskId: "RT-a1b2c3d4"
+              itemsProcessed: 15
+      responses:
+        '200':
+          description: Task completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCompletionResponse'
+              example:
+                taskId: "RT-a1b2c3d4"
+                workerId: "PICKER-001"
+                taskType: "picking"
+                completedAt: "2024-12-24T10:30:00Z"
+                duration: 1800
+                itemsProcessed: 15
+        '400':
+          description: No active task to complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Worker or task not found
+
+  /workers/{workerId}/task/unassign:
+    post:
+      summary: Unassign task from worker
+      description: |
+        Remove a task assignment from a worker without completing it.
+
+        **State Transition:** `assigned` -> `on_shift`
+
+        **Use Cases:**
+        - Task reassignment to different worker
+        - Task cancellation
+        - Priority change requiring different worker
+      tags: [Tasks]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [taskId, reason]
+              properties:
+                taskId:
+                  type: string
+                reason:
+                  type: string
+                  enum: [reassignment, cancellation, priority_change, worker_unavailable, other]
+            example:
+              taskId: "RT-a1b2c3d4"
+              reason: "reassignment"
+      responses:
+        '200':
+          description: Task unassigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerResponse'
+        '400':
+          description: Task not assigned to this worker
+        '404':
+          description: Worker or task not found
+
+  /workers/available:
+    get:
+      summary: Get available workers
+      description: |
+        Retrieve workers who are currently available for task assignment.
+
+        **Availability Criteria:**
+        - Worker must be on shift
+        - Worker must not have maximum assigned tasks
+        - Worker must not be on break
+      tags: [Queries]
+      parameters:
+        - name: skill
+          in: query
+          description: Filter by required skill
+          schema:
+            type: string
+            enum: [picking, packing, consolidation, receiving, stowing, forklift, hazmat]
+        - name: zone
+          in: query
+          description: Filter by zone
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of available workers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkerResponse'
+                  total:
+                    type: integer
+
+  /workers/zone/{zone}:
+    get:
+      summary: Get workers by zone
+      description: Retrieve all workers currently assigned to a specific zone
+      tags: [Queries]
+      parameters:
+        - name: zone
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "zone-a"
+        - name: onShiftOnly
+          in: query
+          description: Only return workers currently on shift
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Workers in zone
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkerResponse'
+                  total:
+                    type: integer
+
+  /workers/skill/{skill}:
+    get:
+      summary: Get workers by skill
+      description: Retrieve all workers with a specific skill
+      tags: [Queries]
+      parameters:
+        - name: skill
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [picking, packing, consolidation, receiving, stowing, forklift, hazmat]
+        - name: availableOnly
+          in: query
+          description: Only return available workers
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Workers with skill
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkerResponse'
+                  total:
+                    type: integer
+
+  /workers/{workerId}/productivity:
+    get:
+      summary: Get worker productivity metrics
+      description: |
+        Retrieve productivity metrics for a worker.
+
+        **Metrics Include:**
+        - Tasks completed (daily, weekly, total)
+        - Items processed per hour
+        - Average task duration
+        - Efficiency rating
+      tags: [Queries]
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          description: Time period for metrics
+          schema:
+            type: string
+            enum: [today, week, month, all]
+            default: today
+      responses:
+        '200':
+          description: Worker productivity metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductivityMetrics'
+              example:
+                workerId: "PICKER-001"
+                period: "today"
+                tasksCompleted: 12
+                itemsProcessed: 145
+                averageTaskDuration: 1620
+                itemsPerHour: 48.3
+                efficiency: 94.2
+                hoursWorked: 3.0
+        '404':
+          description: Worker not found
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                service: "labor-service"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
+
+components:
+  schemas:
+    CreateWorkerRequest:
+      type: object
+      required: [workerId, name, skills]
+      properties:
+        workerId:
+          type: string
+          description: Unique worker identifier (badge number)
+          example: "PICKER-001"
+        name:
+          type: string
+          description: Worker's full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: Worker's email address
+          example: "john.doe@example.com"
+        skills:
+          type: array
+          items:
+            type: string
+            enum: [picking, packing, consolidation, receiving, stowing, forklift, hazmat]
+          description: Worker's skills
+        certifications:
+          type: array
+          items:
+            type: string
+          description: Special certifications
+        preferredZones:
+          type: array
+          items:
+            type: string
+          description: Worker's preferred work zones
+
+    UpdateWorkerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        preferredZones:
+          type: array
+          items:
+            type: string
+
+    StartShiftRequest:
+      type: object
+      required: [zone]
+      properties:
+        zone:
+          type: string
+          description: Zone where worker will work
+          example: "zone-a"
+        shiftType:
+          type: string
+          enum: [morning, afternoon, evening, night]
+          description: Type of shift
+          example: "morning"
+        stationId:
+          type: string
+          description: Assigned station ID (if applicable)
+          example: "STATION-A1"
+
+    AssignTaskRequest:
+      type: object
+      required: [taskId, taskType]
+      properties:
+        taskId:
+          type: string
+          description: ID of the task to assign
+          example: "RT-a1b2c3d4"
+        taskType:
+          type: string
+          enum: [picking, packing, consolidation, receiving, stowing, shipping]
+          description: Type of task
+          example: "picking"
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+          description: Task priority (1 = highest)
+
+    WorkerResponse:
+      type: object
+      properties:
+        workerId:
+          type: string
+          example: "PICKER-001"
+        name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          example: "john.doe@example.com"
+        skills:
+          type: array
+          items:
+            type: string
+          example: ["picking", "packing"]
+        certifications:
+          type: array
+          items:
+            type: string
+          example: ["forklift"]
+        status:
+          $ref: '#/components/schemas/WorkerStatus'
+        currentZone:
+          type: string
+          description: Current zone assignment
+          example: "zone-a"
+        currentShiftId:
+          type: string
+          description: Current shift ID (if on shift)
+          example: "SHIFT-001234"
+        shiftStartedAt:
+          type: string
+          format: date-time
+          description: When current shift started
+        assignedTasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedTask'
+        preferredZones:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AssignedTask:
+      type: object
+      properties:
+        taskId:
+          type: string
+          example: "RT-a1b2c3d4"
+        taskType:
+          type: string
+          example: "picking"
+        status:
+          type: string
+          enum: [assigned, in_progress, paused]
+        assignedAt:
+          type: string
+          format: date-time
+        priority:
+          type: integer
+
+    WorkerStatus:
+      type: string
+      enum:
+        - offline
+        - on_shift
+        - assigned
+        - on_break
+      description: |
+        Worker status:
+        - `offline`: Not currently working
+        - `on_shift`: Clocked in and available
+        - `assigned`: Working on assigned task(s)
+        - `on_break`: On scheduled break
+
+    ShiftSummary:
+      type: object
+      properties:
+        shiftId:
+          type: string
+          example: "SHIFT-001234"
+        workerId:
+          type: string
+          example: "PICKER-001"
+        zone:
+          type: string
+          example: "zone-a"
+        shiftType:
+          type: string
+          example: "morning"
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        duration:
+          type: string
+          description: ISO 8601 duration
+          example: "PT8H"
+        tasksCompleted:
+          type: integer
+          example: 45
+        itemsProcessed:
+          type: integer
+          example: 523
+        productivity:
+          type: number
+          description: Productivity score 0-100
+          example: 92.5
+        breaksTaken:
+          type: integer
+          example: 2
+        totalBreakTime:
+          type: string
+          description: ISO 8601 duration
+          example: "PT45M"
+
+    TaskCompletionResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+          example: "RT-a1b2c3d4"
+        workerId:
+          type: string
+          example: "PICKER-001"
+        taskType:
+          type: string
+          example: "picking"
+        completedAt:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+          description: Task duration in seconds
+          example: 1800
+        itemsProcessed:
+          type: integer
+          example: 15
+
+    ProductivityMetrics:
+      type: object
+      properties:
+        workerId:
+          type: string
+          example: "PICKER-001"
+        period:
+          type: string
+          example: "today"
+        tasksCompleted:
+          type: integer
+          example: 12
+        itemsProcessed:
+          type: integer
+          example: 145
+        averageTaskDuration:
+          type: integer
+          description: Average duration in seconds
+          example: 1620
+        itemsPerHour:
+          type: number
+          example: 48.3
+        efficiency:
+          type: number
+          description: Efficiency score 0-100
+          example: 94.2
+        hoursWorked:
+          type: number
+          example: 3.0
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        service:
+          type: string
+          example: "labor-service"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Worker not found"
+        code:
+          type: string
+          description: Error code
+          example: "NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

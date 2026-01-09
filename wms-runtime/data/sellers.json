@@ -1,0 +1,212 @@
+{
+  "sellers": [
+    {
+      "tenantId": "TENANT-DEFAULT",
+      "companyName": "Acme Electronics",
+      "contactName": "John Smith",
+      "contactEmail": "john@acmeelectronics.com",
+      "contactPhone": "+1-555-0101",
+      "billingCycle": "monthly",
+      "facilityId": "FAC-001",
+      "feeScheduleType": "standard"
+    },
+    {
+      "tenantId": "TENANT-DEFAULT",
+      "companyName": "Fashion Forward",
+      "contactName": "Jane Doe",
+      "contactEmail": "jane@fashionforward.com",
+      "contactPhone": "+1-555-0102",
+      "billingCycle": "weekly",
+      "facilityId": "FAC-001",
+      "feeScheduleType": "standard"
+    },
+    {
+      "tenantId": "TENANT-DEFAULT",
+      "companyName": "Home Goods Co",
+      "contactName": "Bob Johnson",
+      "contactEmail": "bob@homegoodsco.com",
+      "contactPhone": "+1-555-0103",
+      "billingCycle": "monthly",
+      "facilityId": "FAC-002",
+      "feeScheduleType": "premium"
+    },
+    {
+      "tenantId": "TENANT-ENTERPRISE",
+      "companyName": "Global Supplies Inc",
+      "contactName": "Sarah Wilson",
+      "contactEmail": "sarah@globalsupplies.com",
+      "contactPhone": "+1-555-0104",
+      "billingCycle": "daily",
+      "facilityId": "FAC-001",
+      "feeScheduleType": "premium"
+    },
+    {
+      "tenantId": "TENANT-DEFAULT",
+      "companyName": "Specialty Foods",
+      "contactName": "Mike Brown",
+      "contactEmail": "mike@specialtyfoods.com",
+      "contactPhone": "+1-555-0105",
+      "billingCycle": "monthly",
+      "facilityId": "FAC-003",
+      "feeScheduleType": "standard",
+      "requiresColdChain": true
+    },
+    {
+      "tenantId": "TENANT-DEFAULT",
+      "companyName": "Tech Gadgets Plus",
+      "contactName": "Emily Chen",
+      "contactEmail": "emily@techgadgets.com",
+      "contactPhone": "+1-555-0106",
+      "billingCycle": "monthly",
+      "facilityId": "FAC-001",
+      "feeScheduleType": "standard"
+    },
+    {
+      "tenantId": "TENANT-ENTERPRISE",
+      "companyName": "Industrial Solutions",
+      "contactName": "David Park",
+      "contactEmail": "david@industrialsolutions.com",
+      "contactPhone": "+1-555-0107",
+      "billingCycle": "weekly",
+      "facilityId": "FAC-002",
+      "feeScheduleType": "premium",
+      "hasHazmat": true
+    },
+    {
+      "tenantId": "TENANT-DEFAULT",
+      "companyName": "Artisan Crafts",
+      "contactName": "Lisa Martinez",
+      "contactEmail": "lisa@artisancrafts.com",
+      "contactPhone": "+1-555-0108",
+      "billingCycle": "monthly",
+      "facilityId": "FAC-001",
+      "feeScheduleType": "standard",
+      "hasFragile": true
+    }
+  ],
+  "feeSchedules": {
+    "standard": {
+      "storageFeePerCubicFtPerDay": 0.05,
+      "pickFeePerUnit": 0.25,
+      "packFeePerOrder": 1.50,
+      "receivingFeePerUnit": 0.15,
+      "shippingMarkupPercent": 5.0,
+      "returnProcessingFee": 3.00,
+      "giftWrapFee": 2.50,
+      "hazmatHandlingFee": 5.00,
+      "oversizedItemFee": 10.00,
+      "coldChainFeePerUnit": 1.00,
+      "fragileHandlingFee": 1.50,
+      "volumeDiscounts": []
+    },
+    "premium": {
+      "storageFeePerCubicFtPerDay": 0.03,
+      "pickFeePerUnit": 0.20,
+      "packFeePerOrder": 1.25,
+      "receivingFeePerUnit": 0.12,
+      "shippingMarkupPercent": 3.0,
+      "returnProcessingFee": 2.50,
+      "giftWrapFee": 2.00,
+      "hazmatHandlingFee": 4.00,
+      "oversizedItemFee": 8.00,
+      "coldChainFeePerUnit": 0.80,
+      "fragileHandlingFee": 1.25,
+      "volumeDiscounts": [
+        { "minUnits": 1000, "discountPercent": 5 },
+        { "minUnits": 5000, "discountPercent": 10 },
+        { "minUnits": 10000, "discountPercent": 15 }
+      ]
+    },
+    "enterprise": {
+      "storageFeePerCubicFtPerDay": 0.02,
+      "pickFeePerUnit": 0.15,
+      "packFeePerOrder": 1.00,
+      "receivingFeePerUnit": 0.10,
+      "shippingMarkupPercent": 2.0,
+      "returnProcessingFee": 2.00,
+      "giftWrapFee": 1.50,
+      "hazmatHandlingFee": 3.00,
+      "oversizedItemFee": 6.00,
+      "coldChainFeePerUnit": 0.60,
+      "fragileHandlingFee": 1.00,
+      "volumeDiscounts": [
+        { "minUnits": 500, "discountPercent": 5 },
+        { "minUnits": 2000, "discountPercent": 10 },
+        { "minUnits": 5000, "discountPercent": 15 },
+        { "minUnits": 10000, "discountPercent": 20 }
+      ]
+    }
+  },
+  "channels": [
+    {
+      "channelType": "shopify",
+      "storeName": "Acme Store",
+      "storeUrl": "https://acme-store.myshopify.com",
+      "syncSettings": {
+        "autoImportOrders": true,
+        "autoSyncInventory": true,
+        "autoPushTracking": true,
+        "inventorySyncMinutes": 15
+      }
+    },
+    {
+      "channelType": "amazon",
+      "storeName": "Fashion Forward FBA",
+      "storeUrl": "",
+      "syncSettings": {
+        "autoImportOrders": true,
+        "autoSyncInventory": true,
+        "autoPushTracking": true,
+        "inventorySyncMinutes": 30
+      }
+    },
+    {
+      "channelType": "woocommerce",
+      "storeName": "Home Goods Online",
+      "storeUrl": "https://homegoods.example.com",
+      "syncSettings": {
+        "autoImportOrders": true,
+        "autoSyncInventory": true,
+        "autoPushTracking": true,
+        "inventorySyncMinutes": 15
+      }
+    },
+    {
+      "channelType": "ebay",
+      "storeName": "Tech Gadgets eBay",
+      "storeUrl": "https://ebay.com/usr/techgadgets",
+      "syncSettings": {
+        "autoImportOrders": true,
+        "autoSyncInventory": false,
+        "autoPushTracking": true,
+        "inventorySyncMinutes": 60
+      }
+    }
+  ],
+  "facilities": [
+    {
+      "facilityId": "FAC-001",
+      "facilityName": "Main Fulfillment Center",
+      "warehouseIds": ["WH-001", "WH-002"],
+      "defaultAllocatedSpace": 5000
+    },
+    {
+      "facilityId": "FAC-002",
+      "facilityName": "West Coast Distribution",
+      "warehouseIds": ["WH-003"],
+      "defaultAllocatedSpace": 3000
+    },
+    {
+      "facilityId": "FAC-003",
+      "facilityName": "Cold Storage Facility",
+      "warehouseIds": ["WH-004"],
+      "defaultAllocatedSpace": 2000,
+      "capabilities": ["cold_chain", "refrigerated"]
+    }
+  ],
+  "apiKeyScopes": {
+    "readonly": ["orders:read", "inventory:read", "shipments:read"],
+    "standard": ["orders:read", "orders:write", "inventory:read", "shipments:read"],
+    "full": ["orders:read", "orders:write", "inventory:read", "inventory:write", "shipments:read", "shipments:write"]
+  }
+}

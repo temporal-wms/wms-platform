@@ -1,0 +1,173 @@
+# Grafana Helm Chart Values
+# Chart: grafana/grafana
+#
+# Install:
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm install grafana grafana/grafana \
+#     -n observability --create-namespace -f grafana-values.yaml
+
+# Admin credentials
+adminUser: admin
+adminPassword: admin
+
+# Persistence
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: ""
+
+# Resources
+resources:
+  requests:
+    memory: 128Mi
+    cpu: 100m
+  limits:
+    memory: 256Mi
+    cpu: 500m
+
+# Service configuration
+service:
+  type: NodePort
+  port: 3000
+  nodePort: 30300
+
+# Datasources - pre-configured for Loki and Tempo
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        url: http://loki-gateway.observability.svc.cluster.local
+        access: proxy
+        isDefault: true
+        jsonData:
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"trace_id":"([a-f0-9]+)"'
+              url: '$${__value.raw}'
+              datasourceUid: tempo
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        url: http://tempo.observability.svc.cluster.local:3200
+        access: proxy
+        jsonData:
+          httpMethod: GET
+          tracesToLogs:
+            datasourceUid: loki
+            tags: ['service.name', 'namespace']
+            mappedTags: [{ key: 'service.name', value: 'service_name' }]
+            mapTagNamesEnabled: true
+            spanStartTimeShift: '-1h'
+            spanEndTimeShift: '1h'
+            filterByTraceID: true
+            filterBySpanID: false
+          serviceMap:
+            datasourceUid: 'prometheus'
+          nodeGraph:
+            enabled: true
+          lokiSearch:
+            datasourceUid: loki
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        url: http://prometheus-server.observability.svc.cluster.local
+        access: proxy
+        isDefault: false
+        jsonData:
+          timeInterval: "15s"
+          httpMethod: POST
+
+# Dashboard providers
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+# Pre-configured dashboards
+dashboards:
+  default:
+    wms-overview:
+      json: |
+        {
+          "title": "WMS Platform Overview",
+          "uid": "wms-overview",
+          "tags": ["wms"],
+          "timezone": "browser",
+          "schemaVersion": 38,
+          "version": 1,
+          "panels": [
+            {
+              "type": "logs",
+              "title": "Service Logs",
+              "gridPos": {"x": 0, "y": 0, "w": 24, "h": 12},
+              "datasource": {"type": "loki", "uid": "loki"},
+              "targets": [
+                {
+                  "expr": "{namespace=\"wms-platform-dev\"}",
+                  "refId": "A"
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "title": "Recent Traces",
+              "gridPos": {"x": 0, "y": 12, "w": 24, "h": 8},
+              "datasource": {"type": "tempo", "uid": "tempo"},
+              "targets": [
+                {
+                  "queryType": "search",
+                  "serviceName": "",
+                  "limit": 20,
+                  "refId": "A"
+                }
+              ]
+            }
+          ]
+        }
+
+# Grafana configuration
+grafana.ini:
+  server:
+    root_url: "%(protocol)s://%(domain)s:%(http_port)s/"
+  auth.anonymous:
+    enabled: true
+    org_name: Main Org.
+    org_role: Viewer
+  feature_toggles:
+    enable: tempoSearch tempoBackendSearch traceqlEditor
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+
+# Security context
+securityContext:
+  fsGroup: 472
+  runAsUser: 472
+  runAsGroup: 472
+
+# Disable init container chown (causes permission issues in Kind)
+initChownData:
+  enabled: false
+
+# Service account
+serviceAccount:
+  create: true
+
+# Sidecar for dashboard loading (optional)
+sidecar:
+  dashboards:
+    enabled: false
+  datasources:
+    enabled: false

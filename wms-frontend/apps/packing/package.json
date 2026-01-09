@@ -1,0 +1,12 @@
+{
+  "name": "@wms/packing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3005",
+    "build": "tsc && vite build",
+    "preview": "vite preview --port 3005",
+    "test": "vitest"
+  }
+}

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: wms-platform
+  labels:
+    app: wms-platform
+data:
+  # Kafka Configuration
+  KAFKA_BROKERS: "kafka-0.kafka-headless.wms-platform.svc.cluster.local:9092,kafka-1.kafka-headless.wms-platform.svc.cluster.local:9092,kafka-2.kafka-headless.wms-platform.svc.cluster.local:9092"
+  KAFKA_CONSUMER_GROUP_PREFIX: "wms-platform"
+  KAFKA_PRODUCER_ACKS: "all"
+  KAFKA_PRODUCER_RETRIES: "3"
+
+  # Temporal Configuration
+  TEMPORAL_HOST: "temporal-frontend.wms-platform.svc.cluster.local:7233"
+  TEMPORAL_NAMESPACE: "wms-platform"
+
+  # Observability Configuration
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.observability.svc.cluster.local:4317"
+  TRACING_ENABLED: "true"
+  METRICS_ENABLED: "true"
+
+  # Logging Configuration
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # Application Configuration
+  ENVIRONMENT: "production"
+  REGION: "us-east-1"

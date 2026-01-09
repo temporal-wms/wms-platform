@@ -1,0 +1,27 @@
+{
+  "id": "temporal/activities/order-activities",
+  "title": "Order Activities",
+  "description": "Activities for managing order lifecycle and status transitions.",
+  "source": "@site/docs/temporal/activities/order-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/order-activities",
+  "permalink": "/wms-platform/temporal/activities/order-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2,
+    "slug": "/temporal/activities/order-activities"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Activities Overview",
+    "permalink": "/wms-platform/temporal/activities/overview"
+  },
+  "next": {
+    "title": "Inventory Activities",
+    "permalink": "/wms-platform/temporal/activities/inventory-activities"
+  }
+}

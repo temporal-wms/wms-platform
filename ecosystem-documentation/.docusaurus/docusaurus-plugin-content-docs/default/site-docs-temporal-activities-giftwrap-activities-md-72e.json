@@ -1,0 +1,18 @@
+{
+  "id": "temporal/activities/giftwrap-activities",
+  "title": "Gift Wrap Activities",
+  "description": "Activities for managing gift wrap operations during order fulfillment.",
+  "source": "@site/docs/temporal/activities/giftwrap-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/giftwrap-activities",
+  "permalink": "/wms-platform/temporal/activities/giftwrap-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 13,
+  "frontMatter": {
+    "sidebar_position": 13,
+    "slug": "/temporal/activities/giftwrap-activities"
+  }
+}

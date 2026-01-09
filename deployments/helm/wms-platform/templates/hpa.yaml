@@ -1,0 +1,41 @@
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- if and $serviceConfig.enabled $serviceConfig.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $serviceName }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "wms-platform.service.labels" (dict "serviceName" $serviceName "serviceConfig" $serviceConfig) | nindent 4 }}
+    {{- include "wms-platform.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $serviceName }}
+  minReplicas: {{ $serviceConfig.autoscaling.minReplicas }}
+  maxReplicas: {{ $serviceConfig.autoscaling.maxReplicas }}
+  metrics:
+  {{- if $serviceConfig.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ $serviceConfig.autoscaling.targetCPUUtilizationPercentage }}
+  {{- end }}
+  {{- if $serviceConfig.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ $serviceConfig.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
+  {{- if $serviceConfig.autoscaling.behavior }}
+  behavior:
+    {{- toYaml $serviceConfig.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

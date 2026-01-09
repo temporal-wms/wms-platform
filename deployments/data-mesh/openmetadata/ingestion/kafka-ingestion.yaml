@@ -1,0 +1,59 @@
+# OpenMetadata Kafka Ingestion Configuration
+# Discovers WMS Kafka topics and registers them in the data catalog
+
+source:
+  type: kafka
+  serviceName: wms-kafka-events
+  serviceConnection:
+    config:
+      type: Kafka
+      bootstrapServers: wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+      # Schema Registry (if available)
+      # schemaRegistryURL: http://schema-registry.kafka.svc.cluster.local:8081
+  sourceConfig:
+    config:
+      type: MessagingMetadata
+      markDeletedTopics: true
+      topicFilterPattern:
+        includes:
+          - "wms\\..*"
+          - "cdc\\.wms\\..*"
+        excludes:
+          - "__.*"
+          - "connect-.*"
+
+sink:
+  type: metadata-rest
+  config: {}
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata.data-mesh.svc.cluster.local:8585/api
+    authProvider: no-auth
+---
+# CDC Topics Service
+source:
+  type: kafka
+  serviceName: wms-cdc-topics
+  serviceConnection:
+    config:
+      type: Kafka
+      bootstrapServers: wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+  sourceConfig:
+    config:
+      type: MessagingMetadata
+      markDeletedTopics: true
+      topicFilterPattern:
+        includes:
+          - "cdc\\..*"
+
+sink:
+  type: metadata-rest
+  config: {}
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata.data-mesh.svc.cluster.local:8585/api
+    authProvider: no-auth

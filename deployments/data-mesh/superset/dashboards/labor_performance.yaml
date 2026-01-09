@@ -1,0 +1,199 @@
+# Superset Dashboard Configuration: Labor Performance
+# Dashboard for monitoring workforce productivity and utilization
+
+dashboard:
+  name: "Labor Performance"
+  description: "Monitor workforce productivity, utilization, and shift coverage"
+  slug: labor-performance
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: zone
+      type: select
+      title: "Zone"
+      description: "Filter by warehouse zone"
+      required: false
+      options:
+        - ZONE-1
+        - ZONE-2
+        - ZONE-3
+        - ZONE-4
+        - ZONE-5
+        - ZONE-6
+      filter_key: zone
+
+    - name: shift_type
+      type: select
+      title: "Shift"
+      description: "Filter by shift type"
+      required: false
+      options:
+        - morning
+        - afternoon
+        - night
+        - flex
+      filter_key: shift_type
+
+    - name: worker_id
+      type: text
+      title: "Worker ID"
+      description: "Search by worker ID"
+      required: false
+      filter_key: worker_id
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Total Workers"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: labor_productivity_daily
+          configuration:
+            metric: total_workers
+            subheader: "Workers"
+
+        - name: "Avg Picks/Hour"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: labor_productivity_daily
+          configuration:
+            metric: avg_items_per_hour
+            subheader: "Items/Hour"
+            format: "{value:.1f}"
+
+        - name: "Avg Accuracy"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: labor_productivity_daily
+          configuration:
+            metric: avg_accuracy
+            subheader: "%"
+            format: "{value:.1f}%"
+
+        - name: "Total Tasks"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: labor_productivity_daily
+          configuration:
+            metric: total_tasks
+            subheader: "Tasks"
+
+    # Row 2: Productivity Charts
+    - row: 2
+      charts:
+        - name: "Productivity by Zone"
+          type: bar
+          width: 6
+          height: 4
+          description: "Average items per hour by zone"
+          dataset: labor_productivity_daily
+          configuration:
+            metric: avg_items_per_hour
+            dimension: zone
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Productivity by Shift"
+          type: bar
+          width: 6
+          height: 4
+          description: "Average items per hour by shift type"
+          dataset: labor_productivity_daily
+          configuration:
+            metric: avg_items_per_hour
+            dimension: shift_type
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+    # Row 3: Trends
+    - row: 3
+      charts:
+        - name: "Productivity Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Items per hour over time"
+          dataset: labor_productivity_daily
+          configuration:
+            metrics:
+              - avg_items_per_hour
+            dimension: date
+            time_grain: day
+            show_legend: true
+            breakdown_by: zone
+
+        - name: "Accuracy Trend"
+          type: line
+          width: 6
+          height: 4
+          description: "Accuracy rate over time"
+          dataset: labor_productivity_daily
+          configuration:
+            metrics:
+              - avg_accuracy
+            dimension: date
+            time_grain: day
+            show_legend: true
+
+    # Row 4: Top Performers Table
+    - row: 4
+      charts:
+        - name: "Worker Performance Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Detailed worker productivity metrics"
+          dataset: labor_productivity_daily
+          configuration:
+            columns:
+              - date
+              - worker_id
+              - worker_name
+              - zone
+              - shift_type
+              - tasks_completed
+              - items_processed
+              - items_per_hour
+              - accuracy_rate
+              - exceptions_count
+            order_by: items_per_hour
+            order_direction: desc
+            conditional_formatting:
+              - column: accuracy_rate
+                conditions:
+                  - operator: ">="
+                    value: 0.98
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 0.95
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: "<"
+                    value: 0.95
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: labor_productivity_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: labor_productivity_daily

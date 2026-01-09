@@ -1,0 +1,379 @@
+asyncapi: 3.0.0
+info:
+  title: Stow Service Events
+  version: 1.0.0
+  description: |
+    Event-driven API for the Stow Service.
+
+    This service publishes events related to putaway task lifecycle including
+    task creation, assignment, location assignment, stow progress, and completion.
+  contact:
+    name: WMS Platform Team
+    email: wms-platform@example.com
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Local development Kafka
+
+channels:
+  wms.stow.events:
+    address: wms.stow.events
+    messages:
+      PutawayTaskCreated:
+        $ref: '#/components/messages/PutawayTaskCreated'
+      PutawayTaskAssigned:
+        $ref: '#/components/messages/PutawayTaskAssigned'
+      LocationAssigned:
+        $ref: '#/components/messages/LocationAssigned'
+      ItemStowed:
+        $ref: '#/components/messages/ItemStowed'
+      PutawayTaskCompleted:
+        $ref: '#/components/messages/PutawayTaskCompleted'
+      PutawayTaskFailed:
+        $ref: '#/components/messages/PutawayTaskFailed'
+    description: Putaway task lifecycle events
+
+operations:
+  publishPutawayTaskCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.stow.events'
+    messages:
+      - $ref: '#/channels/wms.stow.events/messages/PutawayTaskCreated'
+    description: Published when a new putaway task is created
+
+  publishPutawayTaskAssigned:
+    action: send
+    channel:
+      $ref: '#/channels/wms.stow.events'
+    messages:
+      - $ref: '#/channels/wms.stow.events/messages/PutawayTaskAssigned'
+    description: Published when a putaway task is assigned to a worker
+
+  publishLocationAssigned:
+    action: send
+    channel:
+      $ref: '#/channels/wms.stow.events'
+    messages:
+      - $ref: '#/channels/wms.stow.events/messages/LocationAssigned'
+    description: Published when a storage location is assigned to a task
+
+  publishItemStowed:
+    action: send
+    channel:
+      $ref: '#/channels/wms.stow.events'
+    messages:
+      - $ref: '#/channels/wms.stow.events/messages/ItemStowed'
+    description: Published when items are stowed at a location
+
+  publishPutawayTaskCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.stow.events'
+    messages:
+      - $ref: '#/channels/wms.stow.events/messages/PutawayTaskCompleted'
+    description: Published when a putaway task is completed
+
+  publishPutawayTaskFailed:
+    action: send
+    channel:
+      $ref: '#/channels/wms.stow.events'
+    messages:
+      - $ref: '#/channels/wms.stow.events/messages/PutawayTaskFailed'
+    description: Published when a putaway task fails
+
+components:
+  messages:
+    PutawayTaskCreated:
+      name: PutawayTaskCreated
+      title: Putaway Task Created Event
+      summary: Published when a new putaway task is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PutawayTaskCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PutawayTaskAssigned:
+      name: PutawayTaskAssigned
+      title: Putaway Task Assigned Event
+      summary: Published when a task is assigned to a worker
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PutawayTaskAssignedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    LocationAssigned:
+      name: LocationAssigned
+      title: Location Assigned Event
+      summary: Published when a storage location is assigned to a task
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/LocationAssignedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    ItemStowed:
+      name: ItemStowed
+      title: Item Stowed Event
+      summary: Published when items are stowed at a location
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ItemStowedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PutawayTaskCompleted:
+      name: PutawayTaskCompleted
+      title: Putaway Task Completed Event
+      summary: Published when a putaway task is completed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PutawayTaskCompletedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+    PutawayTaskFailed:
+      name: PutawayTaskFailed
+      title: Putaway Task Failed Event
+      summary: Published when a putaway task fails
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PutawayTaskFailedPayload'
+      headers:
+        $ref: '#/components/schemas/CloudEventsHeaders'
+
+  schemas:
+    CloudEventsHeaders:
+      type: object
+      description: |
+        CloudEvents 1.0 specification headers for event metadata.
+        These headers provide standardized event routing and tracing capabilities.
+      required:
+        - ce_specversion
+        - ce_type
+        - ce_source
+        - ce_id
+        - ce_time
+      properties:
+        ce_specversion:
+          type: string
+          const: '1.0'
+          description: CloudEvents specification version
+          example: '1.0'
+        ce_type:
+          type: string
+          description: Event type following the pattern 'wms.stow.<event>'
+          example: 'wms.stow.task.created'
+        ce_source:
+          type: string
+          description: Event source URI identifying the stow-service
+          example: '/wms/stow-service'
+        ce_subject:
+          type: string
+          description: Event subject (typically the putaway task ID)
+          example: 'PTW-001234'
+        ce_id:
+          type: string
+          format: uuid
+          description: Unique event identifier (UUID v4)
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        ce_time:
+          type: string
+          format: date-time
+          description: Event timestamp in RFC 3339 format
+          example: '2024-01-15T10:30:00Z'
+        ce_datacontenttype:
+          type: string
+          const: 'application/json'
+          description: Content type of the event data
+          example: 'application/json'
+        ce_wmscorrelationid:
+          type: string
+          format: uuid
+          description: WMS correlation ID for distributed tracing across services
+          example: '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+        ce_wmswavenumber:
+          type: string
+          description: Wave number for batch processing correlation (if applicable)
+          example: 'WAVE-2024-00123'
+        ce_wmsworkflowid:
+          type: string
+          description: Temporal workflow ID for workflow correlation
+          example: 'inbound-putaway-SHIP-001234'
+
+    PutawayTaskCreatedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+          example: PTW-001234
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        sku:
+          type: string
+          example: SKU-12345
+        productName:
+          type: string
+          example: Widget A
+        quantity:
+          type: integer
+          example: 100
+        sourceToteId:
+          type: string
+          example: TOTE-001
+        sourceLocationId:
+          type: string
+          example: RCV-STAGE-01
+        strategy:
+          type: string
+          enum: [chaotic, directed, velocity, zone_based]
+          example: chaotic
+        constraints:
+          type: object
+          properties:
+            isHazmat:
+              type: boolean
+            requiresColdChain:
+              type: boolean
+            isOversized:
+              type: boolean
+            weight:
+              type: number
+        priority:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+
+    PutawayTaskAssignedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+          example: PTW-001234
+        workerId:
+          type: string
+          example: WORKER-001
+        assignedAt:
+          type: string
+          format: date-time
+
+    LocationAssignedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+          example: PTW-001234
+        locationId:
+          type: string
+          example: A-01-02-03
+        zone:
+          type: string
+          example: zone-a
+        aisle:
+          type: string
+          example: "01"
+        rack:
+          type: string
+          example: "02"
+        level:
+          type: string
+          example: "03"
+        locationType:
+          type: string
+          enum: [pick_face, reserve, floor_stack, pallet_rack, cold_storage, hazmat_zone]
+          example: pick_face
+        strategy:
+          type: string
+          enum: [chaotic, directed, velocity, zone_based]
+          example: chaotic
+        assignedAt:
+          type: string
+          format: date-time
+
+    ItemStowedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+          example: PTW-001234
+        sku:
+          type: string
+          example: SKU-12345
+        quantity:
+          type: integer
+          example: 25
+        locationId:
+          type: string
+          example: A-01-02-03
+        stowedBy:
+          type: string
+          example: WORKER-001
+        stowedAt:
+          type: string
+          format: date-time
+        totalStowed:
+          type: integer
+          example: 50
+        remainingQuantity:
+          type: integer
+          example: 50
+
+    PutawayTaskCompletedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+          example: PTW-001234
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        sku:
+          type: string
+          example: SKU-12345
+        totalStowed:
+          type: integer
+          example: 100
+        locations:
+          type: array
+          items:
+            type: object
+            properties:
+              locationId:
+                type: string
+              quantity:
+                type: integer
+        completedBy:
+          type: string
+          example: WORKER-001
+        completedAt:
+          type: string
+          format: date-time
+
+    PutawayTaskFailedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+          example: PTW-001234
+        shipmentId:
+          type: string
+          example: SHIP-001234
+        sku:
+          type: string
+          example: SKU-12345
+        reason:
+          type: string
+          example: Location not accessible - blocked by pallet
+        failedBy:
+          type: string
+          example: WORKER-001
+        failedAt:
+          type: string
+          format: date-time

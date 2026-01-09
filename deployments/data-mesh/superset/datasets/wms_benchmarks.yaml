@@ -1,0 +1,142 @@
+# Superset Dataset Configuration: WMS Benchmarks
+# Dataset for the Executive Benchmarks dashboard
+
+dataset:
+  name: wms_benchmarks_daily
+  description: "Daily WMS KPI metrics for benchmarking"
+  database: trino
+  schema: iceberg.gold
+  table_name: wms_benchmarks_daily
+
+  main_dttm_col: date
+
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of benchmark metrics"
+
+    # Operational KPIs
+    - column_name: picks_per_hour
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Picks per hour (Target: 175, Best: 250+)"
+
+    - column_name: order_accuracy_pct
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Order accuracy percentage (Target: 99%, Best: 99.9%)"
+
+    - column_name: on_time_shipment_pct
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "On-time shipment percentage (Target: 98%, Best: 99%)"
+
+    - column_name: dock_to_stock_hours
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Dock-to-stock time in hours (Target: <4h, Best: <2h)"
+
+    - column_name: space_utilization_pct
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Space utilization percentage (Target: 85%, Best: 90%)"
+
+    # Financial KPIs
+    - column_name: cost_per_order
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Cost per order in USD (Target: <$5, Best: <$3)"
+
+    - column_name: labor_cost_ratio
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Labor cost as % of OpEx (Target: <60%, Best: <50%)"
+
+    - column_name: fulfillment_revenue_pct
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Fulfillment as % of revenue (Target: <8%, Best: <5%)"
+
+    - column_name: total_revenue
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Total revenue"
+
+    - column_name: total_orders
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total orders"
+
+    # Volume metrics
+    - column_name: total_picks
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total picks"
+
+    - column_name: total_shipments
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total shipments"
+
+    - column_name: active_workers
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Active workers"
+
+  metrics:
+    - metric_name: avg_picks_per_hour
+      expression: "AVG(picks_per_hour)"
+      description: "Average picks per hour"
+
+    - metric_name: avg_order_accuracy
+      expression: "AVG(order_accuracy_pct)"
+      description: "Average order accuracy"
+
+    - metric_name: avg_on_time_shipment
+      expression: "AVG(on_time_shipment_pct)"
+      description: "Average on-time shipment rate"
+
+    - metric_name: avg_dock_to_stock
+      expression: "AVG(dock_to_stock_hours)"
+      description: "Average dock-to-stock time"
+
+    - metric_name: avg_cost_per_order
+      expression: "AVG(cost_per_order)"
+      description: "Average cost per order"
+
+    - metric_name: avg_labor_cost_ratio
+      expression: "AVG(labor_cost_ratio)"
+      description: "Average labor cost ratio"
+
+    - metric_name: total_orders
+      expression: "SUM(total_orders)"
+      description: "Total orders"
+
+    - metric_name: total_revenue
+      expression: "SUM(total_revenue)"
+      description: "Total revenue"
+
+---
+# Benchmark targets reference
+dataset:
+  name: wms_benchmark_targets
+  description: "Industry benchmark targets and best-in-class values"
+  database: trino
+  schema: iceberg.gold
+  table_name: wms_benchmark_targets

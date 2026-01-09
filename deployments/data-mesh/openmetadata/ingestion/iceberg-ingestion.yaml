@@ -1,0 +1,85 @@
+# OpenMetadata Iceberg Ingestion Configuration
+# Discovers tables in the data lakehouse and registers them in the catalog
+
+source:
+  type: iceberg
+  serviceName: wms-lakehouse
+  serviceConnection:
+    config:
+      type: Iceberg
+      catalog:
+        type: Hive
+        uri: thrift://hive-metastore.data-mesh.svc.cluster.local:9083
+        name: iceberg_catalog
+        fileSystem:
+          type: S3
+          accessKeyId: ${MINIO_ACCESS_KEY}
+          secretAccessKey: ${MINIO_SECRET_KEY}
+          awsRegion: us-east-1
+          endPointURL: http://minio.data-mesh.svc.cluster.local:9000
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      markDeletedTables: true
+      includeTables: true
+      includeViews: true
+      schemaFilterPattern:
+        includes:
+          - "bronze"
+          - "silver"
+          - "gold"
+      tableFilterPattern:
+        includes:
+          - ".*"
+
+sink:
+  type: metadata-rest
+  config: {}
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata.data-mesh.svc.cluster.local:8585/api
+    authProvider: no-auth
+---
+# Data Profiler for Iceberg tables
+source:
+  type: iceberg
+  serviceName: wms-lakehouse
+  sourceConfig:
+    config:
+      type: Profiler
+      generateSampleData: true
+      profileSample: 10
+      schemaFilterPattern:
+        includes:
+          - "gold"
+      tableFilterPattern:
+        includes:
+          - "order_fulfillment_daily"
+          - "labor_productivity_daily"
+          - "shipping_performance_daily"
+
+processor:
+  type: orm-profiler
+  config:
+    tableConfig:
+      - fullyQualifiedName: wms-lakehouse.gold.order_fulfillment_daily
+        profileSample: 100
+        columnConfig:
+          - columnName: completion_rate
+            metrics:
+              - min
+              - max
+              - mean
+              - stdDev
+
+sink:
+  type: metadata-rest
+  config: {}
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata.data-mesh.svc.cluster.local:8585/api
+    authProvider: no-auth

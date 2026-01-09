@@ -1,0 +1,75 @@
+# PostgreSQL Helm Chart Values for Temporal
+# Chart: oci://registry-1.docker.io/bitnamicharts/postgresql
+#
+# Install:
+#   helm install temporal-postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
+#     -n wms-platform -f postgresql-values.yaml
+
+# Authentication
+auth:
+  postgresPassword: postgres
+  username: temporal
+  password: temporal
+  database: temporal
+
+# Primary configuration
+primary:
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  initdb:
+    scripts:
+      init-temporal-visibility.sql: |
+        -- Create visibility database for Temporal
+        CREATE DATABASE temporal_visibility;
+        GRANT ALL PRIVILEGES ON DATABASE temporal_visibility TO temporal;
+
+# Service configuration
+service:
+  type: ClusterIP
+  ports:
+    postgresql: 5432
+
+# Metrics (Prometheus)
+metrics:
+  enabled: true
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 100m
+
+# Pod disruption budget
+pdb:
+  create: true
+  minAvailable: 1
+
+# Liveness and readiness probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9187"

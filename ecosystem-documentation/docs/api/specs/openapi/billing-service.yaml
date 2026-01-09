@@ -1,0 +1,984 @@
+openapi: 3.0.3
+info:
+  title: WMS Billing Service API
+  description: |
+    REST API for billing and invoicing in the WMS Platform.
+
+    This service handles:
+    - Recording billable activities (storage, pick, pack, shipping)
+    - Invoice generation and management
+    - Daily storage fee calculations
+    - Payment tracking
+
+    **Fee Types:**
+    | Type | Description |
+    |------|-------------|
+    | storage | Daily storage fees per cubic foot |
+    | pick | Per-unit picking fee |
+    | pack | Per-order packing fee |
+    | receiving | Per-unit receiving fee |
+    | shipping | Carrier cost plus markup |
+    | return_processing | Return handling fee |
+    | gift_wrap | Gift wrapping service |
+    | hazmat | Hazardous materials handling |
+    | oversized | Oversized item handling |
+    | cold_chain | Temperature-controlled storage/shipping |
+
+    **Invoice Lifecycle:**
+    1. Draft - Invoice being built, line items can be added
+    2. Finalized - Ready for payment, no changes allowed
+    3. Paid - Payment received
+    4. Overdue - Past due date, unpaid
+    5. Voided - Cancelled invoice
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8011/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Activities
+    description: Billable activity management
+  - name: Invoices
+    description: Invoice operations
+  - name: Storage
+    description: Storage fee calculations
+  - name: Reports
+    description: Billing reports and summaries
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /activities:
+    post:
+      summary: Record billable activity
+      description: |
+        Records a new billable activity for a seller.
+
+        **Usage:**
+        - Called by workflow activities after operations
+        - Automatically calculates amount from quantity * unitPrice
+        - Referenced by invoice generation
+
+        **Common Triggers:**
+        - Pick activity: After each unit picked
+        - Pack activity: After order packed
+        - Shipping: After shipment created
+      tags: [Activities]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActivityRequest'
+            examples:
+              pickFee:
+                summary: Pick fee for order
+                value:
+                  type: "pick"
+                  description: "Pick fee for order ORD-001"
+                  quantity: 5
+                  unitPrice: 0.25
+                  referenceType: "order"
+                  referenceId: "ORD-A1B2C3D4"
+              packFee:
+                summary: Pack fee for order
+                value:
+                  type: "pack"
+                  description: "Pack fee for order ORD-001"
+                  quantity: 1
+                  unitPrice: 1.50
+                  referenceType: "order"
+                  referenceId: "ORD-A1B2C3D4"
+              shippingFee:
+                summary: Shipping fee
+                value:
+                  type: "shipping"
+                  description: "UPS Ground shipping"
+                  quantity: 1
+                  unitPrice: 12.50
+                  referenceType: "shipment"
+                  referenceId: "SHP-001"
+                  metadata:
+                    carrier: "UPS"
+                    service: "Ground"
+      responses:
+        '201':
+          description: Activity recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List billable activities
+      description: Retrieve billable activities with filtering.
+      tags: [Activities]
+      parameters:
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+        - name: type
+          in: query
+          description: Filter by activity type
+          schema:
+            type: string
+            enum: [storage, pick, pack, receiving, shipping, return_processing, gift_wrap, hazmat, oversized, cold_chain]
+        - name: startDate
+          in: query
+          description: Start of date range
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: End of date range
+          schema:
+            type: string
+            format: date
+        - name: invoiced
+          in: query
+          description: Filter by invoice status
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of activities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActivityResponse'
+                  total:
+                    type: integer
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /activities/{activityId}:
+    get:
+      summary: Get activity by ID
+      description: Retrieve a specific billable activity.
+      tags: [Activities]
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "ACT-a1b2c3d4"
+      responses:
+        '200':
+          description: Activity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityResponse'
+        '404':
+          description: Activity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /invoices:
+    post:
+      summary: Generate invoice
+      description: |
+        Generates an invoice for a billing period.
+
+        **Process:**
+        1. Aggregates all uninvoiced activities for the period
+        2. Groups by activity type into line items
+        3. Applies tax rate and discounts
+        4. Creates draft invoice
+
+        **Integration:**
+        - Publishes `InvoiceCreated` event
+      tags: [Invoices]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSTenantID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateInvoiceRequest'
+            examples:
+              monthly:
+                summary: Monthly invoice
+                value:
+                  sellerId: "SLR-a1b2c3d4"
+                  periodStart: "2024-12-01T00:00:00Z"
+                  periodEnd: "2024-12-31T23:59:59Z"
+                  taxRate: 0.08
+      responses:
+        '201':
+          description: Invoice generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+
+    get:
+      summary: List invoices
+      description: Retrieve invoices with filtering.
+      tags: [Invoices]
+      parameters:
+        - $ref: '#/components/parameters/WMSTenantID'
+        - name: sellerId
+          in: query
+          description: Filter by seller
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [draft, finalized, paid, overdue, voided]
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InvoiceResponse'
+                  total:
+                    type: integer
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /invoices/{invoiceId}:
+    get:
+      summary: Get invoice by ID
+      description: Retrieve detailed invoice information.
+      tags: [Invoices]
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "INV-a1b2c3d4"
+      responses:
+        '200':
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '404':
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /invoices/{invoiceId}/line-items:
+    post:
+      summary: Add line item
+      description: Adds a line item to a draft invoice.
+      tags: [Invoices]
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddLineItemRequest'
+      responses:
+        '200':
+          description: Line item added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '400':
+          description: Invoice is not in draft status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /invoices/{invoiceId}/finalize:
+    put:
+      summary: Finalize invoice
+      description: |
+        Finalizes an invoice for payment.
+
+        **Integration:**
+        - Publishes `InvoiceFinalized` event
+        - Sends invoice notification to seller
+      tags: [Invoices]
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Invoice finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '400':
+          description: Invoice already finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /invoices/{invoiceId}/pay:
+    put:
+      summary: Record payment
+      description: |
+        Records payment for an invoice.
+
+        **Integration:**
+        - Publishes `InvoicePaid` event
+      tags: [Invoices]
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordPaymentRequest'
+            examples:
+              payment:
+                value:
+                  paymentMethod: "bank_transfer"
+                  paymentRef: "TXN-123456"
+      responses:
+        '200':
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '400':
+          description: Invoice not finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /invoices/{invoiceId}/void:
+    put:
+      summary: Void invoice
+      description: Voids an unpaid invoice.
+      tags: [Invoices]
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: "Duplicate invoice"
+      responses:
+        '200':
+          description: Invoice voided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '400':
+          description: Cannot void paid invoice
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /storage/calculate:
+    post:
+      summary: Calculate daily storage fees
+      description: |
+        Calculates storage fees for a seller based on inventory volume.
+
+        **Process:**
+        1. Queries inventory service for current volumes
+        2. Calculates fees based on seller's rate
+        3. Records billable activity
+
+        **Usage:**
+        - Called daily by scheduled job
+        - Can be triggered manually for recalculation
+      tags: [Storage]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StorageCalculationRequest'
+            examples:
+              daily:
+                value:
+                  calculationDate: "2024-12-24"
+                  totalCubicFeet: 500
+                  ratePerCubicFt: 0.05
+      responses:
+        '201':
+          description: Storage fee calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageCalculationResponse'
+
+  /storage/calculations:
+    get:
+      summary: List storage calculations
+      description: Retrieve storage fee calculations.
+      tags: [Storage]
+      parameters:
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of storage calculations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StorageCalculationResponse'
+
+  /reports/summary:
+    get:
+      summary: Get billing summary
+      description: Get a billing summary for a seller and period.
+      tags: [Reports]
+      parameters:
+        - $ref: '#/components/parameters/WMSTenantID'
+        - $ref: '#/components/parameters/WMSSellerID'
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Billing summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingSummary'
+
+  /health:
+    get:
+      summary: Health check
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness check
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  schemas:
+    CreateActivityRequest:
+      type: object
+      required:
+        - type
+        - description
+        - quantity
+        - unitPrice
+        - referenceType
+        - referenceId
+      properties:
+        type:
+          type: string
+          enum: [storage, pick, pack, receiving, shipping, return_processing, gift_wrap, hazmat, oversized, cold_chain, fragile, special_handling]
+          example: "pick"
+        description:
+          type: string
+          example: "Pick fee for order ORD-001"
+        quantity:
+          type: number
+          minimum: 0
+          example: 5
+        unitPrice:
+          type: number
+          minimum: 0
+          example: 0.25
+        referenceType:
+          type: string
+          enum: [order, inventory, shipment, return]
+          example: "order"
+        referenceId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ActivityResponse:
+      type: object
+      properties:
+        activityId:
+          type: string
+          example: "ACT-a1b2c3d4"
+        tenantId:
+          type: string
+        sellerId:
+          type: string
+        facilityId:
+          type: string
+        type:
+          type: string
+          example: "pick"
+        description:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        amount:
+          type: number
+          example: 1.25
+        currency:
+          type: string
+          example: "USD"
+        referenceType:
+          type: string
+        referenceId:
+          type: string
+        activityDate:
+          type: string
+          format: date-time
+        billingDate:
+          type: string
+          format: date-time
+        invoiceId:
+          type: string
+        invoiced:
+          type: boolean
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    GenerateInvoiceRequest:
+      type: object
+      required:
+        - sellerId
+        - periodStart
+        - periodEnd
+      properties:
+        sellerId:
+          type: string
+          example: "SLR-a1b2c3d4"
+        periodStart:
+          type: string
+          format: date-time
+          example: "2024-12-01T00:00:00Z"
+        periodEnd:
+          type: string
+          format: date-time
+          example: "2024-12-31T23:59:59Z"
+        taxRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          example: 0.08
+        discount:
+          type: number
+          minimum: 0
+          example: 0
+
+    InvoiceResponse:
+      type: object
+      properties:
+        invoiceId:
+          type: string
+          example: "INV-a1b2c3d4"
+        invoiceNumber:
+          type: string
+          example: "INV-202412-abc123"
+        tenantId:
+          type: string
+        sellerId:
+          type: string
+        status:
+          type: string
+          enum: [draft, finalized, paid, overdue, voided]
+          example: "draft"
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLineItem'
+        subtotal:
+          type: number
+          example: 1250.00
+        taxRate:
+          type: number
+          example: 0.08
+        taxAmount:
+          type: number
+          example: 100.00
+        discount:
+          type: number
+          example: 0
+        total:
+          type: number
+          example: 1350.00
+        currency:
+          type: string
+          example: "USD"
+        dueDate:
+          type: string
+          format: date-time
+        paidAt:
+          type: string
+          format: date-time
+        paymentMethod:
+          type: string
+        paymentRef:
+          type: string
+        sellerName:
+          type: string
+        sellerEmail:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        finalizedAt:
+          type: string
+          format: date-time
+
+    InvoiceLineItem:
+      type: object
+      properties:
+        activityType:
+          type: string
+          example: "pick"
+        description:
+          type: string
+          example: "Picking fees"
+        quantity:
+          type: number
+          example: 500
+        unitPrice:
+          type: number
+          example: 0.25
+        amount:
+          type: number
+          example: 125.00
+        activityIds:
+          type: array
+          items:
+            type: string
+
+    AddLineItemRequest:
+      type: object
+      required:
+        - activityType
+        - description
+        - quantity
+        - unitPrice
+      properties:
+        activityType:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        activityIds:
+          type: array
+          items:
+            type: string
+
+    RecordPaymentRequest:
+      type: object
+      required:
+        - paymentMethod
+        - paymentRef
+      properties:
+        paymentMethod:
+          type: string
+          enum: [credit_card, bank_transfer, ach, wire, check]
+          example: "bank_transfer"
+        paymentRef:
+          type: string
+          example: "TXN-123456"
+
+    StorageCalculationRequest:
+      type: object
+      required:
+        - calculationDate
+        - totalCubicFeet
+        - ratePerCubicFt
+      properties:
+        calculationDate:
+          type: string
+          format: date
+          example: "2024-12-24"
+        totalCubicFeet:
+          type: number
+          example: 500
+        ratePerCubicFt:
+          type: number
+          example: 0.05
+        standardStorage:
+          type: number
+        oversizedStorage:
+          type: number
+        hazmatStorage:
+          type: number
+        coldChainStorage:
+          type: number
+
+    StorageCalculationResponse:
+      type: object
+      properties:
+        calculationId:
+          type: string
+          example: "STO-a1b2c3d4"
+        tenantId:
+          type: string
+        sellerId:
+          type: string
+        facilityId:
+          type: string
+        calculationDate:
+          type: string
+          format: date
+        totalCubicFeet:
+          type: number
+        ratePerCubicFt:
+          type: number
+        totalAmount:
+          type: number
+          example: 25.00
+        standardStorage:
+          type: number
+        oversizedStorage:
+          type: number
+        hazmatStorage:
+          type: number
+        coldChainStorage:
+          type: number
+        activityId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    BillingSummary:
+      type: object
+      properties:
+        sellerId:
+          type: string
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        totalActivities:
+          type: integer
+        totalAmount:
+          type: number
+        byActivityType:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              count:
+                type: integer
+              amount:
+                type: number
+        invoiced:
+          type: number
+        uninvoiced:
+          type: number
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        hasMore:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing
+      required: false
+      schema:
+        type: string
+        format: uuid
+
+    WMSTenantID:
+      name: X-WMS-Tenant-ID
+      in: header
+      description: Tenant identifier
+      required: true
+      schema:
+        type: string
+
+    WMSSellerID:
+      name: X-WMS-Seller-ID
+      in: header
+      description: Seller identifier
+      required: true
+      schema:
+        type: string

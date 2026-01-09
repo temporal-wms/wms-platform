@@ -1,0 +1,36 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data-mesh
+  labels:
+    app.kubernetes.io/name: data-mesh
+    app.kubernetes.io/part-of: wms-platform
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: data-mesh-quota
+  namespace: data-mesh
+spec:
+  hard:
+    requests.cpu: "16"
+    requests.memory: "32Gi"
+    limits.cpu: "32"
+    limits.memory: "64Gi"
+    persistentvolumeclaims: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: data-mesh-limits
+  namespace: data-mesh
+spec:
+  limits:
+    - default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      type: Container

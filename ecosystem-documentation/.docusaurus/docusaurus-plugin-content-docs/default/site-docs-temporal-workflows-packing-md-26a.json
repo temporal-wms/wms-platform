@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/packing",
+  "title": "PackingWorkflow",
+  "description": "Coordinates the packing process for an order including material selection, labeling, and sealing.",
+  "source": "@site/docs/temporal/workflows/packing.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/packing",
+  "permalink": "/wms-platform/temporal/workflows/packing",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 6,
+  "frontMatter": {
+    "sidebar_position": 6,
+    "slug": "/temporal/workflows/packing"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "ConsolidationWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/consolidation"
+  },
+  "next": {
+    "title": "ShippingWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/shipping"
+  }
+}

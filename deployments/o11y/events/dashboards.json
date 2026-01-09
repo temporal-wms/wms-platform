@@ -1,0 +1,826 @@
+{
+  "services": [
+    "order-service",
+    "inventory-service",
+    "waving-service",
+    "routing-service",
+    "picking-service",
+    "consolidation-service",
+    "packing-service",
+    "shipping-service",
+    "labor-service",
+    "facility-service",
+    "orchestrator",
+    "seller-service",
+    "billing-service",
+    "channel-service",
+    "seller-portal"
+  ],
+  "namespace": "wms-platform-dev",
+  "prometheus_datasource_uid": "prometheus",
+  "dashboard_template": {
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Event Overview",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 0, "w": 24, "h": 1},
+        "collapsed": false
+      },
+      {
+        "id": 2,
+        "title": "Total Events Published",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 1, "w": 6, "h": 4},
+        "description": "Total events published in the selected time range",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "green", "value": null}]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(wms_kafka_events_published_total{service=\"${SERVICE}\"}[$__range])) or vector(0)"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Total Events Consumed",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 1, "w": 6, "h": 4},
+        "description": "Total events consumed in the selected time range",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "blue", "value": null}]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(wms_kafka_events_consumed_total{service=\"${SERVICE}\"}[$__range])) or vector(0)"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Publish Error Rate",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 1, "w": 6, "h": 4},
+        "description": "Percentage of failed event publications",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.01},
+                {"color": "red", "value": 0.05}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(wms_kafka_events_published_total{service=\"${SERVICE}\", status=\"error\"}[$__range])) / sum(increase(wms_kafka_events_published_total{service=\"${SERVICE}\"}[$__range])) or vector(0)"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "P95 Publish Latency",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 1, "w": 6, "h": 4},
+        "description": "95th percentile publish latency",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.1},
+                {"color": "red", "value": 0.5}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {"calcs": ["mean"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "histogram_quantile(0.95, sum(rate(wms_kafka_publish_duration_seconds_bucket{service=\"${SERVICE}\"}[$__rate_interval])) by (le)) or vector(0)"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Event Publishing",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 5, "w": 24, "h": 1},
+        "collapsed": false
+      },
+      {
+        "id": 7,
+        "title": "Events Published Rate (by Topic)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 6, "w": 12, "h": 8},
+        "description": "Rate of events published per second by topic",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{topic}}",
+            "expr": "sum(rate(wms_kafka_events_published_total{service=\"${SERVICE}\"}[$__rate_interval])) by (topic)"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Events Published Rate (by Event Type)",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 6, "w": 12, "h": 8},
+        "description": "Rate of events published per second by event type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{event_type}}",
+            "expr": "sum(rate(wms_kafka_events_published_total{service=\"${SERVICE}\"}[$__rate_interval])) by (event_type)"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Publish Latency Distribution",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 14, "w": 12, "h": 8},
+        "description": "Event publish latency at p50, p95, p99 percentiles",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "p50 - {{topic}}",
+            "expr": "histogram_quantile(0.50, sum(rate(wms_kafka_publish_duration_seconds_bucket{service=\"${SERVICE}\"}[$__rate_interval])) by (le, topic))"
+          },
+          {
+            "refId": "B",
+            "legendFormat": "p95 - {{topic}}",
+            "expr": "histogram_quantile(0.95, sum(rate(wms_kafka_publish_duration_seconds_bucket{service=\"${SERVICE}\"}[$__rate_interval])) by (le, topic))"
+          },
+          {
+            "refId": "C",
+            "legendFormat": "p99 - {{topic}}",
+            "expr": "histogram_quantile(0.99, sum(rate(wms_kafka_publish_duration_seconds_bucket{service=\"${SERVICE}\"}[$__rate_interval])) by (le, topic))"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Events Published by Status",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 14, "w": 12, "h": 8},
+        "description": "Event publish rate by status (success/error)",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byRegexp", "options": ".*error.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byRegexp", "options": ".*success.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+            }
+          ]
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "sum"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{status}}",
+            "expr": "sum(rate(wms_kafka_events_published_total{service=\"${SERVICE}\"}[$__rate_interval])) by (status)"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Event Consuming",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 22, "w": 24, "h": 1},
+        "collapsed": false
+      },
+      {
+        "id": 12,
+        "title": "Events Consumed Rate (by Topic)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 23, "w": 12, "h": 8},
+        "description": "Rate of events consumed per second by topic",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{topic}}",
+            "expr": "sum(rate(wms_kafka_events_consumed_total{service=\"${SERVICE}\"}[$__rate_interval])) by (topic)"
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Events Consumed Rate (by Event Type)",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 23, "w": 12, "h": 8},
+        "description": "Rate of events consumed per second by event type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{event_type}}",
+            "expr": "sum(rate(wms_kafka_events_consumed_total{service=\"${SERVICE}\"}[$__rate_interval])) by (event_type)"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Consumer Lag",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 31, "w": 12, "h": 8},
+        "description": "Kafka consumer lag (messages behind)",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never",
+              "thresholdsStyle": {"mode": "area"}
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 1000}
+              ]
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{topic}} - partition {{partition}}",
+            "expr": "sum(wms_kafka_consumer_lag{service=\"${SERVICE}\"}) by (topic, partition)"
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Events Consumed by Status",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 31, "w": 12, "h": 8},
+        "description": "Event consume rate by status (success/error)",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byRegexp", "options": ".*error.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byRegexp", "options": ".*success.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+            }
+          ]
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "sum"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{status}}",
+            "expr": "sum(rate(wms_kafka_events_consumed_total{service=\"${SERVICE}\"}[$__rate_interval])) by (status)"
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Event Types Breakdown",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 39, "w": 24, "h": 1},
+        "collapsed": false
+      },
+      {
+        "id": 17,
+        "title": "Published Events by Type",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 40, "w": 12, "h": 8},
+        "description": "Distribution of published events by type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "values": ["value", "percent"]},
+          "tooltip": {"mode": "single"},
+          "pieType": "pie",
+          "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{event_type}}",
+            "expr": "sum(increase(wms_kafka_events_published_total{service=\"${SERVICE}\"}[$__range])) by (event_type)"
+          }
+        ]
+      },
+      {
+        "id": 18,
+        "title": "Consumed Events by Type",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 40, "w": 12, "h": 8},
+        "description": "Distribution of consumed events by type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "values": ["value", "percent"]},
+          "tooltip": {"mode": "single"},
+          "pieType": "pie",
+          "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{event_type}}",
+            "expr": "sum(increase(wms_kafka_events_consumed_total{service=\"${SERVICE}\"}[$__range])) by (event_type)"
+          }
+        ]
+      },
+      {
+        "id": 19,
+        "title": "Outbox",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 48, "w": 24, "h": 1},
+        "collapsed": false
+      },
+      {
+        "id": 20,
+        "title": "Outbox Events Pending",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 49, "w": 6, "h": 4},
+        "description": "Number of events waiting to be published from outbox",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "orange", "value": 50},
+                {"color": "red", "value": 100}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "wms_outbox_events_pending{service=\"${SERVICE}\"} or vector(0)"
+          }
+        ]
+      },
+      {
+        "id": 21,
+        "title": "Outbox Publish Rate",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 49, "w": 6, "h": 4},
+        "description": "Rate of events published from outbox",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "green", "value": null}]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(rate(wms_outbox_events_published_total{service=\"${SERVICE}\", status=\"success\"}[$__rate_interval])) or vector(0)"
+          }
+        ]
+      },
+      {
+        "id": 22,
+        "title": "Outbox Error Rate %",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 49, "w": 6, "h": 4},
+        "description": "Percentage of outbox publish failures",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.01},
+                {"color": "orange", "value": 0.05},
+                {"color": "red", "value": 0.1}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(rate(wms_outbox_events_published_total{service=\"${SERVICE}\", status=\"error\"}[$__rate_interval])) / sum(rate(wms_outbox_events_published_total{service=\"${SERVICE}\"}[$__rate_interval])) or vector(0)"
+          }
+        ]
+      },
+      {
+        "id": 23,
+        "title": "Outbox Retry Rate",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 49, "w": 6, "h": 4},
+        "description": "Rate of outbox event retries",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.1},
+                {"color": "red", "value": 1}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "expr": "sum(rate(wms_outbox_events_retried_total{service=\"${SERVICE}\"}[$__rate_interval])) or vector(0)"
+          }
+        ]
+      },
+      {
+        "id": 24,
+        "title": "Outbox Published Events (by Event Type)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 53, "w": 12, "h": 8},
+        "description": "Rate of events published from outbox by event type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{event_type}}",
+            "expr": "sum(rate(wms_outbox_events_published_total{service=\"${SERVICE}\"}[$__rate_interval])) by (event_type)"
+          }
+        ]
+      },
+      {
+        "id": 25,
+        "title": "Outbox Failed Events (by Event Type)",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 53, "w": 12, "h": 8},
+        "description": "Rate of failed outbox events by event type",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byRegexp", "options": ".*"},
+              "properties": [{"id": "color", "value": {"mode": "continuous-reds"}}]
+            }
+          ]
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "sum"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{event_type}}",
+            "expr": "sum(rate(wms_outbox_events_failed_total{service=\"${SERVICE}\"}[$__rate_interval])) by (event_type)"
+          }
+        ]
+      },
+      {
+        "id": 26,
+        "title": "Outbox Publish Latency",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 61, "w": 12, "h": 8},
+        "description": "Outbox publish latency at p50, p95, p99 percentiles",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "p50",
+            "expr": "histogram_quantile(0.50, sum(rate(wms_outbox_publish_duration_seconds_bucket{service=\"${SERVICE}\"}[$__rate_interval])) by (le))"
+          },
+          {
+            "refId": "B",
+            "legendFormat": "p95",
+            "expr": "histogram_quantile(0.95, sum(rate(wms_outbox_publish_duration_seconds_bucket{service=\"${SERVICE}\"}[$__rate_interval])) by (le))"
+          },
+          {
+            "refId": "C",
+            "legendFormat": "p99",
+            "expr": "histogram_quantile(0.99, sum(rate(wms_outbox_publish_duration_seconds_bucket{service=\"${SERVICE}\"}[$__rate_interval])) by (le))"
+          }
+        ]
+      },
+      {
+        "id": 27,
+        "title": "Outbox Events by Status",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 61, "w": 12, "h": 8},
+        "description": "Outbox events by status (success/error)",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byRegexp", "options": ".*error.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byRegexp", "options": ".*success.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+            }
+          ]
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "sum"]},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "queries": [
+          {
+            "refId": "A",
+            "legendFormat": "{{status}}",
+            "expr": "sum(rate(wms_outbox_events_published_total{service=\"${SERVICE}\"}[$__rate_interval])) by (status)"
+          }
+        ]
+      }
+    ]
+  }
+}
