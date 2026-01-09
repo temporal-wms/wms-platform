@@ -1,17 +1,19 @@
 // @ts-check
-import {themes as prismThemes} from 'prism-react-renderer';
+import { themes as prismThemes } from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'WMS Platform',
+  title: 'WMS Labs',
   tagline: 'Warehouse Management System - Enterprise Documentation',
   favicon: 'img/favicon.ico',
 
-  url: 'https://wms-platform.example.com',
-  baseUrl: '/',
+  url: 'https://temporal-wms.github.io',
+  baseUrl: '/wms-platform/',
 
-  organizationName: 'wms-platform',
-  projectName: 'wms-platform-docs',
+  organizationName: 'temporal-wms',
+  projectName: 'wms-platform',
+  deploymentBranch: 'gh-pages',
+  trailingSlash: false,
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
@@ -25,7 +27,10 @@ const config = {
     mermaid: true,
   },
 
-  themes: ['@docusaurus/theme-mermaid'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    'docusaurus-theme-openapi-docs',
+  ],
 
   presets: [
     [
@@ -35,6 +40,7 @@ const config = {
         docs: {
           sidebarPath: './sidebars.js',
           routeBasePath: '/',
+          docItemComponent: '@theme/ApiItem',
         },
         blog: false,
         theme: {
@@ -44,14 +50,33 @@ const config = {
     ],
   ],
 
+  plugins: [
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'api',
+        docsPluginId: 'classic',
+        config: {
+          wmsLabs: {
+            specPath: 'docs/api/specs/openapi/order-service.yaml',
+            outputDir: 'docs/api/order-service',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+            },
+          },
+        },
+      },
+    ],
+  ],
+
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       image: 'img/wms-platform-social-card.jpg',
       navbar: {
-        title: 'WMS Platform',
+        title: 'WMS Labs',
         logo: {
-          alt: 'WMS Platform Logo',
+          alt: 'WMS Labs Logo',
           src: 'img/logo.svg',
         },
         items: [
@@ -62,7 +87,7 @@ const config = {
             label: 'Documentation',
           },
           {
-            href: 'https://github.com/wms-platform/wms-platform',
+            href: 'https://github.com/temporal-wms/wms-platform',
             label: 'GitHub',
             position: 'right',
           },
@@ -102,7 +127,7 @@ const config = {
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} WMS Platform. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} WMS Labs. Built with Docusaurus.`,
       },
       prism: {
         theme: prismThemes.github,
@@ -110,7 +135,7 @@ const config = {
         additionalLanguages: ['go', 'yaml', 'json', 'bash'],
       },
       mermaid: {
-        theme: {light: 'neutral', dark: 'dark'},
+        theme: { light: 'neutral', dark: 'dark' },
       },
     }),
 };

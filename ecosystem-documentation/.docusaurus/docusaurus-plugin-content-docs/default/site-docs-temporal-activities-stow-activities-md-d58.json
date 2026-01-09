@@ -1,0 +1,18 @@
+{
+  "id": "temporal/activities/stow-activities",
+  "title": "Stow Activities",
+  "description": "Activities for managing stow operations during inbound receiving and putaway.",
+  "source": "@site/docs/temporal/activities/stow-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/stow-activities",
+  "permalink": "/wms-platform/temporal/activities/stow-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 14,
+  "frontMatter": {
+    "sidebar_position": 14,
+    "slug": "/temporal/activities/stow-activities"
+  }
+}

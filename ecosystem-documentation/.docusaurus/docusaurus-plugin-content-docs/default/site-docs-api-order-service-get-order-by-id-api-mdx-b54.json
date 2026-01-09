@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/get-order-by-id",
+  "title": "Get order by ID",
+  "description": "Get order by ID",
+  "source": "@site/docs/api/order-service/get-order-by-id.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/get-order-by-id",
+  "permalink": "/wms-platform/api/order-service/get-order-by-id",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "get-order-by-id",
+    "title": "Get order by ID",
+    "description": "Get order by ID",
+    "sidebar_label": "Get order by ID",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJyVVk1v2zgQ/SsET7uAYztFDwudNmiKwod2s0l2e3ByoMWxxYYiGXLk1mv4v3eGkh0llhboySLffM/jjPcS1SbJYin/ihpiko8TGVRUNSCfiuVeOjrIQnrGF1pOpHF0DAor+o7w3JgIWhYYG5jIVFZQK1nsJe4CqyWMxm3k4fDIwil4lyAx/m4+5x8NqYwmoPFsNQchIpASbEGL1JQlpLRurN2Rt9I7BIesp0KwplSsN/uWWHl/7tyvvkGJpBiiDxDRtK6PqZxHSS6ahL4ehRMqbNIgFKLx0eBuBPS1SaCvwZotxN0VnotN5NrHWhEitUK4QEOFZ5+VCYEErrSmCqah/F7asGRrAHxZcjBtyEC//5nwwWvIZWwcxl3u9avCdKrDiTP0brhmY1m3roeQYzCD5rrwBkg0kWjQ8tWxGHRlEOp+VVSMihN/ez/ChvTUjLVMNyV+yfQfwJ8b5fB15obouYHIaOMM3kRT9nVdU69a9DuYTYUDUC/D/BYWlEN761HZxZuMev4y/vf/hpRFvo557vB/lW1GYlZbGHs0EajR+ldI3QT9aypvK3PbDRNCGHs/fz82TpxHsSZO6WzktcQnQJHHgVjtxOKafNPkqzylKTf5EeU5V8hZFkqzfTc7DvywIG6PQ7KJlqQqxFDMZtaXylY+YfHHfH45U8HMtpfyretrmnDWh5oGmmhNUV36lhKZIt3p9zpN4Yeqg4Vp6esxezctX+lwMvfIw3rtc4n7tRN3JEDcFFc3izM7H3wdIlTgEk0qcfvx7p7FqIKxq1StnNpAjpvfUZ7BSRgnsALx9fOdCFYht3D64B7cfWVSDoj9VcppC6l4cBeijSRTh2MmRGyVNTofXwSsWUO5Ky30/J7QCyalUCmZjcsBYVTlE5HoRb+d2KLlW8punhug/ZIeHOXOHWzzvpzOp/Nuyagy87JbfZzTTZeTuAdVkxQtGsONoub82WtOplig1lOwPQvnNHtV89MLQPiBMyofrVh+I0yFfUfBZbu2EukWxwVG/WWaMbjfr1SCf6I9HPiaU6QxsKTPrYpGrbj5xFNtEn8Tv9fKJjiL47Rh5W+33U75XZDLwfiO89bxtN22g0PS5xPsen8YDo8kWoGiUw6hRa9osQfs6Z0tdGbv6TF++nhPpf0JrJ3/Hg==",
+    "sidebar_class_name": "get api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Get DLQ statistics",
+    "permalink": "/wms-platform/api/order-service/get-dlq-statistics"
+  },
+  "next": {
+    "title": "Get orders eligible for retry",
+    "permalink": "/wms-platform/api/order-service/get-orders-eligible-for-retry"
+  }
+}

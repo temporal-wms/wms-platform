@@ -44,7 +44,7 @@ func (s *SortationService) CreateBatch(ctx context.Context, cmd CreateBatchComma
 
 	if err := s.batchRepo.Save(ctx, batch); err != nil {
 		s.logger.WithError(err).Error("Failed to save sortation batch")
-		return nil, errors.NewInternalError("failed to save batch", err)
+		return nil, errors.ErrInternal("failed to save batch").Wrap(err)
 	}
 
 	s.logger.Info("Created sortation batch",
@@ -71,10 +71,10 @@ type AddPackageCommand struct {
 func (s *SortationService) AddPackage(ctx context.Context, cmd AddPackageCommand) (*domain.SortationBatch, error) {
 	batch, err := s.batchRepo.FindByID(ctx, cmd.BatchID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find batch", err)
+		return nil, errors.ErrInternal("failed to find batch").Wrap(err)
 	}
 	if batch == nil {
-		return nil, errors.NewNotFoundError("batch not found", nil)
+		return nil, errors.ErrNotFound("batch")
 	}
 
 	pkg := domain.SortedPackage{
@@ -87,11 +87,11 @@ func (s *SortationService) AddPackage(ctx context.Context, cmd AddPackageCommand
 	}
 
 	if err := batch.AddPackage(pkg); err != nil {
-		return nil, errors.NewValidationError("cannot add package", err)
+		return nil, errors.ErrValidation("cannot add package").Wrap(err)
 	}
 
 	if err := s.batchRepo.Save(ctx, batch); err != nil {
-		return nil, errors.NewInternalError("failed to save batch", err)
+		return nil, errors.ErrInternal("failed to save batch").Wrap(err)
 	}
 
 	return batch, nil
@@ -109,14 +109,14 @@ type SortPackageCommand struct {
 func (s *SortationService) SortPackage(ctx context.Context, cmd SortPackageCommand) (*domain.SortationBatch, error) {
 	batch, err := s.batchRepo.FindByID(ctx, cmd.BatchID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find batch", err)
+		return nil, errors.ErrInternal("failed to find batch").Wrap(err)
 	}
 	if batch == nil {
-		return nil, errors.NewNotFoundError("batch not found", nil)
+		return nil, errors.ErrNotFound("batch")
 	}
 
 	if err := batch.SortPackage(cmd.PackageID, cmd.ChuteID, cmd.WorkerID); err != nil {
-		return nil, errors.NewValidationError("cannot sort package", err)
+		return nil, errors.ErrValidation("cannot sort package").Wrap(err)
 	}
 
 	// Auto-mark as ready if all packages sorted
@@ -125,7 +125,7 @@ func (s *SortationService) SortPackage(ctx context.Context, cmd SortPackageComma
 	}
 
 	if err := s.batchRepo.Save(ctx, batch); err != nil {
-		return nil, errors.NewInternalError("failed to save batch", err)
+		return nil, errors.ErrInternal("failed to save batch").Wrap(err)
 	}
 
 	s.logger.Info("Sorted package",
@@ -147,18 +147,18 @@ type MarkReadyCommand struct {
 func (s *SortationService) MarkReady(ctx context.Context, cmd MarkReadyCommand) (*domain.SortationBatch, error) {
 	batch, err := s.batchRepo.FindByID(ctx, cmd.BatchID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find batch", err)
+		return nil, errors.ErrInternal("failed to find batch").Wrap(err)
 	}
 	if batch == nil {
-		return nil, errors.NewNotFoundError("batch not found", nil)
+		return nil, errors.ErrNotFound("batch")
 	}
 
 	if err := batch.MarkReady(); err != nil {
-		return nil, errors.NewValidationError("cannot mark batch ready", err)
+		return nil, errors.ErrValidation("cannot mark batch ready").Wrap(err)
 	}
 
 	if err := s.batchRepo.Save(ctx, batch); err != nil {
-		return nil, errors.NewInternalError("failed to save batch", err)
+		return nil, errors.ErrInternal("failed to save batch").Wrap(err)
 	}
 
 	return batch, nil
@@ -175,24 +175,24 @@ type DispatchBatchCommand struct {
 func (s *SortationService) DispatchBatch(ctx context.Context, cmd DispatchBatchCommand) (*domain.SortationBatch, error) {
 	batch, err := s.batchRepo.FindByID(ctx, cmd.BatchID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find batch", err)
+		return nil, errors.ErrInternal("failed to find batch").Wrap(err)
 	}
 	if batch == nil {
-		return nil, errors.NewNotFoundError("batch not found", nil)
+		return nil, errors.ErrNotFound("batch")
 	}
 
 	// Assign to trailer first
 	if err := batch.AssignToTrailer(cmd.TrailerID, cmd.DispatchDock); err != nil {
-		return nil, errors.NewValidationError("cannot assign to trailer", err)
+		return nil, errors.ErrValidation("cannot assign to trailer").Wrap(err)
 	}
 
 	// Then dispatch
 	if err := batch.Dispatch(); err != nil {
-		return nil, errors.NewValidationError("cannot dispatch batch", err)
+		return nil, errors.ErrValidation("cannot dispatch batch").Wrap(err)
 	}
 
 	if err := s.batchRepo.Save(ctx, batch); err != nil {
-		return nil, errors.NewInternalError("failed to save batch", err)
+		return nil, errors.ErrInternal("failed to save batch").Wrap(err)
 	}
 
 	s.logger.Info("Dispatched batch",
@@ -209,10 +209,10 @@ func (s *SortationService) DispatchBatch(ctx context.Context, cmd DispatchBatchC
 func (s *SortationService) GetBatch(ctx context.Context, batchID string) (*domain.SortationBatch, error) {
 	batch, err := s.batchRepo.FindByID(ctx, batchID)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to find batch", err)
+		return nil, errors.ErrInternal("failed to find batch").Wrap(err)
 	}
 	if batch == nil {
-		return nil, errors.NewNotFoundError("batch not found", nil)
+		return nil, errors.ErrNotFound("batch")
 	}
 	return batch, nil
 }

@@ -1,0 +1,27 @@
+{
+  "id": "temporal/activities/receiving-activities",
+  "title": "Receiving Activities",
+  "description": "Activities for managing inbound shipment receiving and stow operations.",
+  "source": "@site/docs/temporal/activities/receiving-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/receiving-activities",
+  "permalink": "/wms-platform/temporal/activities/receiving-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 8,
+  "frontMatter": {
+    "sidebar_position": 8,
+    "slug": "/temporal/activities/receiving-activities"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Shipping Activities",
+    "permalink": "/wms-platform/temporal/activities/shipping-activities"
+  },
+  "next": {
+    "title": "Sortation Activities",
+    "permalink": "/wms-platform/temporal/activities/sortation-activities"
+  }
+}

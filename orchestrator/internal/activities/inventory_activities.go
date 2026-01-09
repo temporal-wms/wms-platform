@@ -28,8 +28,12 @@ func (a *InventoryActivities) ConfirmInventoryPick(ctx context.Context, input Co
 
 	var lastError error
 	successCount := 0
+	totalItems := len(input.PickedItems)
 
-	for _, item := range input.PickedItems {
+	for i, item := range input.PickedItems {
+		// Record heartbeat for long-running inventory operations
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Processing inventory item %d/%d", i+1, totalItems))
+
 		req := &clients.PickInventoryRequest{
 			OrderID:    input.OrderID,
 			LocationID: item.LocationID,
@@ -54,6 +58,7 @@ func (a *InventoryActivities) ConfirmInventoryPick(ctx context.Context, input Co
 			"sku", item.SKU,
 			"quantity", item.Quantity,
 			"locationId", item.LocationID,
+			"progress", fmt.Sprintf("%d/%d", i+1, totalItems),
 		)
 	}
 

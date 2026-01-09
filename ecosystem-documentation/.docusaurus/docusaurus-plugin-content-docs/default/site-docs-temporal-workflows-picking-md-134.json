@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/picking",
+  "title": "OrchestratedPickingWorkflow",
+  "description": "Coordinates the picking process for an order with enhanced features like unit-level tracking and inventory staging.",
+  "source": "@site/docs/temporal/workflows/picking.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/picking",
+  "permalink": "/wms-platform/temporal/workflows/picking",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 4,
+  "frontMatter": {
+    "sidebar_position": 4,
+    "slug": "/temporal/workflows/picking"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "WESExecutionWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/wes-execution"
+  },
+  "next": {
+    "title": "ConsolidationWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/consolidation"
+  }
+}

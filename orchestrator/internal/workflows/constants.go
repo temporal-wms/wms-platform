@@ -38,6 +38,15 @@ const (
 	ReprocessingScheduleID = "order-reprocessing-schedule"
 )
 
+// Planning workflow configuration
+const (
+	// PlanningWorkflowTimeout is the maximum duration for the planning workflow
+	PlanningWorkflowTimeout time.Duration = 5 * time.Hour
+
+	// PlanningActivityTimeout is the timeout for planning-specific activities
+	PlanningActivityTimeout time.Duration = 2 * time.Minute
+)
+
 // SLAM (Scan, Label, Apply, Manifest) configuration
 const (
 	// WeightToleranceThreshold is the maximum allowed weight variance percentage
@@ -53,3 +62,12 @@ var ReprocessableStatuses = []string{
 	"wave_timeout",
 	"pick_timeout",
 }
+
+// WES (Warehouse Execution System) configuration
+const (
+	// WESExecutionWorkflowTimeout is the maximum duration for WES execution
+	WESExecutionWorkflowTimeout time.Duration = 4 * time.Hour
+
+	// WESTaskQueue is the Temporal task queue for WES workers
+	WESTaskQueue = "wes-execution-queue"
+)

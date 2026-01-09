@@ -1,0 +1,26 @@
+{
+  "id": "services/billing-service",
+  "title": "Billing Service",
+  "description": "The Billing Service manages invoicing, billable activities tracking, and fee calculations for the WMS Platform. It aggregates all billable events and generates invoices for sellers.",
+  "source": "@site/docs/services/billing-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/billing-service",
+  "permalink": "/wms-platform/services/billing-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 14,
+  "frontMatter": {
+    "sidebar_position": 14
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Seller Service",
+    "permalink": "/wms-platform/services/seller-service"
+  },
+  "next": {
+    "title": "Channel Service",
+    "permalink": "/wms-platform/services/channel-service"
+  }
+}

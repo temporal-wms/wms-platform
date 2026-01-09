@@ -1,19 +1,80 @@
 openapi: 3.0.3
 info:
-  title: Shipping Service API
-  description: REST API for shipment and carrier operations
+  title: WMS Shipping Service API
+  description: |
+    REST API for shipment management and carrier integration in the WMS Platform.
+
+    This service handles:
+    - Shipment creation and lifecycle management
+    - Shipping label generation via carrier APIs
+    - SLAM operations (Scan, Label, Apply, Manifest)
+    - Carrier integration (UPS, FedEx, USPS, DHL)
+    - Manifest management and carrier pickup scheduling
+    - Ship confirmation and tracking
+
+    **Shipment Lifecycle:**
+    1. Created - Shipment record created for order/package
+    2. Label Generated - Shipping label obtained from carrier
+    3. Labeled - Label applied to package (SLAM scan)
+    4. Manifested - Added to carrier manifest for pickup
+    5. Shipped - Confirmed shipped by carrier
+    6. Cancelled - Shipment cancelled (void label)
+
+    **SLAM Process (Scan, Label, Apply, Manifest):**
+    - Scan: Package barcode scanned at shipping station
+    - Label: Shipping label generated from carrier
+    - Apply: Label printed and applied to package
+    - Manifest: Package added to daily carrier manifest
+
+    **Carrier Integration:**
+    - Real-time rate shopping across carriers
+    - Label generation via carrier APIs
+    - Tracking number assignment
+    - End-of-day manifest close
+    - Carrier pickup scheduling
+
+    **Service Levels:**
+    - Ground: 3-7 business days
+    - Express: 2-3 business days
+    - Two-Day: 2 business days
+    - Overnight: Next business day
   version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
 
 servers:
   - url: http://localhost:8007/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
 
 tags:
   - name: Shipments
+    description: Shipment creation and lifecycle management
+  - name: Labels
+    description: Shipping label generation and management
+  - name: SLAM
+    description: Scan, Label, Apply, Manifest operations
+  - name: Manifests
+    description: Carrier manifest management
+  - name: Queries
+    description: Shipment queries and lookups
+  - name: Health
+    description: Service health and readiness
 
 paths:
   /shipments:
     post:
       summary: Create shipment
+      description: |
+        Creates a new shipment record for an order or package.
+
+        **Integration:**
+        - Called by WES workflow after packing completes
+        - Publishes `ShipmentCreated` event on success
+
+        **State Transition:** None -> `created`
       tags: [Shipments]
       parameters:
         - $ref: '#/components/parameters/WMSCorrelationID'
@@ -24,38 +85,55 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [orderId, carrier, serviceType]
-              properties:
-                orderId:
-                  type: string
-                carrier:
-                  type: string
-                  enum: [ups, fedex, usps, dhl]
-                serviceType:
-                  type: string
-                packageDetails:
-                  type: object
-                  properties:
-                    weight:
-                      type: number
-                    dimensions:
-                      type: object
+              $ref: '#/components/schemas/CreateShipmentRequest'
             examples:
-              shipment:
+              upsGround:
+                summary: UPS Ground shipment
                 value:
                   orderId: "ORD-A1B2C3D4"
+                  packageId: "PKG-001"
                   carrier: "ups"
                   serviceType: "ground"
+                  shipTo:
+                    name: "John Doe"
+                    company: "Acme Corp"
+                    street1: "123 Main St"
+                    street2: "Suite 100"
+                    city: "New York"
+                    state: "NY"
+                    postalCode: "10001"
+                    country: "US"
+                    phone: "555-123-4567"
                   packageDetails:
                     weight: 2.5
                     dimensions:
                       length: 12
                       width: 10
                       height: 8
+              fedexExpress:
+                summary: FedEx Express shipment
+                value:
+                  orderId: "ORD-E5F6G7H8"
+                  packageId: "PKG-002"
+                  carrier: "fedex"
+                  serviceType: "express"
+                  shipTo:
+                    name: "Jane Smith"
+                    street1: "456 Oak Ave"
+                    city: "Los Angeles"
+                    state: "CA"
+                    postalCode: "90001"
+                    country: "US"
+                  packageDetails:
+                    weight: 1.2
+                    dimensions:
+                      length: 8
+                      width: 6
+                      height: 4
+                  signatureRequired: true
       responses:
         '201':
-          description: Shipment created
+          description: Shipment created successfully
           content:
             application/json:
               schema:
@@ -65,14 +143,397 @@ paths:
                   value:
                     shipmentId: "SHIP-001"
                     orderId: "ORD-A1B2C3D4"
+                    packageId: "PKG-001"
                     carrier: "ups"
                     serviceType: "ground"
                     status: "created"
+                    shipTo:
+                      name: "John Doe"
+                      city: "New York"
+                      state: "NY"
+                      postalCode: "10001"
+                    packageDetails:
+                      weight: 2.5
+                      dimensions:
+                        length: 12
+                        width: 10
+                        height: 8
                     createdAt: "2024-12-24T10:00:00Z"
+        '400':
+          description: Invalid request (missing required fields, invalid carrier)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Shipment already exists for order/package
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List shipments
+      description: Retrieve a paginated list of shipments with optional filtering
+      tags: [Queries]
+      parameters:
+        - name: status
+          in: query
+          description: Filter by shipment status
+          schema:
+            type: string
+            enum: [created, label_generated, labeled, manifested, shipped, cancelled]
+        - name: carrier
+          in: query
+          description: Filter by carrier
+          schema:
+            type: string
+            enum: [ups, fedex, usps, dhl]
+        - name: manifestId
+          in: query
+          description: Filter by manifest ID
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of shipments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ShipmentResponse'
+                  total:
+                    type: integer
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /shipments/{shipmentId}:
+    get:
+      summary: Get shipment by ID
+      description: Retrieve detailed information about a specific shipment
+      tags: [Queries]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          description: Shipment ID
+          schema:
+            type: string
+          example: "SHIP-001"
+      responses:
+        '200':
+          description: Shipment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '404':
+          description: Shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /shipments/{shipmentId}/label:
     post:
       summary: Generate shipping label
+      description: |
+        Generates a shipping label from the carrier API.
+
+        **State Transition:** `created` -> `label_generated`
+
+        **Behavior:**
+        - Calls carrier API to generate label
+        - Assigns tracking number
+        - Stores label URL/data
+        - Publishes `LabelGenerated` event
+
+        **Validation:**
+        - Shipment must be in `created` status
+        - Address must be valid for carrier
+      tags: [Labels]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SHIP-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateLabelRequest'
+            examples:
+              defaultLabel:
+                summary: Generate label with defaults
+                value: {}
+              customFormat:
+                summary: Custom label format
+                value:
+                  labelFormat: "zpl"
+                  labelSize: "4x6"
+      responses:
+        '200':
+          description: Label generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabelResponse'
+              examples:
+                generated:
+                  value:
+                    shipmentId: "SHIP-001"
+                    trackingNumber: "1Z999AA10123456784"
+                    carrier: "ups"
+                    labelUrl: "https://labels.wms.example.com/SHIP-001.pdf"
+                    labelFormat: "pdf"
+                    labelSize: "4x6"
+                    estimatedDelivery: "2024-12-30"
+                    generatedAt: "2024-12-24T10:05:00Z"
+        '400':
+          description: Invalid state transition or carrier error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Carrier API error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /shipments/{shipmentId}/label/void:
+    post:
+      summary: Void shipping label
+      description: |
+        Voids a previously generated shipping label.
+
+        **Behavior:**
+        - Calls carrier API to void the label
+        - Tracking number becomes invalid
+        - Publishes `LabelVoided` event
+
+        **Validation:**
+        - Label must exist
+        - Shipment must not be shipped
+        - Within carrier void window (typically 24-48 hours)
+      tags: [Labels]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for voiding
+            example:
+              reason: "Wrong carrier selected"
+      responses:
+        '200':
+          description: Label voided successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Cannot void label (already shipped, outside void window)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /shipments/{shipmentId}/scan:
+    post:
+      summary: Scan package (SLAM step 1)
+      description: |
+        Records package scan at shipping station. First step of SLAM process.
+
+        **SLAM Process:**
+        This endpoint records that the package has been scanned at the
+        shipping station, ready for label application.
+      tags: [SLAM]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SHIP-001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanPackageRequest'
+            example:
+              stationId: "SHIP-STATION-1"
+              scannedBarcode: "PKG-001"
+              operatorId: "OP-001"
+      responses:
+        '200':
+          description: Package scanned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Barcode mismatch or invalid shipment state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /shipments/{shipmentId}/apply-label:
+    post:
+      summary: Apply label (SLAM steps 2-3)
+      description: |
+        Records that label has been printed and applied to package.
+
+        **State Transition:** `label_generated` -> `labeled`
+
+        **SLAM Process:**
+        Combines the Label and Apply steps - generates label if needed,
+        then records that it has been applied to the package.
+
+        **Integration:**
+        - May trigger label printing to connected printer
+        - Publishes `LabelApplied` event
+      tags: [SLAM]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SHIP-001"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyLabelRequest'
+            example:
+              stationId: "SHIP-STATION-1"
+              printerId: "ZEBRA-001"
+              operatorId: "OP-001"
+      responses:
+        '200':
+          description: Label applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /shipments/{shipmentId}/manifest:
+    post:
+      summary: Add to manifest (SLAM step 4)
+      description: |
+        Adds the shipment to a carrier manifest for pickup.
+
+        **State Transition:** `labeled` -> `manifested`
+
+        **SLAM Process:**
+        Final step - adds the labeled package to the daily carrier
+        manifest. Package is now ready for carrier pickup.
+
+        **Integration:**
+        - Creates manifest if none exists for carrier/date
+        - Publishes `ShipmentManifested` event
+      tags: [SLAM, Manifests]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "SHIP-001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToManifestRequest'
+            examples:
+              autoManifest:
+                summary: Add to current day manifest
+                value: {}
+              specificManifest:
+                summary: Add to specific manifest
+                value:
+                  manifestId: "MAN-UPS-20241224"
+      responses:
+        '200':
+          description: Added to manifest successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+              example:
+                shipmentId: "SHIP-001"
+                orderId: "ORD-A1B2C3D4"
+                carrier: "ups"
+                status: "manifested"
+                trackingNumber: "1Z999AA10123456784"
+                manifestId: "MAN-UPS-20241224"
+                manifestedAt: "2024-12-24T14:00:00Z"
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /shipments/{shipmentId}/ship:
+    post:
+      summary: Confirm shipment
+      description: |
+        Confirms that the shipment has been picked up by the carrier.
+
+        **State Transition:** `manifested` -> `shipped`
+
+        **Integration:**
+        - Sends signal to WES workflow
+        - Publishes `ShipConfirmed` event
+        - Updates order status
+
+        **Note:**
+        This can be called manually or triggered by carrier webhook
+        when pickup is confirmed.
       tags: [Shipments]
       parameters:
         - name: shipmentId
@@ -80,24 +541,55 @@ paths:
           required: true
           schema:
             type: string
+          example: "SHIP-001"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirmedAt:
+                  type: string
+                  format: date-time
+                  description: Pickup confirmation time
+                pickupId:
+                  type: string
+                  description: Carrier pickup confirmation ID
+                notes:
+                  type: string
+            example:
+              confirmedAt: "2024-12-24T17:00:00Z"
+              pickupId: "PICKUP-UPS-12345"
       responses:
         '200':
-          description: Label generated
+          description: Shipment confirmed
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  trackingNumber:
-                    type: string
-                  labelUrl:
-                    type: string
-                  labelFormat:
-                    type: string
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /shipments/{shipmentId}/manifest:
+  /shipments/{shipmentId}/cancel:
     post:
-      summary: Add to manifest
+      summary: Cancel shipment
+      description: |
+        Cancels a shipment. Only allowed before ship confirmation.
+
+        **Behavior:**
+        - Voids label if generated
+        - Removes from manifest if manifested
+        - Publishes `ShipmentCancelled` event
       tags: [Shipments]
       parameters:
         - name: shipmentId
@@ -106,88 +598,792 @@ paths:
           schema:
             type: string
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               type: object
-              required: [manifestId]
               properties:
-                manifestId:
+                reason:
                   type: string
+            example:
+              reason: "Order cancelled by customer"
       responses:
         '200':
-          description: Added to manifest
-
-  /shipments/{shipmentId}/ship:
-    post:
-      summary: Confirm shipment
-      tags: [Shipments]
-      parameters:
-        - name: shipmentId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Shipment confirmed
+          description: Shipment cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '400':
+          description: Cannot cancel shipped shipment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /shipments/order/{orderId}:
     get:
       summary: Get shipments by order ID
       description: Retrieve all shipments associated with an order
-      tags: [Shipments]
+      tags: [Queries]
       parameters:
         - name: orderId
           in: path
           required: true
           schema:
             type: string
+          example: "ORD-A1B2C3D4"
       responses:
         '200':
           description: Shipments for order
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ShipmentResponse'
+                type: object
+                properties:
+                  orderId:
+                    type: string
+                  shipments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ShipmentResponse'
+                  totalShipments:
+                    type: integer
         '404':
           description: No shipments found for order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /shipments/tracking/{trackingNumber}:
+    get:
+      summary: Get shipment by tracking number
+      description: Retrieve shipment by carrier tracking number
+      tags: [Queries]
+      parameters:
+        - name: trackingNumber
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "1Z999AA10123456784"
+      responses:
+        '200':
+          description: Shipment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentResponse'
+        '404':
+          description: Shipment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /manifests:
+    post:
+      summary: Create manifest
+      description: |
+        Creates a new carrier manifest for a specific date.
+
+        **Usage:**
+        Manifests are typically auto-created when shipments are added,
+        but this endpoint allows pre-creation for scheduling.
+      tags: [Manifests]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateManifestRequest'
+            example:
+              carrier: "ups"
+              pickupDate: "2024-12-24"
+              pickupLocation: "DOCK-1"
+      responses:
+        '201':
+          description: Manifest created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManifestResponse'
+        '409':
+          description: Manifest already exists for carrier/date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List manifests
+      description: List manifests with optional filtering
+      tags: [Manifests]
+      parameters:
+        - name: carrier
+          in: query
+          schema:
+            type: string
+            enum: [ups, fedex, usps, dhl]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, closed, picked_up]
+        - name: pickupDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of manifests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ManifestResponse'
+
+  /manifests/{manifestId}:
+    get:
+      summary: Get manifest by ID
+      description: Retrieve manifest details including all shipments
+      tags: [Manifests]
+      parameters:
+        - name: manifestId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "MAN-UPS-20241224"
+      responses:
+        '200':
+          description: Manifest details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManifestResponse'
+        '404':
+          description: Manifest not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /manifests/{manifestId}/close:
+    post:
+      summary: Close manifest
+      description: |
+        Closes a manifest for carrier pickup. No more shipments can be added.
+
+        **Behavior:**
+        - Sends manifest to carrier API
+        - Generates end-of-day paperwork
+        - Publishes `ManifestClosed` event
+      tags: [Manifests]
+      parameters:
+        - name: manifestId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "MAN-UPS-20241224"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expectedPickupTime:
+                  type: string
+                  format: time
+                notes:
+                  type: string
+            example:
+              expectedPickupTime: "17:00:00"
+      responses:
+        '200':
+          description: Manifest closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManifestResponse'
+        '400':
+          description: Manifest already closed or empty
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /rates:
+    post:
+      summary: Get shipping rates
+      description: |
+        Get shipping rates from multiple carriers for comparison.
+
+        **Usage:**
+        Used for rate shopping to select the best carrier/service
+        combination based on cost, delivery time, or other criteria.
+      tags: [Shipments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateRequest'
+            example:
+              shipFrom:
+                postalCode: "07001"
+                country: "US"
+              shipTo:
+                postalCode: "10001"
+                country: "US"
+              packageDetails:
+                weight: 2.5
+                dimensions:
+                  length: 12
+                  width: 10
+                  height: 8
+              carriers:
+                - "ups"
+                - "fedex"
+      responses:
+        '200':
+          description: Available rates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ShippingRate'
+              example:
+                rates:
+                  - carrier: "ups"
+                    serviceType: "ground"
+                    serviceName: "UPS Ground"
+                    rate: 12.50
+                    currency: "USD"
+                    estimatedDays: 5
+                    estimatedDelivery: "2024-12-30"
+                  - carrier: "fedex"
+                    serviceType: "ground"
+                    serviceName: "FedEx Ground"
+                    rate: 11.75
+                    currency: "USD"
+                    estimatedDays: 5
+                    estimatedDelivery: "2024-12-30"
+                  - carrier: "ups"
+                    serviceType: "express"
+                    serviceName: "UPS 2nd Day Air"
+                    rate: 24.99
+                    currency: "USD"
+                    estimatedDays: 2
+                    estimatedDelivery: "2024-12-26"
 
   /health:
     get:
       summary: Health check
+      description: Returns the health status of the service
+      tags: [Health]
       responses:
         '200':
-          description: Healthy
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
 
 components:
   schemas:
+    CreateShipmentRequest:
+      type: object
+      required:
+        - orderId
+        - carrier
+        - serviceType
+        - shipTo
+      properties:
+        orderId:
+          type: string
+          description: Order ID this shipment is for
+          example: "ORD-A1B2C3D4"
+        packageId:
+          type: string
+          description: Package ID from packing
+          example: "PKG-001"
+        carrier:
+          type: string
+          enum: [ups, fedex, usps, dhl]
+          description: Shipping carrier
+          example: "ups"
+        serviceType:
+          type: string
+          enum: [ground, express, two_day, overnight]
+          description: Service level
+          example: "ground"
+        shipTo:
+          $ref: '#/components/schemas/Address'
+        packageDetails:
+          $ref: '#/components/schemas/PackageDetails'
+        signatureRequired:
+          type: boolean
+          description: Require signature on delivery
+          default: false
+        insuranceValue:
+          type: number
+          description: Declared value for insurance
+        reference1:
+          type: string
+          description: Reference field (appears on label)
+        reference2:
+          type: string
+          description: Secondary reference field
+
+    Address:
+      type: object
+      required:
+        - name
+        - street1
+        - city
+        - state
+        - postalCode
+        - country
+      properties:
+        name:
+          type: string
+          description: Recipient name
+          example: "John Doe"
+        company:
+          type: string
+          description: Company name
+          example: "Acme Corp"
+        street1:
+          type: string
+          description: Street address line 1
+          example: "123 Main St"
+        street2:
+          type: string
+          description: Street address line 2
+          example: "Suite 100"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type: string
+          description: State/Province code
+          example: "NY"
+        postalCode:
+          type: string
+          example: "10001"
+        country:
+          type: string
+          description: ISO country code
+          example: "US"
+        phone:
+          type: string
+          example: "555-123-4567"
+        email:
+          type: string
+          format: email
+
+    PackageDetails:
+      type: object
+      properties:
+        weight:
+          type: number
+          description: Package weight in pounds
+          example: 2.5
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+              description: Length in inches
+              example: 12
+            width:
+              type: number
+              description: Width in inches
+              example: 10
+            height:
+              type: number
+              description: Height in inches
+              example: 8
+        packageType:
+          type: string
+          enum: [package, envelope, pak, tube, box]
+          description: Package type
+          default: "package"
+
     ShipmentResponse:
       type: object
       properties:
         shipmentId:
           type: string
+          description: Unique shipment identifier
+          example: "SHIP-001"
         orderId:
           type: string
+          description: Associated order ID
+          example: "ORD-A1B2C3D4"
+        packageId:
+          type: string
+          description: Associated package ID
+          example: "PKG-001"
         carrier:
           type: string
+          enum: [ups, fedex, usps, dhl]
+          example: "ups"
         serviceType:
           type: string
+          example: "ground"
+        serviceName:
+          type: string
+          description: Carrier service name
+          example: "UPS Ground"
         trackingNumber:
           type: string
+          description: Carrier tracking number
+          example: "1Z999AA10123456784"
         status:
-          type: string
+          $ref: '#/components/schemas/ShipmentStatus'
+        shipTo:
+          $ref: '#/components/schemas/Address'
+        packageDetails:
+          $ref: '#/components/schemas/PackageDetails'
         labelUrl:
           type: string
+          description: URL to download shipping label
+          example: "https://labels.wms.example.com/SHIP-001.pdf"
+        labelFormat:
+          type: string
+          enum: [pdf, zpl, png]
+        manifestId:
+          type: string
+          description: Manifest ID if manifested
+          example: "MAN-UPS-20241224"
+        estimatedDelivery:
+          type: string
+          format: date
+          description: Estimated delivery date
+        rate:
+          type: number
+          description: Shipping cost
+          example: 12.50
+        signatureRequired:
+          type: boolean
+        duration:
+          type: string
+          description: ISO 8601 duration if shipped
+          example: "PT2H30M"
         createdAt:
+          type: string
+          format: date-time
+        labelGeneratedAt:
+          type: string
+          format: date-time
+        labeledAt:
+          type: string
+          format: date-time
+        manifestedAt:
           type: string
           format: date-time
         shippedAt:
           type: string
           format: date-time
+
+    ShipmentStatus:
+      type: string
+      enum:
+        - created
+        - label_generated
+        - labeled
+        - manifested
+        - shipped
+        - cancelled
+      description: |
+        Shipment status:
+        - `created`: Shipment record created
+        - `label_generated`: Label obtained from carrier
+        - `labeled`: Label applied to package
+        - `manifested`: Added to carrier manifest
+        - `shipped`: Confirmed shipped by carrier
+        - `cancelled`: Shipment cancelled
+
+    GenerateLabelRequest:
+      type: object
+      properties:
+        labelFormat:
+          type: string
+          enum: [pdf, zpl, png]
+          description: Label output format
+          default: "pdf"
+        labelSize:
+          type: string
+          enum: ["4x6", "4x8"]
+          description: Label size in inches
+          default: "4x6"
+
+    LabelResponse:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: "SHIP-001"
+        trackingNumber:
+          type: string
+          example: "1Z999AA10123456784"
+        carrier:
+          type: string
+          example: "ups"
+        labelUrl:
+          type: string
+          description: URL to download label
+          example: "https://labels.wms.example.com/SHIP-001.pdf"
+        labelData:
+          type: string
+          description: Base64 encoded label (for ZPL/PNG)
+        labelFormat:
+          type: string
+          example: "pdf"
+        labelSize:
+          type: string
+          example: "4x6"
+        estimatedDelivery:
+          type: string
+          format: date
+        rate:
+          type: number
+          description: Final shipping cost
+        generatedAt:
+          type: string
+          format: date-time
+
+    ScanPackageRequest:
+      type: object
+      required:
+        - stationId
+        - scannedBarcode
+      properties:
+        stationId:
+          type: string
+          description: Shipping station ID
+          example: "SHIP-STATION-1"
+        scannedBarcode:
+          type: string
+          description: Barcode scanned from package
+          example: "PKG-001"
+        operatorId:
+          type: string
+          description: Operator performing the scan
+          example: "OP-001"
+
+    ApplyLabelRequest:
+      type: object
+      properties:
+        stationId:
+          type: string
+          description: Shipping station ID
+          example: "SHIP-STATION-1"
+        printerId:
+          type: string
+          description: Printer ID for label printing
+          example: "ZEBRA-001"
+        operatorId:
+          type: string
+          description: Operator applying the label
+          example: "OP-001"
+
+    AddToManifestRequest:
+      type: object
+      properties:
+        manifestId:
+          type: string
+          description: Specific manifest ID (auto-selects if not provided)
+          example: "MAN-UPS-20241224"
+
+    CreateManifestRequest:
+      type: object
+      required:
+        - carrier
+        - pickupDate
+      properties:
+        carrier:
+          type: string
+          enum: [ups, fedex, usps, dhl]
+          example: "ups"
+        pickupDate:
+          type: string
+          format: date
+          example: "2024-12-24"
+        pickupLocation:
+          type: string
+          description: Pickup dock/location
+          example: "DOCK-1"
+        scheduledPickupTime:
+          type: string
+          format: time
+          example: "17:00:00"
+
+    ManifestResponse:
+      type: object
+      properties:
+        manifestId:
+          type: string
+          example: "MAN-UPS-20241224"
+        carrier:
+          type: string
+          example: "ups"
+        pickupDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [open, closed, picked_up]
+        pickupLocation:
+          type: string
+        scheduledPickupTime:
+          type: string
+          format: time
+        shipmentCount:
+          type: integer
+          description: Number of shipments in manifest
+        totalWeight:
+          type: number
+          description: Total weight of all packages
+        shipmentIds:
+          type: array
+          items:
+            type: string
+          description: IDs of shipments in manifest
+        manifestUrl:
+          type: string
+          description: URL to manifest document
+        closedAt:
+          type: string
+          format: date-time
+        pickedUpAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    RateRequest:
+      type: object
+      required:
+        - shipFrom
+        - shipTo
+        - packageDetails
+      properties:
+        shipFrom:
+          type: object
+          required:
+            - postalCode
+            - country
+          properties:
+            postalCode:
+              type: string
+            country:
+              type: string
+        shipTo:
+          type: object
+          required:
+            - postalCode
+            - country
+          properties:
+            postalCode:
+              type: string
+            country:
+              type: string
+        packageDetails:
+          $ref: '#/components/schemas/PackageDetails'
+        carriers:
+          type: array
+          items:
+            type: string
+            enum: [ups, fedex, usps, dhl]
+          description: Carriers to get rates from (all if not specified)
+
+    ShippingRate:
+      type: object
+      properties:
+        carrier:
+          type: string
+          example: "ups"
+        serviceType:
+          type: string
+          example: "ground"
+        serviceName:
+          type: string
+          example: "UPS Ground"
+        rate:
+          type: number
+          example: 12.50
+        currency:
+          type: string
+          example: "USD"
+        estimatedDays:
+          type: integer
+          example: 5
+        estimatedDelivery:
+          type: string
+          format: date
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        hasMore:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "shipment not found"
+        code:
+          type: string
+          description: Error code
+          example: "NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
 
   parameters:
     WMSCorrelationID:

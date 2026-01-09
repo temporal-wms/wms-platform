@@ -6,6 +6,7 @@ import { products, stockSetup, workers } from './lib/data.js';
 import { createInventoryItem, receiveStock, checkHealth as checkInventoryHealth } from './lib/inventory.js';
 import { createWorker, addWorkerSkill, startShift, checkHealth as checkLaborHealth } from './lib/labor.js';
 import { checkHealth as checkOrdersHealth } from './lib/orders.js';
+import { checkStorageLocationsAvailable, initializeDefaultLocations } from './lib/stow-locations.js';
 
 export const options = {
   vus: 1,
@@ -33,6 +34,21 @@ export default function () {
     return;
   }
   console.log('All services are healthy!');
+  console.log('');
+  sleep(1);
+
+  // Step 0.5: Initialize Storage Locations (if not already present)
+  console.log('Step 0.5: Initializing storage locations...');
+  if (checkStorageLocationsAvailable()) {
+    console.log('Storage locations already initialized');
+  } else {
+    console.log('No storage locations found, creating default locations...');
+    const locationSummary = initializeDefaultLocations();
+    console.log(`  Created: ${locationSummary.created} locations`);
+    if (locationSummary.failed > 0) {
+      console.warn(`  Failed: ${locationSummary.failed} locations`);
+    }
+  }
   console.log('');
   sleep(1);
 
@@ -178,6 +194,7 @@ export default function () {
   console.log('=== Setup Complete ===');
   console.log('');
   console.log('Summary:');
+  console.log(`  Storage Locations: Initialized (95 locations across RESERVE, FORWARD_PICK, OVERFLOW)`);
   console.log(`  Inventory Items: ${itemsCreated}/${products.length}`);
   console.log(`  Stock Locations: ${stockReceived}/${stockSetup.length}`);
   console.log(`  Workers: ${workersCreated}/${workers.length}`);
@@ -185,4 +202,5 @@ export default function () {
   console.log(`  Shifts: ${shiftsStarted}/${workers.length}`);
   console.log('');
   console.log('You can now run the order injection tests!');
+  console.log('Note: Storage locations enable stow tasks to be processed successfully.');
 }

@@ -1,0 +1,123 @@
+# Superset Dataset Configuration: Labor Productivity
+# Dataset for the Labor Performance dashboard
+
+dataset:
+  name: labor_productivity_daily
+  description: "Daily labor productivity metrics by worker, zone, and shift"
+  database: trino
+  schema: iceberg.gold
+  table_name: labor_productivity_daily
+
+  # Main time column for time series
+  main_dttm_col: date
+
+  # Columns
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of the metrics"
+
+    - column_name: worker_id
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Unique worker identifier"
+
+    - column_name: worker_name
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Worker full name"
+
+    - column_name: zone
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Warehouse zone"
+
+    - column_name: shift_type
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Shift type (morning, afternoon, night, flex)"
+
+    - column_name: tasks_completed
+      type: INTEGER
+      filterable: false
+      groupby: false
+      description: "Number of tasks completed"
+
+    - column_name: items_processed
+      type: INTEGER
+      filterable: false
+      groupby: false
+      description: "Total items processed"
+
+    - column_name: total_work_hours
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Total work hours"
+
+    - column_name: tasks_per_hour
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Tasks completed per hour"
+
+    - column_name: items_per_hour
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Items processed per hour"
+
+    - column_name: accuracy_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Accuracy rate (0-1)"
+
+    - column_name: exceptions_count
+      type: INTEGER
+      filterable: false
+      groupby: false
+      description: "Number of exceptions"
+
+  # Metrics
+  metrics:
+    - metric_name: total_workers
+      expression: "COUNT(DISTINCT worker_id)"
+      description: "Total unique workers"
+
+    - metric_name: total_tasks
+      expression: "SUM(tasks_completed)"
+      description: "Total tasks completed"
+
+    - metric_name: total_items
+      expression: "SUM(items_processed)"
+      description: "Total items processed"
+
+    - metric_name: avg_items_per_hour
+      expression: "AVG(items_per_hour)"
+      description: "Average items per hour"
+
+    - metric_name: avg_accuracy
+      expression: "AVG(accuracy_rate) * 100"
+      description: "Average accuracy rate (%)"
+
+    - metric_name: avg_tasks_per_hour
+      expression: "AVG(tasks_per_hour)"
+      description: "Average tasks per hour"
+
+---
+# Virtual dataset for labor utilization
+dataset:
+  name: labor_utilization_daily
+  description: "Daily labor utilization metrics by zone and shift"
+  database: trino
+  schema: iceberg.gold
+  table_name: labor_utilization_daily
+  main_dttm_col: date

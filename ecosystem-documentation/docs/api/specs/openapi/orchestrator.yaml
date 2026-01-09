@@ -1,0 +1,476 @@
+openapi: 3.0.3
+info:
+  title: WMS Orchestrator API
+  description: |
+    Signal bridge API for the WMS Platform Orchestrator.
+
+    This service provides HTTP endpoints for external systems and simulators to send signals
+    to Temporal workflows. It acts as a bridge between HTTP-based systems and the Temporal
+    workflow engine.
+
+    **Key Features:**
+    - Signal bridge endpoints for workflow communication
+    - Health and readiness checks
+    - Prometheus metrics exposure
+
+    **Signal Flow:**
+    1. External system (e.g., picker simulator) sends HTTP request to signal endpoint
+    2. Orchestrator validates request and constructs workflow ID
+    3. Signal is sent to the appropriate Temporal workflow
+    4. Workflow receives signal and continues execution
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8080
+    description: Development server (local)
+  - url: http://localhost:30010
+    description: Kubernetes NodePort
+
+tags:
+  - name: Signals
+    description: Workflow signal endpoints for external system integration
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /api/v1/signals/wave-assigned:
+    post:
+      summary: Signal wave assignment
+      description: |
+        Sends a wave assignment signal to the OrderFulfillmentWorkflow.
+
+        This signal notifies the workflow that an order has been assigned to a wave,
+        allowing the workflow to proceed with picking activities.
+
+        **Workflow ID Pattern:** `order-fulfillment-{orderId}`
+        **Signal Name:** `waveAssigned`
+      tags: [Signals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaveAssignedRequest'
+            examples:
+              standard:
+                summary: Standard wave assignment
+                value:
+                  orderId: "ORD-12345678"
+                  waveId: "WV-DIG-20241230-12345"
+      responses:
+        '200':
+          description: Signal sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalResponse'
+              example:
+                success: true
+                workflowId: "order-fulfillment-ORD-12345678"
+                message: "Wave assigned signal sent successfully"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingFields:
+                  value:
+                    error: "orderId and waveId are required"
+                invalidJson:
+                  value:
+                    error: "invalid JSON"
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to signal workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalErrorResponse'
+
+  /api/v1/signals/pick-completed:
+    post:
+      summary: Signal pick completion
+      description: |
+        Sends a pick completion signal to the PickingWorkflow.
+
+        This signal notifies the workflow that all items for an order have been picked,
+        allowing the workflow to proceed to consolidation.
+
+        **Workflow ID Pattern:** `picking-{orderId}`
+        **Signal Name:** `pickCompleted`
+      tags: [Signals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PickCompletedRequest'
+            examples:
+              standard:
+                summary: Pick completed with items
+                value:
+                  orderId: "ORD-12345678"
+                  taskId: "TASK-87654321"
+                  pickedItems:
+                    - sku: "WIDGET-001"
+                      quantity: 2
+                      locationId: "A-01-02-03"
+                      toteId: "TOTE-001"
+                    - sku: "GADGET-002"
+                      quantity: 1
+                      locationId: "B-02-03-04"
+                      toteId: "TOTE-001"
+      responses:
+        '200':
+          description: Signal sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalResponse'
+              example:
+                success: true
+                workflowId: "picking-ORD-12345678"
+                message: "Signal sent successfully"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingOrderId:
+                  value:
+                    error: "orderId is required"
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to signal workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalErrorResponse'
+
+  /api/v1/signals/consolidation-completed:
+    post:
+      summary: Signal consolidation completion
+      description: |
+        Sends a consolidation completion signal to the ConsolidationWorkflow.
+
+        This signal notifies the workflow that all items have been consolidated,
+        allowing the workflow to proceed to packing.
+
+        **Workflow ID Pattern:** `consolidation-{orderId}`
+        **Signal Name:** `consolidationCompleted`
+      tags: [Signals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsolidationCompletedRequest'
+      responses:
+        '200':
+          description: Signal sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to signal workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalErrorResponse'
+
+  /api/v1/signals/packing-completed:
+    post:
+      summary: Signal packing completion
+      description: |
+        Sends a packing completion signal to the PackingWorkflow.
+
+        This signal notifies the workflow that the order has been packed,
+        allowing the workflow to proceed to shipping.
+
+        **Workflow ID Pattern:** `packing-{orderId}`
+        **Signal Name:** `packingCompleted`
+      tags: [Signals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackingCompletedRequest'
+      responses:
+        '200':
+          description: Signal sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to signal workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalErrorResponse'
+
+  /api/v1/signals/ship-confirmed:
+    post:
+      summary: Signal ship confirmation
+      description: |
+        Sends a ship confirmation signal to the ShippingWorkflow.
+
+        This signal notifies the workflow that the shipment has been confirmed,
+        completing the fulfillment process.
+
+        **Workflow ID Pattern:** `shipping-{orderId}`
+        **Signal Name:** `shipConfirmed`
+      tags: [Signals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShipConfirmedRequest'
+      responses:
+        '200':
+          description: Signal sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to signal workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalErrorResponse'
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the orchestrator service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the orchestrator service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ready"
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes Prometheus metrics for monitoring
+      tags: [Health]
+      responses:
+        '200':
+          description: Prometheus metrics in text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    WaveAssignedRequest:
+      type: object
+      required:
+        - orderId
+        - waveId
+      properties:
+        orderId:
+          type: string
+          description: The order ID to signal
+          example: "ORD-12345678"
+        waveId:
+          type: string
+          description: The wave ID the order was assigned to
+          example: "WV-DIG-20241230-12345"
+
+    PickCompletedRequest:
+      type: object
+      required:
+        - orderId
+      properties:
+        orderId:
+          type: string
+          description: The order ID that was picked
+          example: "ORD-12345678"
+        taskId:
+          type: string
+          description: The pick task ID
+          example: "TASK-87654321"
+        pickedItems:
+          type: array
+          description: List of items that were picked
+          items:
+            $ref: '#/components/schemas/PickedItem'
+
+    PickedItem:
+      type: object
+      properties:
+        sku:
+          type: string
+          description: Stock keeping unit
+          example: "WIDGET-001"
+        quantity:
+          type: integer
+          description: Quantity picked
+          example: 2
+        locationId:
+          type: string
+          description: Warehouse location ID
+          example: "A-01-02-03"
+        toteId:
+          type: string
+          description: Tote container ID
+          example: "TOTE-001"
+
+    ConsolidationCompletedRequest:
+      type: object
+      required:
+        - orderId
+      properties:
+        orderId:
+          type: string
+          description: The order ID
+          example: "ORD-12345678"
+        consolidationId:
+          type: string
+          description: The consolidation unit ID
+          example: "CN-12345678"
+
+    PackingCompletedRequest:
+      type: object
+      required:
+        - orderId
+      properties:
+        orderId:
+          type: string
+          description: The order ID
+          example: "ORD-12345678"
+        packageId:
+          type: string
+          description: The package ID
+          example: "PKG-12345678"
+        trackingNumber:
+          type: string
+          description: Shipping tracking number
+          example: "1Z999AA10123456784"
+
+    ShipConfirmedRequest:
+      type: object
+      required:
+        - orderId
+      properties:
+        orderId:
+          type: string
+          description: The order ID
+          example: "ORD-12345678"
+        shipmentId:
+          type: string
+          description: The shipment ID
+          example: "SHIP-12345678"
+        trackingNumber:
+          type: string
+          description: Carrier tracking number
+          example: "1Z999AA10123456784"
+        carrier:
+          type: string
+          description: Carrier code
+          enum: [ups, fedex, usps, dhl]
+          example: "ups"
+
+    SignalResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the signal was sent successfully
+          example: true
+        workflowId:
+          type: string
+          description: The Temporal workflow ID that was signaled
+          example: "order-fulfillment-ORD-12345678"
+        message:
+          type: string
+          description: Success message
+          example: "Signal sent successfully"
+
+    SignalErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message from Temporal
+          example: "workflow not found"
+        workflowId:
+          type: string
+          description: The workflow ID that was attempted
+          example: "order-fulfillment-ORD-12345678"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "orderId is required"

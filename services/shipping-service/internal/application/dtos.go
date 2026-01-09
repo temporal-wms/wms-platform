@@ -11,7 +11,7 @@ type ShipmentDTO struct {
 	Status            string             `json:"status"`
 	Carrier           CarrierDTO         `json:"carrier"`
 	Label             *ShippingLabelDTO  `json:"label,omitempty"`
-	Manifest          *ManifestDTO       `json:"manifest,omitempty"`
+	Manifest          *ManifestSummaryDTO `json:"manifest,omitempty"`
 	Package           PackageInfoDTO     `json:"package"`
 	Recipient         AddressDTO         `json:"recipient"`
 	Shipper           AddressDTO         `json:"shipper"`
@@ -42,8 +42,8 @@ type ShippingLabelDTO struct {
 	GeneratedAt    time.Time `json:"generatedAt"`
 }
 
-// ManifestDTO represents a shipping manifest
-type ManifestDTO struct {
+// ManifestSummaryDTO represents a shipping manifest summary (embedded in shipments)
+type ManifestSummaryDTO struct {
 	ManifestID    string    `json:"manifestId"`
 	CarrierCode   string    `json:"carrierCode"`
 	ShipmentCount int       `json:"shipmentCount"`

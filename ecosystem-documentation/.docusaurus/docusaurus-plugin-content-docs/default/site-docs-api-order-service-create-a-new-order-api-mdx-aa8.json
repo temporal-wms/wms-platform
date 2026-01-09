@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/create-a-new-order",
+  "title": "Create a new order",
+  "description": "Creates a new order in the system and triggers the order fulfillment workflow",
+  "source": "@site/docs/api/order-service/create-a-new-order.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/create-a-new-order",
+  "permalink": "/wms-platform/api/order-service/create-a-new-order",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "create-a-new-order",
+    "title": "Create a new order",
+    "description": "Creates a new order in the system and triggers the order fulfillment workflow",
+    "sidebar_label": "Create a new order",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "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",
+    "sidebar_class_name": "post api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Cancel order",
+    "permalink": "/wms-platform/api/order-service/cancel-order"
+  },
+  "next": {
+    "title": "Get DLQ statistics",
+    "permalink": "/wms-platform/api/order-service/get-dlq-statistics"
+  }
+}

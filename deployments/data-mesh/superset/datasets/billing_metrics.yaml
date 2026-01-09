@@ -1,0 +1,101 @@
+# Superset Dataset Configuration: Billing Metrics
+# Dataset for the Billing Analytics dashboard
+
+dataset:
+  name: billing_metrics_daily
+  description: "Daily billing metrics by seller and activity type"
+  database: trino
+  schema: iceberg.gold
+  table_name: billing_metrics_daily
+
+  # Main time column for time series
+  main_dttm_col: date
+
+  # Columns
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of the billing metrics"
+
+    - column_name: seller_id
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Seller identifier"
+
+    - column_name: seller_name
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Seller name"
+
+    - column_name: activity_type
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Type of billable activity"
+
+    - column_name: total_activities
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Number of activities"
+
+    - column_name: total_quantity
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Total quantity"
+
+    - column_name: total_revenue
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Total revenue amount"
+
+    - column_name: avg_unit_price
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average unit price"
+
+    - column_name: invoiced_amount
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Amount already invoiced"
+
+    - column_name: uninvoiced_amount
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Amount not yet invoiced"
+
+  # Metrics
+  metrics:
+    - metric_name: total_revenue
+      expression: "SUM(total_revenue)"
+      description: "Total revenue"
+
+    - metric_name: total_activities
+      expression: "SUM(total_activities)"
+      description: "Total number of activities"
+
+    - metric_name: avg_revenue_per_activity
+      expression: "SUM(total_revenue) / NULLIF(SUM(total_activities), 0)"
+      description: "Average revenue per activity"
+
+    - metric_name: invoiced_revenue
+      expression: "SUM(invoiced_amount)"
+      description: "Total invoiced revenue"
+
+    - metric_name: uninvoiced_revenue
+      expression: "SUM(uninvoiced_amount)"
+      description: "Total uninvoiced revenue"
+
+    - metric_name: invoiced_percentage
+      expression: "SUM(invoiced_amount) * 100.0 / NULLIF(SUM(total_revenue), 0)"
+      description: "Percentage of revenue invoiced"

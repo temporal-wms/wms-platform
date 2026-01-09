@@ -58,6 +58,36 @@ func (a *PackingActivities) CreatePackTask(ctx context.Context, input map[string
 	return task.TaskID, nil
 }
 
+// StartPackTask starts a packing task (sets startedAt timestamp)
+func (a *PackingActivities) StartPackTask(ctx context.Context, taskID string) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Starting pack task", "taskId", taskID)
+
+	_, err := a.clients.StartPackTask(ctx, taskID)
+	if err != nil {
+		logger.Error("Failed to start pack task", "taskId", taskID, "error", err)
+		return fmt.Errorf("failed to start pack task: %w", err)
+	}
+
+	logger.Info("Pack task started", "taskId", taskID)
+	return nil
+}
+
+// CompletePackTask completes a packing task (sets completedAt timestamp)
+func (a *PackingActivities) CompletePackTask(ctx context.Context, taskID string) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Completing pack task", "taskId", taskID)
+
+	_, err := a.clients.CompletePackTask(ctx, taskID)
+	if err != nil {
+		logger.Error("Failed to complete pack task", "taskId", taskID, "error", err)
+		return fmt.Errorf("failed to complete pack task: %w", err)
+	}
+
+	logger.Info("Pack task completed", "taskId", taskID)
+	return nil
+}
+
 // SelectPackagingMaterials selects appropriate packaging for items
 func (a *PackingActivities) SelectPackagingMaterials(ctx context.Context, input map[string]interface{}) (string, error) {
 	logger := activity.GetLogger(ctx)

@@ -1,3 +1,13 @@
+# Gateway Configuration - Kong API Gateway with Gateway API
+gateway:
+  enabled: true
+  namespace: kong
+  httpPort: 80
+  httpsPort: 443
+  tls:
+    enabled: true
+    secretName: wms-tls-cert
+
 # Global configuration
 global:
   namespace: wms-platform
@@ -827,6 +837,860 @@ services:
     podAnnotations:
       prometheus.io/scrape: "true"
       prometheus.io/port: "8010"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Unit Service - API only (Unit-level tracking)
+  unit-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: unit-service
+      tag: latest
+
+    ports:
+      http: 8014
+      grpc: 9014
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 2
+
+    env:
+      - name: SERVICE_NAME
+        value: "unit-service"
+      - name: MONGODB_DATABASE
+        value: "unit_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8014"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Process Path Service - API only (Process path determination)
+  process-path-service:
+    enabled: true
+    type: api
+    replicaCount: 2
+    image:
+      repository: process-path-service
+      tag: latest
+
+    ports:
+      http: 8015
+      grpc: 9015
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "process-path-service"
+      - name: MONGODB_DATABASE
+        value: "process_path_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8015"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Receiving Service - API only (Inbound shipment receiving)
+  receiving-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: receiving-service
+      tag: latest
+
+    ports:
+      http: 8013
+      grpc: 9013
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "receiving-service"
+      - name: MONGODB_DATABASE
+        value: "receiving_db"
+      - name: SERVER_ADDR
+        value: ":8013"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8013"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Stow Service - API only (Putaway tasks and storage)
+  stow-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: stow-service
+      tag: latest
+
+    ports:
+      http: 8011
+      grpc: 9011
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "stow-service"
+      - name: MONGODB_DATABASE
+        value: "stow_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8011"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Sortation Service - API only (Package sortation by destination)
+  sortation-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: sortation-service
+      tag: latest
+
+    ports:
+      http: 8012
+      grpc: 9012
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "sortation-service"
+      - name: MONGODB_DATABASE
+        value: "sortation_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8012"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # WES Service - Warehouse Execution System (Hybrid: API + Worker)
+  wes-service:
+    enabled: true
+    type: hybrid
+    replicaCount: 3
+    image:
+      repository: wes-service
+      tag: latest
+
+    ports:
+      http: 8016
+      grpc: 9016
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 2
+
+    env:
+      - name: SERVICE_NAME
+        value: "wes-service"
+      - name: SERVER_ADDR
+        value: ":8016"
+      - name: MONGODB_DATABASE
+        value: "wes_db"
+      - name: TEMPORAL_TASK_QUEUE
+        value: "wes-execution-queue"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8016"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 60
+
+  # Walling Service - Wall/Put-wall sorting operations
+  walling-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: walling-service
+      tag: latest
+
+    ports:
+      http: 8017
+      grpc: 9017
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "walling-service"
+      - name: SERVER_ADDR
+        value: ":8017"
+      - name: MONGODB_DATABASE
+        value: "walling_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8017"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Billing Service - Billable activity tracking and invoicing
+  billing-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: billing-service
+      tag: latest
+
+    ports:
+      http: 8018
+      grpc: 9018
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "billing-service"
+      - name: SERVER_ADDR
+        value: ":8018"
+      - name: MONGODB_DATABASE
+        value: "billing_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8018"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Channel Service - Multi-channel order synchronization
+  channel-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: channel-service
+      tag: latest
+
+    ports:
+      http: 8019
+      grpc: 9019
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "channel-service"
+      - name: SERVER_ADDR
+        value: ":8019"
+      - name: MONGODB_DATABASE
+        value: "channel_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8019"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Seller Service - Seller/merchant account management
+  seller-service:
+    enabled: true
+    type: api
+    replicaCount: 3
+    image:
+      repository: seller-service
+      tag: latest
+
+    ports:
+      http: 8020
+      grpc: 9020
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "seller-service"
+      - name: SERVER_ADDR
+        value: ":8020"
+      - name: MONGODB_DATABASE
+        value: "sellers_db"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets:
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: mongodb-credentials
+            key: uri
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 30
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8020"
+      prometheus.io/path: "/metrics"
+
+    terminationGracePeriodSeconds: 30
+
+  # Seller Portal - Backend-for-Frontend for seller dashboard
+  seller-portal:
+    enabled: true
+    type: api
+    replicaCount: 2
+    image:
+      repository: seller-portal
+      tag: latest
+
+    ports:
+      http: 8021
+
+    service:
+      type: ClusterIP
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    env:
+      - name: SERVICE_NAME
+        value: "seller-portal"
+      - name: SERVER_ADDR
+        value: ":8021"
+      - name: SELLER_SERVICE_URL
+        value: "http://seller-service.wms-platform.svc.cluster.local:8020"
+      - name: ORDER_SERVICE_URL
+        value: "http://order-service.wms-platform.svc.cluster.local:8001"
+      - name: INVENTORY_SERVICE_URL
+        value: "http://inventory-service.wms-platform.svc.cluster.local:8008"
+      - name: BILLING_SERVICE_URL
+        value: "http://billing-service.wms-platform.svc.cluster.local:8018"
+      - name: CHANNEL_SERVICE_URL
+        value: "http://channel-service.wms-platform.svc.cluster.local:8019"
+
+    envFrom:
+      - configMapRef:
+          name: platform-config
+
+    secrets: []
+
+    healthCheck:
+      liveness:
+        path: /health
+        port: http
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      readiness:
+        path: /ready
+        port: http
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startup:
+        path: /health
+        port: http
+        periodSeconds: 5
+        failureThreshold: 20
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8021"
       prometheus.io/path: "/metrics"
 
     terminationGracePeriodSeconds: 30

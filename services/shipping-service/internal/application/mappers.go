@@ -33,7 +33,7 @@ func ToShipmentDTO(shipment *domain.Shipment) *ShipmentDTO {
 	}
 
 	if shipment.Manifest != nil {
-		dto.Manifest = ToManifestDTO(shipment.Manifest)
+		dto.Manifest = ToManifestSummaryDTO(shipment.Manifest)
 	}
 
 	return dto
@@ -64,13 +64,13 @@ func ToShippingLabelDTO(label *domain.ShippingLabel) *ShippingLabelDTO {
 	}
 }
 
-// ToManifestDTO converts a domain Manifest to ManifestDTO
-func ToManifestDTO(manifest *domain.Manifest) *ManifestDTO {
+// ToManifestSummaryDTO converts a domain Manifest to ManifestSummaryDTO
+func ToManifestSummaryDTO(manifest *domain.Manifest) *ManifestSummaryDTO {
 	if manifest == nil {
 		return nil
 	}
 
-	return &ManifestDTO{
+	return &ManifestSummaryDTO{
 		ManifestID:    manifest.ManifestID,
 		CarrierCode:   manifest.CarrierCode,
 		ShipmentCount: manifest.ShipmentCount,

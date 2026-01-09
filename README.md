@@ -24,6 +24,67 @@ Order → Validation → Waving → Routing → Picking → Consolidation → Pa
 - **Circuit Breakers** - Resilient inter-service communication
 - **Full Observability** - OpenTelemetry tracing, Prometheus metrics, structured logging
 - **Contract Testing** - Pact consumer-driven contracts + OpenAPI validation
+- **Idempotency** - Stripe-compliant REST API pattern and Kafka message deduplication
+
+## Idempotency
+
+The platform implements comprehensive idempotency across all services to ensure exactly-once semantics for both REST APIs and Kafka message processing.
+
+### REST API Idempotency
+
+All services support the `Idempotency-Key` header following [Stripe's pattern](https://stripe.com/docs/api/idempotent_requests):
+
+```bash
+curl -X POST http://localhost:8001/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+  -d '{"customerId": "CUST-001", ...}'
+```
+
+**Features:**
+- **Request fingerprinting**: SHA256 hash detects parameter changes
+- **Response caching**: 24-hour retention with automatic cleanup
+- **Concurrent protection**: 409 Conflict for simultaneous requests
+- **Parameter validation**: 422 error on parameter mismatch
+- **Automatic retries**: Safe network retry scenarios
+
+**Use cases:**
+- Prevent duplicate orders on API retries
+- Safe payment processing
+- Reliable integration with external systems
+
+### Kafka Message Deduplication
+
+All Kafka consumers implement exactly-once message processing using CloudEvent IDs:
+
+```go
+// Messages with duplicate IDs are automatically skipped
+event := &cloudevents.WMSCloudEvent{
+    ID: "evt-550e8400-e29b-41d4-a716-446655440000",
+    Type: "com.wms.OrderReceived",
+    Data: orderData,
+}
+```
+
+**Features:**
+- **CloudEvent ID-based**: Unique message identification
+- **Per-consumer-group**: Independent deduplication per consumer
+- **Automatic cleanup**: 24-hour TTL with MongoDB indexes
+- **Exactly-once**: Guaranteed single processing per message
+
+**Use cases:**
+- Prevent duplicate workflow executions
+- Safe event reprocessing
+- Kafka consumer group rebalancing
+
+### Storage & Performance
+
+- **MongoDB collections**: `idempotency_keys`, `processed_messages`
+- **TTL indexes**: Automatic cleanup after 24 hours
+- **Lock acquisition**: ~5-10ms (p99)
+- **Storage overhead**: ~1KB per key, ~500B per message
+
+See [Idempotency Package Documentation](shared/pkg/idempotency/README.md) for implementation details.
 
 ## Architecture
 
@@ -266,14 +327,40 @@ All services expose:
 | `KAFKA_BROKERS` | Kafka broker addresses | `localhost:9092` |
 | `TEMPORAL_HOST` | Temporal server address | `localhost:7233` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry endpoint | `localhost:4317` |
+| `IDEMPOTENCY_REQUIRE_KEY` | Require Idempotency-Key header | `false` |
+| `IDEMPOTENCY_RETENTION_HOURS` | Response cache retention | `24` |
+| `IDEMPOTENCY_LOCK_TIMEOUT_MINUTES` | Lock timeout for concurrent requests | `5` |
+| `IDEMPOTENCY_MAX_RESPONSE_SIZE_MB` | Max cached response size | `1` |
 
 ## Documentation
 
+**Comprehensive Documentation:** https://temporal-wms.github.io/wms-platform/
+
+The complete documentation site includes:
+- Architecture overview and sequence diagrams
+- Domain-Driven Design patterns and aggregates
+- Service specifications and API references
+- Temporal workflows and activities
+- Infrastructure and deployment guides
+
+### Additional Resources
+
 - [API Documentation](docs/API_DOCUMENTATION.md)
 - [AsyncAPI Specification](docs/asyncapi.yaml)
+- [Idempotency Guide](shared/pkg/idempotency/README.md)
 - [Resilience Guide](shared/pkg/RESILIENCE.md)
 - [Kubernetes Deployment](deployments/kubernetes/README.md)
 - [Architecture Diagrams](docs/diagrams/)
+
+### Build Documentation Locally
+
+```bash
+cd ecosystem-documentation
+npm install
+npm start  # Opens http://localhost:3000
+```
+
+See [ecosystem-documentation/DEPLOYMENT.md](ecosystem-documentation/DEPLOYMENT.md) for deployment details.
 
 ## Contributing
 

@@ -1,0 +1,162 @@
+# Superset Dataset Configuration for Route Optimization Analysis
+# This dataset connects to the Trino catalog for route optimization insights
+
+dataset:
+  name: route_optimization_candidates
+  description: "Individual routes with optimization analysis and scoring"
+  database: trino
+  schema: iceberg.gold
+  table_name: route_optimization_candidates
+
+  # Physical table columns
+  columns:
+    - column_name: route_id
+      type: VARCHAR
+      description: "Route identifier"
+
+    - column_name: order_id
+      type: VARCHAR
+      description: "Associated order ID"
+
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      description: "Route creation date"
+
+    - column_name: zone
+      type: VARCHAR
+      description: "Primary zone"
+      is_filterable: true
+
+    - column_name: strategy
+      type: VARCHAR
+      description: "Routing strategy used"
+      is_filterable: true
+
+    - column_name: stop_count
+      type: INTEGER
+      description: "Number of stops in route"
+
+    - column_name: zone_count
+      type: INTEGER
+      description: "Number of zones visited"
+
+    - column_name: estimated_distance_m
+      type: DOUBLE
+      description: "Estimated distance (meters)"
+
+    - column_name: actual_distance_m
+      type: DOUBLE
+      description: "Actual distance traveled (meters)"
+
+    - column_name: estimated_time_min
+      type: DOUBLE
+      description: "Estimated completion time (minutes)"
+
+    - column_name: actual_time_min
+      type: DOUBLE
+      description: "Actual completion time (minutes)"
+
+    - column_name: efficiency_ratio
+      type: DOUBLE
+      description: "Actual/Estimated time ratio (lower is better)"
+
+    - column_name: distance_accuracy
+      type: DOUBLE
+      description: "Actual/Estimated distance ratio"
+
+    - column_name: items_per_stop
+      type: DOUBLE
+      description: "Average items picked per stop"
+
+    - column_name: has_high_zone_count
+      type: BOOLEAN
+      description: "Has more than 2 zones"
+      is_filterable: true
+
+    - column_name: is_inefficient
+      type: BOOLEAN
+      description: "Efficiency ratio > 1.2"
+      is_filterable: true
+
+    - column_name: is_very_inefficient
+      type: BOOLEAN
+      description: "Efficiency ratio > 1.5"
+      is_filterable: true
+
+    - column_name: is_long_distance
+      type: BOOLEAN
+      description: "Estimated distance > 500m"
+      is_filterable: true
+
+    - column_name: has_many_stops
+      type: BOOLEAN
+      description: "More than 20 stops"
+      is_filterable: true
+
+    - column_name: distance_exceeded
+      type: BOOLEAN
+      description: "Actual distance > 130% of estimated"
+      is_filterable: true
+
+    - column_name: optimization_score
+      type: INTEGER
+      description: "Optimization priority score (higher = needs more attention)"
+      is_filterable: true
+
+  # Metrics
+  metrics:
+    - metric_name: total_routes
+      expression: COUNT(*)
+      description: "Total routes"
+      verbose_name: "Total Routes"
+
+    - metric_name: routes_needing_optimization
+      expression: COUNT(CASE WHEN optimization_score >= 3 THEN 1 END)
+      description: "Routes with high optimization score"
+      verbose_name: "Routes Needing Optimization"
+
+    - metric_name: avg_efficiency
+      expression: AVG(efficiency_ratio)
+      description: "Average efficiency ratio"
+      verbose_name: "Avg Efficiency Ratio"
+
+    - metric_name: avg_stops
+      expression: AVG(stop_count)
+      description: "Average stops per route"
+      verbose_name: "Avg Stops"
+
+    - metric_name: avg_zones
+      expression: AVG(zone_count)
+      description: "Average zones visited"
+      verbose_name: "Avg Zones"
+
+    - metric_name: pct_multi_zone
+      expression: COUNT(CASE WHEN zone_count > 1 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0)
+      description: "Percentage of multi-zone routes"
+      verbose_name: "% Multi-Zone"
+
+    - metric_name: avg_optimization_score
+      expression: AVG(optimization_score)
+      description: "Average optimization score"
+      verbose_name: "Avg Optimization Score"
+
+  # Default filters
+  default_filters:
+    - column: date
+      op: ">="
+      value: "{{ current_date - interval '7' day }}"
+
+# Chart Configuration
+chart:
+  name: "Route Optimization Score Distribution"
+  description: "Distribution of routes by optimization score"
+  type: bar
+
+  configuration:
+    metric: total_routes
+    dimension: optimization_score
+    orientation: vertical
+    sort: ascending
+    show_values: true
+    color_scheme: supersetColors

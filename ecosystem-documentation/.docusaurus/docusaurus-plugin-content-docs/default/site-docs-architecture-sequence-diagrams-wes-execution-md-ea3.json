@@ -1,0 +1,26 @@
+{
+  "id": "architecture/sequence-diagrams/wes-execution",
+  "title": "WES Execution Workflow",
+  "description": "The WES (Warehouse Execution System) Execution Workflow orchestrates order execution through configurable process paths. It is the central execution engine started by the Orchestrator after wave assignment.",
+  "source": "@site/docs/architecture/sequence-diagrams/wes-execution.md",
+  "sourceDirName": "architecture/sequence-diagrams",
+  "slug": "/architecture/sequence-diagrams/wes-execution",
+  "permalink": "/wms-platform/architecture/sequence-diagrams/wes-execution",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 6,
+  "frontMatter": {
+    "sidebar_position": 6
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Order Cancellation Workflow",
+    "permalink": "/wms-platform/architecture/sequence-diagrams/order-cancellation"
+  },
+  "next": {
+    "title": "Walling Workflow",
+    "permalink": "/wms-platform/architecture/sequence-diagrams/walling-workflow"
+  }
+}

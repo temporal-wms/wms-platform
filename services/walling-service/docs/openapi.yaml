@@ -1,0 +1,551 @@
+openapi: 3.0.3
+info:
+  title: WMS Walling Service API
+  description: |
+    Walling Service API for the WMS Platform.
+
+    This service manages put-wall sorting operations where picked items from totes are sorted
+    into order-specific bins on a put-wall before packing.
+
+    **Put-Wall Concept:**
+    A put-wall is a structure with multiple bins/slots, each assigned to a specific order.
+    Walliners (workers) scan items from totes and sort them into the correct order bin.
+
+    **Task Lifecycle:**
+    1. Task created (pending)
+    2. Walliner assigned (assigned)
+    3. Items sorted (in_progress)
+    4. All items sorted (completed)
+
+    **Integration:**
+    - Created by WES workflow during `pick_wall_pack` process path
+    - Sends `wallingCompleted` signal to WES workflow upon completion
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8017
+    description: Development server
+
+tags:
+  - name: Tasks
+    description: Walling task management
+  - name: Sorting
+    description: Item sorting operations
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /api/v1/tasks:
+    post:
+      summary: Create walling task
+      description: |
+        Creates a new walling task for an order. The task tracks items to be sorted
+        from source totes into the destination bin on the put-wall.
+      tags: [Tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWallingTaskRequest'
+            example:
+              orderId: "ORD-12345678"
+              waveId: "WV-DIG-20241230-001"
+              routeId: "RT-a1b2c3d4"
+              putWallId: "PUTWALL-1"
+              destinationBin: "BIN-A1"
+              sourceTotes:
+                - toteId: "TOTE-001"
+                  pickTaskId: "PT-001"
+                  itemCount: 3
+              itemsToSort:
+                - sku: "SKU-001"
+                  quantity: 2
+                  fromToteId: "TOTE-001"
+                - sku: "SKU-002"
+                  quantity: 1
+                  fromToteId: "TOTE-001"
+      responses:
+        '201':
+          description: Walling task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/tasks/pending:
+    get:
+      summary: Get pending tasks by put wall
+      description: Retrieves pending walling tasks for a specific put-wall.
+      tags: [Tasks]
+      parameters:
+        - name: putWallId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Put-wall ID to filter by
+          example: "PUTWALL-1"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+          description: Maximum number of tasks to return
+      responses:
+        '200':
+          description: List of pending tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WallingTask'
+        '400':
+          description: Missing putWallId parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/tasks/walliner/{wallinerId}/active:
+    get:
+      summary: Get active task by walliner
+      description: Retrieves the currently active task for a walliner.
+      tags: [Tasks]
+      parameters:
+        - name: wallinerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Walliner (worker) ID
+          example: "WALLINER-001"
+      responses:
+        '200':
+          description: Active task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+        '404':
+          description: No active task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "no active task found"
+
+  /api/v1/tasks/{taskId}:
+    get:
+      summary: Get walling task
+      description: Retrieves a walling task by its ID.
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WT-a1b2c3d4"
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/tasks/{taskId}/assign:
+    post:
+      summary: Assign walliner to task
+      description: |
+        Assigns a walliner (worker) to a walling task.
+        The task status changes from `pending` to `assigned`.
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WT-a1b2c3d4"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignWallinerRequest'
+            example:
+              wallinerId: "WALLINER-001"
+              station: "STATION-1"
+      responses:
+        '200':
+          description: Walliner assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/tasks/{taskId}/sort:
+    post:
+      summary: Sort item to bin
+      description: |
+        Sorts an item from a tote into the destination bin.
+
+        - If this is the first item sorted, the task status changes to `in_progress`.
+        - The `sortedQty` on the item is incremented.
+        - If all items are fully sorted, the task auto-completes.
+
+        **Validation:**
+        - Cannot sort more than the remaining quantity
+        - SKU must exist in the items to sort
+        - Tote ID must match the item's source tote
+      tags: [Sorting]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WT-a1b2c3d4"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SortItemRequest'
+            example:
+              sku: "SKU-001"
+              quantity: 1
+              fromToteId: "TOTE-001"
+      responses:
+        '200':
+          description: Item sorted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+        '400':
+          description: Invalid request (wrong SKU, quantity, or tote)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/tasks/{taskId}/complete:
+    post:
+      summary: Complete walling task
+      description: |
+        Manually completes a walling task.
+
+        **Note:** Tasks auto-complete when all items are sorted. This endpoint is for
+        manual completion in edge cases.
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WT-a1b2c3d4"
+      responses:
+        '200':
+          description: Task completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WallingTask'
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the service.
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service.
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
+
+components:
+  schemas:
+    CreateWallingTaskRequest:
+      type: object
+      required:
+        - orderId
+        - waveId
+        - putWallId
+        - destinationBin
+        - sourceTotes
+        - itemsToSort
+      properties:
+        orderId:
+          type: string
+          description: Order ID
+          example: "ORD-12345678"
+        waveId:
+          type: string
+          description: Wave ID
+          example: "WV-DIG-20241230-001"
+        routeId:
+          type: string
+          description: Task route ID from WES
+          example: "RT-a1b2c3d4"
+        putWallId:
+          type: string
+          description: Put-wall ID
+          example: "PUTWALL-1"
+        destinationBin:
+          type: string
+          description: Target bin on the put-wall
+          example: "BIN-A1"
+        sourceTotes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceTote'
+          description: Totes containing items to sort
+        itemsToSort:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemToSort'
+          description: Items to be sorted
+
+    WallingTask:
+      type: object
+      properties:
+        taskId:
+          type: string
+          description: Unique task identifier
+          example: "WT-a1b2c3d4"
+        orderId:
+          type: string
+          description: Associated order ID
+          example: "ORD-12345678"
+        waveId:
+          type: string
+          description: Associated wave ID
+          example: "WV-DIG-20241230-001"
+        routeId:
+          type: string
+          description: Task route ID from WES
+          example: "RT-a1b2c3d4"
+        wallinerId:
+          type: string
+          description: Assigned walliner ID
+          example: "WALLINER-001"
+        status:
+          $ref: '#/components/schemas/WallingTaskStatus'
+        sourceTotes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceTote'
+        destinationBin:
+          type: string
+          description: Target bin on the put-wall
+          example: "BIN-A1"
+        putWallId:
+          type: string
+          description: Put-wall ID
+          example: "PUTWALL-1"
+        itemsToSort:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemToSort'
+        sortedItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortedItem'
+        station:
+          type: string
+          description: Walliner station
+          example: "STATION-1"
+        priority:
+          type: integer
+          description: Task priority
+          example: 0
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    SourceTote:
+      type: object
+      properties:
+        toteId:
+          type: string
+          description: Tote identifier
+          example: "TOTE-001"
+        pickTaskId:
+          type: string
+          description: Pick task that filled this tote
+          example: "PT-001"
+        itemCount:
+          type: integer
+          description: Number of items in the tote
+          example: 3
+
+    ItemToSort:
+      type: object
+      properties:
+        sku:
+          type: string
+          description: Product SKU
+          example: "SKU-001"
+        quantity:
+          type: integer
+          description: Total quantity to sort
+          example: 2
+        fromToteId:
+          type: string
+          description: Source tote ID
+          example: "TOTE-001"
+        sortedQty:
+          type: integer
+          description: Quantity already sorted
+          example: 1
+
+    SortedItem:
+      type: object
+      properties:
+        sku:
+          type: string
+          description: Product SKU
+          example: "SKU-001"
+        quantity:
+          type: integer
+          description: Quantity sorted in this action
+          example: 1
+        fromToteId:
+          type: string
+          description: Source tote ID
+          example: "TOTE-001"
+        toBinId:
+          type: string
+          description: Destination bin ID
+          example: "BIN-A1"
+        sortedAt:
+          type: string
+          format: date-time
+          description: When the item was sorted
+        verified:
+          type: boolean
+          description: Whether the sort was verified
+          default: false
+
+    AssignWallinerRequest:
+      type: object
+      required:
+        - wallinerId
+      properties:
+        wallinerId:
+          type: string
+          description: Walliner (worker) ID to assign
+          example: "WALLINER-001"
+        station:
+          type: string
+          description: Station where walliner is working
+          example: "STATION-1"
+
+    SortItemRequest:
+      type: object
+      required:
+        - sku
+        - quantity
+        - fromToteId
+      properties:
+        sku:
+          type: string
+          description: Product SKU to sort
+          example: "SKU-001"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity to sort
+          example: 1
+        fromToteId:
+          type: string
+          description: Source tote ID
+          example: "TOTE-001"
+
+    WallingTaskStatus:
+      type: string
+      enum:
+        - pending
+        - assigned
+        - in_progress
+        - completed
+        - cancelled
+      description: |
+        Task status:
+        - `pending`: Task created, waiting for walliner
+        - `assigned`: Walliner assigned, ready to start
+        - `in_progress`: Items being sorted
+        - `completed`: All items sorted
+        - `cancelled`: Task cancelled
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "task not found"

@@ -1,0 +1,26 @@
+{
+  "id": "services/walling-service",
+  "title": "Walling Service",
+  "description": "The Walling Service manages put-wall operations for sorting picked items into order-specific bins before packing. It is used in the pickwallpack process path for medium-sized orders.",
+  "source": "@site/docs/services/walling-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/walling-service",
+  "permalink": "/wms-platform/services/walling-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 12,
+  "frontMatter": {
+    "sidebar_position": 12
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "WES Service",
+    "permalink": "/wms-platform/services/wes-service"
+  },
+  "next": {
+    "title": "Routing Service",
+    "permalink": "/wms-platform/services/routing-service"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "temporal/task-queues",
+  "title": "Task Queues",
+  "description": "Reference for all Temporal task queues used in the WMS Platform.",
+  "source": "@site/docs/temporal/task-queues.md",
+  "sourceDirName": "temporal",
+  "slug": "/temporal/task-queues",
+  "permalink": "/wms-platform/temporal/task-queues",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 21,
+  "frontMatter": {
+    "sidebar_position": 21,
+    "slug": "/temporal/task-queues"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Signals & Queries",
+    "permalink": "/wms-platform/temporal/signals-queries"
+  },
+  "next": {
+    "title": "Retry Policies",
+    "permalink": "/wms-platform/temporal/retry-policies"
+  }
+}

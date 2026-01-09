@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/gift-wrap",
+  "title": "GiftWrapWorkflow",
+  "description": "Coordinates gift wrap processing for orders that require special packaging and gift messaging.",
+  "source": "@site/docs/temporal/workflows/gift-wrap.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/gift-wrap",
+  "permalink": "/wms-platform/temporal/workflows/gift-wrap",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 9,
+  "frontMatter": {
+    "sidebar_position": 9,
+    "slug": "/temporal/workflows/gift-wrap"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "SortationWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/sortation"
+  },
+  "next": {
+    "title": "InboundFulfillmentWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/inbound-fulfillment"
+  }
+}

@@ -1,0 +1,114 @@
+# Superset Dataset Configuration: Seller Performance
+# Dataset for the Seller Performance dashboard
+
+dataset:
+  name: seller_performance_daily
+  description: "Daily seller performance metrics"
+  database: trino
+  schema: iceberg.gold
+  table_name: seller_performance_daily
+
+  main_dttm_col: date
+
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of performance metrics"
+
+    - column_name: seller_id
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Seller identifier"
+
+    - column_name: seller_name
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Seller name"
+
+    - column_name: status
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Seller status"
+
+    - column_name: tier
+      type: STRING
+      filterable: true
+      groupby: true
+      description: "Seller tier"
+
+    - column_name: total_orders
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Total orders"
+
+    - column_name: total_revenue
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Total revenue"
+
+    - column_name: avg_order_value
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average order value"
+
+    - column_name: storage_fees
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Storage fees"
+
+    - column_name: fulfillment_fees
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Fulfillment fees"
+
+    - column_name: channels_connected
+      type: INT
+      filterable: false
+      groupby: false
+      description: "Number of connected channels"
+
+  metrics:
+    - metric_name: total_sellers
+      expression: "COUNT(DISTINCT seller_id)"
+      description: "Total unique sellers"
+
+    - metric_name: total_orders
+      expression: "SUM(total_orders)"
+      description: "Total orders"
+
+    - metric_name: total_revenue
+      expression: "SUM(total_revenue)"
+      description: "Total revenue"
+
+    - metric_name: avg_order_value
+      expression: "SUM(total_revenue) / NULLIF(SUM(total_orders), 0)"
+      description: "Average order value"
+
+    - metric_name: total_storage_fees
+      expression: "SUM(storage_fees)"
+      description: "Total storage fees"
+
+    - metric_name: total_fulfillment_fees
+      expression: "SUM(fulfillment_fees)"
+      description: "Total fulfillment fees"
+
+---
+# Current sellers snapshot dataset
+dataset:
+  name: sellers_current
+  description: "Current state of all sellers"
+  database: trino
+  schema: iceberg.silver
+  table_name: sellers_current
+  main_dttm_col: created_at

@@ -6,6 +6,7 @@ import (
 
 	"github.com/wms-platform/orchestrator/internal/workflows"
 	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/temporal"
 )
 
 // ValidateOrder validates an order by calling order-service
@@ -22,7 +23,12 @@ func (a *OrderActivities) ValidateOrder(ctx context.Context, input workflows.Ord
 
 	if !result.Valid {
 		logger.Warn("Order validation failed", "orderId", input.OrderID, "errors", result.Errors)
-		return false, fmt.Errorf("order validation failed: %v", result.Errors)
+		// Business error - order is invalid and should NOT be retried
+		return false, temporal.NewApplicationError(
+			fmt.Sprintf("order validation failed: %v", result.Errors),
+			"OrderValidationFailed",
+			result.Errors,
+		)
 	}
 
 	logger.Info("Order validated successfully", "orderId", input.OrderID)

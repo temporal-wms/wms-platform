@@ -3,6 +3,7 @@
 
 .PHONY: help all clean cluster-create cluster-delete \
         infra-deploy infra-mongodb infra-kafka infra-temporal \
+        kong-deploy kong-undeploy kong-status kong-logs kong-test \
         observability-deploy observability-prometheus observability-dashboards \
         observability-red-dashboards observability-tracing-dashboards observability-events-dashboards \
         temporal-namespace wms-build wms-load wms-deploy wms-redeploy \
@@ -22,7 +23,10 @@ KIND_CONFIG := ./kind/kind-config.yaml
 # Services list
 SERVICES := order-service inventory-service waving-service routing-service \
             picking-service consolidation-service packing-service \
-            shipping-service labor-service orchestrator
+            shipping-service labor-service facility-service unit-service \
+            process-path-service walling-service wes-service orchestrator \
+            billing-service channel-service receiving-service seller-portal \
+            seller-service sortation-service stow-service
 
 #------------------------------------------------------------------------------
 # Help
@@ -37,6 +41,9 @@ help: ## Show this help message
 	@echo ""
 	@echo "Infrastructure:"
 	@grep -E '^infra-' $(MAKEFILE_LIST) | awk -F ':.*?## ' '{printf "  %-25s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Kong API Gateway:"
+	@grep -E '^kong-' $(MAKEFILE_LIST) | awk -F ':.*?## ' '{printf "  %-25s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Observability:"
 	@grep -E '^observability-' $(MAKEFILE_LIST) | awk -F ':.*?## ' '{printf "  %-25s %s\n", $$1, $$2}'
@@ -56,7 +63,7 @@ help: ## Show this help message
 #------------------------------------------------------------------------------
 # Complete Setup
 #------------------------------------------------------------------------------
-all: cluster-create repos infra-deploy observability-deploy temporal-namespace wms-build wms-load wms-deploy ## Complete setup: cluster + infra + observability + WMS
+all: cluster-create repos infra-deploy kong-deploy observability-deploy temporal-namespace wms-build wms-load wms-deploy ## Complete setup: cluster + infra + kong + observability + WMS
 
 clean: wms-undeploy cluster-delete ## Delete everything: WMS + cluster
 
@@ -141,6 +148,52 @@ infra-undeploy: ## Remove all infrastructure
 	kubectl delete -f $(HELM_DIR)/infrastructure/kafka/kafka-cluster.yaml 2>/dev/null || true
 	helm uninstall strimzi-kafka-operator -n kafka 2>/dev/null || true
 	helm uninstall mongodb -n mongodb 2>/dev/null || true
+
+#------------------------------------------------------------------------------
+# Kong API Gateway
+#------------------------------------------------------------------------------
+kong-deploy: repos ## Deploy Kong API Gateway with Gateway API support
+	$(SCRIPT_DIR)/deploy-kong.sh values-kind.yaml
+
+kong-deploy-prod: repos ## Deploy Kong API Gateway (production)
+	$(SCRIPT_DIR)/deploy-kong.sh values.yaml
+
+kong-undeploy: ## Remove Kong API Gateway
+	$(SCRIPT_DIR)/deploy-kong.sh undeploy
+
+kong-status: ## Show Kong and Gateway API status
+	@echo "=== Kong Pods ==="
+	@kubectl get pods -n kong 2>/dev/null || echo "Kong namespace not found"
+	@echo ""
+	@echo "=== Kong Services ==="
+	@kubectl get svc -n kong 2>/dev/null || echo "Kong namespace not found"
+	@echo ""
+	@echo "=== Gateway Classes ==="
+	@kubectl get gatewayclasses 2>/dev/null || echo "No GatewayClasses found"
+	@echo ""
+	@echo "=== Gateways ==="
+	@kubectl get gateways -A 2>/dev/null || echo "No Gateways found"
+	@echo ""
+	@echo "=== HTTPRoutes ==="
+	@kubectl get httproutes -n $(NAMESPACE) 2>/dev/null || echo "No HTTPRoutes found in $(NAMESPACE)"
+
+kong-logs: ## Show Kong logs
+	kubectl logs -f -l app.kubernetes.io/name=kong -n kong --tail=100
+
+kong-test: ## Test Kong routing to WMS services
+	@echo "Testing Kong API Gateway routing..."
+	@echo ""
+	@echo "Order Service:"
+	@curl -s http://localhost:8888/api/order-service/v1/health 2>/dev/null || echo "  Failed - service may not be running"
+	@echo ""
+	@echo "Inventory Service:"
+	@curl -s http://localhost:8888/api/inventory-service/v1/health 2>/dev/null || echo "  Failed - service may not be running"
+	@echo ""
+	@echo "Seller Service:"
+	@curl -s http://localhost:8888/api/seller-service/v1/health 2>/dev/null || echo "  Failed - service may not be running"
+	@echo ""
+	@echo "Billing Service:"
+	@curl -s http://localhost:8888/api/billing-service/v1/health 2>/dev/null || echo "  Failed - service may not be running"
 
 #------------------------------------------------------------------------------
 # Observability

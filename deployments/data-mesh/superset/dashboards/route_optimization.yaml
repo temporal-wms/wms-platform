@@ -1,0 +1,233 @@
+# Superset Dashboard Configuration: Route Optimization Analysis
+# Dashboard for identifying and analyzing routes needing optimization
+
+dashboard:
+  name: "Route Optimization Analysis"
+  description: "Identify routes that may need optimization based on complexity, efficiency, and travel patterns"
+  slug: route-optimization
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: min_optimization_score
+      type: select
+      title: "Minimum Optimization Score"
+      description: "Filter by optimization priority"
+      required: false
+      default_value: "0"
+      options:
+        - label: "All Routes"
+          value: "0"
+        - label: "Minor Issues (1+)"
+          value: "1"
+        - label: "Moderate Issues (3+)"
+          value: "3"
+        - label: "Major Issues (5+)"
+          value: "5"
+      filter_key: min_score
+
+    - name: zone
+      type: select
+      title: "Zone"
+      description: "Filter by zone"
+      required: false
+      options:
+        - ZONE-1
+        - ZONE-2
+        - ZONE-3
+        - ZONE-4
+        - ZONE-5
+        - ZONE-6
+      filter_key: zone
+
+    - name: strategy
+      type: select
+      title: "Routing Strategy"
+      description: "Filter by routing strategy"
+      required: false
+      options:
+        - return
+        - s_shape
+        - largest_gap
+        - combined
+        - nearest
+      filter_key: strategy
+
+  # Dashboard layout
+  layout:
+    # Row 1: Summary KPIs
+    - row: 1
+      charts:
+        - name: "Total Routes Analyzed"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: route_optimization_candidates
+          configuration:
+            metric: total_routes
+            subheader: "Routes"
+
+        - name: "Routes Needing Optimization"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: route_optimization_candidates
+          configuration:
+            metric: routes_needing_optimization
+            subheader: "Score >= 3"
+
+        - name: "Avg Efficiency Ratio"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: route_optimization_candidates
+          configuration:
+            metric: avg_efficiency
+            subheader: "Target: < 1.2"
+            format: "{value:.2f}"
+
+        - name: "Multi-Zone Routes"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: route_optimization_candidates
+          configuration:
+            metric: pct_multi_zone
+            subheader: "%"
+            format: "{value:.1f}%"
+
+    # Row 2: Distribution Charts
+    - row: 2
+      charts:
+        - name: "Routes by Optimization Score"
+          type: bar
+          width: 6
+          height: 4
+          description: "Distribution of routes by optimization priority"
+          dataset: route_optimization_candidates
+          configuration:
+            metric: total_routes
+            dimension: optimization_score
+            orientation: vertical
+            sort: ascending
+            show_values: true
+            color_scheme:
+              - 0: "#52c41a"
+              - 1: "#95de64"
+              - 2: "#b7eb8f"
+              - 3: "#faad14"
+              - 4: "#ffc53d"
+              - 5: "#ff7a45"
+              - 6: "#ff4d4f"
+
+        - name: "Routes by Complexity"
+          type: pie
+          width: 6
+          height: 4
+          description: "Distribution by route complexity"
+          dataset: route_optimization_daily
+          configuration:
+            metric: SUM(total_routes)
+            dimension: route_complexity
+            show_labels: true
+            show_legend: true
+
+    # Row 3: Strategy Analysis
+    - row: 3
+      charts:
+        - name: "Strategy Efficiency Comparison"
+          type: bar
+          width: 6
+          height: 4
+          description: "Compare efficiency across routing strategies"
+          dataset: route_optimization_candidates
+          configuration:
+            metric: avg_efficiency
+            dimension: strategy
+            orientation: horizontal
+            sort: ascending
+            show_values: true
+
+        - name: "Zones by Avg Optimization Score"
+          type: bar
+          width: 6
+          height: 4
+          description: "Average optimization score by zone"
+          dataset: route_optimization_candidates
+          configuration:
+            metric: avg_optimization_score
+            dimension: zone
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+    # Row 4: Routes Table
+    - row: 4
+      charts:
+        - name: "Routes Requiring Attention"
+          type: table
+          width: 12
+          height: 6
+          description: "Routes with highest optimization scores"
+          dataset: route_optimization_candidates
+          configuration:
+            columns:
+              - route_id
+              - order_id
+              - date
+              - zone
+              - strategy
+              - stop_count
+              - zone_count
+              - estimated_time_min
+              - actual_time_min
+              - efficiency_ratio
+              - optimization_score
+            order_by: optimization_score
+            order_direction: desc
+            row_limit: 50
+            conditional_formatting:
+              - column: optimization_score
+                conditions:
+                  - operator: ">="
+                    value: 5
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+                  - operator: ">="
+                    value: 3
+                    background_color: "#faad14"
+                    text_color: "#000000"
+                  - operator: ">="
+                    value: 1
+                    background_color: "#fffbe6"
+                    text_color: "#000000"
+              - column: efficiency_ratio
+                conditions:
+                  - operator: ">"
+                    value: 1.5
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+                  - operator: ">"
+                    value: 1.2
+                    background_color: "#faad14"
+                    text_color: "#000000"
+
+# Dataset references
+datasets:
+  - name: route_optimization_candidates
+    database: trino
+    schema: iceberg.gold
+    table_name: route_optimization_candidates
+
+  - name: route_optimization_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: route_optimization_daily

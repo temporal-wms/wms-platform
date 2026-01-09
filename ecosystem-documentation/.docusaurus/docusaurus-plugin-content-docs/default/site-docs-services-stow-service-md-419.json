@@ -1,0 +1,17 @@
+{
+  "id": "services/stow-service",
+  "title": "Stow Service",
+  "description": "The Stow Service manages putaway tasks and storage location assignment using various storage strategies.",
+  "source": "@site/docs/services/stow-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/stow-service",
+  "permalink": "/wms-platform/services/stow-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 12,
+  "frontMatter": {
+    "sidebar_position": 12
+  }
+}

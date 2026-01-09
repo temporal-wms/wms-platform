@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/aggregates/pick-route",
+  "title": "PickRoute Aggregate",
+  "description": "The PickRoute aggregate manages optimized picking paths through the warehouse.",
+  "source": "@site/docs/domain-driven-design/aggregates/pick-route.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/pick-route",
+  "permalink": "/wms-platform/domain-driven-design/aggregates/pick-route",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 4,
+  "frontMatter": {
+    "sidebar_position": 4
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "PickTask Aggregate",
+    "permalink": "/wms-platform/domain-driven-design/aggregates/pick-task"
+  },
+  "next": {
+    "title": "ConsolidationUnit Aggregate",
+    "permalink": "/wms-platform/domain-driven-design/aggregates/consolidation-unit"
+  }
+}

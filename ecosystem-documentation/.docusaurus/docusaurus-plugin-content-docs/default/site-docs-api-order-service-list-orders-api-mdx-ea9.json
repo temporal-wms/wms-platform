@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/list-orders",
+  "title": "List orders",
+  "description": "Retrieve a paginated list of orders with optional filtering",
+  "source": "@site/docs/api/order-service/list-orders.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/list-orders",
+  "permalink": "/wms-platform/api/order-service/list-orders",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "list-orders",
+    "title": "List orders",
+    "description": "Retrieve a paginated list of orders with optional filtering",
+    "sidebar_label": "List orders",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJylVU1vGzcQ/SsEz7Ik51TsqUYbFAYa1I1d9GALxpg70jLhkiw5K0cV9N87w11Jq1hO3FYXkTvfM49vtrrGbJKNZIPXlf6IlCyuUYGKsLIeCGvlbCYVliqkGlNWz5YaFYoFOLW0jjBZv9ITTbDKurrXvxVFvZjoCAlaJLlV91vt+cJR2DWyupWIf3WYNnzJpsEWdLXVtImiZD3hChOLalxC50hXl7vd5MTJrf37Pzl6Nx97ygTU5e/6yTSUib5rpcyEBu0aa/60BmdraRafIWe78lg/Unh8hrUkGK353NtG2J9yY2MsBia00WFvbMAbdI7Pi5Nikw3J0ubfJ5nZwWMNouzxCw1HLtnXkL6KYrpMocV0Xb81zm7HQ06YY/AZs8jfzefydwqrX08RlAaU1Sp3xmDOy865TekEz8qTOIAYnTUgDmafsnjZvswiPH1CQ9LWFCImsn0OPImxFqRUiraEbf6+dUmSW/Cy2Mm4Q+fEA5LOiQ4TPCekQOCuv0pvj9u9/PcOPJ16GKkI0l5LOqFA84rO4WQZUgsskabhBVkGwk4iWnKiV56yjE+yK5KBF2w/km+3sjz0s+keXu/r9Z4XNZA/hDS2ewrBIXhObvhNNFNOE7gZeoUlKaCGL7MefgJnTOs9J3WJI+mGKFazmQsGXBMyVT/M55cziHa2vizMMYbzz4xdF2LLUFW9Ky2v6Ogpsyu2nT63eYpfQJ73lF/5a/5uUqg7I5eDu4U8wGUoZY5HoW5ZwRpUVzfXL/z8xESSsEGfmZbUx/e3d6KmeMT9y1MteO57yVvGVKaYlfWKGlR/frhV0QEJIqYP/sHfNTaXhCRew4ThMFcP/kL1mRRYSc4sUQMB8vWo4OwSzcY4HMU9SC8EsKrnypIQpZ4aj/b9a1JdFGjmEkb4iLH14IVzeYJ93ZfT+XQ+0AeYAvOB0aSmm6EmdYfQCjO2YGVQPJwfR8Ppwc2j52RHHnrq2gPnpN/bI1/938XZI5mYoGc8AqZezqXAaTuA916Hw1IVfMqX7fYJMv6R3G4nn3uuFkjXNsOT7JBqCS7jRH/GzXHt8qg6iVYw+w3VYbm+Rf2wQd/k+7jL3qJ+spSOBgu5JCsWXPNCmAGBO1Qa0Fte8W6JNLJ6sVPEy4Erfnl/xxj4B4xaIAA=",
+    "sidebar_class_name": "get api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "List dead letter queue entries",
+    "permalink": "/wms-platform/api/order-service/list-dead-letter-queue-entries"
+  },
+  "next": {
+    "title": "Move order to dead letter queue",
+    "permalink": "/wms-platform/api/order-service/move-order-to-dead-letter-queue"
+  }
+}

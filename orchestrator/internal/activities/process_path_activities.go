@@ -4,30 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/wms-platform/orchestrator/internal/activities/clients"
 	"go.temporal.io/sdk/activity"
 )
 
 // ProcessPathInput represents the input for determining process path
 type ProcessPathInput struct {
-	OrderID          string               `json:"orderId"`
-	Items            []ProcessPathItem    `json:"items"`
-	GiftWrap         bool                 `json:"giftWrap"`
+	OrderID          string                    `json:"orderId"`
+	Items            []ProcessPathItem         `json:"items"`
+	GiftWrap         bool                      `json:"giftWrap"`
 	GiftWrapDetails  *clients.GiftWrapDetails  `json:"giftWrapDetails,omitempty"`
 	HazmatDetails    *clients.HazmatDetails    `json:"hazmatDetails,omitempty"`
 	ColdChainDetails *clients.ColdChainDetails `json:"coldChainDetails,omitempty"`
-	TotalValue       float64              `json:"totalValue"`
+	TotalValue       float64                   `json:"totalValue"`
 }
 
 // ProcessPathItem represents an item for process path determination
 type ProcessPathItem struct {
-	SKU              string  `json:"sku"`
-	Quantity         int     `json:"quantity"`
-	Weight           float64 `json:"weight"`
-	IsFragile        bool    `json:"isFragile"`
-	IsHazmat         bool    `json:"isHazmat"`
-	RequiresColdChain bool   `json:"requiresColdChain"`
+	SKU               string  `json:"sku"`
+	Quantity          int     `json:"quantity"`
+	Weight            float64 `json:"weight"`
+	IsFragile         bool    `json:"isFragile"`
+	IsHazmat          bool    `json:"isHazmat"`
+	RequiresColdChain bool    `json:"requiresColdChain"`
 }
 
 // FindCapableStationInput represents input for finding a capable station
@@ -37,100 +36,38 @@ type FindCapableStationInput struct {
 	Zone         string   `json:"zone,omitempty"`
 }
 
-// HighValueThreshold is the threshold for high-value orders
-const HighValueThreshold = 500.0
-
-// OversizedWeightThreshold is the threshold weight for oversized items (in kg)
-const OversizedWeightThreshold = 30.0
-
-// DetermineProcessPath analyzes order characteristics and determines the process path
+// DetermineProcessPath calls the process-path-service to determine the process path
 func (a *ProcessPathActivities) DetermineProcessPath(ctx context.Context, input ProcessPathInput) (*clients.ProcessPath, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("Determining process path", "orderId", input.OrderID)
+	logger.Info("Determining process path via process-path-service", "orderId", input.OrderID)
 
-	path := &clients.ProcessPath{
-		PathID:          uuid.New().String(),
-		OrderID:         input.OrderID,
-		Requirements:    make([]clients.ProcessRequirement, 0),
-		SpecialHandling: make([]string, 0),
-	}
-
-	// Determine single vs multi-item
-	totalItems := 0
-	for _, item := range input.Items {
-		totalItems += item.Quantity
-	}
-
-	if totalItems == 1 && len(input.Items) == 1 {
-		path.Requirements = append(path.Requirements, clients.RequirementSingleItem)
-		path.ConsolidationRequired = false
-	} else {
-		path.Requirements = append(path.Requirements, clients.RequirementMultiItem)
-		path.ConsolidationRequired = true
-	}
-
-	// Check for gift wrap
-	if input.GiftWrap {
-		path.Requirements = append(path.Requirements, clients.RequirementGiftWrap)
-		path.GiftWrapRequired = true
-	}
-
-	// Check for high value
-	if input.TotalValue >= HighValueThreshold {
-		path.Requirements = append(path.Requirements, clients.RequirementHighValue)
-		path.SpecialHandling = append(path.SpecialHandling, "high_value_verification")
-	}
-
-	// Check for fragile items
-	hasFragile := false
-	for _, item := range input.Items {
-		if item.IsFragile {
-			hasFragile = true
-			break
+	// Convert activity input items to client request items
+	items := make([]clients.ProcessPathItem, len(input.Items))
+	for i, item := range input.Items {
+		items[i] = clients.ProcessPathItem{
+			SKU:               item.SKU,
+			Quantity:          item.Quantity,
+			Weight:            item.Weight,
+			IsFragile:         item.IsFragile,
+			IsHazmat:          item.IsHazmat,
+			RequiresColdChain: item.RequiresColdChain,
 		}
 	}
-	if hasFragile {
-		path.Requirements = append(path.Requirements, clients.RequirementFragile)
-		path.SpecialHandling = append(path.SpecialHandling, "fragile_packing")
+
+	req := &clients.DetermineProcessPathRequest{
+		OrderID:          input.OrderID,
+		Items:            items,
+		GiftWrap:         input.GiftWrap,
+		GiftWrapDetails:  input.GiftWrapDetails,
+		HazmatDetails:    input.HazmatDetails,
+		ColdChainDetails: input.ColdChainDetails,
+		TotalValue:       input.TotalValue,
 	}
 
-	// Check for oversized items
-	hasOversized := false
-	for _, item := range input.Items {
-		if item.Weight >= OversizedWeightThreshold {
-			hasOversized = true
-			break
-		}
-	}
-	if hasOversized {
-		path.Requirements = append(path.Requirements, clients.RequirementOversized)
-		path.SpecialHandling = append(path.SpecialHandling, "oversized_handling")
-	}
-
-	// Check for hazmat items
-	hasHazmat := false
-	for _, item := range input.Items {
-		if item.IsHazmat {
-			hasHazmat = true
-			break
-		}
-	}
-	if hasHazmat || input.HazmatDetails != nil {
-		path.Requirements = append(path.Requirements, clients.RequirementHazmat)
-		path.SpecialHandling = append(path.SpecialHandling, "hazmat_compliance")
-	}
-
-	// Check for cold chain items
-	hasColdChain := false
-	for _, item := range input.Items {
-		if item.RequiresColdChain {
-			hasColdChain = true
-			break
-		}
-	}
-	if hasColdChain || input.ColdChainDetails != nil {
-		path.Requirements = append(path.Requirements, clients.RequirementColdChain)
-		path.SpecialHandling = append(path.SpecialHandling, "cold_chain_packaging")
+	path, err := a.clients.DetermineProcessPathViaService(ctx, req)
+	if err != nil {
+		logger.Error("Failed to determine process path", "orderId", input.OrderID, "error", err)
+		return nil, fmt.Errorf("failed to determine process path: %w", err)
 	}
 
 	logger.Info("Process path determined",

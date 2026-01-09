@@ -33,6 +33,7 @@ const (
 	TaskTypeReceiving     TaskType = "receiving"
 	TaskTypeConsolidation TaskType = "consolidation"
 	TaskTypeReplenishment TaskType = "replenishment"
+	TaskTypeWalling       TaskType = "walling"
 )
 
 // Worker is the aggregate root for the Labor bounded context

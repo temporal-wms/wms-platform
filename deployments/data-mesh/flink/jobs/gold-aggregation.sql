@@ -594,3 +594,630 @@ LEFT JOIN silver.consolidations_current c ON o.order_id = c.order_id
 LEFT JOIN silver.pack_tasks_current pk ON o.order_id = pk.order_id
 LEFT JOIN silver.shipments_current s ON o.order_id = s.order_id
 WHERE o.is_deleted = FALSE;
+
+-- ============================================
+-- ROUTING DATA PRODUCT - Gold Layer
+-- ============================================
+
+-- Route Performance by Zone (Daily)
+CREATE TABLE IF NOT EXISTS gold.route_performance_by_zone_daily (
+    `date` DATE,
+    `zone` STRING,
+    `total_routes` BIGINT,
+    `completed_routes` BIGINT,
+    `cancelled_routes` BIGINT,
+    `in_progress_routes` BIGINT,
+    `completion_rate` DOUBLE,
+    `total_items_picked` BIGINT,
+    `avg_items_per_route` DOUBLE,
+    `avg_stops_per_route` DOUBLE,
+    `total_distance_m` DOUBLE,
+    `avg_distance_per_route_m` DOUBLE,
+    `total_duration_seconds` BIGINT,
+    `avg_duration_minutes` DOUBLE,
+    `p50_duration_minutes` DOUBLE,
+    `p95_duration_minutes` DOUBLE,
+    `avg_pick_rate` DOUBLE,
+    `unique_pickers` BIGINT,
+    `routes_per_picker` DOUBLE,
+    `avg_efficiency_ratio` DOUBLE,
+    `multi_route_count` BIGINT,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `zone`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Route Performance by Zone
+INSERT INTO gold.route_performance_by_zone_daily
+SELECT
+    CAST(r.created_at AS DATE) AS `date`,
+    COALESCE(r.zone, 'UNKNOWN') AS zone,
+    COUNT(*) AS total_routes,
+    COUNT(CASE WHEN r.status = 'completed' THEN 1 END) AS completed_routes,
+    COUNT(CASE WHEN r.status = 'cancelled' THEN 1 END) AS cancelled_routes,
+    COUNT(CASE WHEN r.status = 'in_progress' THEN 1 END) AS in_progress_routes,
+    CAST(COUNT(CASE WHEN r.status = 'completed' THEN 1 END) AS DOUBLE) / NULLIF(COUNT(*), 0) AS completion_rate,
+    SUM(r.picked_items) AS total_items_picked,
+    AVG(CAST(r.total_items AS DOUBLE)) AS avg_items_per_route,
+    AVG(CAST(r.stop_count AS DOUBLE)) AS avg_stops_per_route,
+    SUM(r.actual_distance_m) AS total_distance_m,
+    AVG(r.actual_distance_m) AS avg_distance_per_route_m,
+    SUM(r.duration_seconds) AS total_duration_seconds,
+    AVG(r.duration_seconds / 60.0) AS avg_duration_minutes,
+    PERCENTILE(r.duration_seconds / 60.0, 0.5) AS p50_duration_minutes,
+    PERCENTILE(r.duration_seconds / 60.0, 0.95) AS p95_duration_minutes,
+    AVG(r.pick_rate) AS avg_pick_rate,
+    COUNT(DISTINCT r.picker_id) AS unique_pickers,
+    CAST(COUNT(*) AS DOUBLE) / NULLIF(COUNT(DISTINCT r.picker_id), 0) AS routes_per_picker,
+    AVG(r.efficiency_ratio) AS avg_efficiency_ratio,
+    COUNT(CASE WHEN r.is_multi_route = TRUE THEN 1 END) AS multi_route_count,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.routes_current r
+WHERE r.is_deleted = FALSE
+GROUP BY CAST(r.created_at AS DATE), COALESCE(r.zone, 'UNKNOWN');
+
+-- Picker Route Performance (Daily)
+CREATE TABLE IF NOT EXISTS gold.picker_route_performance_daily (
+    `date` DATE,
+    `picker_id` STRING,
+    `zone` STRING,
+    `routes_completed` INT,
+    `total_items_picked` INT,
+    `total_stops_completed` INT,
+    `total_distance_m` DOUBLE,
+    `total_work_minutes` DOUBLE,
+    `routes_per_hour` DOUBLE,
+    `items_per_hour` DOUBLE,
+    `avg_route_duration_minutes` DOUBLE,
+    `avg_pick_rate` DOUBLE,
+    `avg_efficiency_ratio` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `picker_id`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Picker Route Performance
+INSERT INTO gold.picker_route_performance_daily
+SELECT
+    CAST(r.completed_at AS DATE) AS `date`,
+    r.picker_id,
+    r.zone,
+    COUNT(*) AS routes_completed,
+    SUM(r.picked_items) AS total_items_picked,
+    SUM(r.stop_count) AS total_stops_completed,
+    SUM(r.actual_distance_m) AS total_distance_m,
+    SUM(r.duration_seconds) / 60.0 AS total_work_minutes,
+    COUNT(*) / NULLIF(SUM(r.duration_seconds) / 3600.0, 0) AS routes_per_hour,
+    SUM(r.picked_items) / NULLIF(SUM(r.duration_seconds) / 3600.0, 0) AS items_per_hour,
+    AVG(r.duration_seconds / 60.0) AS avg_route_duration_minutes,
+    AVG(r.pick_rate) AS avg_pick_rate,
+    AVG(r.efficiency_ratio) AS avg_efficiency_ratio,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.routes_current r
+WHERE r.status = 'completed'
+  AND r.picker_id IS NOT NULL
+  AND r.is_deleted = FALSE
+GROUP BY CAST(r.completed_at AS DATE), r.picker_id, r.zone;
+
+-- Route Optimization Metrics (Daily)
+CREATE TABLE IF NOT EXISTS gold.route_optimization_daily (
+    `date` DATE,
+    `route_complexity` STRING,
+    `total_routes` BIGINT,
+    `avg_stops` DOUBLE,
+    `avg_zones_visited` DOUBLE,
+    `avg_distance_m` DOUBLE,
+    `avg_estimated_time_min` DOUBLE,
+    `avg_actual_time_min` DOUBLE,
+    `avg_efficiency_ratio` DOUBLE,
+    `routes_exceeding_time_estimate` BIGINT,
+    `routes_with_multi_zone` BIGINT,
+    `avg_items_per_stop` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `route_complexity`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Route Optimization Metrics
+INSERT INTO gold.route_optimization_daily
+SELECT
+    CAST(r.created_at AS DATE) AS `date`,
+    CASE
+        WHEN r.stop_count <= 5 AND r.zone_count = 1 THEN 'simple'
+        WHEN r.stop_count <= 15 AND r.zone_count <= 2 THEN 'moderate'
+        ELSE 'complex'
+    END AS route_complexity,
+    COUNT(*) AS total_routes,
+    AVG(CAST(r.stop_count AS DOUBLE)) AS avg_stops,
+    AVG(CAST(r.zone_count AS DOUBLE)) AS avg_zones_visited,
+    AVG(r.estimated_distance_m) AS avg_distance_m,
+    AVG(r.estimated_time_seconds / 60.0) AS avg_estimated_time_min,
+    AVG(r.actual_time_seconds / 60.0) AS avg_actual_time_min,
+    AVG(r.efficiency_ratio) AS avg_efficiency_ratio,
+    COUNT(CASE WHEN r.efficiency_ratio > 1.2 THEN 1 END) AS routes_exceeding_time_estimate,
+    COUNT(CASE WHEN r.zone_count > 1 THEN 1 END) AS routes_with_multi_zone,
+    AVG(CAST(r.total_items AS DOUBLE) / NULLIF(r.stop_count, 0)) AS avg_items_per_stop,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.routes_current r
+WHERE r.is_deleted = FALSE
+GROUP BY CAST(r.created_at AS DATE),
+    CASE
+        WHEN r.stop_count <= 5 AND r.zone_count = 1 THEN 'simple'
+        WHEN r.stop_count <= 15 AND r.zone_count <= 2 THEN 'moderate'
+        ELSE 'complex'
+    END;
+
+-- Individual Route Optimization Candidates
+CREATE TABLE IF NOT EXISTS gold.route_optimization_candidates (
+    `route_id` STRING,
+    `order_id` STRING,
+    `date` DATE,
+    `zone` STRING,
+    `strategy` STRING,
+    `stop_count` INT,
+    `zone_count` INT,
+    `estimated_distance_m` DOUBLE,
+    `actual_distance_m` DOUBLE,
+    `estimated_time_min` DOUBLE,
+    `actual_time_min` DOUBLE,
+    `efficiency_ratio` DOUBLE,
+    `distance_accuracy` DOUBLE,
+    `items_per_stop` DOUBLE,
+    `has_high_zone_count` BOOLEAN,
+    `is_inefficient` BOOLEAN,
+    `is_very_inefficient` BOOLEAN,
+    `is_long_distance` BOOLEAN,
+    `has_many_stops` BOOLEAN,
+    `distance_exceeded` BOOLEAN,
+    `optimization_score` INT,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`route_id`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Route Optimization Candidates
+INSERT INTO gold.route_optimization_candidates
+SELECT
+    r.route_id,
+    r.order_id,
+    CAST(r.created_at AS DATE) AS `date`,
+    r.zone,
+    r.strategy,
+    r.stop_count,
+    r.zone_count,
+    r.estimated_distance_m,
+    r.actual_distance_m,
+    r.estimated_time_seconds / 60.0 AS estimated_time_min,
+    r.actual_time_seconds / 60.0 AS actual_time_min,
+    r.efficiency_ratio,
+    r.distance_accuracy,
+    CAST(r.total_items AS DOUBLE) / NULLIF(r.stop_count, 0) AS items_per_stop,
+    -- Optimization flags
+    r.zone_count > 2 AS has_high_zone_count,
+    r.efficiency_ratio > 1.2 AS is_inefficient,
+    r.efficiency_ratio > 1.5 AS is_very_inefficient,
+    r.estimated_distance_m > 500 AS is_long_distance,
+    r.stop_count > 20 AS has_many_stops,
+    r.distance_accuracy > 1.3 AS distance_exceeded,
+    -- Calculate optimization score
+    (CASE WHEN r.zone_count > 2 THEN 3 ELSE 0 END) +
+    (CASE WHEN r.efficiency_ratio > 1.5 THEN 3 WHEN r.efficiency_ratio > 1.2 THEN 1 ELSE 0 END) +
+    (CASE WHEN r.estimated_distance_m > 500 THEN 2 ELSE 0 END) +
+    (CASE WHEN r.stop_count > 20 THEN 2 ELSE 0 END) AS optimization_score,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.routes_current r
+WHERE r.status = 'completed'
+  AND r.is_deleted = FALSE;
+
+-- ============================================
+-- RECEIVING DATA PRODUCT - Gold Layer
+-- ============================================
+
+-- Receiving Metrics Daily
+CREATE TABLE IF NOT EXISTS gold.receiving_metrics_daily (
+    `date` DATE,
+    `dock_door` STRING,
+    `total_receipts` BIGINT,
+    `completed_receipts` BIGINT,
+    `cancelled_receipts` BIGINT,
+    `completion_rate` DOUBLE,
+    `total_units_expected` BIGINT,
+    `total_units_received` BIGINT,
+    `total_units_damaged` BIGINT,
+    `receiving_accuracy` DOUBLE,
+    `avg_dock_to_stock_minutes` DOUBLE,
+    `p50_dock_to_stock_minutes` DOUBLE,
+    `p95_dock_to_stock_minutes` DOUBLE,
+    `avg_unloading_minutes` DOUBLE,
+    `avg_inspection_minutes` DOUBLE,
+    `on_time_arrivals` BIGINT,
+    `late_arrivals` BIGINT,
+    `on_time_rate` DOUBLE,
+    `unique_vendors` BIGINT,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `dock_door`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Receiving Metrics
+INSERT INTO gold.receiving_metrics_daily
+SELECT
+    CAST(r.created_at AS DATE) AS `date`,
+    COALESCE(r.dock_door, 'UNKNOWN') AS dock_door,
+    COUNT(*) AS total_receipts,
+    COUNT(CASE WHEN r.status = 'completed' THEN 1 END) AS completed_receipts,
+    COUNT(CASE WHEN r.status = 'cancelled' THEN 1 END) AS cancelled_receipts,
+    CAST(COUNT(CASE WHEN r.status = 'completed' THEN 1 END) AS DOUBLE) / NULLIF(COUNT(*), 0) AS completion_rate,
+    SUM(r.total_units) AS total_units_expected,
+    SUM(r.received_units) AS total_units_received,
+    SUM(r.damaged_units) AS total_units_damaged,
+    AVG(r.receiving_accuracy) AS receiving_accuracy,
+    AVG(r.dock_to_stock_minutes) AS avg_dock_to_stock_minutes,
+    PERCENTILE(r.dock_to_stock_minutes, 0.5) AS p50_dock_to_stock_minutes,
+    PERCENTILE(r.dock_to_stock_minutes, 0.95) AS p95_dock_to_stock_minutes,
+    AVG(r.unloading_duration_minutes) AS avg_unloading_minutes,
+    AVG(r.inspection_duration_minutes) AS avg_inspection_minutes,
+    COUNT(CASE WHEN r.arrival_variance_minutes <= 0 THEN 1 END) AS on_time_arrivals,
+    COUNT(CASE WHEN r.arrival_variance_minutes > 0 THEN 1 END) AS late_arrivals,
+    CAST(COUNT(CASE WHEN r.arrival_variance_minutes <= 0 THEN 1 END) AS DOUBLE) / NULLIF(COUNT(*), 0) AS on_time_rate,
+    COUNT(DISTINCT r.vendor_id) AS unique_vendors,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.receipts_current r
+WHERE r.is_deleted = FALSE
+GROUP BY CAST(r.created_at AS DATE), COALESCE(r.dock_door, 'UNKNOWN');
+
+-- Vendor Performance Daily
+CREATE TABLE IF NOT EXISTS gold.vendor_performance_daily (
+    `date` DATE,
+    `vendor_id` STRING,
+    `vendor_name` STRING,
+    `total_receipts` BIGINT,
+    `total_units` BIGINT,
+    `units_received` BIGINT,
+    `units_damaged` BIGINT,
+    `damage_rate` DOUBLE,
+    `on_time_receipts` BIGINT,
+    `late_receipts` BIGINT,
+    `on_time_rate` DOUBLE,
+    `avg_arrival_variance_minutes` DOUBLE,
+    `avg_dock_to_stock_minutes` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `vendor_id`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Vendor Performance
+INSERT INTO gold.vendor_performance_daily
+SELECT
+    CAST(r.created_at AS DATE) AS `date`,
+    r.vendor_id,
+    r.vendor_name,
+    COUNT(*) AS total_receipts,
+    SUM(r.total_units) AS total_units,
+    SUM(r.received_units) AS units_received,
+    SUM(r.damaged_units) AS units_damaged,
+    CAST(SUM(r.damaged_units) AS DOUBLE) / NULLIF(SUM(r.total_units), 0) * 100 AS damage_rate,
+    COUNT(CASE WHEN r.arrival_variance_minutes <= 0 THEN 1 END) AS on_time_receipts,
+    COUNT(CASE WHEN r.arrival_variance_minutes > 0 THEN 1 END) AS late_receipts,
+    CAST(COUNT(CASE WHEN r.arrival_variance_minutes <= 0 THEN 1 END) AS DOUBLE) / NULLIF(COUNT(*), 0) AS on_time_rate,
+    AVG(r.arrival_variance_minutes) AS avg_arrival_variance_minutes,
+    AVG(r.dock_to_stock_minutes) AS avg_dock_to_stock_minutes,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.receipts_current r
+WHERE r.is_deleted = FALSE
+  AND r.vendor_id IS NOT NULL
+GROUP BY CAST(r.created_at AS DATE), r.vendor_id, r.vendor_name;
+
+-- ============================================
+-- STOWING DATA PRODUCT - Gold Layer
+-- ============================================
+
+-- Stowing Metrics Daily
+CREATE TABLE IF NOT EXISTS gold.stowing_metrics_daily (
+    `date` DATE,
+    `zone` STRING,
+    `total_tasks` BIGINT,
+    `completed_tasks` BIGINT,
+    `exception_tasks` BIGINT,
+    `completion_rate` DOUBLE,
+    `total_units_stowed` BIGINT,
+    `avg_units_per_task` DOUBLE,
+    `avg_stow_duration_minutes` DOUBLE,
+    `p50_stow_duration_minutes` DOUBLE,
+    `p95_stow_duration_minutes` DOUBLE,
+    `avg_stow_rate` DOUBLE,
+    `suggested_location_usage_rate` DOUBLE,
+    `unique_workers` BIGINT,
+    `tasks_per_worker` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `zone`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Stowing Metrics
+INSERT INTO gold.stowing_metrics_daily
+SELECT
+    CAST(s.created_at AS DATE) AS `date`,
+    COALESCE(s.zone, 'UNKNOWN') AS zone,
+    COUNT(*) AS total_tasks,
+    COUNT(CASE WHEN s.status = 'completed' THEN 1 END) AS completed_tasks,
+    COUNT(CASE WHEN s.status = 'exception' THEN 1 END) AS exception_tasks,
+    CAST(COUNT(CASE WHEN s.status = 'completed' THEN 1 END) AS DOUBLE) / NULLIF(COUNT(*), 0) AS completion_rate,
+    SUM(s.quantity) AS total_units_stowed,
+    AVG(CAST(s.quantity AS DOUBLE)) AS avg_units_per_task,
+    AVG(s.stow_duration_minutes) AS avg_stow_duration_minutes,
+    PERCENTILE(s.stow_duration_minutes, 0.5) AS p50_stow_duration_minutes,
+    PERCENTILE(s.stow_duration_minutes, 0.95) AS p95_stow_duration_minutes,
+    AVG(s.stow_rate) AS avg_stow_rate,
+    CAST(COUNT(CASE WHEN s.used_suggested_location = TRUE THEN 1 END) AS DOUBLE) / NULLIF(COUNT(*), 0) AS suggested_location_usage_rate,
+    COUNT(DISTINCT s.worker_id) AS unique_workers,
+    CAST(COUNT(*) AS DOUBLE) / NULLIF(COUNT(DISTINCT s.worker_id), 0) AS tasks_per_worker,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.stow_tasks_current s
+WHERE s.is_deleted = FALSE
+GROUP BY CAST(s.created_at AS DATE), COALESCE(s.zone, 'UNKNOWN');
+
+-- Location Utilization Daily
+CREATE TABLE IF NOT EXISTS gold.location_utilization_daily (
+    `date` DATE,
+    `zone` STRING,
+    `unique_locations_used` BIGINT,
+    `total_stow_events` BIGINT,
+    `total_units_stowed` BIGINT,
+    `avg_units_per_location` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `zone`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Location Utilization
+INSERT INTO gold.location_utilization_daily
+SELECT
+    CAST(s.created_at AS DATE) AS `date`,
+    COALESCE(s.zone, 'UNKNOWN') AS zone,
+    COUNT(DISTINCT s.actual_location) AS unique_locations_used,
+    COUNT(*) AS total_stow_events,
+    SUM(s.quantity) AS total_units_stowed,
+    CAST(SUM(s.quantity) AS DOUBLE) / NULLIF(COUNT(DISTINCT s.actual_location), 0) AS avg_units_per_location,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.stow_tasks_current s
+WHERE s.status = 'completed'
+  AND s.is_deleted = FALSE
+GROUP BY CAST(s.created_at AS DATE), COALESCE(s.zone, 'UNKNOWN');
+
+-- ============================================
+-- RETURNS DATA PRODUCT - Gold Layer
+-- ============================================
+
+-- Returns Metrics Daily
+CREATE TABLE IF NOT EXISTS gold.returns_metrics_daily (
+    `date` DATE,
+    `disposition` STRING,
+    `total_returns` BIGINT,
+    `completed_returns` BIGINT,
+    `completion_rate` DOUBLE,
+    `total_items_returned` BIGINT,
+    `items_restocked` BIGINT,
+    `items_disposed` BIGINT,
+    `restock_rate` DOUBLE,
+    `total_refund_amount` DOUBLE,
+    `avg_refund_amount` DOUBLE,
+    `avg_inspection_minutes` DOUBLE,
+    `avg_processing_minutes` DOUBLE,
+    `p50_processing_minutes` DOUBLE,
+    `p95_processing_minutes` DOUBLE,
+    `unique_workers` BIGINT,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `disposition`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Returns Metrics
+INSERT INTO gold.returns_metrics_daily
+SELECT
+    CAST(r.created_at AS DATE) AS `date`,
+    COALESCE(r.disposition, 'pending') AS disposition,
+    COUNT(*) AS total_returns,
+    COUNT(CASE WHEN r.status = 'completed' THEN 1 END) AS completed_returns,
+    CAST(COUNT(CASE WHEN r.status = 'completed' THEN 1 END) AS DOUBLE) / NULLIF(COUNT(*), 0) AS completion_rate,
+    SUM(r.total_items) AS total_items_returned,
+    SUM(r.restocked_items) AS items_restocked,
+    SUM(r.disposed_items) AS items_disposed,
+    CAST(SUM(r.restocked_items) AS DOUBLE) / NULLIF(SUM(r.total_items), 0) * 100 AS restock_rate,
+    SUM(r.refund_amount) AS total_refund_amount,
+    AVG(r.refund_amount) AS avg_refund_amount,
+    AVG(r.inspection_duration_minutes) AS avg_inspection_minutes,
+    AVG(r.processing_duration_minutes) AS avg_processing_minutes,
+    PERCENTILE(r.processing_duration_minutes, 0.5) AS p50_processing_minutes,
+    PERCENTILE(r.processing_duration_minutes, 0.95) AS p95_processing_minutes,
+    COUNT(DISTINCT r.worker_id) AS unique_workers,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.returns_current r
+WHERE r.is_deleted = FALSE
+GROUP BY CAST(r.created_at AS DATE), COALESCE(r.disposition, 'pending');
+
+-- Return Reasons Daily
+CREATE TABLE IF NOT EXISTS gold.return_reasons_daily (
+    `date` DATE,
+    `reason` STRING,
+    `total_returns` BIGINT,
+    `total_items` BIGINT,
+    `total_refund_amount` DOUBLE,
+    `avg_refund_amount` DOUBLE,
+    `percentage_of_daily_returns` DOUBLE,
+    `restocked_items` BIGINT,
+    `disposed_items` BIGINT,
+    `restock_rate` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `reason`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Populate Return Reasons
+INSERT INTO gold.return_reasons_daily
+WITH daily_totals AS (
+    SELECT
+        CAST(r.created_at AS DATE) AS return_date,
+        COUNT(*) AS total_daily_returns
+    FROM silver.returns_current r
+    WHERE r.is_deleted = FALSE
+    GROUP BY CAST(r.created_at AS DATE)
+)
+SELECT
+    CAST(r.created_at AS DATE) AS `date`,
+    r.reason,
+    COUNT(*) AS total_returns,
+    SUM(r.total_items) AS total_items,
+    SUM(r.refund_amount) AS total_refund_amount,
+    AVG(r.refund_amount) AS avg_refund_amount,
+    CAST(COUNT(*) AS DOUBLE) / dt.total_daily_returns * 100 AS percentage_of_daily_returns,
+    SUM(r.restocked_items) AS restocked_items,
+    SUM(r.disposed_items) AS disposed_items,
+    CAST(SUM(r.restocked_items) AS DOUBLE) / NULLIF(SUM(r.total_items), 0) * 100 AS restock_rate,
+    CURRENT_TIMESTAMP AS processing_time
+FROM silver.returns_current r
+JOIN daily_totals dt ON CAST(r.created_at AS DATE) = dt.return_date
+WHERE r.is_deleted = FALSE
+GROUP BY CAST(r.created_at AS DATE), r.reason, dt.total_daily_returns;
+
+-- ============================================
+-- LABOR DATA PRODUCT - Gold Layer (Enhanced)
+-- ============================================
+
+-- Labor Utilization Daily
+CREATE TABLE IF NOT EXISTS gold.labor_utilization_daily (
+    `date` DATE,
+    `zone` STRING,
+    `shift_type` STRING,
+    `total_workers` BIGINT,
+    `active_workers` BIGINT,
+    `utilization_rate` DOUBLE,
+    `total_tasks_completed` BIGINT,
+    `total_items_processed` BIGINT,
+    `avg_tasks_per_worker` DOUBLE,
+    `avg_items_per_worker` DOUBLE,
+    `total_work_hours` DOUBLE,
+    `productive_hours` DOUBLE,
+    `idle_hours` DOUBLE,
+    `productivity_rate` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `zone`, `shift_type`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Shift Coverage Daily
+CREATE TABLE IF NOT EXISTS gold.shift_coverage_daily (
+    `date` DATE,
+    `shift_type` STRING,
+    `zone` STRING,
+    `scheduled_workers` BIGINT,
+    `actual_workers` BIGINT,
+    `coverage_rate` DOUBLE,
+    `total_tasks` BIGINT,
+    `completed_tasks` BIGINT,
+    `completion_rate` DOUBLE,
+    `avg_productivity` DOUBLE,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `shift_type`, `zone`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- ============================================
+-- OPERATIONS KPI - Gold Layer
+-- ============================================
+
+-- Operations Summary Daily (Executive Dashboard)
+CREATE TABLE IF NOT EXISTS gold.operations_summary_daily (
+    `date` DATE,
+    -- Order Metrics
+    `orders_received` BIGINT,
+    `orders_completed` BIGINT,
+    `orders_cancelled` BIGINT,
+    `order_completion_rate` DOUBLE,
+    `avg_order_fulfillment_hours` DOUBLE,
+    -- Picking Metrics
+    `pick_tasks_completed` BIGINT,
+    `items_picked` BIGINT,
+    `avg_pick_rate` DOUBLE,
+    `picking_accuracy` DOUBLE,
+    -- Packing Metrics
+    `packages_packed` BIGINT,
+    `avg_pack_time_minutes` DOUBLE,
+    -- Shipping Metrics
+    `shipments_sent` BIGINT,
+    `on_time_shipments` BIGINT,
+    `shipping_on_time_rate` DOUBLE,
+    -- Receiving Metrics
+    `receipts_completed` BIGINT,
+    `units_received` BIGINT,
+    `avg_dock_to_stock_minutes` DOUBLE,
+    -- Returns Metrics
+    `returns_processed` BIGINT,
+    `return_restock_rate` DOUBLE,
+    -- Labor Metrics
+    `active_workers` BIGINT,
+    `avg_productivity` DOUBLE,
+    -- Inventory Metrics
+    `low_stock_alerts` BIGINT,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);
+
+-- Hourly Throughput
+CREATE TABLE IF NOT EXISTS gold.hourly_throughput (
+    `date` DATE,
+    `hour` INT,
+    `orders_received` BIGINT,
+    `orders_completed` BIGINT,
+    `items_picked` BIGINT,
+    `packages_packed` BIGINT,
+    `shipments_sent` BIGINT,
+    `units_received` BIGINT,
+    `active_workers` BIGINT,
+    `processing_time` TIMESTAMP(3),
+    PRIMARY KEY (`date`, `hour`) NOT ENFORCED
+) PARTITIONED BY (`date`)
+WITH (
+    'format-version' = '2',
+    'write.upsert.enabled' = 'true'
+);

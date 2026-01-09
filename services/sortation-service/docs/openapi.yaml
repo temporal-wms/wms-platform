@@ -15,7 +15,7 @@ info:
     email: wms@example.com
 
 servers:
-  - url: http://localhost:8012/api/v1
+  - url: http://localhost:8015/api/v1
     description: Development server
   - url: https://api.wms.example.com/api/v1
     description: Production server

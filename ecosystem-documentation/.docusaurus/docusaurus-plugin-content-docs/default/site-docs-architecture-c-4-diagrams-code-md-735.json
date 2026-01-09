@@ -1,0 +1,26 @@
+{
+  "id": "architecture/c4-diagrams/code",
+  "title": "C4 Level 4: Code Diagrams",
+  "description": "Code diagrams show the internal structure of components at the class/struct level, focusing on key domain aggregates and their relationships.",
+  "source": "@site/docs/architecture/c4-diagrams/code.md",
+  "sourceDirName": "architecture/c4-diagrams",
+  "slug": "/architecture/c4-diagrams/code",
+  "permalink": "/wms-platform/architecture/c4-diagrams/code",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 4,
+  "frontMatter": {
+    "sidebar_position": 4
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "C4 Level 3: Component Diagrams",
+    "permalink": "/wms-platform/architecture/c4-diagrams/components"
+  },
+  "next": {
+    "title": "Infrastructure Topology",
+    "permalink": "/wms-platform/architecture/system-diagrams/infrastructure"
+  }
+}

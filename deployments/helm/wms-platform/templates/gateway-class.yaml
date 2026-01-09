@@ -1,0 +1,14 @@
+{{- if .Values.gateway.enabled }}
+# GatewayClass for Kong API Gateway
+# This defines Kong as the controller for Gateway API resources
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: kong
+  labels:
+    {{- include "wms-platform.labels" . | nindent 4 }}
+  annotations:
+    konghq.com/gatewayclass-unmanaged: "true"
+spec:
+  controllerName: konghq.com/kic-gateway-controller
+{{- end }}

@@ -59,6 +59,15 @@ const HighValueThreshold = 500.0
 type Order struct {
 	ID                  primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	OrderID             string             `bson:"orderId" json:"orderId"`
+
+	// Multi-tenant fields for 3PL/FBA-style operations
+	TenantID        string `bson:"tenantId" json:"tenantId"`               // 3PL operator identifier
+	FacilityID      string `bson:"facilityId" json:"facilityId"`           // Physical facility/warehouse complex
+	WarehouseID     string `bson:"warehouseId" json:"warehouseId"`         // Specific warehouse within facility
+	SellerID        string `bson:"sellerId,omitempty" json:"sellerId,omitempty"` // Merchant/seller using 3PL services
+	ChannelID       string `bson:"channelId,omitempty" json:"channelId,omitempty"` // Sales channel (Shopify, Amazon, etc.)
+	ExternalOrderID string `bson:"externalOrderId,omitempty" json:"externalOrderId,omitempty"` // Order ID from external channel
+
 	CustomerID          string             `bson:"customerId" json:"customerId"`
 	Items               []OrderItem        `bson:"items" json:"items"`
 	ShippingAddress     Address            `bson:"shippingAddress" json:"shippingAddress"`
@@ -121,7 +130,17 @@ type Address struct {
 	RecipientName string `bson:"recipientName" json:"recipientName"`
 }
 
-// NewOrder creates a new Order aggregate
+// TenantInfo holds multi-tenant identification for order creation
+type TenantInfo struct {
+	TenantID        string
+	FacilityID      string
+	WarehouseID     string
+	SellerID        string
+	ChannelID       string
+	ExternalOrderID string
+}
+
+// NewOrder creates a new Order aggregate (backward compatible, uses default tenant)
 func NewOrder(
 	orderID string,
 	customerID string,
@@ -129,6 +148,27 @@ func NewOrder(
 	shippingAddress Address,
 	priority Priority,
 	promisedDeliveryAt time.Time,
+) (*Order, error) {
+	return NewOrderWithTenant(
+		orderID,
+		customerID,
+		items,
+		shippingAddress,
+		priority,
+		promisedDeliveryAt,
+		nil, // Use default tenant
+	)
+}
+
+// NewOrderWithTenant creates a new Order aggregate with tenant context
+func NewOrderWithTenant(
+	orderID string,
+	customerID string,
+	items []OrderItem,
+	shippingAddress Address,
+	priority Priority,
+	promisedDeliveryAt time.Time,
+	tenant *TenantInfo,
 ) (*Order, error) {
 	if len(items) == 0 {
 		return nil, ErrNoItems
@@ -151,6 +191,21 @@ func NewOrder(
 		CreatedAt:          now,
 		UpdatedAt:          now,
 		domainEvents:       make([]DomainEvent, 0),
+	}
+
+	// Set tenant information
+	if tenant != nil {
+		order.TenantID = tenant.TenantID
+		order.FacilityID = tenant.FacilityID
+		order.WarehouseID = tenant.WarehouseID
+		order.SellerID = tenant.SellerID
+		order.ChannelID = tenant.ChannelID
+		order.ExternalOrderID = tenant.ExternalOrderID
+	} else {
+		// Default tenant for backward compatibility
+		order.TenantID = "DEFAULT_TENANT"
+		order.FacilityID = "DEFAULT_FACILITY"
+		order.WarehouseID = "DEFAULT_WAREHOUSE"
 	}
 
 	// Calculate process path requirements based on order characteristics

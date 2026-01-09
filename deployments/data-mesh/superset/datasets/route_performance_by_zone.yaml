@@ -1,0 +1,142 @@
+# Superset Dataset Configuration for Route Performance by Zone
+# This dataset connects to the Trino catalog to query the Gold layer
+
+dataset:
+  name: route_performance_by_zone_daily
+  description: "Daily aggregation of route performance metrics by warehouse zone"
+  database: trino
+  schema: iceberg.gold
+  table_name: route_performance_by_zone_daily
+
+  # Physical table columns
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      description: "Date of routes"
+
+    - column_name: zone
+      type: VARCHAR
+      description: "Warehouse zone (ZONE-1 through ZONE-6)"
+      is_filterable: true
+
+    - column_name: total_routes
+      type: BIGINT
+      description: "Total number of routes created"
+
+    - column_name: completed_routes
+      type: BIGINT
+      description: "Number of routes completed"
+
+    - column_name: cancelled_routes
+      type: BIGINT
+      description: "Number of routes cancelled"
+
+    - column_name: completion_rate
+      type: DOUBLE
+      description: "Percentage of routes completed"
+
+    - column_name: total_items_picked
+      type: BIGINT
+      description: "Total items picked in zone"
+
+    - column_name: avg_items_per_route
+      type: DOUBLE
+      description: "Average items per route"
+
+    - column_name: avg_stops_per_route
+      type: DOUBLE
+      description: "Average number of stops per route"
+
+    - column_name: avg_distance_per_route_m
+      type: DOUBLE
+      description: "Average distance traveled per route (meters)"
+
+    - column_name: avg_duration_minutes
+      type: DOUBLE
+      description: "Average route completion time (minutes)"
+
+    - column_name: p50_duration_minutes
+      type: DOUBLE
+      description: "Median route duration (minutes)"
+
+    - column_name: p95_duration_minutes
+      type: DOUBLE
+      description: "95th percentile route duration (minutes)"
+
+    - column_name: avg_pick_rate
+      type: DOUBLE
+      description: "Average items picked per minute"
+
+    - column_name: unique_pickers
+      type: BIGINT
+      description: "Number of unique pickers in zone"
+
+    - column_name: routes_per_picker
+      type: DOUBLE
+      description: "Average routes completed per picker"
+
+    - column_name: avg_efficiency_ratio
+      type: DOUBLE
+      description: "Ratio of actual to estimated time (lower is better)"
+
+    - column_name: multi_route_count
+      type: BIGINT
+      description: "Number of multi-route orders"
+
+  # Metrics for visualization
+  metrics:
+    - metric_name: total_routes_sum
+      expression: SUM(total_routes)
+      description: "Total routes"
+      verbose_name: "Total Routes"
+
+    - metric_name: total_items_sum
+      expression: SUM(total_items_picked)
+      description: "Total items picked"
+      verbose_name: "Total Items"
+
+    - metric_name: avg_completion_rate
+      expression: AVG(completion_rate) * 100
+      description: "Average completion rate"
+      verbose_name: "Completion Rate %"
+
+    - metric_name: avg_pick_rate_overall
+      expression: AVG(avg_pick_rate)
+      description: "Average pick rate"
+      verbose_name: "Avg Pick Rate"
+
+    - metric_name: avg_duration
+      expression: AVG(avg_duration_minutes)
+      description: "Average duration"
+      verbose_name: "Avg Duration (min)"
+
+    - metric_name: picker_utilization
+      expression: SUM(total_routes) / NULLIF(SUM(unique_pickers), 0)
+      description: "Routes per picker"
+      verbose_name: "Picker Utilization"
+
+  # Default filters
+  default_filters:
+    - column: date
+      op: ">="
+      value: "{{ current_date - interval '7' day }}"
+
+# Chart Configuration
+chart:
+  name: "Route Performance by Zone"
+  description: "Bar chart comparing route performance across warehouse zones"
+  type: bar
+
+  configuration:
+    metric: total_routes_sum
+    dimension: zone
+    sort: descending
+    orientation: vertical
+    show_legend: true
+    show_values: true
+    color_scheme: supersetColors
+
+    time_column: date
+    time_grain: day
+    default_time_range: "Last 7 days"

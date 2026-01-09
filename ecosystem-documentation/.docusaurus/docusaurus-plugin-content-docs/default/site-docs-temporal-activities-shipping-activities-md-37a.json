@@ -1,0 +1,27 @@
+{
+  "id": "temporal/activities/shipping-activities",
+  "title": "Shipping Activities",
+  "description": "Activities for managing shipments, carrier manifests, and customer notifications.",
+  "source": "@site/docs/temporal/activities/shipping-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/shipping-activities",
+  "permalink": "/wms-platform/temporal/activities/shipping-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 7,
+  "frontMatter": {
+    "sidebar_position": 7,
+    "slug": "/temporal/activities/shipping-activities"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Packing Activities",
+    "permalink": "/wms-platform/temporal/activities/packing-activities"
+  },
+  "next": {
+    "title": "Receiving Activities",
+    "permalink": "/wms-platform/temporal/activities/receiving-activities"
+  }
+}

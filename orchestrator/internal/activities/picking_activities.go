@@ -15,21 +15,39 @@ func (a *PickingActivities) CreatePickTask(ctx context.Context, input map[string
 
 	orderID, _ := input["orderId"].(string)
 	waveID, _ := input["waveId"].(string)
-	routeRaw, _ := input["route"].(map[string]interface{})
 
 	logger.Info("Creating pick task", "orderId", orderID, "waveId", waveID)
 
-	// Extract route ID and stops from route data
-	routeID, _ := routeRaw["routeId"].(string)
-	stopsRaw, _ := routeRaw["stops"].([]interface{})
+	// Extract route ID - can come from route object or directly
+	var routeID string
+	if routeRaw, ok := input["route"].(map[string]interface{}); ok {
+		routeID, _ = routeRaw["routeId"].(string)
+	}
+	if routeID == "" {
+		routeID, _ = input["routeId"].(string)
+	}
 
-	// Convert stops to pick items
-	items := make([]clients.PickItem, 0)
-	for _, stopRaw := range stopsRaw {
-		if stop, ok := stopRaw.(map[string]interface{}); ok {
-			sku, _ := stop["sku"].(string)
-			quantity, _ := stop["quantity"].(float64)
-			locationID, _ := stop["locationId"].(string)
+	// Extract items - try route.stops first, then fall back to items directly
+	var itemsRaw []interface{}
+	if routeRaw, ok := input["route"].(map[string]interface{}); ok {
+		if stopsRaw, ok := routeRaw["stops"].([]interface{}); ok {
+			itemsRaw = stopsRaw
+		}
+	}
+	// Fall back to items field if route.stops not found
+	if len(itemsRaw) == 0 {
+		if directItems, ok := input["items"].([]interface{}); ok {
+			itemsRaw = directItems
+		}
+	}
+
+	// Convert to pick items
+	items := make([]clients.PickItem, 0, len(itemsRaw))
+	for _, itemRaw := range itemsRaw {
+		if item, ok := itemRaw.(map[string]interface{}); ok {
+			sku, _ := item["sku"].(string)
+			quantity, _ := item["quantity"].(float64)
+			locationID, _ := item["locationId"].(string)
 			items = append(items, clients.PickItem{
 				SKU:        sku,
 				Quantity:   int(quantity),

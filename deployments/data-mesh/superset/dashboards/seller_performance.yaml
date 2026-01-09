@@ -1,0 +1,219 @@
+# Superset Dashboard Configuration: Seller Performance
+# Dashboard for monitoring seller metrics and performance
+
+dashboard:
+  name: "Seller Performance"
+  description: "Seller analytics dashboard with order volume, revenue, and performance metrics"
+  slug: seller-performance
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 30 days"
+      filter_key: __time_range
+
+    - name: status
+      type: select
+      title: "Seller Status"
+      description: "Filter by seller status"
+      required: false
+      options:
+        - active
+        - suspended
+        - onboarding
+        - inactive
+      filter_key: status
+
+    - name: tier
+      type: select
+      title: "Seller Tier"
+      description: "Filter by seller tier"
+      required: false
+      options:
+        - enterprise
+        - professional
+        - standard
+        - starter
+      filter_key: tier
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Active Sellers"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: sellers_current
+          configuration:
+            metric: "COUNT(*)"
+            subheader: "Total Sellers"
+            filter: "status = 'active'"
+
+        - name: "Total Orders"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: seller_performance_daily
+          configuration:
+            metric: total_orders
+            subheader: "Orders"
+
+        - name: "Total Revenue"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: seller_performance_daily
+          configuration:
+            metric: total_revenue
+            subheader: "USD"
+            format: "${value:,.2f}"
+
+        - name: "Avg Order Value"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: seller_performance_daily
+          configuration:
+            metric: avg_order_value
+            subheader: "USD"
+            format: "${value:.2f}"
+
+    # Row 2: Top Sellers Analysis
+    - row: 2
+      charts:
+        - name: "Top 10 Sellers by Revenue"
+          type: bar
+          width: 6
+          height: 4
+          description: "Highest revenue sellers"
+          dataset: seller_performance_daily
+          configuration:
+            metric: total_revenue
+            dimension: seller_name
+            orientation: horizontal
+            sort: descending
+            show_values: true
+            row_limit: 10
+
+        - name: "Top 10 Sellers by Orders"
+          type: bar
+          width: 6
+          height: 4
+          description: "Highest volume sellers"
+          dataset: seller_performance_daily
+          configuration:
+            metric: total_orders
+            dimension: seller_name
+            orientation: horizontal
+            sort: descending
+            show_values: true
+            row_limit: 10
+
+    # Row 3: Distribution and Trends
+    - row: 3
+      charts:
+        - name: "Sellers by Tier"
+          type: pie
+          width: 4
+          height: 4
+          description: "Distribution by tier"
+          dataset: sellers_current
+          configuration:
+            metric: "COUNT(*)"
+            dimension: tier
+            show_labels: true
+
+        - name: "Revenue Trend by Tier"
+          type: line
+          width: 8
+          height: 4
+          description: "Revenue trends by seller tier"
+          dataset: seller_performance_daily
+          configuration:
+            metrics:
+              - total_revenue
+            dimension: date
+            time_grain: day
+            show_legend: true
+            breakdown_by: tier
+
+    # Row 4: Fee Analysis
+    - row: 4
+      charts:
+        - name: "Storage Fees by Seller"
+          type: bar
+          width: 6
+          height: 4
+          description: "Storage fees distribution"
+          dataset: seller_performance_daily
+          configuration:
+            metric: total_storage_fees
+            dimension: seller_name
+            orientation: horizontal
+            sort: descending
+            row_limit: 10
+
+        - name: "Fulfillment Fees by Seller"
+          type: bar
+          width: 6
+          height: 4
+          description: "Fulfillment fees distribution"
+          dataset: seller_performance_daily
+          configuration:
+            metric: total_fulfillment_fees
+            dimension: seller_name
+            orientation: horizontal
+            sort: descending
+            row_limit: 10
+
+    # Row 5: Detailed Table
+    - row: 5
+      charts:
+        - name: "Seller Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Detailed seller metrics"
+          dataset: seller_performance_daily
+          configuration:
+            columns:
+              - seller_name
+              - status
+              - tier
+              - total_orders
+              - total_revenue
+              - avg_order_value
+              - storage_fees
+              - fulfillment_fees
+              - channels_connected
+            order_by: total_revenue
+            order_direction: desc
+            conditional_formatting:
+              - column: status
+                conditions:
+                  - operator: "=="
+                    value: "active"
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: "=="
+                    value: "suspended"
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: seller_performance_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: seller_performance_daily
+  - name: sellers_current
+    database: trino
+    schema: iceberg.silver
+    table_name: sellers_current

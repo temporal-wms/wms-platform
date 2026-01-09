@@ -54,6 +54,27 @@ func (f *EventFactory) CreateEventWithCorrelation(
 	return event
 }
 
+// CreateEventWithContext creates an event with full WMS context
+func (f *EventFactory) CreateEventWithContext(
+	ctx context.Context,
+	eventType string,
+	subject string,
+	data interface{},
+	correlationID string,
+	workflowID string,
+	facilityID string,
+	warehouseID string,
+	orderID string,
+) *WMSCloudEvent {
+	event := f.CreateEvent(ctx, eventType, subject, data)
+	event.CorrelationID = correlationID
+	event.WorkflowID = workflowID
+	event.FacilityID = facilityID
+	event.WarehouseID = warehouseID
+	event.OrderID = orderID
+	return event
+}
+
 // CreateOrderReceivedEvent creates an OrderReceived event
 func (f *EventFactory) CreateOrderReceivedEvent(
 	ctx context.Context,

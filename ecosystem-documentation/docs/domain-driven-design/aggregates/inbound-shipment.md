@@ -107,7 +107,7 @@ stateDiagram-v2
 | Supplier Required | Shipment must have supplier information |
 | Expected Items | Cannot receive without expected items list |
 | Valid Status | Status transitions must follow state machine |
-| Received <= Expected | Cannot receive more than expected (overage is discrepancy) |
+| Received &lt;= Expected | Cannot receive more than expected (overage is discrepancy) |
 | Condition Required | Every received item must have condition |
 
 ## Commands
@@ -202,11 +202,11 @@ type InboundShipmentRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/shipments | Create shipment |
-| GET | /api/v1/shipments/{id} | Get shipment |
-| POST | /api/v1/shipments/{id}/arrive | Mark arrived |
-| POST | /api/v1/shipments/{id}/start | Start receiving |
-| POST | /api/v1/shipments/{id}/receive | Receive item |
-| POST | /api/v1/shipments/{id}/complete | Complete |
+| GET | /api/v1/shipments/\{id\} | Get shipment |
+| POST | /api/v1/shipments/\{id\}/arrive | Mark arrived |
+| POST | /api/v1/shipments/\{id\}/start | Start receiving |
+| POST | /api/v1/shipments/\{id\}/receive | Receive item |
+| POST | /api/v1/shipments/\{id\}/complete | Complete |
 
 ## Related Documentation
 

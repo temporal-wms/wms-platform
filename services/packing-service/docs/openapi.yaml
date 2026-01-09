@@ -1,20 +1,66 @@
 openapi: 3.0.3
 info:
-  title: Packing Service API
-  description: REST API for packing operations and label generation
+  title: WMS Packing Service API
+  description: |
+    REST API for packing operations in the WMS Platform.
+
+    This service handles:
+    - Pack task creation and lifecycle management
+    - Item verification and scanning
+    - Packaging selection and cartonization
+    - Shipping label application
+    - Integration with WES for route-based packing
+
+    **Pack Task Lifecycle:**
+    1. Created - Task ready for packer
+    2. Assigned - Packer assigned to task
+    3. Verifying - Items being scanned and verified
+    4. Packaging - Package type selected, items packed
+    5. Labeling - Shipping label applied
+    6. Completed - Package sealed and ready for shipping
+
+    **Packing Workflow:**
+    - Packer receives items from pick tote or put-wall bin
+    - Each item is scanned to verify correct order
+    - System suggests optimal packaging based on items
+    - Packer applies shipping label
+    - Package is sealed and sent to shipping
   version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
 
 servers:
   - url: http://localhost:8006/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
 
 tags:
-  - name: Packing
+  - name: Tasks
+    description: Pack task lifecycle management
+  - name: Verification
+    description: Item scanning and verification
+  - name: Packaging
+    description: Package selection and sealing
+  - name: Labeling
+    description: Shipping label operations
+  - name: Queries
+    description: Task queries and lookups
+  - name: Health
+    description: Service health and readiness
 
 paths:
   /tasks:
     post:
       summary: Create pack task
-      tags: [Packing]
+      description: |
+        Creates a new packing task for an order.
+
+        **Integration:**
+        - Called by WES workflow during route execution
+        - Publishes `PackTaskCreated` event on success
+      tags: [Tasks]
       parameters:
         - $ref: '#/components/parameters/WMSCorrelationID'
         - $ref: '#/components/parameters/WMSWaveNumber'
@@ -24,103 +70,363 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [orderId, items]
-              properties:
-                orderId:
-                  type: string
-                items:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      sku:
-                        type: string
-                      quantity:
-                        type: integer
+              $ref: '#/components/schemas/CreatePackTaskRequest'
             examples:
-              packTask:
+              fromPicking:
+                summary: Pack task from direct picking
                 value:
                   orderId: "ORD-A1B2C3D4"
+                  routeId: "RT-xyz123"
+                  sourceType: "tote"
+                  sourceToteId: "TOTE-001"
                   items:
                     - sku: "WIDGET-001"
+                      productName: "Premium Widget"
                       quantity: 2
                     - sku: "GADGET-002"
+                      productName: "Smart Gadget"
                       quantity: 1
+              fromPutWall:
+                summary: Pack task from put-wall
+                value:
+                  orderId: "ORD-E5F6G7H8"
+                  routeId: "RT-abc456"
+                  sourceType: "putwall_bin"
+                  sourceBinId: "BIN-A1"
+                  putWallId: "PUTWALL-1"
+                  items:
+                    - sku: "PART-003"
+                      productName: "Essential Part"
+                      quantity: 5
       responses:
         '201':
-          description: Pack task created
+          description: Pack task created successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PackTaskResponse'
+              examples:
+                created:
+                  value:
+                    taskId: "PK-a1b2c3d4"
+                    orderId: "ORD-A1B2C3D4"
+                    routeId: "RT-xyz123"
+                    status: "pending"
+                    items:
+                      - sku: "WIDGET-001"
+                        productName: "Premium Widget"
+                        quantity: 2
+                        verified: false
+                        verifiedQty: 0
+                    totalItems: 1
+                    totalQuantity: 2
+                    createdAt: "2024-12-24T10:00:00Z"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List pack tasks
+      description: Retrieve a paginated list of pack tasks with optional filtering
+      tags: [Queries]
+      parameters:
+        - name: status
+          in: query
+          description: Filter by task status
+          schema:
+            type: string
+            enum: [pending, assigned, verifying, packaging, labeling, completed, cancelled]
+        - name: packerId
+          in: query
+          description: Filter by assigned packer
+          schema:
+            type: string
+        - name: stationId
+          in: query
+          description: Filter by packing station
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of pack tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PackTaskResponse'
+                  total:
+                    type: integer
+
+  /tasks/{taskId}:
+    get:
+      summary: Get pack task by ID
+      description: Retrieve detailed information about a specific pack task
+      tags: [Queries]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Pack task ID
+          schema:
+            type: string
+          example: "PK-a1b2c3d4"
+      responses:
+        '200':
+          description: Pack task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/{taskId}/assign:
+    post:
+      summary: Assign packer to task
+      description: |
+        Assigns a packer (worker) to a pack task.
+
+        **State Transition:** `pending` → `assigned`
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignPackerRequest'
+            example:
+              packerId: "PACKER-001"
+              stationId: "PACK-STATION-5"
+      responses:
+        '200':
+          description: Packer assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /tasks/{taskId}/verify:
     post:
       summary: Verify item
-      tags: [Packing]
+      description: |
+        Scans and verifies an item is correct for the order.
+
+        **Behavior:**
+        - Updates verified quantity for the item
+        - First verification changes task to `verifying` status
+        - Publishes `ItemVerified` event
+
+        **Validation:**
+        - SKU must match expected item
+        - Cannot verify more than expected quantity
+      tags: [Verification]
       parameters:
         - name: taskId
           in: path
           required: true
           schema:
             type: string
+          example: "PK-a1b2c3d4"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [sku, quantity]
-              properties:
-                sku:
-                  type: string
-                quantity:
-                  type: integer
+              $ref: '#/components/schemas/VerifyItemRequest'
+            examples:
+              scan:
+                summary: Verify scanned item
+                value:
+                  sku: "WIDGET-001"
+                  quantity: 1
+                  barcode: "012345678901"
       responses:
         '200':
-          description: Item verified
+          description: Item verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
+        '400':
+          description: Invalid item or quantity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /tasks/{taskId}/package:
     post:
       summary: Select packaging
-      tags: [Packing]
+      description: |
+        Selects the packaging type for the order.
+
+        **State Transition:** `verifying` → `packaging`
+
+        **Cartonization:**
+        System can suggest optimal packaging based on item dimensions,
+        or packer can override with manual selection.
+      tags: [Packaging]
       parameters:
         - name: taskId
           in: path
           required: true
           schema:
             type: string
+          example: "PK-a1b2c3d4"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [packageType]
-              properties:
-                packageType:
-                  type: string
-                  enum: [small_box, medium_box, large_box, envelope]
-                dimensions:
-                  type: object
-                  properties:
-                    length:
-                      type: number
-                    width:
-                      type: number
-                    height:
-                      type: number
-                weight:
-                  type: number
+              $ref: '#/components/schemas/SelectPackageRequest'
+            examples:
+              smallBox:
+                summary: Small box packaging
+                value:
+                  packageType: "small_box"
+              customDimensions:
+                summary: Custom packaging dimensions
+                value:
+                  packageType: "custom"
+                  dimensions:
+                    length: 15
+                    width: 12
+                    height: 8
+                  weight: 2.5
       responses:
         '200':
-          description: Package selected
+          description: Package selected successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
+        '400':
+          description: Invalid package selection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/{taskId}/suggest-package:
+    get:
+      summary: Get packaging suggestion
+      description: |
+        Returns the system's recommended packaging based on item dimensions and weights.
+      tags: [Packaging]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Packaging suggestion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageSuggestion'
+              example:
+                suggestedPackageType: "medium_box"
+                dimensions:
+                  length: 14
+                  width: 10
+                  height: 6
+                estimatedWeight: 3.2
+                alternatives:
+                  - packageType: "small_box"
+                    fitScore: 0.7
+                  - packageType: "large_box"
+                    fitScore: 0.9
 
   /tasks/{taskId}/label:
     post:
       summary: Apply shipping label
-      tags: [Packing]
+      description: |
+        Applies a shipping label to the package.
+
+        **State Transition:** `packaging` → `labeling`
+
+        **Integration:**
+        - Receives label from shipping service
+        - Associates tracking number with package
+      tags: [Labeling]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "PK-a1b2c3d4"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyLabelRequest'
+            example:
+              labelId: "LBL-12345"
+              trackingNumber: "1Z999AA10123456784"
+              carrier: "UPS"
+      responses:
+        '200':
+          description: Label applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
+        '400':
+          description: Invalid label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/{taskId}/complete:
+    post:
+      summary: Complete pack task
+      description: |
+        Marks the packing task as completed. Package is sealed and ready for shipping.
+
+        **State Transition:** `labeling` → `completed`
+
+        **Integration:**
+        - Sends signal to WES workflow
+        - Publishes `PackTaskCompleted` event
+      tags: [Tasks]
       parameters:
         - name: taskId
           in: path
@@ -128,30 +434,18 @@ paths:
           schema:
             type: string
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               type: object
-              required: [labelId]
               properties:
-                labelId:
+                sealedWeight:
+                  type: number
+                  description: Final package weight
+                notes:
                   type: string
-      responses:
-        '200':
-          description: Label applied
-
-  /tasks/{taskId}/complete:
-    post:
-      summary: Complete pack task
-      description: Mark the packing task as completed
-      tags: [Packing]
-      parameters:
-        - name: taskId
-          in: path
-          required: true
-          schema:
-            type: string
+            example:
+              sealedWeight: 3.5
       responses:
         '200':
           description: Pack task completed
@@ -159,44 +453,438 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PackTaskResponse'
+        '400':
+          description: Task cannot be completed (items not verified, no label)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/{taskId}/cancel:
+    post:
+      summary: Cancel pack task
+      description: |
+        Cancels a pack task. Only allowed for tasks not yet completed.
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+            example:
+              reason: "Order cancelled by customer"
+      responses:
+        '200':
+          description: Task cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
         '400':
-          description: Task cannot be completed (not all items verified)
+          description: Cannot cancel task in current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/packer/{packerId}/active:
+    get:
+      summary: Get active tasks for packer
+      description: Retrieve all active (non-completed) tasks assigned to a packer
+      tags: [Queries]
+      parameters:
+        - name: packerId
+          in: path
+          required: true
+          description: Packer (worker) ID
+          schema:
+            type: string
+          example: "PACKER-001"
+      responses:
+        '200':
+          description: Active tasks for packer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  packerId:
+                    type: string
+                  activeTasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PackTaskResponse'
+                  totalActive:
+                    type: integer
+
+  /tasks/order/{orderId}:
+    get:
+      summary: Get pack task by order ID
+      description: Retrieve the pack task associated with an order
+      tags: [Queries]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "ORD-A1B2C3D4"
+      responses:
+        '200':
+          description: Pack task for order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackTaskResponse'
+        '404':
+          description: No pack task found for order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /health:
     get:
       summary: Health check
+      description: Returns the health status of the service
+      tags: [Health]
       responses:
         '200':
-          description: Healthy
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
 
 components:
   schemas:
+    CreatePackTaskRequest:
+      type: object
+      required:
+        - orderId
+        - items
+      properties:
+        orderId:
+          type: string
+          description: Order ID this task is for
+          example: "ORD-A1B2C3D4"
+        routeId:
+          type: string
+          description: WES route ID for tracking
+          example: "RT-xyz123"
+        sourceType:
+          type: string
+          enum: [tote, putwall_bin, consolidation]
+          description: Where items are coming from
+        sourceToteId:
+          type: string
+          description: Source tote ID (if from picking)
+        sourceBinId:
+          type: string
+          description: Source bin ID (if from put-wall)
+        putWallId:
+          type: string
+          description: Put-wall ID (if from put-wall)
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PackItem'
+
+    PackItem:
+      type: object
+      required:
+        - sku
+        - quantity
+      properties:
+        sku:
+          type: string
+          description: Product SKU
+          example: "WIDGET-001"
+        productName:
+          type: string
+          description: Product name for display
+          example: "Premium Widget"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity to pack
+          example: 2
+        weight:
+          type: number
+          description: Item weight
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+
     PackTaskResponse:
       type: object
       properties:
         taskId:
           type: string
+          description: Unique task identifier
+          example: "PK-a1b2c3d4"
         orderId:
           type: string
-        status:
+          description: Associated order ID
+          example: "ORD-A1B2C3D4"
+        routeId:
           type: string
+          description: WES route ID
+        packerId:
+          type: string
+          description: Assigned packer ID
+        stationId:
+          type: string
+          description: Packing station ID
+        status:
+          $ref: '#/components/schemas/PackTaskStatus'
         items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PackItemStatus'
+        packageType:
+          type: string
+          description: Selected package type
+        packageId:
+          type: string
+          description: Package/carton ID
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        weight:
+          type: number
+          description: Package weight
+        labelId:
+          type: string
+          description: Applied label ID
+        trackingNumber:
+          type: string
+          description: Shipping tracking number
+        carrier:
+          type: string
+          description: Shipping carrier
+        totalItems:
+          type: integer
+        totalQuantity:
+          type: integer
+        verifiedQuantity:
+          type: integer
+        duration:
+          type: string
+          description: ISO 8601 duration if completed
+          example: "PT8M45S"
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+
+    PackTaskStatus:
+      type: string
+      enum:
+        - pending
+        - assigned
+        - verifying
+        - packaging
+        - labeling
+        - completed
+        - cancelled
+      description: |
+        Task status:
+        - `pending`: Created, waiting for packer
+        - `assigned`: Packer assigned, ready to start
+        - `verifying`: Items being scanned and verified
+        - `packaging`: Package selected, items packed
+        - `labeling`: Shipping label applied
+        - `completed`: Package sealed, ready for shipping
+        - `cancelled`: Task cancelled
+
+    PackItemStatus:
+      type: object
+      properties:
+        sku:
+          type: string
+          example: "WIDGET-001"
+        productName:
+          type: string
+        quantity:
+          type: integer
+          description: Quantity to pack
+          example: 2
+        verified:
+          type: boolean
+          description: Whether all quantity has been verified
+          example: true
+        verifiedQty:
+          type: integer
+          description: Quantity verified so far
+          example: 2
+
+    AssignPackerRequest:
+      type: object
+      required:
+        - packerId
+      properties:
+        packerId:
+          type: string
+          description: Packer (worker) ID to assign
+          example: "PACKER-001"
+        stationId:
+          type: string
+          description: Packing station ID
+          example: "PACK-STATION-5"
+
+    VerifyItemRequest:
+      type: object
+      required:
+        - sku
+        - quantity
+      properties:
+        sku:
+          type: string
+          description: Product SKU to verify
+          example: "WIDGET-001"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity verified
+          example: 1
+        barcode:
+          type: string
+          description: Scanned barcode
+
+    SelectPackageRequest:
+      type: object
+      required:
+        - packageType
+      properties:
+        packageType:
+          type: string
+          enum: [small_box, medium_box, large_box, envelope, padded_envelope, custom]
+          description: Package type to use
+        dimensions:
+          type: object
+          description: Custom dimensions (required for custom type)
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        weight:
+          type: number
+          description: Package weight (optional)
+
+    ApplyLabelRequest:
+      type: object
+      required:
+        - labelId
+      properties:
+        labelId:
+          type: string
+          description: Shipping label ID
+          example: "LBL-12345"
+        trackingNumber:
+          type: string
+          description: Tracking number from carrier
+          example: "1Z999AA10123456784"
+        carrier:
+          type: string
+          description: Carrier name
+          example: "UPS"
+
+    PackageSuggestion:
+      type: object
+      properties:
+        suggestedPackageType:
+          type: string
+          description: Recommended package type
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        estimatedWeight:
+          type: number
+        alternatives:
           type: array
           items:
             type: object
             properties:
-              sku:
+              packageType:
                 type: string
-              quantity:
-                type: integer
-              verified:
-                type: boolean
-        packageType:
+              fitScore:
+                type: number
+                description: How well items fit (0-1)
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
           type: string
-        labelId:
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
           type: string
+          description: Error message
+          example: "task not found"
+        code:
+          type: string
+          description: Error code
+          example: "NOT_FOUND"
 
   parameters:
     WMSCorrelationID:

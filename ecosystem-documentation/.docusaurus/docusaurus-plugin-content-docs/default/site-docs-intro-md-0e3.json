@@ -1,0 +1,23 @@
+{
+  "id": "intro",
+  "title": "WMS Platform",
+  "description": "Welcome to the Warehouse Management System (WMS) Platform documentation. This comprehensive guide covers the architecture, design decisions, and implementation details of a production-ready warehouse management system built with microservices.",
+  "source": "@site/docs/intro.md",
+  "sourceDirName": ".",
+  "slug": "/",
+  "permalink": "/wms-platform/",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1,
+    "slug": "/"
+  },
+  "sidebar": "docsSidebar",
+  "next": {
+    "title": "Architecture Overview",
+    "permalink": "/wms-platform/architecture/overview"
+  }
+}

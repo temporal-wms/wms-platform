@@ -1,140 +1,529 @@
 asyncapi: 3.0.0
 info:
-  title: Inventory Service Events
+  title: WMS Inventory Service Events
   version: 1.0.0
   description: |
-    Event-driven API for the Inventory Service.
+    AsyncAPI specification for Inventory Service domain events.
 
-    This service publishes events related to inventory management including
-    stock receipts, reservations, releases, adjustments, and low stock alerts.
+    The Inventory service publishes events to track stock level changes across the warehouse.
+    Events follow the CloudEvents 1.0 specification.
+
+    **Event Flow:**
+    1. InventoryItemCreated - When a new SKU is onboarded
+    2. InventoryReceived - When new stock arrives
+    3. InventoryReserved - When stock is allocated to an order
+    4. InventoryReleased - When reserved stock is released
+    5. InventoryPicked - When stock is physically picked
+    6. InventoryAdjusted - When quantities are corrected
+    7. LowStockAlert - When stock falls below reorder point
+    8. LowStockCleared - When stock is replenished above reorder point
+
+    **Integration:**
+    - Order service listens for InventoryReserved to confirm allocation
+    - Picking service listens for reservation events
+    - Procurement/replenishment systems listen for LowStockAlert
+    - WES listens for inventory events during workflow execution
   contact:
     name: WMS Platform Team
-    email: wms-platform@example.com
+    email: wms@example.com
 
 servers:
-  development:
+  kafka:
     host: localhost:9092
     protocol: kafka
-    description: Local development Kafka
+    description: Local Kafka broker
+
+defaultContentType: application/json
 
 channels:
   wms.inventory.events:
     address: wms.inventory.events
+    description: Inventory management events topic (6 partitions, keyed by SKU)
     messages:
-      InventoryReceived:
-        $ref: '#/components/messages/InventoryReceived'
-      InventoryReserved:
-        $ref: '#/components/messages/InventoryReserved'
-      InventoryReleased:
-        $ref: '#/components/messages/InventoryReleased'
-      InventoryAdjusted:
-        $ref: '#/components/messages/InventoryAdjusted'
-      LowStockAlert:
-        $ref: '#/components/messages/LowStockAlert'
-    description: Inventory management events
+      inventoryItemCreated:
+        $ref: '#/components/messages/InventoryItemCreatedEvent'
+      inventoryReceived:
+        $ref: '#/components/messages/InventoryReceivedEvent'
+      inventoryReserved:
+        $ref: '#/components/messages/InventoryReservedEvent'
+      inventoryReleased:
+        $ref: '#/components/messages/InventoryReleasedEvent'
+      inventoryPicked:
+        $ref: '#/components/messages/InventoryPickedEvent'
+      inventoryAdjusted:
+        $ref: '#/components/messages/InventoryAdjustedEvent'
+      lowStockAlert:
+        $ref: '#/components/messages/LowStockAlertEvent'
+      lowStockCleared:
+        $ref: '#/components/messages/LowStockClearedEvent'
 
 operations:
+  publishInventoryItemCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish inventory item created event
+    description: Published when a new SKU is added to the inventory system
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/inventoryItemCreated'
+
+  publishInventoryReceived:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish inventory received event
+    description: Published when new stock is received and put away to a location
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/inventoryReceived'
+
   publishInventoryReserved:
     action: send
     channel:
       $ref: '#/channels/wms.inventory.events'
+    summary: Publish inventory reserved event
+    description: Published when stock is reserved for an order
     messages:
-      - $ref: '#/channels/wms.inventory.events/messages/InventoryReserved'
-    description: Published when inventory is reserved for an order
+      - $ref: '#/channels/wms.inventory.events/messages/inventoryReserved'
+
+  publishInventoryReleased:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish inventory released event
+    description: Published when reserved stock is released back to available
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/inventoryReleased'
+
+  publishInventoryPicked:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish inventory picked event
+    description: Published when stock is physically removed from inventory
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/inventoryPicked'
+
+  publishInventoryAdjusted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish inventory adjusted event
+    description: Published when inventory quantities are adjusted (cycle count, damage, etc.)
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/inventoryAdjusted'
 
   publishLowStockAlert:
     action: send
     channel:
       $ref: '#/channels/wms.inventory.events'
-    messages:
-      - $ref: '#/channels/wms.inventory.events/messages/LowStockAlert'
+    summary: Publish low stock alert event
     description: Published when stock falls below reorder point
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/lowStockAlert'
+
+  publishLowStockCleared:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish low stock cleared event
+    description: Published when stock is replenished above reorder point
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/lowStockCleared'
 
 components:
   messages:
-    InventoryReceived:
-      name: InventoryReceived
-      title: Inventory Received Event
+    InventoryItemCreatedEvent:
+      name: InventoryItemCreatedEvent
+      title: Inventory Item Created
+      summary: Published when a new SKU is onboarded
+      description: |
+        Triggered when a new inventory item (SKU) is created in the system.
+        Initial quantities are zero until stock is received.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/InventoryItemCreatedPayload'
+      examples:
+        - name: itemCreated
+          summary: New SKU created
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.item-created"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "WIDGET-001"
+            ce_id: "evt-a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            ce_time: "2024-12-24T08:00:00Z"
+            ce_datacontenttype: "application/json"
+          payload:
+            sku: "WIDGET-001"
+            productName: "Premium Widget"
+            reorderPoint: 10
+            reorderQuantity: 100
+            createdAt: "2024-12-24T08:00:00Z"
+
+    InventoryReceivedEvent:
+      name: InventoryReceivedEvent
+      title: Inventory Received
       summary: Published when new inventory is received
-      contentType: application/cloudevents+json
+      description: |
+        Triggered when new stock arrives and is put away to a warehouse location.
+        Increments available quantity for the SKU.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/InventoryReceivedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: received
+          summary: Stock received at location
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.received"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "WIDGET-001"
+            ce_id: "evt-b2c3d4e5-f6a7-8901-bcde-f23456789012"
+            ce_time: "2024-12-24T09:00:00Z"
+            ce_datacontenttype: "application/json"
+          payload:
+            receiptId: "RCV-a1b2c3d4"
+            sku: "WIDGET-001"
+            productName: "Premium Widget"
+            quantity: 100
+            locationId: "A-1-2-3"
+            zone: "A"
+            previousQuantity: 50
+            newQuantity: 150
+            receivedAt: "2024-12-24T09:00:00Z"
 
-    InventoryReserved:
-      name: InventoryReserved
-      title: Inventory Reserved Event
+    InventoryReservedEvent:
+      name: InventoryReservedEvent
+      title: Inventory Reserved
       summary: Published when inventory is reserved for an order
-      contentType: application/cloudevents+json
+      description: |
+        Triggered when stock is allocated to an order.
+        Moves quantity from available to reserved state.
+        Order service listens to confirm stock allocation.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/InventoryReservedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: reserved
+          summary: Stock reserved for order
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.reserved"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "WIDGET-001"
+            ce_id: "evt-c3d4e5f6-a7b8-9012-cdef-345678901234"
+            ce_time: "2024-12-24T10:00:00Z"
+            ce_datacontenttype: "application/json"
+            ce_wmscorrelationid: "550e8400-e29b-41d4-a716-446655440000"
+            ce_wmsworkflowid: "order-fulfillment-ORD-A1B2C3D4"
+          payload:
+            reservationId: "RSV-a1b2c3d4"
+            orderId: "ORD-A1B2C3D4"
+            sku: "WIDGET-001"
+            quantity: 5
+            locationId: "A-1-2-3"
+            availableAfter: 120
+            reservedAt: "2024-12-24T10:00:00Z"
 
-    InventoryReleased:
-      name: InventoryReleased
-      title: Inventory Released Event
+    InventoryReleasedEvent:
+      name: InventoryReleasedEvent
+      title: Inventory Released
       summary: Published when reserved inventory is released
-      contentType: application/cloudevents+json
+      description: |
+        Triggered when reserved stock is released back to available state.
+        Common reasons: order cancellation, pick exception, timeout.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/InventoryReleasedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: released
+          summary: Stock released due to order cancellation
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.released"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "WIDGET-001"
+            ce_id: "evt-d4e5f6a7-b8c9-0123-def0-456789012345"
+            ce_time: "2024-12-24T10:30:00Z"
+            ce_datacontenttype: "application/json"
+          payload:
+            releaseId: "REL-a1b2c3d4"
+            reservationId: "RSV-a1b2c3d4"
+            orderId: "ORD-A1B2C3D4"
+            sku: "WIDGET-001"
+            quantity: 5
+            locationId: "A-1-2-3"
+            reason: "order_cancelled"
+            availableAfter: 125
+            releasedAt: "2024-12-24T10:30:00Z"
 
-    InventoryAdjusted:
-      name: InventoryAdjusted
-      title: Inventory Adjusted Event
+    InventoryPickedEvent:
+      name: InventoryPickedEvent
+      title: Inventory Picked
+      summary: Published when stock is physically picked
+      description: |
+        Triggered when reserved stock is physically removed from inventory.
+        Decrements both reserved and total quantities.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/InventoryPickedPayload'
+      examples:
+        - name: picked
+          summary: Stock picked for order
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.picked"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "WIDGET-001"
+            ce_id: "evt-e5f6a7b8-c9d0-1234-ef01-567890123456"
+            ce_time: "2024-12-24T11:00:00Z"
+            ce_datacontenttype: "application/json"
+            ce_wmscorrelationid: "550e8400-e29b-41d4-a716-446655440000"
+            ce_wmsworkflowid: "order-fulfillment-ORD-A1B2C3D4"
+          payload:
+            pickId: "PCK-a1b2c3d4"
+            orderId: "ORD-A1B2C3D4"
+            sku: "WIDGET-001"
+            quantity: 5
+            locationId: "A-1-2-3"
+            totalAfter: 120
+            availableAfter: 100
+            pickedAt: "2024-12-24T11:00:00Z"
+
+    InventoryAdjustedEvent:
+      name: InventoryAdjustedEvent
+      title: Inventory Adjusted
       summary: Published when inventory quantities are adjusted
-      contentType: application/cloudevents+json
+      description: |
+        Triggered when inventory is adjusted due to:
+        - Cycle count corrections
+        - Damage write-offs
+        - Found inventory
+        - Shrinkage
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/InventoryAdjustedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: cycleCount
+          summary: Cycle count adjustment
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.adjusted"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "WIDGET-001"
+            ce_id: "evt-f6a7b8c9-d0e1-2345-f012-678901234567"
+            ce_time: "2024-12-24T14:00:00Z"
+            ce_datacontenttype: "application/json"
+          payload:
+            adjustmentId: "ADJ-a1b2c3d4"
+            sku: "WIDGET-001"
+            locationId: "A-1-2-3"
+            previousQuantity: 100
+            newQuantity: 95
+            quantityChange: -5
+            reason: "cycle_count"
+            notes: "Quarterly cycle count - 5 units missing"
+            adjustedAt: "2024-12-24T14:00:00Z"
+        - name: damage
+          summary: Damage write-off
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.adjusted"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "GADGET-002"
+            ce_id: "evt-a7b8c9d0-e1f2-3456-0123-789012345678"
+            ce_time: "2024-12-24T15:00:00Z"
+            ce_datacontenttype: "application/json"
+          payload:
+            adjustmentId: "ADJ-e5f6g7h8"
+            sku: "GADGET-002"
+            locationId: "B-2-1-1"
+            previousQuantity: 50
+            newQuantity: 47
+            quantityChange: -3
+            reason: "damage"
+            notes: "3 units water damaged from roof leak"
+            adjustedAt: "2024-12-24T15:00:00Z"
 
-    LowStockAlert:
-      name: LowStockAlert
-      title: Low Stock Alert Event
+    LowStockAlertEvent:
+      name: LowStockAlertEvent
+      title: Low Stock Alert
       summary: Published when inventory falls below reorder point
-      contentType: application/cloudevents+json
+      description: |
+        Triggered when available quantity drops below the configured reorder point.
+        Procurement/replenishment systems should listen to initiate reorders.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/LowStockAlertPayload'
+      examples:
+        - name: lowStock
+          summary: Stock below reorder point
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.low-stock-alert"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "WIDGET-001"
+            ce_id: "evt-b8c9d0e1-f2a3-4567-1234-890123456789"
+            ce_time: "2024-12-24T16:00:00Z"
+            ce_datacontenttype: "application/json"
+          payload:
+            sku: "WIDGET-001"
+            productName: "Premium Widget"
+            currentQuantity: 8
+            reorderPoint: 10
+            reorderQuantity: 100
+            deficit: 2
+            alertedAt: "2024-12-24T16:00:00Z"
+
+    LowStockClearedEvent:
+      name: LowStockClearedEvent
+      title: Low Stock Cleared
+      summary: Published when stock is replenished above reorder point
+      description: |
+        Triggered when available quantity rises above the reorder point
+        after previously being in low-stock state.
+      contentType: application/json
       headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/LowStockClearedPayload'
+      examples:
+        - name: cleared
+          summary: Stock replenished above reorder point
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.inventory.low-stock-cleared"
+            ce_source: "/wms/inventory-service"
+            ce_subject: "WIDGET-001"
+            ce_id: "evt-c9d0e1f2-a3b4-5678-2345-901234567890"
+            ce_time: "2024-12-24T17:00:00Z"
+            ce_datacontenttype: "application/json"
+          payload:
+            sku: "WIDGET-001"
+            productName: "Premium Widget"
+            previousQuantity: 8
+            currentQuantity: 108
+            reorderPoint: 10
+            clearedAt: "2024-12-24T17:00:00Z"
 
   schemas:
-    CloudEventsHeaders:
+    CloudEventHeaders:
       type: object
+      description: CloudEvents 1.0 headers with WMS extensions
       properties:
-        ce-specversion:
+        ce_specversion:
           type: string
           const: '1.0'
-        ce-type:
+          description: CloudEvents specification version
+        ce_type:
           type: string
-        ce-source:
+          description: Event type (e.g., wms.inventory.reserved)
+        ce_source:
           type: string
-        ce-id:
+          const: '/wms/inventory-service'
+          description: Event source identifier
+        ce_subject:
           type: string
-        ce-time:
+          description: Subject (SKU for inventory events)
+        ce_id:
+          type: string
+          format: uuid
+          description: Unique event identifier
+        ce_time:
           type: string
           format: date-time
-        ce-wmscorrelationid:
+          description: Event timestamp
+        ce_datacontenttype:
           type: string
-        content-type:
+          const: 'application/json'
+          description: Content type of the data
+        ce_wmscorrelationid:
           type: string
-          const: application/json
+          description: Correlation ID for distributed tracing
+        ce_wmswavenumber:
+          type: string
+          description: Wave number for wave-based processing
+        ce_wmsworkflowid:
+          type: string
+          description: Temporal workflow ID
+
+    InventoryItemCreatedPayload:
+      type: object
+      properties:
+        sku:
+          type: string
+          description: Product SKU
+          example: "WIDGET-001"
+        productName:
+          type: string
+          description: Product display name
+          example: "Premium Widget"
+        reorderPoint:
+          type: integer
+          description: Low-stock alert threshold
+          example: 10
+        reorderQuantity:
+          type: integer
+          description: Suggested reorder quantity
+          example: 100
+        createdAt:
+          type: string
+          format: date-time
 
     InventoryReceivedPayload:
       type: object
       properties:
         receiptId:
           type: string
+          description: Unique receipt identifier
+          example: "RCV-a1b2c3d4"
         sku:
           type: string
+          description: Product SKU
+          example: "WIDGET-001"
+        productName:
+          type: string
+          example: "Premium Widget"
         quantity:
           type: integer
+          description: Quantity received
+          example: 100
         locationId:
           type: string
+          description: Warehouse location
+          example: "A-1-2-3"
+        zone:
+          type: string
+          description: Warehouse zone
+          example: "A"
+        lotNumber:
+          type: string
+          description: Lot/batch number
+        expiryDate:
+          type: string
+          format: date
+        previousQuantity:
+          type: integer
+          description: Quantity before receipt
+          example: 50
+        newQuantity:
+          type: integer
+          description: Quantity after receipt
+          example: 150
         receivedAt:
           type: string
           format: date-time
@@ -144,12 +533,27 @@ components:
       properties:
         reservationId:
           type: string
+          description: Unique reservation identifier
+          example: "RSV-a1b2c3d4"
         orderId:
           type: string
+          description: Order ID for the reservation
+          example: "ORD-A1B2C3D4"
         sku:
           type: string
+          example: "WIDGET-001"
         quantity:
           type: integer
+          description: Quantity reserved
+          example: 5
+        locationId:
+          type: string
+          description: Location reserved from
+          example: "A-1-2-3"
+        availableAfter:
+          type: integer
+          description: Available quantity after reservation
+          example: 120
         reservedAt:
           type: string
           format: date-time
@@ -157,15 +561,70 @@ components:
     InventoryReleasedPayload:
       type: object
       properties:
+        releaseId:
+          type: string
+          description: Unique release identifier
+          example: "REL-a1b2c3d4"
         reservationId:
           type: string
+          description: Original reservation ID
+          example: "RSV-a1b2c3d4"
         orderId:
           type: string
+          example: "ORD-A1B2C3D4"
         sku:
           type: string
+          example: "WIDGET-001"
         quantity:
           type: integer
+          description: Quantity released
+          example: 5
+        locationId:
+          type: string
+          example: "A-1-2-3"
+        reason:
+          type: string
+          enum: [order_cancelled, short_pick, damaged, adjustment, timeout]
+          description: Reason for release
+          example: "order_cancelled"
+        availableAfter:
+          type: integer
+          description: Available quantity after release
+          example: 125
         releasedAt:
+          type: string
+          format: date-time
+
+    InventoryPickedPayload:
+      type: object
+      properties:
+        pickId:
+          type: string
+          description: Unique pick confirmation identifier
+          example: "PCK-a1b2c3d4"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        sku:
+          type: string
+          example: "WIDGET-001"
+        quantity:
+          type: integer
+          description: Quantity picked
+          example: 5
+        locationId:
+          type: string
+          description: Location picked from
+          example: "A-1-2-3"
+        totalAfter:
+          type: integer
+          description: Total quantity after pick
+          example: 120
+        availableAfter:
+          type: integer
+          description: Available quantity after pick
+          example: 100
+        pickedAt:
           type: string
           format: date-time
 
@@ -174,12 +633,35 @@ components:
       properties:
         adjustmentId:
           type: string
+          description: Unique adjustment identifier
+          example: "ADJ-a1b2c3d4"
         sku:
           type: string
+          example: "WIDGET-001"
+        locationId:
+          type: string
+          example: "A-1-2-3"
+        previousQuantity:
+          type: integer
+          description: Quantity before adjustment
+          example: 100
+        newQuantity:
+          type: integer
+          description: Quantity after adjustment
+          example: 95
         quantityChange:
           type: integer
+          description: Change amount (negative for reduction)
+          example: -5
         reason:
           type: string
+          enum: [cycle_count, damage, found, shrinkage, correction]
+          description: Reason for adjustment
+          example: "cycle_count"
+        notes:
+          type: string
+          description: Additional notes
+          example: "Quarterly cycle count"
         adjustedAt:
           type: string
           format: date-time
@@ -189,10 +671,50 @@ components:
       properties:
         sku:
           type: string
+          example: "WIDGET-001"
+        productName:
+          type: string
+          example: "Premium Widget"
         currentQuantity:
           type: integer
+          description: Current available quantity
+          example: 8
         reorderPoint:
           type: integer
+          description: Configured reorder threshold
+          example: 10
+        reorderQuantity:
+          type: integer
+          description: Suggested reorder quantity
+          example: 100
+        deficit:
+          type: integer
+          description: How much below reorder point
+          example: 2
         alertedAt:
+          type: string
+          format: date-time
+
+    LowStockClearedPayload:
+      type: object
+      properties:
+        sku:
+          type: string
+          example: "WIDGET-001"
+        productName:
+          type: string
+          example: "Premium Widget"
+        previousQuantity:
+          type: integer
+          description: Quantity before replenishment
+          example: 8
+        currentQuantity:
+          type: integer
+          description: Current quantity after replenishment
+          example: 108
+        reorderPoint:
+          type: integer
+          example: 10
+        clearedAt:
           type: string
           format: date-time

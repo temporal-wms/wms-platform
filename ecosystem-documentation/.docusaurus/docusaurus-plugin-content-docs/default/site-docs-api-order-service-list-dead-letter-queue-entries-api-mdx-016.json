@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/list-dead-letter-queue-entries",
+  "title": "List dead letter queue entries",
+  "description": "Retrieve failed orders from the dead letter queue with optional filtering",
+  "source": "@site/docs/api/order-service/list-dead-letter-queue-entries.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/list-dead-letter-queue-entries",
+  "permalink": "/wms-platform/api/order-service/list-dead-letter-queue-entries",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "list-dead-letter-queue-entries",
+    "title": "List dead letter queue entries",
+    "description": "Retrieve failed orders from the dead letter queue with optional filtering",
+    "sidebar_label": "List dead letter queue entries",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJy9Vttu4zYQ/RWCz75lgQKFn5omQTdA2ubW7sPGKGhpbHFDkQxJOesa/vfOkLItW/I6WbT1i0HNfeZweFY8B585aYM0mo/5PQQnYQFsJqSCnBmXg/Ns5kzJQgEsB5EzBSGAYy8VVMBeZSiYifZCsZlUKJJ6zns8iLnn48/8kmxuks0d2fBJj1vhRAn4iVRWXOMBwzvwRi0gR2tJ6WAIt8SDzwooBR+veFhaUpwao0Bovl73tsaUcuXgIYhQ+ZMefIhpNh1klQ+mBHd9On6HtVHYqsdC6I+mcqfj66qcgtvzoGQpw0lDqQPM0bKHo5uJSgU+/mG0l8hs5uG7/KAbHA0OwRrtwZPyh9GI/vZRcnlzx0ATUjxzNWKoZ5lBnzqQgbBWyUyQwfCLJ6tVOwUz/QIZZWqdseCCTDFzEZpawjlBFcgApT9tHSGLI2wPq9eccJd4H0Hf0LgHUdfU0qB+LC9Mldpw0GuUGyfnEq/K75Tmf1qNP16GdRLzCMsjQlNKD/klKLlA8JyHthp2wrhSoISmBf0gEXoUs5DWosJ5niOMOqfl4KWSDvGCqwG9QYRqRsmklAH//5b2wuQQIYWdRABPDhtTm3YXTqIP3T07VnUK3SXZJNPprk6vazPwIIOiT5tmrNsYfie2/XN1bGR5lYXf4gLokL9UQof9yhuQrLQMt05mTdvNeurxV5DzInSIGhVGMF9jDemrCUJdH1TUiBfld99MKap8Oha5lv8pVHUkZ7GAY5fGAQ46fw+oK5u/z+SwM/f1Rk37oX7iOh6zWlqlNduOBVghXZtS6Eqov+KqoTsidAZKxRWMe1ooypZPGsF+7sb8RvyeZmgToHup/M+dxUfoKt69LeS6oJR+PY5cozDYdD6P+8aKUOBhSHymn/hMP/IZWkLgFhteUjn0yosQ7Hg4VAZ7Wxgfxj+ORmdDYeVwcRbfz73HER9DZWyJDyFLrjg9zjtPHl2h7eC19AP4KkqrYJCZ8pi/23S38bB1N6G3fWZivU2csQdUwHvMzm+vW34uTGkdFKA9bnV2f/XwSGoMu5xYHkNUiTnEvGnnxLfbM6kj8fv06wOzCCwayuBJP+nHQvqYEMVD1pMr8OMn3WcpkwgGyhklbCGUzONxp6DkDLJlpqARdyvt0wVmwns51zGh4ET2jLDY2afXjSUE+RiGqA4uyieNtdMEU91ng9FgVJMTkUWk1USJarqta2KPIEq6PyW+8CjD4fzUGE4EmcXRY7INDzfShw5OXHOjwxGsdgTp3yXaCfMBvoYhzkjGTRLxtqqB/pm3gY4gIiyTcLWaCg9/OLVe0+dEGQn+ufRiSotlPBPKQ48/w3Kfpi/SDuYR40fUD4n5W2z2uPhbDFr0+y1GG8b9pgAbWr1TntDBSdLGdtHCLbDNROuwd8nqPMvANq1axJi8bLfTL1ePCLV/AJL/sPg=",
+    "sidebar_class_name": "get api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Increment retry count",
+    "permalink": "/wms-platform/api/order-service/increment-retry-count"
+  },
+  "next": {
+    "title": "List orders",
+    "permalink": "/wms-platform/api/order-service/list-orders"
+  }
+}

@@ -11,7 +11,9 @@ This document describes the bounded contexts within the WMS Platform and their r
 ```mermaid
 graph TB
     subgraph "Core Domain"
+        WES[WES Context<br/>Execution Orchestration]
         Picking[Picking Context<br/>Pick Operations]
+        Walling[Walling Context<br/>Put-Wall Sorting]
         Routing[Routing Context<br/>Path Optimization]
         Waving[Waving Context<br/>Batch Grouping]
     end
@@ -28,12 +30,93 @@ graph TB
         Shipping[Shipping Context<br/>Carrier Integration]
     end
 
+    style WES fill:#ff9999
     style Picking fill:#ff9999
+    style Walling fill:#ff9999
     style Routing fill:#ff9999
     style Waving fill:#ff9999
 ```
 
 ## Core Domain Contexts
+
+### WES Context (Warehouse Execution System)
+
+The WES context is the central execution orchestration layer that coordinates all warehouse operations through configurable process paths.
+
+| Aspect | Description |
+|--------|-------------|
+| **Responsibility** | Orchestrate execution stages (picking, walling, packing) |
+| **Aggregate Root** | TaskRoute |
+| **Key Entities** | StageStatus, StageTemplate |
+| **Value Objects** | ProcessPathType, StageType, RouteStatus |
+| **Domain Events** | RouteCreated, StageAssigned, StageStarted, StageCompleted, RouteFailed |
+
+```mermaid
+classDiagram
+    class TaskRoute {
+        <<Aggregate Root>>
+        +ID string
+        +OrderID string
+        +WaveID string
+        +PathType ProcessPathType
+        +Stages []StageStatus
+        +CurrentStageIdx int
+        +Status RouteStatus
+        +AssignWorkerToCurrentStage()
+        +StartCurrentStage()
+        +CompleteCurrentStage()
+        +FailCurrentStage()
+    }
+
+    class StageTemplate {
+        <<Entity>>
+        +ID string
+        +Name string
+        +PathType ProcessPathType
+        +Stages []StageDefinition
+    }
+```
+
+**Why Core Domain?**
+- Central orchestration of all warehouse execution
+- Complex stage coordination and path resolution
+- Critical for operational efficiency
+
+### Walling Context
+
+The Walling context handles put-wall sorting operations where picked items from totes are sorted into order-specific bins.
+
+| Aspect | Description |
+|--------|-------------|
+| **Responsibility** | Manage put-wall sorting tasks |
+| **Aggregate Root** | WallingTask |
+| **Key Entities** | SourceTote, ItemToSort, SortedItem |
+| **Value Objects** | ToteID, BinID, SKU |
+| **Domain Events** | WallingTaskCreated, WallingTaskAssigned, ItemSorted, WallingTaskCompleted |
+
+```mermaid
+classDiagram
+    class WallingTask {
+        <<Aggregate Root>>
+        +ID string
+        +OrderID string
+        +WaveID string
+        +RouteID string
+        +WallinerID string
+        +SourceTotes []SourceTote
+        +ItemsToSort []ItemToSort
+        +SortedItems []SortedItem
+        +Status WallingTaskStatus
+        +Assign()
+        +SortItem()
+        +Complete()
+    }
+```
+
+**Why Core Domain?**
+- Enables efficient batch order processing
+- Complex sorting logic and validation
+- Direct impact on packing throughput
 
 ### Picking Context
 
@@ -349,5 +432,7 @@ Some concepts are shared across contexts:
 ## Related Documentation
 
 - [Context Map](./context-map) - Context relationships
-- [Aggregates](./aggregates/order) - Aggregate details
+- [TaskRoute Aggregate](./aggregates/task-route) - WES execution tracking
+- [WallingTask Aggregate](./aggregates/walling-task) - Put-wall task management
+- [Aggregates](./aggregates/order) - Other aggregate details
 - [Domain Events](./domain-events) - Event catalog

@@ -141,6 +141,8 @@ Kafka Event Topics ───┘                                         │
 
 Each WMS domain is exposed as a Data Product with defined ownership, SLAs, and quality expectations.
 
+### Core Data Products
+
 | Data Product | Owner | Source | Freshness SLA | Quality SLA |
 |--------------|-------|--------|---------------|-------------|
 | `orders-dp` | Order Team | `wms.orders.events`, MongoDB | < 5 min | 99.9% completeness |
@@ -151,6 +153,20 @@ Each WMS domain is exposed as a Data Product with defined ownership, SLAs, and q
 | `shipping-dp` | Logistics | `wms.shipping.events`, MongoDB | < 5 min | 99.9% completeness |
 | `labor-dp` | HR/Operations | `wms.labor.events`, MongoDB | < 5 min | 99.9% completeness |
 | `fulfillment-dp` | Operations | Multiple domains (aggregated) | < 15 min | N/A |
+
+### Extended Data Products (v2.0)
+
+| Data Product | Owner | Source | Freshness SLA | Quality SLA |
+|--------------|-------|--------|---------------|-------------|
+| `billing-dp` | Finance Team | `wms.billing_activities`, `wms.invoices` | < 5 min | 99.9% completeness |
+| `seller-dp` | Business Ops Team | `wms.sellers` | < 15 min | 99.9% completeness |
+| `channel-dp` | Integrations Team | `wms.channels` | < 5 min | 99.9% completeness |
+| `facility-dp` | Facility Ops Team | `wms.stations` | < 5 min | 99.9% completeness |
+| `sortation-dp` | Operations Team | `wms.sortation_batches` | < 5 min | 99.9% completeness |
+| `walling-dp` | Operations Team | `wms.wall_assignments` | < 5 min | 99.9% completeness |
+| `unit-dp` | Inventory Team | `wms.units` | < 1 min | 99.99% accuracy |
+| `process-path-dp` | Engineering Team | `wms.process_paths` | < 15 min | 99.9% completeness |
+| `wes-dp` | Engineering Team | `wms.wes_stages` | < 5 min | 99.9% completeness |
 
 ### Data Product Schema
 
@@ -176,6 +192,16 @@ Each data product includes:
   - `bronze.pack_tasks_raw`
   - `bronze.shipments_raw`
   - `bronze.workers_raw`
+  - `bronze.billing_activities_raw` (v2.0)
+  - `bronze.invoices_raw` (v2.0)
+  - `bronze.sellers_raw` (v2.0)
+  - `bronze.channels_raw` (v2.0)
+  - `bronze.stations_raw` (v2.0)
+  - `bronze.sortation_batches_raw` (v2.0)
+  - `bronze.wall_assignments_raw` (v2.0)
+  - `bronze.units_raw` (v2.0)
+  - `bronze.process_paths_raw` (v2.0)
+  - `bronze.wes_stages_raw` (v2.0)
 
 ### Silver Layer (Cleaned)
 - **Location**: `s3://wms-silver/`
@@ -187,6 +213,16 @@ Each data product includes:
   - `silver.pick_tasks_enriched` - With order and worker data
   - `silver.shipments_current` - With carrier details
   - `silver.workers_current` - With performance metrics
+  - `silver.billing_activities_current` - Billable activities with seller info (v2.0)
+  - `silver.invoices_current` - Invoice state with line items (v2.0)
+  - `silver.sellers_current` - Seller profiles with contracts (v2.0)
+  - `silver.channels_current` - Channel connections with sync status (v2.0)
+  - `silver.stations_current` - Station state with worker assignments (v2.0)
+  - `silver.sortation_batches_current` - Batch progress with package counts (v2.0)
+  - `silver.wall_assignments_current` - Put wall assignments (v2.0)
+  - `silver.units_current` - Unit tracking with location (v2.0)
+  - `silver.process_paths_current` - Active process paths (v2.0)
+  - `silver.wes_stages_current` - WES stage status (v2.0)
 
 ### Gold Layer (Curated)
 - **Location**: `s3://wms-gold/`
@@ -199,6 +235,12 @@ Each data product includes:
   - `gold.shipping_performance_daily` - Carrier metrics
   - `gold.wave_performance_daily` - Wave efficiency
   - `gold.active_operations_snapshot` - Real-time dashboard
+  - `gold.billing_metrics_daily` - Revenue by activity type and seller (v2.0)
+  - `gold.seller_performance_daily` - Seller KPIs and fees (v2.0)
+  - `gold.channel_sync_metrics_daily` - Channel health and sync rates (v2.0)
+  - `gold.facility_utilization_daily` - Station utilization by zone (v2.0)
+  - `gold.sortation_metrics_daily` - Sort rates and dispatch metrics (v2.0)
+  - `gold.wms_benchmarks_daily` - Industry benchmark comparisons (v2.0)
 
 ---
 
@@ -367,6 +409,15 @@ Data quality is enforced using Great Expectations with suites defined per data p
 | `orders_dp_quality` | `expectations/orders_dp.json` | Unique order_id, valid status/priority, timestamp ordering |
 | `inventory_dp_quality` | `expectations/inventory_dp.json` | Non-negative quantities, unique SKU, location format |
 | `shipping_dp_quality` | `expectations/shipping_dp.json` | Valid carrier codes, tracking number format, date ordering |
+| `billing_dp_quality` | `expectations/billing_dp.json` | Valid activity types, non-negative amounts, seller reference (v2.0) |
+| `seller_dp_quality` | `expectations/seller_dp.json` | Unique seller_id, valid status/tier, contract date ordering (v2.0) |
+| `channel_dp_quality` | `expectations/channel_dp.json` | Valid platforms (shopify/amazon/ebay), sync status validation (v2.0) |
+| `facility_dp_quality` | `expectations/facility_dp.json` | Valid station types, zone format, capacity constraints (v2.0) |
+| `sortation_dp_quality` | `expectations/sortation_dp.json` | Sorted count <= total packages, valid batch status (v2.0) |
+| `walling_dp_quality` | `expectations/walling_dp.json` | Valid wall/slot assignments, status validation (v2.0) |
+| `unit_dp_quality` | `expectations/unit_dp.json` | Unique unit_id, valid status, license plate format (v2.0) |
+| `process_path_dp_quality` | `expectations/process_path_dp.json` | Valid path types, step ordering, handling requirements (v2.0) |
+| `wes_dp_quality` | `expectations/wes_dp.json` | Valid stage types, status transitions, route validation (v2.0) |
 
 ### Running Quality Checks
 
@@ -407,6 +458,66 @@ The data mesh integrates with existing Prometheus/Grafana stack:
 | `flink_jobmanager_job_uptime` | Job health | Job down |
 | `trino_query_execution_time_seconds` | Query performance | p99 > 30s |
 | `minio_bucket_usage_total_bytes` | Storage usage | > 80% capacity |
+
+---
+
+## WMS Industry Benchmarks
+
+The data mesh includes industry-standard WMS benchmarks for performance tracking and comparison.
+
+### Operational KPIs
+
+| Metric | Target | Best-in-Class | Dashboard Color Coding |
+|--------|--------|---------------|------------------------|
+| **Picks per Hour** | 175 | 250+ | Green: ≥200, Yellow: ≥150, Red: <150 |
+| **Order Accuracy** | 99.0% | 99.9% | Green: ≥99.9%, Yellow: ≥99%, Red: <99% |
+| **On-time Shipments** | 98% | 99%+ | Green: ≥99%, Yellow: ≥98%, Red: <98% |
+| **Dock-to-Stock Time** | <4 hours | <2 hours | Green: ≤2h, Yellow: ≤4h, Red: >4h |
+| **Space Utilization** | 80-85% | 90%+ | Green: ≥85%, Yellow: ≥75%, Red: <75% |
+
+### Financial KPIs
+
+| Metric | Target | Best-in-Class | Dashboard Color Coding |
+|--------|--------|---------------|------------------------|
+| **Cost per Order** | $3.00-$5.00 | <$3.00 | Green: ≤$3, Yellow: ≤$5, Red: >$5 |
+| **Pick & Pack Fee** | $1.50-$2.50/order | N/A | Informational |
+| **Labor as % of OpEx** | 50-70% | <50% | Green: ≤50%, Yellow: ≤60%, Red: >60% |
+| **Fulfillment % of Revenue** | 5-8% | <5% | Green: ≤5%, Yellow: ≤8%, Red: >8% |
+
+### Benchmark Sources
+- [Hopstack - 38 Warehouse KPIs](https://www.hopstack.io/blog/warehouse-metrics-kpis)
+- [DataDocks - 7 Warehouse KPIs](https://datadocks.com/posts/warehouse-kpis)
+- [FCBco - Fulfillment Cost Analysis](https://www.fcbco.com/blog/calculate-fulfillment-cost-per-order)
+
+---
+
+## Superset Dashboards
+
+Apache Superset dashboards provide visual analytics for all data products.
+
+### Dashboard Inventory
+
+| Dashboard | Slug | Description | Key Metrics |
+|-----------|------|-------------|-------------|
+| **Billing Analytics** | `billing-analytics` | Financial performance with revenue breakdown | Revenue, Cost per Order, Activity Distribution |
+| **Seller Performance** | `seller-performance` | Seller KPIs and tier analysis | Orders, Revenue, Storage/Fulfillment Fees |
+| **Channel Integration** | `channel-integration` | E-commerce channel health and sync status | Sync Success Rate, Orders Imported, Platform Distribution |
+| **Facility Operations** | `facility-operations` | Station utilization and equipment status | Utilization %, Active Stations, Tasks by Zone |
+| **Sortation Performance** | `sortation-performance` | Package sorting and dispatch metrics | Packages/Hour, Sort Rate, Carrier Analysis |
+| **WMS Benchmarks** | `wms-benchmarks` | Executive dashboard with industry benchmark comparisons | All KPIs vs Targets, Trend Analysis |
+
+### Dashboard Features
+- **Native Filters**: Date range, facility, status, and domain-specific filters
+- **Conditional Formatting**: Color-coded cells based on benchmark thresholds
+- **Reference Lines**: Target and best-in-class benchmarks on trend charts
+- **Interactive Drill-down**: Click through from KPIs to detailed tables
+
+### Dataset Configuration
+
+Datasets are configured in `superset/datasets/` with:
+- Trino connection to Iceberg Gold layer tables
+- Pre-defined metrics with SQL expressions
+- Column metadata and formatting
 
 ---
 
@@ -485,9 +596,10 @@ deployments/data-mesh/
 ├── flink/
 │   ├── flink-cluster.yaml             # Flink Kubernetes deployment
 │   └── jobs/
-│       ├── bronze-ingestion.sql       # CDC → Bronze
-│       ├── silver-transformation.sql  # Bronze → Silver
-│       └── gold-aggregation.sql       # Silver → Gold
+│       ├── bronze-ingestion.sql           # CDC → Bronze (all data products)
+│       ├── silver-transformation.sql      # Bronze → Silver (core)
+│       ├── gold-aggregation.sql           # Silver → Gold (core)
+│       └── silver-gold-new-products.sql   # Silver/Gold for v2.0 data products
 ├── trino/
 │   ├── values.yaml                    # Trino Helm values
 │   ├── hive-metastore.yaml            # Hive Metastore for Iceberg
@@ -505,8 +617,32 @@ deployments/data-mesh/
 │   ├── expectations/
 │   │   ├── orders_dp.json             # Order data quality rules
 │   │   ├── inventory_dp.json          # Inventory data quality rules
-│   │   └── shipping_dp.json           # Shipping data quality rules
+│   │   ├── shipping_dp.json           # Shipping data quality rules
+│   │   ├── billing_dp.json            # Billing data quality rules (v2.0)
+│   │   ├── seller_dp.json             # Seller data quality rules (v2.0)
+│   │   ├── channel_dp.json            # Channel data quality rules (v2.0)
+│   │   ├── facility_dp.json           # Facility data quality rules (v2.0)
+│   │   ├── sortation_dp.json          # Sortation data quality rules (v2.0)
+│   │   ├── walling_dp.json            # Walling data quality rules (v2.0)
+│   │   ├── unit_dp.json               # Unit data quality rules (v2.0)
+│   │   ├── process_path_dp.json       # Process path data quality rules (v2.0)
+│   │   └── wes_dp.json                # WES data quality rules (v2.0)
 │   └── checkpoints/
+├── superset/
+│   ├── datasets/
+│   │   ├── billing_metrics.yaml       # Billing metrics dataset (v2.0)
+│   │   ├── seller_performance.yaml    # Seller performance dataset (v2.0)
+│   │   ├── channel_metrics.yaml       # Channel metrics dataset (v2.0)
+│   │   ├── facility_utilization.yaml  # Facility utilization dataset (v2.0)
+│   │   ├── sortation_metrics.yaml     # Sortation metrics dataset (v2.0)
+│   │   └── wms_benchmarks.yaml        # WMS benchmarks dataset (v2.0)
+│   └── dashboards/
+│       ├── billing_analytics.yaml     # Billing analytics dashboard (v2.0)
+│       ├── seller_performance.yaml    # Seller performance dashboard (v2.0)
+│       ├── channel_integration.yaml   # Channel integration dashboard (v2.0)
+│       ├── facility_operations.yaml   # Facility operations dashboard (v2.0)
+│       ├── sortation_performance.yaml # Sortation performance dashboard (v2.0)
+│       └── wms_benchmarks.yaml        # WMS benchmarks dashboard (v2.0)
 ├── airflow/
 │   ├── values.yaml
 │   └── dags/

@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/increment-retry-count",
+  "title": "Increment retry count",
+  "description": "Increment retry count",
+  "source": "@site/docs/api/order-service/increment-retry-count.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/increment-retry-count",
+  "permalink": "/wms-platform/api/order-service/increment-retry-count",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "increment-retry-count",
+    "title": "Increment retry count",
+    "description": "Increment retry count",
+    "sidebar_label": "Increment retry count",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJytVU1v2zgQ/SsET7uAbdlBi7Y6bZqmQA5FA8dFgSY5jKmJxZYiuSTlxDD83ztDybZap7soUB1sUjPz5uvNaCsTrKIsb+UcfXAKY9R2Je9H0kOABhMGlm6lpYsspQsVhqtKjqS2dPWQajoH/LfVAStZptDiSEZVYwOy3Mq08WwWU2DY3e6+U8aY3rpqwxrK2YQ28RG8N1pB0s4WX6Oz/O4Eyi2/okrklML1GJLGyNIH0KYNOEfoDX/yPMoaWJ2nUyHJXGiAJLKChOOkKdddfjjc6J2NnZez6ZT/KowqaM+Bks0cU9gI5VqbhLYqYEP5INfoD+W2L/pzWQV2fsG+B2JNblcYWN7AE8fXI53KDcT0/n9rt9f6nfqNpMWnlIvzO0Y6Xhq90kuD713I1gPbpXMGwUpuTNLJ4L78HzABwYDsu/Zjh672XRHh2CuKgPhdu4p57GIuO9O5lEUYzEKRqx+Lbd+FXZExxnuMiGG9H5I2GDKvU/JlURinwNQEXL6eTmcFeF2sZ/Ln0N7hGo3zObgOioowRIoERbaTxyZO8Akab3CiXPMrvOvgqlbx5QBHM8eMmx/n7rLDeWZuBt05tJtYf/ZiPH01PnuzmL0sX87Ks9eT6avZl9wu++Byg/pufOQqiRtyrRWK8+urkwgvXOMD1mijXqOYX94sWE0QG0QusWjAwqprF09BnplIkyVSjeLzhxvhDSQmz+TO3tlFrWNOlf3VYCuDsbyzY9FFQo3PAIIkYg1GV/l6VDD6AdVGGRz4PUjHj0AxAhFhZXNAKYD6RgU62scEqY2i9czimN1QnXng7izlztzo8p5NppNpvxRA5YnolyrndN3nJBYIDWnRYtBMAWr7P4O2Z+YzWynYAcKvCP5D5Q9TlGguCyoirXBCy1Tb9ty/lUPuE0LHfjqUx9U/HAAiF3OcLbfbJUT8FMxux6+5CjS7t3RcQ9CwZH7QkFQ68pnG7gFMxJMgD0tT/jXvvyt/C/L6bPD9S7AbrjWYlm90/Iabwddqd0+qNQLdcgid9KJzNF4wxtH6ZFPzPHYW50qhT/+pez/YKtcfbxakvOy/dI2r2CbAI9eQfnOkLieet3N+t6Vla1ctMZHkHSY/3wGhkqhK",
+    "sidebar_class_name": "post api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Health check",
+    "permalink": "/wms-platform/api/order-service/health-check"
+  },
+  "next": {
+    "title": "List dead letter queue entries",
+    "permalink": "/wms-platform/api/order-service/list-dead-letter-queue-entries"
+  }
+}

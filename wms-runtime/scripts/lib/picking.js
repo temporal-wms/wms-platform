@@ -3,8 +3,9 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PICKER_CONFIG } from './config.js';
-import { pickStock, getInventoryItem } from './inventory.js';
+import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, PICKER_CONFIG, SIGNAL_CONFIG } from './config.js';
+import { pickStock, getInventoryItem, reserveStock } from './inventory.js';
+import { confirmPicksForOrder } from './unit.js';
 
 /**
  * Discovers pending pick tasks from the picking service
@@ -145,6 +146,24 @@ export function completeTask(taskId) {
  * @returns {boolean} True if successful
  */
 export function sendPickCompletedSignal(orderId, taskId, pickedItems) {
+  // Validate pickedItems is not empty
+  if (!pickedItems || pickedItems.length === 0) {
+    console.warn(`⚠️  No picked items for order ${orderId}, skipping signal`);
+    return false;
+  }
+
+  // Validate each picked item has required fields
+  const invalidItems = pickedItems.filter(item =>
+    !item.sku || !item.quantity || !item.locationId || !item.toteId
+  );
+
+  if (invalidItems.length > 0) {
+    console.error(`❌ Invalid picked items for order ${orderId}:`, invalidItems);
+    return false;
+  }
+
+  console.log(`✓ Sending pick completed signal for order ${orderId} with ${pickedItems.length} items`);
+
   const url = `${BASE_URLS.orchestrator}${ENDPOINTS.orchestrator.signalPickCompleted}`;
   const payload = JSON.stringify({
     orderId: orderId,
@@ -152,11 +171,34 @@ export function sendPickCompletedSignal(orderId, taskId, pickedItems) {
     pickedItems: pickedItems,
   });
 
-  const response = http.post(url, payload, HTTP_PARAMS);
+  let success = false;
+  let lastResponse = null;
 
-  const success = check(response, {
-    'signal pick completed status 200': (r) => r.status === 200,
-  });
+  for (let attempt = 1; attempt <= SIGNAL_CONFIG.maxRetries; attempt++) {
+    const response = http.post(url, payload, {
+      ...HTTP_PARAMS,
+      timeout: `${SIGNAL_CONFIG.timeoutMs}ms`,
+    });
+    lastResponse = response;
+
+    success = check(response, {
+      'signal pick completed status 200': (r) => r.status === 200,
+    });
+
+    if (success) {
+      if (attempt > 1) {
+        console.log(`✓ Signal succeeded on attempt ${attempt}/${SIGNAL_CONFIG.maxRetries}`);
+      }
+      break;
+    }
+
+    if (attempt < SIGNAL_CONFIG.maxRetries) {
+      console.warn(`⚠️  Signal attempt ${attempt}/${SIGNAL_CONFIG.maxRetries} failed: ${response.status}, retrying...`);
+      sleep(SIGNAL_CONFIG.retryDelayMs / 1000);
+    }
+  }
+
+  const response = lastResponse; // For compatibility with code below
 
   if (!success) {
     console.warn(`Failed to signal pick completed for order ${orderId}: ${response.status} - ${response.body}`);
@@ -217,12 +259,18 @@ export function simulatePickingTask(task) {
     );
 
     if (success) {
+      // Reserve inventory first (required for staging in consolidation)
+      const reserveResult = reserveStock(item.sku, task.orderId, locationId, item.quantity);
+      if (!reserveResult.success) {
+        console.warn(`Failed to reserve inventory for ${item.sku}: ${reserveResult.status} (continuing anyway)`);
+      }
+
       // Decrement inventory by calling pickStock on the inventory service
       const pickResult = pickStock(item.sku, task.orderId, locationId, item.quantity, 'k6-picker');
       if (pickResult.success) {
-        console.log(`Inventory decremented: ${item.sku} x${item.quantity} from ${locationId}`);
+        console.log(`Inventory picked: ${item.sku} x${item.quantity} from ${locationId}`);
       } else {
-        console.warn(`Failed to decrement inventory for ${item.sku}: ${pickResult.status}`);
+        console.warn(`Failed to pick inventory for ${item.sku}: ${pickResult.status}`);
       }
 
       pickedItems.push({
@@ -251,6 +299,16 @@ export function processPickTask(task) {
   if (pickedItems.length === 0) {
     console.warn(`No items picked for task ${task.taskId}`);
     return false;
+  }
+
+  // Step 1b: Confirm unit picks for the order
+  if (task.orderId && pickedItems.length > 0) {
+    const toteId = pickedItems[0]?.toteId || `TOTE-${task.taskId}`;
+    const pickerId = `PICKER-SIM-${__VU || 1}`;
+    const unitResult = confirmPicksForOrder(task.orderId, toteId, pickerId, '');
+    if (!unitResult.skipped) {
+      console.log(`Unit pick confirmations: ${unitResult.success}/${unitResult.total} succeeded`);
+    }
   }
 
   // Step 2: Complete the task in picking-service

@@ -16,12 +16,70 @@ type OrderFulfillmentInput struct {
 	Priority           string    `json:"priority"`
 	PromisedDeliveryAt time.Time `json:"promisedDeliveryAt"`
 	IsMultiItem        bool      `json:"isMultiItem"`
+	// Multi-tenant context fields
+	TenantID        string `json:"tenantId"`
+	FacilityID      string `json:"facilityId"`
+	WarehouseID     string `json:"warehouseId"`
+	SellerID        string `json:"sellerId,omitempty"`
+	ChannelID       string `json:"channelId,omitempty"`       // Channel from which order originated
+	ExternalOrderID string `json:"externalOrderId,omitempty"` // External order ID from channel
 	// Process path fields
 	GiftWrap         bool                   `json:"giftWrap"`
 	GiftWrapDetails  *GiftWrapDetailsInput  `json:"giftWrapDetails,omitempty"`
 	HazmatDetails    *HazmatDetailsInput    `json:"hazmatDetails,omitempty"`
 	ColdChainDetails *ColdChainDetailsInput `json:"coldChainDetails,omitempty"`
 	TotalValue       float64                `json:"totalValue"`
+	// Unit-level tracking fields (now always enabled)
+	UnitIDs         []string `json:"unitIds,omitempty"`         // Pre-reserved unit IDs if any
+}
+
+// WESExecutionInput represents the input for the WES execution workflow
+type WESExecutionInput struct {
+	OrderID         string           `json:"orderId"`
+	WaveID          string           `json:"waveId"`
+	Items           []WESItemInfo    `json:"items"`
+	MultiZone       bool             `json:"multiZone"`
+	ProcessPathID   string           `json:"processPathId,omitempty"`
+	SpecialHandling []string         `json:"specialHandling,omitempty"`
+	UnitIDs         []string         `json:"unitIds,omitempty"` // Unit IDs for unit-level tracking (always enabled)
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
+	SellerID    string `json:"sellerId,omitempty"`
+}
+
+// WESItemInfo represents item information for WES
+type WESItemInfo struct {
+	SKU        string `json:"sku"`
+	Quantity   int    `json:"quantity"`
+	LocationID string `json:"locationId,omitempty"`
+	Zone       string `json:"zone,omitempty"`
+}
+
+// WESExecutionResult represents the result of the WES execution workflow
+type WESExecutionResult struct {
+	RouteID         string          `json:"routeId"`
+	OrderID         string          `json:"orderId"`
+	Status          string          `json:"status"`
+	PathType        string          `json:"pathType"`
+	StagesCompleted int             `json:"stagesCompleted"`
+	TotalStages     int             `json:"totalStages"`
+	PickResult      *WESStageResult `json:"pickResult,omitempty"`
+	WallingResult   *WESStageResult `json:"wallingResult,omitempty"`
+	PackingResult   *WESStageResult `json:"packingResult,omitempty"`
+	CompletedAt     int64           `json:"completedAt,omitempty"`
+	Error           string          `json:"error,omitempty"`
+}
+
+// WESStageResult represents the result of a stage in WES
+type WESStageResult struct {
+	StageType   string `json:"stageType"`
+	TaskID      string `json:"taskId"`
+	WorkerID    string `json:"workerId"`
+	Success     bool   `json:"success"`
+	CompletedAt int64  `json:"completedAt,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 // Item represents an order item
@@ -75,6 +133,20 @@ type OrderFulfillmentResult struct {
 	TrackingNumber string `json:"trackingNumber,omitempty"`
 	WaveID         string `json:"waveId,omitempty"`
 	Error          string `json:"error,omitempty"`
+	// Unit-level tracking results
+	PathID         string   `json:"pathId,omitempty"`         // Persisted process path ID
+	CompletedUnits []string `json:"completedUnits,omitempty"` // Units successfully processed
+	FailedUnits    []string `json:"failedUnits,omitempty"`    // Units that failed processing
+	ExceptionIDs   []string `json:"exceptionIds,omitempty"`   // Exception IDs for failed units
+	PartialSuccess bool     `json:"partialSuccess,omitempty"` // True if some units succeeded but not all
+	// Multi-tenant tracking
+	TenantID        string `json:"tenantId,omitempty"`
+	SellerID        string `json:"sellerId,omitempty"`
+	ChannelID       string `json:"channelId,omitempty"`
+	ExternalOrderID string `json:"externalOrderId,omitempty"`
+	// Billing tracking
+	BillingRecorded bool `json:"billingRecorded,omitempty"` // Whether fees were recorded
+	ChannelSynced   bool `json:"channelSynced,omitempty"`   // Whether tracking was synced to channel
 }
 
 // WaveAssignment represents a wave assignment signal
@@ -89,6 +161,10 @@ type PickResult struct {
 	PickedItems   []PickedItem `json:"pickedItems"`
 	AllocationIDs []string     `json:"allocationIds,omitempty"` // Hard allocation IDs from staging
 	Success       bool         `json:"success"`
+	// Unit-level tracking fields
+	PickedUnitIDs []string `json:"pickedUnitIds,omitempty"` // Units successfully picked
+	FailedUnitIDs []string `json:"failedUnitIds,omitempty"` // Units that failed picking
+	ExceptionIDs  []string `json:"exceptionIds,omitempty"`  // Exception IDs for failed units
 }
 
 // PickedItem represents a picked item
@@ -146,20 +222,70 @@ type RouteStop struct {
 	Quantity   int    `json:"quantity"`
 }
 
+// MultiRouteResult contains the result of multi-route calculation
+type MultiRouteResult struct {
+	OrderID       string         `json:"orderId"`
+	Routes        []RouteResult  `json:"routes"`
+	TotalRoutes   int            `json:"totalRoutes"`
+	SplitReason   string         `json:"splitReason"`   // none, zone, capacity, both
+	ZoneBreakdown map[string]int `json:"zoneBreakdown"` // Zone -> item count
+	TotalItems    int            `json:"totalItems"`
+}
+
+// OrderFulfillmentQueryStatus represents the current status of the order fulfillment workflow
+type OrderFulfillmentQueryStatus struct {
+	OrderID          string  `json:"orderId"`
+	CurrentStage     string  `json:"currentStage"`
+	Status           string  `json:"status"`
+	CompletionPercent int    `json:"completionPercent"`
+	TotalStages      int     `json:"totalStages"`
+	CompletedStages  int     `json:"completedStages"`
+	Error            string  `json:"error,omitempty"`
+}
+
 // OrderFulfillmentWorkflow is the main saga that orchestrates the entire order fulfillment process
 // This workflow coordinates across all bounded contexts: Order -> Waving -> Routing -> Picking -> Consolidation -> Packing -> Shipping
 func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput) (*OrderFulfillmentResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting order fulfillment workflow", "orderId", input.OrderID)
 
+	// Workflow versioning for safe deployments - establishes version tracking
+	// Future breaking changes should increment OrderFulfillmentWorkflowVersion and add version checks
+	version := workflow.GetVersion(ctx, "OrderFulfillmentWorkflow", workflow.DefaultVersion, OrderFulfillmentWorkflowVersion)
+	logger.Info("Workflow version", "version", version)
+
 	result := &OrderFulfillmentResult{
-		OrderID: input.OrderID,
-		Status:  "in_progress",
+		OrderID:         input.OrderID,
+		Status:          "in_progress",
+		TenantID:        input.TenantID,
+		SellerID:        input.SellerID,
+		ChannelID:       input.ChannelID,
+		ExternalOrderID: input.ExternalOrderID,
+	}
+
+	// Query handler for workflow status - allows external systems to inspect current state
+	queryStatus := OrderFulfillmentQueryStatus{
+		OrderID:         input.OrderID,
+		CurrentStage:    "validation",
+		Status:          "in_progress",
+		TotalStages:     5, // validation, planning, picking, consolidation/packing, shipping
+		CompletedStages: 0,
+	}
+	err := workflow.SetQueryHandler(ctx, "getStatus", func() (OrderFulfillmentQueryStatus, error) {
+		return queryStatus, nil
+	})
+	if err != nil {
+		logger.Error("Failed to set query handler", "error", err)
 	}
 
 	// Activity options with retry policy
+	// ScheduleToCloseTimeout: Total time including all retries
+	// StartToCloseTimeout: Time for a single attempt
+	// HeartbeatTimeout: Detect stuck/crashed workers for long-running activities
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: DefaultActivityTimeout,
+		ScheduleToCloseTimeout: 30 * time.Minute, // Total time including retries
+		StartToCloseTimeout:    DefaultActivityTimeout,
+		HeartbeatTimeout:       30 * time.Second, // Detect stuck workers quickly
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    DefaultRetryInitialInterval,
 			BackoffCoefficient: DefaultRetryBackoffCoefficient,
@@ -170,302 +296,167 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
 	// Child workflow options
+	// Note: Retry policies are intentionally omitted for child workflows
+	// Workflows should be deterministic; retrying them would repeat the same logic
+	// Instead, let activities within child workflows handle their own retries
 	childOpts := workflow.ChildWorkflowOptions{
 		WorkflowExecutionTimeout: DefaultChildWorkflowTimeout,
-		RetryPolicy: &temporal.RetryPolicy{
-			MaximumAttempts: DefaultMaxRetryAttempts,
-		},
 	}
 
 	// ========================================
 	// Step 1: Validate Order
 	// ========================================
+	queryStatus.CurrentStage = "validation"
+	queryStatus.CompletedStages = 0
+	queryStatus.CompletionPercent = 0
 	logger.Info("Step 1: Validating order", "orderId", input.OrderID)
 
 	var orderValidated bool
-	err := workflow.ExecuteActivity(ctx, "ValidateOrder", input).Get(ctx, &orderValidated)
+	err = workflow.ExecuteActivity(ctx, "ValidateOrder", input).Get(ctx, &orderValidated)
 	if err != nil {
+		queryStatus.Status = "failed"
+		queryStatus.Error = fmt.Sprintf("validation failed: %v", err)
 		result.Status = "validation_failed"
 		result.Error = fmt.Sprintf("order validation failed: %v", err)
 		return result, err
 	}
+	queryStatus.CompletedStages = 1
+	queryStatus.CompletionPercent = 20
 
 	// ========================================
-	// Step 2: Determine Process Path
+	// Step 2: Execute Planning Workflow (Child)
 	// ========================================
-	logger.Info("Step 2: Determining process path", "orderId", input.OrderID)
+	queryStatus.CurrentStage = "planning"
+	queryStatus.CompletionPercent = 20
+	logger.Info("Step 2: Executing planning workflow", "orderId", input.OrderID)
 
-	// Build process path items
-	processPathItems := make([]map[string]interface{}, len(input.Items))
-	for i, item := range input.Items {
-		processPathItems[i] = map[string]interface{}{
-			"sku":               item.SKU,
-			"quantity":          item.Quantity,
-			"weight":            item.Weight,
-			"isFragile":         item.IsFragile,
-			"isHazmat":          item.IsHazmat,
-			"requiresColdChain": item.RequiresColdChain,
-		}
-	}
+	planningChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID:               fmt.Sprintf("planning-%s", input.OrderID),
+		WorkflowExecutionTimeout: PlanningWorkflowTimeout,
+	})
 
-	processPathInput := map[string]interface{}{
-		"orderId":    input.OrderID,
-		"items":      processPathItems,
-		"giftWrap":   input.GiftWrap,
-		"totalValue": input.TotalValue,
-	}
-	if input.GiftWrapDetails != nil {
-		processPathInput["giftWrapDetails"] = input.GiftWrapDetails
-	}
-	if input.HazmatDetails != nil {
-		processPathInput["hazmatDetails"] = input.HazmatDetails
-	}
-	if input.ColdChainDetails != nil {
-		processPathInput["coldChainDetails"] = input.ColdChainDetails
+	planningInput := PlanningWorkflowInput{
+		OrderID:            input.OrderID,
+		CustomerID:         input.CustomerID,
+		Items:              input.Items,
+		Priority:           input.Priority,
+		PromisedDeliveryAt: input.PromisedDeliveryAt,
+		IsMultiItem:        input.IsMultiItem,
+		GiftWrap:           input.GiftWrap,
+		GiftWrapDetails:    input.GiftWrapDetails,
+		HazmatDetails:      input.HazmatDetails,
+		ColdChainDetails:   input.ColdChainDetails,
+		TotalValue:         input.TotalValue,
+		UnitIDs:            input.UnitIDs,
+		// Unit tracking is now always enabled
 	}
 
-	var processPath ProcessPathResult
-	err = workflow.ExecuteActivity(ctx, "DetermineProcessPath", processPathInput).Get(ctx, &processPath)
+	var planningResult *PlanningWorkflowResult
+	err = workflow.ExecuteChildWorkflow(planningChildCtx, PlanningWorkflow, planningInput).Get(ctx, &planningResult)
 	if err != nil {
-		result.Status = "process_path_failed"
-		result.Error = fmt.Sprintf("process path determination failed: %v", err)
+		queryStatus.Status = "failed"
+		queryStatus.Error = fmt.Sprintf("planning failed: %v", err)
+		result.Status = "planning_failed"
+		result.Error = fmt.Sprintf("planning workflow failed: %v", err)
 		return result, err
 	}
+	queryStatus.CompletedStages = 2
+	queryStatus.CompletionPercent = 40
 
-	logger.Info("Process path determined",
+	// Extract planning results
+	processPath := planningResult.ProcessPath
+	result.WaveID = planningResult.WaveID
+	result.PathID = planningResult.PathID
+
+	// Track unit IDs for downstream workflows (always enabled)
+	unitIDs := planningResult.ReservedUnitIDs
+
+	waveAssignment := WaveAssignment{
+		WaveID:         planningResult.WaveID,
+		ScheduledStart: planningResult.WaveScheduledStart,
+	}
+
+	logger.Info("Planning completed",
 		"orderId", input.OrderID,
+		"waveId", planningResult.WaveID,
 		"pathId", processPath.PathID,
-		"requirements", processPath.Requirements,
-		"consolidationRequired", processPath.ConsolidationRequired,
-		"giftWrapRequired", processPath.GiftWrapRequired,
+		"unitCount", len(unitIDs),
 	)
 
 	// ========================================
-	// Step 3: Wait for Wave Assignment
+	// Step 3: WES Execution
 	// ========================================
-	logger.Info("Step 3: Waiting for wave assignment", "orderId", input.OrderID)
+	// Delegate picking, walling, and packing to WES (Warehouse Execution System)
+	queryStatus.CurrentStage = "wes_execution"
+	queryStatus.CompletionPercent = 40
+	logger.Info("Step 3: Delegating to WES for execution", "orderId", input.OrderID)
 
-	// Set up signal channel for wave assignment
-	var waveAssignment WaveAssignment
-	waveSignal := workflow.GetSignalChannel(ctx, "waveAssigned")
+	// Convert items to WES format
+	wesItems := make([]WESItemInfo, len(input.Items))
+	for i, item := range input.Items {
+		wesItems[i] = WESItemInfo{
+			SKU:      item.SKU,
+			Quantity: item.Quantity,
+		}
+	}
 
-	// Wait for wave assignment with timeout based on priority
-	waveTimeout := getWaveTimeout(input.Priority)
-	waveCtx, cancelWave := workflow.WithCancel(ctx)
-	defer cancelWave()
+	// Determine if multi-zone picking is needed
+	multiZone := processPath.ConsolidationRequired
 
-	selector := workflow.NewSelector(waveCtx)
+	wesInput := WESExecutionInput{
+		OrderID:         input.OrderID,
+		WaveID:          waveAssignment.WaveID,
+		Items:           wesItems,
+		MultiZone:       multiZone,
+		ProcessPathID:   processPath.PathID,
+		SpecialHandling: processPath.SpecialHandling,
+		UnitIDs:         unitIDs, // Pass unit IDs for unit-level tracking (always enabled)
+		// Multi-tenant context
+		TenantID:    input.TenantID,
+		FacilityID:  input.FacilityID,
+		WarehouseID: input.WarehouseID,
+		SellerID:    input.SellerID,
+	}
 
-	var waveAssigned bool
-	selector.AddReceive(waveSignal, func(c workflow.ReceiveChannel, more bool) {
-		c.Receive(waveCtx, &waveAssignment)
-		waveAssigned = true
+	wesChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID:               fmt.Sprintf("wes-%s", input.OrderID),
+		WorkflowExecutionTimeout: WESExecutionWorkflowTimeout,
+		TaskQueue:                WESTaskQueue,
 	})
 
-	selector.AddFuture(workflow.NewTimer(waveCtx, waveTimeout), func(f workflow.Future) {
-		// Timeout - order not assigned to wave in time
-		logger.Warn("Wave assignment timeout", "orderId", input.OrderID)
-	})
-
-	selector.Select(waveCtx)
-
-	if !waveAssigned {
-		result.Status = "wave_timeout"
-		result.Error = "order was not assigned to a wave within the expected time"
-		return result, fmt.Errorf("wave assignment timeout for order %s", input.OrderID)
-	}
-
-	result.WaveID = waveAssignment.WaveID
-	logger.Info("Order assigned to wave", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
-
-	// Update order status to wave_assigned
-	err = workflow.ExecuteActivity(ctx, "AssignToWave", input.OrderID, waveAssignment.WaveID).Get(ctx, nil)
+	var wesResult WESExecutionResult
+	err = workflow.ExecuteChildWorkflow(wesChildCtx, "WESExecutionWorkflow", wesInput).Get(ctx, &wesResult)
 	if err != nil {
-		logger.Warn("Failed to update order status to wave_assigned", "orderId", input.OrderID, "error", err)
-		// Non-fatal: continue with workflow - order status can be reconciled later
-	}
-
-	// ========================================
-	// Step 4: Calculate Route
-	// ========================================
-	logger.Info("Step 4: Calculating pick route", "orderId", input.OrderID, "waveId", waveAssignment.WaveID)
-
-	var routeResult RouteResult
-	err = workflow.ExecuteActivity(ctx, "CalculateRoute", map[string]interface{}{
-		"orderId": input.OrderID,
-		"waveId":  waveAssignment.WaveID,
-		"items":   input.Items,
-	}).Get(ctx, &routeResult)
-	if err != nil {
-		result.Status = "routing_failed"
-		result.Error = fmt.Sprintf("route calculation failed: %v", err)
-		return result, err
-	}
-
-	// ========================================
-	// Step 5: Execute Picking (Child Workflow)
-	// ========================================
-	logger.Info("Step 5: Starting picking workflow", "orderId", input.OrderID, "routeId", routeResult.RouteID)
-
-	// Update order status to "picking"
-	err = workflow.ExecuteActivity(ctx, "StartPicking", input.OrderID).Get(ctx, nil)
-	if err != nil {
-		logger.Warn("Failed to update order status to picking", "orderId", input.OrderID, "error", err)
-		// Non-fatal: continue with picking workflow
-	}
-
-	pickingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID:               fmt.Sprintf("picking-%s", input.OrderID),
-		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-		RetryPolicy:              childOpts.RetryPolicy,
-	})
-
-	var pickResult PickResult
-	err = workflow.ExecuteChildWorkflow(pickingChildCtx, "PickingWorkflow", map[string]interface{}{
-		"orderId": input.OrderID,
-		"waveId":  waveAssignment.WaveID,
-		"route":   routeResult,
-	}).Get(ctx, &pickResult)
-	if err != nil {
-		result.Status = "picking_failed"
-		result.Error = fmt.Sprintf("picking workflow failed: %v", err)
-		// Trigger compensation - release inventory reservations
+		result.Status = "wes_execution_failed"
+		result.Error = fmt.Sprintf("WES execution failed: %v", err)
+		// Release inventory on failure
 		_ = workflow.ExecuteActivity(ctx, "ReleaseInventoryReservation", input.OrderID).Get(ctx, nil)
 		return result, err
 	}
 
-	// ========================================
-	// Step 6: Consolidation (based on process path)
-	// ========================================
-	if processPath.ConsolidationRequired {
-		logger.Info("Step 6: Starting consolidation workflow", "orderId", input.OrderID)
+	logger.Info("WES execution completed",
+		"orderId", input.OrderID,
+		"routeId", wesResult.RouteID,
+		"pathType", wesResult.PathType,
+		"stagesCompleted", wesResult.StagesCompleted,
+	)
 
-		consolidationChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-			WorkflowID:               fmt.Sprintf("consolidation-%s", input.OrderID),
-			WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-			RetryPolicy:              childOpts.RetryPolicy,
-		})
-
-		err = workflow.ExecuteChildWorkflow(consolidationChildCtx, "ConsolidationWorkflow", map[string]interface{}{
-			"orderId":     input.OrderID,
-			"waveId":      waveAssignment.WaveID,
-			"pickedItems": pickResult.PickedItems,
-		}).Get(ctx, nil)
-		if err != nil {
-			result.Status = "consolidation_failed"
-			result.Error = fmt.Sprintf("consolidation workflow failed: %v", err)
-			return result, err
-		}
-
-		// Update order status to "consolidated"
-		err = workflow.ExecuteActivity(ctx, "MarkConsolidated", input.OrderID).Get(ctx, nil)
-		if err != nil {
-			logger.Warn("Failed to update order status to consolidated", "orderId", input.OrderID, "error", err)
-			// Non-fatal: continue with workflow
-		}
-	} else {
-		logger.Info("Step 6: Skipping consolidation (single item order)", "orderId", input.OrderID)
-	}
-
-	// ========================================
-	// Step 7: Gift Wrap (if required by process path)
-	// ========================================
-	if processPath.GiftWrapRequired {
-		logger.Info("Step 7: Starting gift wrap workflow", "orderId", input.OrderID)
-
-		giftWrapChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-			WorkflowID:               fmt.Sprintf("giftwrap-%s", input.OrderID),
-			WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-			RetryPolicy:              childOpts.RetryPolicy,
-		})
-
-		giftWrapInput := map[string]interface{}{
-			"orderId": input.OrderID,
-			"waveId":  waveAssignment.WaveID,
-			"items":   input.Items,
-		}
-		if input.GiftWrapDetails != nil {
-			giftWrapInput["wrapDetails"] = map[string]interface{}{
-				"wrapType":    input.GiftWrapDetails.WrapType,
-				"giftMessage": input.GiftWrapDetails.GiftMessage,
-				"hidePrice":   input.GiftWrapDetails.HidePrice,
-			}
-		}
-
-		var giftWrapResult map[string]interface{}
-		err = workflow.ExecuteChildWorkflow(giftWrapChildCtx, "GiftWrapWorkflow", giftWrapInput).Get(ctx, &giftWrapResult)
-		if err != nil {
-			result.Status = "giftwrap_failed"
-			result.Error = fmt.Sprintf("gift wrap workflow failed: %v", err)
-			return result, err
-		}
-	} else {
-		logger.Info("Step 7: Skipping gift wrap (not required)", "orderId", input.OrderID)
-	}
-
-	// ========================================
-	// Step 8: Find Capable Station for Packing
-	// ========================================
-	var targetStationID string
-	if len(processPath.Requirements) > 0 {
-		logger.Info("Step 8: Finding capable packing station", "orderId", input.OrderID, "requirements", processPath.Requirements)
-
-		var capableStation map[string]interface{}
-		err = workflow.ExecuteActivity(ctx, "FindCapableStation", map[string]interface{}{
-			"requirements": processPath.Requirements,
-			"stationType":  "packing",
-		}).Get(ctx, &capableStation)
-		if err != nil {
-			logger.Warn("Failed to find capable station, using default routing", "orderId", input.OrderID, "error", err)
-			// Non-fatal: continue with default station routing
-		} else if stationID, ok := capableStation["stationId"].(string); ok {
-			targetStationID = stationID
-			logger.Info("Capable station found", "orderId", input.OrderID, "stationId", targetStationID)
-		}
-	}
-
-	// ========================================
-	// Step 9: Packing (Child Workflow)
-	// ========================================
-	logger.Info("Step 9: Starting packing workflow", "orderId", input.OrderID, "stationId", targetStationID)
-
-	packingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID:               fmt.Sprintf("packing-%s", input.OrderID),
-		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-		RetryPolicy:              childOpts.RetryPolicy,
-	})
-
-	packingInput := map[string]interface{}{
-		"orderId":         input.OrderID,
-		"waveId":          waveAssignment.WaveID,
-		"requirements":    processPath.Requirements,
-		"specialHandling": processPath.SpecialHandling,
-	}
-	if targetStationID != "" {
-		packingInput["stationId"] = targetStationID
-	}
-
+	// Extract pack result from WES for downstream steps
 	var packResult PackResult
-	err = workflow.ExecuteChildWorkflow(packingChildCtx, "PackingWorkflow", packingInput).Get(ctx, &packResult)
-	if err != nil {
-		result.Status = "packing_failed"
-		result.Error = fmt.Sprintf("packing workflow failed: %v", err)
-		return result, err
+	if wesResult.PackingResult != nil {
+		packResult.PackageID = wesResult.PackingResult.TaskID
 	}
 
-	// Update order status to "packed"
+	// Update order status to "packed" after WES completes
 	err = workflow.ExecuteActivity(ctx, "MarkPacked", input.OrderID).Get(ctx, nil)
 	if err != nil {
 		logger.Warn("Failed to update order status to packed", "orderId", input.OrderID, "error", err)
-		// Non-fatal: continue with shipping workflow
 	}
 
-	result.TrackingNumber = packResult.TrackingNumber
-
 	// ========================================
-	// Step 10: SLAM Process (Scan, Label, Apply, Manifest)
+	// Step 4: SLAM Process (Scan, Label, Apply, Manifest)
 	// ========================================
-	logger.Info("Step 10: Starting SLAM process", "orderId", input.OrderID, "packageId", packResult.PackageID)
+	logger.Info("Step 4: Starting SLAM process", "orderId", input.OrderID, "packageId", packResult.PackageID)
 
 	var slamResult SLAMResult
 	err = workflow.ExecuteActivity(ctx, "ExecuteSLAM", map[string]interface{}{
@@ -503,14 +494,13 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	)
 
 	// ========================================
-	// Step 11: Sortation (Route to Destination Chute)
+	// Step 5: Sortation (Route to Destination Chute)
 	// ========================================
-	logger.Info("Step 11: Starting sortation workflow", "orderId", input.OrderID, "packageId", packResult.PackageID)
+	logger.Info("Step 5: Starting sortation workflow", "orderId", input.OrderID, "packageId", packResult.PackageID)
 
 	sortationChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("sortation-%s", input.OrderID),
 		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-		RetryPolicy:              childOpts.RetryPolicy,
 	})
 
 	// Get destination from SLAM result or use a default
@@ -545,17 +535,16 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	)
 
 	// ========================================
-	// Step 12: Shipping (Carrier Handoff)
+	// Step 6: Shipping (Carrier Handoff)
 	// ========================================
-	logger.Info("Step 12: Starting shipping workflow", "orderId", input.OrderID, "trackingNumber", result.TrackingNumber)
+	logger.Info("Step 6: Starting shipping workflow", "orderId", input.OrderID, "trackingNumber", result.TrackingNumber)
 
 	shippingChildCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID:               fmt.Sprintf("shipping-%s", input.OrderID),
 		WorkflowExecutionTimeout: childOpts.WorkflowExecutionTimeout,
-		RetryPolicy:              childOpts.RetryPolicy,
 	})
 
-	err = workflow.ExecuteChildWorkflow(shippingChildCtx, "ShippingWorkflow", map[string]interface{}{
+	shippingInput := map[string]interface{}{
 		"orderId":        input.OrderID,
 		"packageId":      packResult.PackageID,
 		"trackingNumber": result.TrackingNumber,
@@ -563,7 +552,19 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		"manifestId":     slamResult.ManifestID,
 		"batchId":        sortationResult.BatchID,
 		"chuteId":        sortationResult.ChuteID,
-	}).Get(ctx, nil)
+		// Include unit-level tracking (always enabled)
+		"unitIds":        unitIDs,
+		"pathId":         result.PathID,
+		// Multi-tenant context
+		"tenantId":        input.TenantID,
+		"facilityId":      input.FacilityID,
+		"warehouseId":     input.WarehouseID,
+		"sellerId":        input.SellerID,
+		"channelId":       input.ChannelID,
+		"externalOrderId": input.ExternalOrderID,
+	}
+
+	err = workflow.ExecuteChildWorkflow(shippingChildCtx, "ShippingWorkflow", shippingInput).Get(ctx, nil)
 	if err != nil {
 		result.Status = "shipping_failed"
 		result.Error = fmt.Sprintf("shipping workflow failed: %v", err)
@@ -571,13 +572,105 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 	}
 
 	// ========================================
+	// Step 7: Record Billing Fees (for multi-tenant/seller orders)
+	// ========================================
+	if input.SellerID != "" {
+		logger.Info("Step 7: Recording billing fees", "orderId", input.OrderID, "sellerId", input.SellerID)
+
+		billingInput := map[string]interface{}{
+			"orderId":        input.OrderID,
+			"sellerId":       input.SellerID,
+			"tenantId":       input.TenantID,
+			"facilityId":     input.FacilityID,
+			"warehouseId":    input.WarehouseID,
+			"items":          input.Items,
+			"totalValue":     input.TotalValue,
+			"trackingNumber": result.TrackingNumber,
+			"carrier":        packResult.Carrier,
+			"weight":         slamResult.ActualWeight,
+			"giftWrap":       input.GiftWrap,
+			"hasHazmat":      input.HazmatDetails != nil,
+			"hasColdChain":   input.ColdChainDetails != nil,
+		}
+
+		err = workflow.ExecuteActivity(ctx, "RecordFulfillmentFees", billingInput).Get(ctx, nil)
+		if err != nil {
+			// Log warning but don't fail the workflow for billing errors
+			logger.Warn("Failed to record billing fees", "orderId", input.OrderID, "error", err)
+		} else {
+			result.BillingRecorded = true
+			logger.Info("Billing fees recorded", "orderId", input.OrderID, "sellerId", input.SellerID)
+		}
+	}
+
+	// ========================================
+	// Step 8: Sync Tracking to Channel (for channel orders)
+	// ========================================
+	if input.ChannelID != "" && input.ExternalOrderID != "" {
+		logger.Info("Step 8: Syncing tracking to channel",
+			"orderId", input.OrderID,
+			"channelId", input.ChannelID,
+			"externalOrderId", input.ExternalOrderID,
+		)
+
+		channelSyncInput := map[string]interface{}{
+			"channelId":       input.ChannelID,
+			"externalOrderId": input.ExternalOrderID,
+			"trackingNumber":  result.TrackingNumber,
+			"carrier":         packResult.Carrier,
+			"notifyCustomer":  true,
+		}
+
+		err = workflow.ExecuteActivity(ctx, "SyncTrackingToChannel", channelSyncInput).Get(ctx, nil)
+		if err != nil {
+			// Log warning but don't fail the workflow for channel sync errors
+			logger.Warn("Failed to sync tracking to channel",
+				"orderId", input.OrderID,
+				"channelId", input.ChannelID,
+				"error", err,
+			)
+		} else {
+			result.ChannelSynced = true
+			logger.Info("Tracking synced to channel",
+				"orderId", input.OrderID,
+				"channelId", input.ChannelID,
+			)
+		}
+	}
+
+	// ========================================
 	// Workflow Complete
 	// ========================================
-	result.Status = "completed"
-	logger.Info("Order fulfillment completed successfully",
+	// Determine final status based on unit tracking (always enabled)
+	if len(result.FailedUnits) > 0 && len(result.CompletedUnits) > 0 {
+		result.Status = "partial_success"
+		result.PartialSuccess = true
+		logger.Info("Order fulfillment completed with partial success",
+			"orderId", input.OrderID,
+			"completedUnits", len(result.CompletedUnits),
+			"failedUnits", len(result.FailedUnits),
+		)
+	} else if len(result.FailedUnits) > 0 {
+		result.Status = "failed"
+	} else {
+		result.Status = "completed"
+	}
+
+	// Update final query status
+	queryStatus.Status = "completed"
+	queryStatus.CurrentStage = "completed"
+	queryStatus.CompletedStages = 5
+	queryStatus.CompletionPercent = 100
+
+	logger.Info("Order fulfillment completed",
 		"orderId", input.OrderID,
+		"status", result.Status,
 		"waveId", result.WaveID,
 		"trackingNumber", result.TrackingNumber,
+		"tenantId", input.TenantID,
+		"sellerId", input.SellerID,
+		"billingRecorded", result.BillingRecorded,
+		"channelSynced", result.ChannelSynced,
 	)
 
 	return result, nil
@@ -610,9 +703,14 @@ func OrderCancellationWorkflow(ctx workflow.Context, orderID string, reason stri
 	logger.Info("Starting order cancellation workflow", "orderId", orderID, "reason", reason)
 
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: DefaultActivityTimeout,
+		ScheduleToCloseTimeout: 15 * time.Minute,
+		StartToCloseTimeout:    DefaultActivityTimeout,
+		HeartbeatTimeout:       30 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
-			MaximumAttempts: DefaultMaxRetryAttempts,
+			InitialInterval:    DefaultRetryInitialInterval,
+			BackoffCoefficient: DefaultRetryBackoffCoefficient,
+			MaximumInterval:    DefaultRetryMaxInterval,
+			MaximumAttempts:    DefaultMaxRetryAttempts,
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
@@ -653,9 +751,14 @@ func OrderCancellationWorkflowWithAllocations(ctx workflow.Context, input OrderC
 	)
 
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: DefaultActivityTimeout,
+		ScheduleToCloseTimeout: 15 * time.Minute,
+		StartToCloseTimeout:    DefaultActivityTimeout,
+		HeartbeatTimeout:       30 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
-			MaximumAttempts: DefaultMaxRetryAttempts,
+			InitialInterval:    DefaultRetryInitialInterval,
+			BackoffCoefficient: DefaultRetryBackoffCoefficient,
+			MaximumInterval:    DefaultRetryMaxInterval,
+			MaximumAttempts:    DefaultMaxRetryAttempts,
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)

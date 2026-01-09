@@ -27,6 +27,15 @@ func addWMSCloudEventAttributes(span trace.Span, event *cloudevents.WMSCloudEven
 	if event.WorkflowID != "" {
 		span.SetAttributes(attribute.String("wms.workflow_id", event.WorkflowID))
 	}
+	if event.FacilityID != "" {
+		span.SetAttributes(attribute.String("wms.facility_id", event.FacilityID))
+	}
+	if event.WarehouseID != "" {
+		span.SetAttributes(attribute.String("wms.warehouse_id", event.WarehouseID))
+	}
+	if event.OrderID != "" {
+		span.SetAttributes(attribute.String("wms.order_id", event.OrderID))
+	}
 }
 
 // InstrumentedProducer wraps a Producer with metrics and tracing

@@ -1,0 +1,180 @@
+{
+  "expectation_suite_name": "receiving_data_product_quality",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0",
+    "data_product": "receiving-dp",
+    "owner": "receiving-team",
+    "sla": {
+      "freshness_minutes": 5,
+      "completeness_percent": 99.9
+    }
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Table should not be empty in normal operations"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "receipt_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "po_number"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "vendor_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "dock_door"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "receipt_id"
+      },
+      "meta": {
+        "notes": "Primary key - must never be null"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "vendor_id"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "status"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "receipt_id"
+      },
+      "meta": {
+        "notes": "Receipt ID must be unique across all records"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "status",
+        "value_set": [
+          "scheduled",
+          "arrived",
+          "unloading",
+          "inspecting",
+          "completed",
+          "cancelled",
+          "exception"
+        ]
+      },
+      "meta": {
+        "notes": "Valid receipt status values from domain model"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "receipt_id",
+        "regex": "^RCV-[A-Z0-9]{8,}$"
+      },
+      "meta": {
+        "notes": "Receipt ID format: RCV-XXXXXXXX"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "dock_door",
+        "regex": "^DOCK-[0-9]{2,3}$"
+      },
+      "meta": {
+        "notes": "Dock door format: DOCK-XX or DOCK-XXX"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "total_units",
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Total units must be non-negative"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "damaged_units",
+        "min_value": 0
+      },
+      "meta": {
+        "notes": "Damaged units must be non-negative"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_of_type",
+      "kwargs": {
+        "column": "expected_at",
+        "type_": "TIMESTAMP"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_of_type",
+      "kwargs": {
+        "column": "arrived_at",
+        "type_": "TIMESTAMP"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "expected_at",
+        "min_value": "2024-01-01T00:00:00",
+        "parse_strings_as_datetimes": true
+      },
+      "meta": {
+        "notes": "Receipts should not have dates before system launch"
+      }
+    },
+    {
+      "expectation_type": "expect_column_pair_values_A_to_be_greater_than_B",
+      "kwargs": {
+        "column_A": "total_units",
+        "column_B": "damaged_units",
+        "or_equal": true
+      },
+      "meta": {
+        "notes": "Total units must be >= damaged units"
+      }
+    }
+  ],
+  "ge_cloud_id": null,
+  "data_context_key": "receiving_data_product"
+}

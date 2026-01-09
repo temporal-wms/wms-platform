@@ -11,6 +11,7 @@ spec:
   version: 4.0.0
   replicas: 1
   bootstrapServers: wms-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+  image: docker.io/library/wms-kafka-connect-debezium:v1
   config:
     group.id: wms-connect-cluster
     offset.storage.topic: connect-cluster-offsets
@@ -24,6 +25,9 @@ spec:
     value.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter.schemas.enable: false
+    # Config providers for secrets
+    config.providers: file
+    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
   resources:
     requests:
       memory: "512Mi"
@@ -40,6 +44,16 @@ spec:
   livenessProbe:
     initialDelaySeconds: 60
     timeoutSeconds: 5
+  template:
+    pod:
+      volumes:
+        - name: mongodb-credentials
+          secret:
+            secretName: mongodb-credentials-debezium
+    connectContainer:
+      volumeMounts:
+        - name: mongodb-credentials
+          mountPath: /mnt/secrets/mongodb-credentials
   metricsConfig:
     type: jmxPrometheusExporter
     valueFrom:

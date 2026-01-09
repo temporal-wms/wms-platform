@@ -1,0 +1,17 @@
+{
+  "id": "services/sortation-service",
+  "title": "Sortation Service",
+  "description": "The Sortation Service manages package sortation, grouping packages by destination and carrier for efficient dispatch.",
+  "source": "@site/docs/services/sortation-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/sortation-service",
+  "permalink": "/wms-platform/services/sortation-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 13,
+  "frontMatter": {
+    "sidebar_position": 13
+  }
+}

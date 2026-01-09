@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/domain-events",
+  "title": "Domain Events",
+  "description": "This document catalogs all domain events in the WMS Platform.",
+  "source": "@site/docs/domain-driven-design/domain-events.md",
+  "sourceDirName": "domain-driven-design",
+  "slug": "/domain-driven-design/domain-events",
+  "permalink": "/wms-platform/domain-driven-design/domain-events",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Worker Aggregate",
+    "permalink": "/wms-platform/domain-driven-design/aggregates/worker"
+  },
+  "next": {
+    "title": "Value Objects",
+    "permalink": "/wms-platform/domain-driven-design/value-objects"
+  }
+}

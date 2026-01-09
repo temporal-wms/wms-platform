@@ -1,135 +1,480 @@
 asyncapi: 3.0.0
 info:
-  title: Shipping Service Events
+  title: WMS Shipping Service Events
   version: 1.0.0
   description: |
-    Event-driven API for the Shipping Service.
+    AsyncAPI specification for Shipping Service domain events.
 
-    This service publishes events related to shipment management and carrier
-    integration including shipment creation, label generation, manifesting,
-    and ship confirmation.
+    The Shipping service publishes events to track shipment lifecycle,
+    label generation, SLAM operations, and carrier integration.
+    Events follow the CloudEvents 1.0 specification.
+
+    **Event Flow:**
+    1. ShipmentCreated - When a new shipment record is created
+    2. LabelGenerated - When carrier label is obtained
+    3. LabelVoided - When a label is voided
+    4. LabelApplied - When label is applied to package (SLAM)
+    5. ShipmentManifested - When shipment is added to manifest
+    6. ManifestClosed - When manifest is closed for pickup
+    7. ShipConfirmed - When carrier confirms pickup
+    8. ShipmentCancelled - When shipment is cancelled
+
+    **SLAM Events:**
+    The SLAM (Scan, Label, Apply, Manifest) process generates events
+    at each step to enable real-time tracking of package processing
+    at shipping stations.
+
+    **Integration:**
+    - WES listens for ShipConfirmed to complete order fulfillment workflow
+    - Order service listens for tracking number updates
+    - Notification service listens for ship confirmation to notify customers
   contact:
     name: WMS Platform Team
-    email: wms-platform@example.com
+    email: wms@example.com
 
 servers:
-  development:
+  kafka:
     host: localhost:9092
     protocol: kafka
-    description: Local development Kafka
+    description: Local Kafka broker
+
+defaultContentType: application/json
 
 channels:
   wms.shipping.events:
     address: wms.shipping.events
+    description: Shipping and carrier integration events topic (6 partitions, keyed by orderId)
     messages:
-      ShipmentCreated:
-        $ref: '#/components/messages/ShipmentCreated'
-      LabelGenerated:
-        $ref: '#/components/messages/LabelGenerated'
-      ShipmentManifested:
-        $ref: '#/components/messages/ShipmentManifested'
-      ShipConfirmed:
-        $ref: '#/components/messages/ShipConfirmed'
-    description: Shipping and carrier integration events
+      shipmentCreated:
+        $ref: '#/components/messages/ShipmentCreatedEvent'
+      labelGenerated:
+        $ref: '#/components/messages/LabelGeneratedEvent'
+      labelVoided:
+        $ref: '#/components/messages/LabelVoidedEvent'
+      labelApplied:
+        $ref: '#/components/messages/LabelAppliedEvent'
+      shipmentManifested:
+        $ref: '#/components/messages/ShipmentManifestedEvent'
+      manifestClosed:
+        $ref: '#/components/messages/ManifestClosedEvent'
+      shipConfirmed:
+        $ref: '#/components/messages/ShipConfirmedEvent'
+      shipmentCancelled:
+        $ref: '#/components/messages/ShipmentCancelledEvent'
 
 operations:
   publishShipmentCreated:
     action: send
     channel:
       $ref: '#/channels/wms.shipping.events'
+    summary: Publish shipment created event
+    description: Published when a new shipment record is created for an order/package
     messages:
-      - $ref: '#/channels/wms.shipping.events/messages/ShipmentCreated'
-    description: Published when a shipment is created
+      - $ref: '#/channels/wms.shipping.events/messages/shipmentCreated'
+
+  publishLabelGenerated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.shipping.events'
+    summary: Publish label generated event
+    description: Published when a shipping label is obtained from the carrier API
+    messages:
+      - $ref: '#/channels/wms.shipping.events/messages/labelGenerated'
+
+  publishLabelVoided:
+    action: send
+    channel:
+      $ref: '#/channels/wms.shipping.events'
+    summary: Publish label voided event
+    description: Published when a previously generated label is voided
+    messages:
+      - $ref: '#/channels/wms.shipping.events/messages/labelVoided'
+
+  publishLabelApplied:
+    action: send
+    channel:
+      $ref: '#/channels/wms.shipping.events'
+    summary: Publish label applied event
+    description: Published when a shipping label is physically applied to a package (SLAM step)
+    messages:
+      - $ref: '#/channels/wms.shipping.events/messages/labelApplied'
+
+  publishShipmentManifested:
+    action: send
+    channel:
+      $ref: '#/channels/wms.shipping.events'
+    summary: Publish shipment manifested event
+    description: Published when a shipment is added to a carrier manifest for pickup
+    messages:
+      - $ref: '#/channels/wms.shipping.events/messages/shipmentManifested'
+
+  publishManifestClosed:
+    action: send
+    channel:
+      $ref: '#/channels/wms.shipping.events'
+    summary: Publish manifest closed event
+    description: Published when a carrier manifest is closed (end-of-day)
+    messages:
+      - $ref: '#/channels/wms.shipping.events/messages/manifestClosed'
 
   publishShipConfirmed:
     action: send
     channel:
       $ref: '#/channels/wms.shipping.events'
+    summary: Publish ship confirmed event
+    description: Published when carrier confirms shipment pickup
     messages:
-      - $ref: '#/channels/wms.shipping.events/messages/ShipConfirmed'
-    description: Published when shipment is confirmed by carrier
+      - $ref: '#/channels/wms.shipping.events/messages/shipConfirmed'
+
+  publishShipmentCancelled:
+    action: send
+    channel:
+      $ref: '#/channels/wms.shipping.events'
+    summary: Publish shipment cancelled event
+    description: Published when a shipment is cancelled
+    messages:
+      - $ref: '#/channels/wms.shipping.events/messages/shipmentCancelled'
 
 components:
   messages:
-    ShipmentCreated:
-      name: ShipmentCreated
-      title: Shipment Created Event
-      summary: Published when a shipment record is created
-      contentType: application/cloudevents+json
+    ShipmentCreatedEvent:
+      name: ShipmentCreatedEvent
+      title: Shipment Created
+      summary: Published when a new shipment record is created
+      description: |
+        Triggered when a shipment is created for an order/package.
+        Contains carrier, service level, and destination information.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/ShipmentCreatedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: shipmentCreated
+          summary: UPS Ground shipment created
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.shipping.shipment-created"
+            ce_source: "/wms/shipping-service"
+            ce_subject: "SHIP-001"
+            ce_id: "550e8400-e29b-41d4-a716-446655440001"
+            ce_time: "2024-12-24T10:00:00Z"
+            ce_datacontenttype: "application/json"
+            ce_wmscorrelationid: "550e8400-e29b-41d4-a716-446655440000"
+            ce_wmsworkflowid: "order-fulfillment-ORD-A1B2C3D4"
+          payload:
+            shipmentId: "SHIP-001"
+            orderId: "ORD-A1B2C3D4"
+            packageId: "PKG-001"
+            carrier: "ups"
+            serviceType: "ground"
+            serviceName: "UPS Ground"
+            shipTo:
+              name: "John Doe"
+              city: "New York"
+              state: "NY"
+              postalCode: "10001"
+              country: "US"
+            packageDetails:
+              weight: 2.5
+              dimensions:
+                length: 12
+                width: 10
+                height: 8
+            createdAt: "2024-12-24T10:00:00Z"
 
-    LabelGenerated:
-      name: LabelGenerated
-      title: Label Generated Event
+    LabelGeneratedEvent:
+      name: LabelGeneratedEvent
+      title: Label Generated
       summary: Published when a shipping label is generated
-      contentType: application/cloudevents+json
+      description: |
+        Triggered when a shipping label is obtained from the carrier API.
+        Contains the tracking number and label URL.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/LabelGeneratedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: labelGenerated
+          summary: UPS label generated
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.shipping.label-generated"
+            ce_source: "/wms/shipping-service"
+            ce_subject: "SHIP-001"
+            ce_id: "550e8400-e29b-41d4-a716-446655440002"
+            ce_time: "2024-12-24T10:05:00Z"
+          payload:
+            shipmentId: "SHIP-001"
+            orderId: "ORD-A1B2C3D4"
+            trackingNumber: "1Z999AA10123456784"
+            carrier: "ups"
+            serviceType: "ground"
+            labelUrl: "https://labels.wms.example.com/SHIP-001.pdf"
+            labelFormat: "pdf"
+            estimatedDelivery: "2024-12-30"
+            rate: 12.50
+            generatedAt: "2024-12-24T10:05:00Z"
 
-    ShipmentManifested:
-      name: ShipmentManifested
-      title: Shipment Manifested Event
+    LabelVoidedEvent:
+      name: LabelVoidedEvent
+      title: Label Voided
+      summary: Published when a shipping label is voided
+      description: |
+        Triggered when a previously generated label is voided.
+        The tracking number becomes invalid.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/LabelVoidedPayload'
+      examples:
+        - name: labelVoided
+          summary: Label voided
+          payload:
+            shipmentId: "SHIP-001"
+            orderId: "ORD-A1B2C3D4"
+            trackingNumber: "1Z999AA10123456784"
+            carrier: "ups"
+            reason: "Wrong carrier selected"
+            voidedAt: "2024-12-24T10:10:00Z"
+
+    LabelAppliedEvent:
+      name: LabelAppliedEvent
+      title: Label Applied
+      summary: Published when a shipping label is applied to a package
+      description: |
+        Triggered during SLAM process when the label is physically
+        applied to the package at a shipping station.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/LabelAppliedPayload'
+      examples:
+        - name: labelApplied
+          summary: Label applied at shipping station
+          payload:
+            shipmentId: "SHIP-001"
+            orderId: "ORD-A1B2C3D4"
+            packageId: "PKG-001"
+            trackingNumber: "1Z999AA10123456784"
+            carrier: "ups"
+            stationId: "SHIP-STATION-1"
+            operatorId: "OP-001"
+            appliedAt: "2024-12-24T10:15:00Z"
+
+    ShipmentManifestedEvent:
+      name: ShipmentManifestedEvent
+      title: Shipment Manifested
       summary: Published when a shipment is added to carrier manifest
-      contentType: application/cloudevents+json
+      description: |
+        Triggered when a shipment is added to the daily carrier manifest.
+        Package is ready for carrier pickup.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/ShipmentManifestedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: manifested
+          summary: Shipment added to UPS manifest
+          payload:
+            shipmentId: "SHIP-001"
+            orderId: "ORD-A1B2C3D4"
+            manifestId: "MAN-UPS-20241224"
+            carrier: "ups"
+            trackingNumber: "1Z999AA10123456784"
+            expectedPickupAt: "2024-12-24T17:00:00Z"
+            manifestedAt: "2024-12-24T14:00:00Z"
 
-    ShipConfirmed:
-      name: ShipConfirmed
-      title: Ship Confirmed Event
+    ManifestClosedEvent:
+      name: ManifestClosedEvent
+      title: Manifest Closed
+      summary: Published when a carrier manifest is closed
+      description: |
+        Triggered when a manifest is closed for carrier pickup.
+        No more shipments can be added to this manifest.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/ManifestClosedPayload'
+      examples:
+        - name: manifestClosed
+          summary: UPS manifest closed
+          payload:
+            manifestId: "MAN-UPS-20241224"
+            carrier: "ups"
+            pickupDate: "2024-12-24"
+            shipmentCount: 45
+            totalWeight: 156.5
+            pickupLocation: "DOCK-1"
+            expectedPickupTime: "17:00:00"
+            closedAt: "2024-12-24T16:30:00Z"
+
+    ShipConfirmedEvent:
+      name: ShipConfirmedEvent
+      title: Ship Confirmed
       summary: Published when carrier confirms shipment pickup
-      contentType: application/cloudevents+json
+      description: |
+        Triggered when the carrier confirms that the shipment has been
+        picked up. This is the final event in the shipping lifecycle.
+        WES listens for this event to complete the order fulfillment workflow.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/ShipConfirmedPayload'
+      examples:
+        - name: shipConfirmed
+          summary: Shipment confirmed by carrier
+          headers:
+            ce_specversion: "1.0"
+            ce_type: "wms.shipping.ship-confirmed"
+            ce_source: "/wms/shipping-service"
+            ce_subject: "SHIP-001"
+            ce_id: "550e8400-e29b-41d4-a716-446655440003"
+            ce_time: "2024-12-24T17:30:00Z"
+            ce_wmscorrelationid: "550e8400-e29b-41d4-a716-446655440000"
+            ce_wmsworkflowid: "order-fulfillment-ORD-A1B2C3D4"
+          payload:
+            shipmentId: "SHIP-001"
+            orderId: "ORD-A1B2C3D4"
+            packageId: "PKG-001"
+            trackingNumber: "1Z999AA10123456784"
+            carrier: "ups"
+            serviceType: "ground"
+            manifestId: "MAN-UPS-20241224"
+            estimatedDelivery: "2024-12-30"
+            duration: "PT7H30M"
+            confirmedAt: "2024-12-24T17:30:00Z"
+
+    ShipmentCancelledEvent:
+      name: ShipmentCancelledEvent
+      title: Shipment Cancelled
+      summary: Published when a shipment is cancelled
+      description: |
+        Triggered when a shipment is cancelled. This may occur due to
+        order cancellation or other operational reasons.
+      contentType: application/json
       headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/ShipmentCancelledPayload'
+      examples:
+        - name: cancelled
+          summary: Shipment cancelled
+          payload:
+            shipmentId: "SHIP-001"
+            orderId: "ORD-A1B2C3D4"
+            trackingNumber: "1Z999AA10123456784"
+            carrier: "ups"
+            labelVoided: true
+            reason: "Order cancelled by customer"
+            cancelledAt: "2024-12-24T11:00:00Z"
 
   schemas:
-    CloudEventsHeaders:
+    CloudEventHeaders:
       type: object
+      description: CloudEvents 1.0 headers with WMS extensions
       properties:
-        ce-specversion:
+        ce_specversion:
           type: string
           const: '1.0'
-        ce-type:
+          description: CloudEvents specification version
+        ce_type:
           type: string
-        ce-source:
+          description: Event type (e.g., wms.shipping.ship-confirmed)
+        ce_source:
           type: string
-        ce-id:
+          const: '/wms/shipping-service'
+          description: Event source
+        ce_subject:
           type: string
-        ce-time:
+          description: Shipment ID
+        ce_id:
+          type: string
+          format: uuid
+          description: Unique event ID
+        ce_time:
           type: string
           format: date-time
-        ce-wmscorrelationid:
+          description: Event timestamp
+        ce_datacontenttype:
           type: string
-        ce-wmsworkflowid:
+          const: 'application/json'
+          description: Content type of the data
+        ce_wmscorrelationid:
           type: string
-        content-type:
+          description: Correlation ID for distributed tracing
+        ce_wmswavenumber:
           type: string
-          const: application/json
+          description: Wave number for wave-based processing
+        ce_wmsworkflowid:
+          type: string
+          description: Temporal workflow ID
 
     ShipmentCreatedPayload:
       type: object
       properties:
         shipmentId:
           type: string
+          description: Unique shipment identifier
+          example: "SHIP-001"
         orderId:
           type: string
+          description: Associated order ID
+          example: "ORD-A1B2C3D4"
         packageId:
           type: string
+          description: Associated package ID from packing
+          example: "PKG-001"
         carrier:
           type: string
           enum: [ups, fedex, usps, dhl]
-        serviceLevel:
+          description: Shipping carrier
+          example: "ups"
+        serviceType:
           type: string
-          enum: [ground, express, overnight, two_day]
+          enum: [ground, express, two_day, overnight]
+          description: Service level
+          example: "ground"
+        serviceName:
+          type: string
+          description: Carrier service name
+          example: "UPS Ground"
+        shipTo:
+          type: object
+          description: Destination address
+          properties:
+            name:
+              type: string
+            company:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            postalCode:
+              type: string
+            country:
+              type: string
+        packageDetails:
+          type: object
+          properties:
+            weight:
+              type: number
+            dimensions:
+              type: object
+              properties:
+                length:
+                  type: number
+                width:
+                  type: number
+                height:
+                  type: number
         createdAt:
           type: string
           format: date-time
@@ -139,15 +484,91 @@ components:
       properties:
         shipmentId:
           type: string
+          example: "SHIP-001"
         orderId:
           type: string
+          example: "ORD-A1B2C3D4"
         trackingNumber:
           type: string
+          description: Carrier tracking number
+          example: "1Z999AA10123456784"
         carrier:
           type: string
+          example: "ups"
+        serviceType:
+          type: string
+          example: "ground"
         labelUrl:
           type: string
+          description: URL to download label
+          example: "https://labels.wms.example.com/SHIP-001.pdf"
+        labelFormat:
+          type: string
+          enum: [pdf, zpl, png]
+          example: "pdf"
+        estimatedDelivery:
+          type: string
+          format: date
+          description: Estimated delivery date
+        rate:
+          type: number
+          description: Shipping cost
+          example: 12.50
         generatedAt:
+          type: string
+          format: date-time
+
+    LabelVoidedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: "SHIP-001"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        trackingNumber:
+          type: string
+          description: Voided tracking number
+          example: "1Z999AA10123456784"
+        carrier:
+          type: string
+          example: "ups"
+        reason:
+          type: string
+          description: Reason for voiding
+          example: "Wrong carrier selected"
+        voidedAt:
+          type: string
+          format: date-time
+
+    LabelAppliedPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: "SHIP-001"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        packageId:
+          type: string
+          example: "PKG-001"
+        trackingNumber:
+          type: string
+          example: "1Z999AA10123456784"
+        carrier:
+          type: string
+          example: "ups"
+        stationId:
+          type: string
+          description: Shipping station ID
+          example: "SHIP-STATION-1"
+        operatorId:
+          type: string
+          description: Operator who applied the label
+          example: "OP-001"
+        appliedAt:
           type: string
           format: date-time
 
@@ -156,16 +577,61 @@ components:
       properties:
         shipmentId:
           type: string
+          example: "SHIP-001"
         orderId:
           type: string
+          example: "ORD-A1B2C3D4"
         manifestId:
           type: string
+          description: Manifest ID
+          example: "MAN-UPS-20241224"
         carrier:
           type: string
+          example: "ups"
+        trackingNumber:
+          type: string
+          example: "1Z999AA10123456784"
         expectedPickupAt:
           type: string
           format: date-time
+          description: Expected carrier pickup time
         manifestedAt:
+          type: string
+          format: date-time
+
+    ManifestClosedPayload:
+      type: object
+      properties:
+        manifestId:
+          type: string
+          example: "MAN-UPS-20241224"
+        carrier:
+          type: string
+          example: "ups"
+        pickupDate:
+          type: string
+          format: date
+          example: "2024-12-24"
+        shipmentCount:
+          type: integer
+          description: Number of shipments in manifest
+          example: 45
+        totalWeight:
+          type: number
+          description: Total weight of all packages
+          example: 156.5
+        pickupLocation:
+          type: string
+          description: Pickup dock/location
+          example: "DOCK-1"
+        expectedPickupTime:
+          type: string
+          format: time
+          example: "17:00:00"
+        manifestUrl:
+          type: string
+          description: URL to manifest document
+        closedAt:
           type: string
           format: date-time
 
@@ -174,12 +640,61 @@ components:
       properties:
         shipmentId:
           type: string
+          example: "SHIP-001"
         orderId:
           type: string
+          example: "ORD-A1B2C3D4"
+        packageId:
+          type: string
+          example: "PKG-001"
         trackingNumber:
           type: string
+          example: "1Z999AA10123456784"
         carrier:
           type: string
+          example: "ups"
+        serviceType:
+          type: string
+          example: "ground"
+        manifestId:
+          type: string
+          example: "MAN-UPS-20241224"
+        estimatedDelivery:
+          type: string
+          format: date
+          description: Estimated delivery date
+        duration:
+          type: string
+          description: ISO 8601 duration from creation to ship confirmation
+          example: "PT7H30M"
         confirmedAt:
+          type: string
+          format: date-time
+
+    ShipmentCancelledPayload:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          example: "SHIP-001"
+        orderId:
+          type: string
+          example: "ORD-A1B2C3D4"
+        trackingNumber:
+          type: string
+          description: Tracking number if label was generated
+          example: "1Z999AA10123456784"
+        carrier:
+          type: string
+          example: "ups"
+        labelVoided:
+          type: boolean
+          description: Whether the label was voided
+          example: true
+        reason:
+          type: string
+          description: Cancellation reason
+          example: "Order cancelled by customer"
+        cancelledAt:
           type: string
           format: date-time

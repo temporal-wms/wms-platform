@@ -34,6 +34,9 @@ spec:
       - name: {{ $serviceName }}
         image: {{ include "wms-platform.service.image" (dict "Values" $.Values "serviceConfig" $serviceConfig) }}
         imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+        {{- if $serviceConfig.image.command }}
+        command: {{ toJson $serviceConfig.image.command }}
+        {{- end }}
         ports:
         {{- if eq $serviceConfig.type "worker" }}
         - name: metrics

@@ -61,6 +61,13 @@ type PickTask struct {
 	StartedAt     *time.Time         `bson:"startedAt,omitempty"`
 	CompletedAt   *time.Time         `bson:"completedAt,omitempty"`
 	DomainEvents  []DomainEvent      `bson:"-"`
+
+	// Multi-route support fields
+	ParentOrderID      string `bson:"parentOrderId,omitempty"`      // Original order ID for multi-route orders
+	RouteIndex         int    `bson:"routeIndex"`                   // Index in multi-route sequence (0, 1, 2...)
+	TotalRoutesInOrder int    `bson:"totalRoutesInOrder"`           // Total routes for this order
+	IsMultiRoute       bool   `bson:"isMultiRoute"`                 // Flag for multi-route order
+	SourceToteID       string `bson:"sourceToteId,omitempty"`       // Unique tote for this route's items
 }
 
 // PickItem represents an item to be picked
@@ -144,6 +151,22 @@ func NewPickTask(taskID, orderID, waveID, routeID string, method PickMethod, ite
 		ItemCount: len(items),
 		CreatedAt: now,
 	})
+
+	return task, nil
+}
+
+// NewMultiRoutePickTask creates a new PickTask with multi-route tracking fields
+func NewMultiRoutePickTask(taskID, orderID, waveID, routeID string, method PickMethod, items []PickItem, routeIndex, totalRoutes int, sourceToteID string) (*PickTask, error) {
+	task, err := NewPickTask(taskID, orderID, waveID, routeID, method, items)
+	if err != nil {
+		return nil, err
+	}
+
+	task.ParentOrderID = orderID
+	task.RouteIndex = routeIndex
+	task.TotalRoutesInOrder = totalRoutes
+	task.IsMultiRoute = totalRoutes > 1
+	task.SourceToteID = sourceToteID
 
 	return task, nil
 }

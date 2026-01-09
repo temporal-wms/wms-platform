@@ -71,12 +71,18 @@ var Topics = struct {
 	InventoryEvents     string
 	LaborEvents         string
 	FacilityEvents      string
+	WESEvents           string
 
 	// Amazon-aligned process topics
 	ReceivingEvents  string
 	StowEvents       string
 	SLAMEvents       string
 	SortationEvents  string
+
+	// Multi-tenant/3PL topics
+	SellerEvents  string
+	BillingEvents string
+	ChannelEvents string
 
 	// Outbound topics
 	ShipmentsOutbound string
@@ -93,12 +99,18 @@ var Topics = struct {
 	InventoryEvents:     "wms.inventory.events",
 	LaborEvents:         "wms.labor.events",
 	FacilityEvents:      "wms.facility.events",
+	WESEvents:           "wms.wes.events",
 
 	// Amazon-aligned process topics
 	ReceivingEvents:  "wms.receiving.events",
 	StowEvents:       "wms.stow.events",
 	SLAMEvents:       "wms.slam.events",
 	SortationEvents:  "wms.sortation.events",
+
+	// Multi-tenant/3PL topics
+	SellerEvents:  "wms.seller.events",
+	BillingEvents: "wms.billing.events",
+	ChannelEvents: "wms.channel.events",
 
 	ShipmentsOutbound: "wms.shipments.outbound",
 }
@@ -124,11 +136,16 @@ func DefaultTopicConfigs() []TopicConfig {
 		{Name: Topics.ShippingEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.InventoryEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.LaborEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
+		{Name: Topics.WESEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		// Amazon-aligned process topics
 		{Name: Topics.ReceivingEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.StowEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.SLAMEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.SortationEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
+		// Multi-tenant/3PL topics
+		{Name: Topics.SellerEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 30 * 24 * 60 * 60 * 1000},  // 30 days
+		{Name: Topics.BillingEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 90 * 24 * 60 * 60 * 1000}, // 90 days for audit
+		{Name: Topics.ChannelEvents, Partitions: 6, ReplicationFactor: 3, RetentionMs: 7 * 24 * 60 * 60 * 1000},
 		{Name: Topics.ShipmentsOutbound, Partitions: 6, ReplicationFactor: 3, RetentionMs: 30 * 24 * 60 * 60 * 1000}, // 30 days
 	}
 }

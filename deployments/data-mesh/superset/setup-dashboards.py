@@ -2,8 +2,16 @@
 """
 WMS Platform - Superset Dashboard Setup Script
 Creates datasets, charts, and dashboards for:
-1. Orders by Requirements Bar Chart (on Orders Dashboard)
+1. Orders by Requirements Bar Chart
 2. Order Flow Tracker Dashboard
+3. Tote Lookup Dashboard
+4. Route Performance by Zone Dashboard
+5. Route Optimization Analysis Dashboard
+6. Labor Performance Dashboard
+7. Inventory Analytics Dashboard
+8. Wave Performance Dashboard
+9. Receiving Operations Dashboard
+10. Operations KPI Dashboard
 """
 
 import requests
@@ -35,7 +43,19 @@ class SupersetClient:
         """Login and get access token"""
         print(f"{YELLOW}Authenticating with Superset...{NC}")
 
-        # Get JWT token
+        # First, get the login page to establish session and get CSRF cookie
+        login_page = self.session.get(f"{self.base_url}/login/")
+
+        # Extract CSRF token from cookies (set by Superset automatically)
+        self.csrf_token = self.session.cookies.get('csrf_access_token')
+        if not self.csrf_token:
+            # Try alternative cookie names
+            self.csrf_token = self.session.cookies.get('_csrf') or self.session.cookies.get('session')
+
+        if self.csrf_token:
+            print(f"  Got CSRF token from cookie")
+
+        # Get JWT token with CSRF
         response = self.session.post(
             f"{self.base_url}/api/v1/security/login",
             json={
@@ -43,6 +63,10 @@ class SupersetClient:
                 "password": password,
                 "provider": "db",
                 "refresh": True
+            },
+            headers={
+                "Content-Type": "application/json",
+                "X-CSRFToken": self.csrf_token or ""
             }
         )
 
@@ -56,10 +80,9 @@ class SupersetClient:
             "Content-Type": "application/json"
         })
 
-        # Get CSRF token
-        response = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
-        if response.status_code == 200:
-            self.csrf_token = response.json().get("result")
+        # Get fresh CSRF token from cookies after login
+        self.csrf_token = self.session.cookies.get('csrf_access_token')
+        if self.csrf_token:
             self.session.headers.update({"X-CSRFToken": self.csrf_token})
 
         print(f"{GREEN}✓ Authenticated successfully{NC}")
@@ -67,19 +90,25 @@ class SupersetClient:
     def get(self, endpoint, params=None):
         return self.session.get(f"{self.base_url}{endpoint}", params=params)
 
-    def post(self, endpoint, data):
-        # Refresh CSRF token before POST
+    def _refresh_csrf(self):
+        """Refresh CSRF token from the security endpoint"""
         response = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
         if response.status_code == 200:
             self.csrf_token = response.json().get("result")
             self.session.headers.update({"X-CSRFToken": self.csrf_token})
+        # Also check cookies
+        csrf = self.session.cookies.get('csrf_access_token')
+        if csrf and not self.csrf_token:
+            self.csrf_token = csrf
+            self.session.headers.update({"X-CSRFToken": self.csrf_token})
+
+    def post(self, endpoint, data):
+        # Refresh CSRF token before POST
+        self._refresh_csrf()
         return self.session.post(f"{self.base_url}{endpoint}", json=data)
 
     def put(self, endpoint, data):
-        response = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
-        if response.status_code == 200:
-            self.csrf_token = response.json().get("result")
-            self.session.headers.update({"X-CSRFToken": self.csrf_token})
+        self._refresh_csrf()
         return self.session.put(f"{self.base_url}{endpoint}", json=data)
 
 
@@ -536,6 +565,755 @@ LEFT JOIN iceberg.bronze.shipments_raw s ON o.order_id = s.order_id
     return dashboard_id
 
 
+def setup_tote_lookup_dashboard(client, database_id):
+    """Setup the Tote Lookup dashboard for consolidation"""
+    print(f"\n{BLUE}═══ Setting up Tote Lookup Dashboard ═══{NC}")
+
+    # Create virtual dataset for tote lookup using MongoDB consolidation_db
+    # Note: MongoDB column names are lowercase without underscores
+    sql = """
+SELECT
+    consolidationid,
+    orderid,
+    sourcetotes,
+    status,
+    station,
+    totalexpected,
+    totalconsolidated,
+    createdat
+FROM mongodb.consolidation_db.consolidations
+ORDER BY createdat DESC
+"""
+    dataset_id = create_virtual_dataset(
+        client, database_id,
+        "vw_orders_by_tote",
+        sql,
+        "consolidation_db"
+    )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Tote Lookup dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Orders Table
+    chart1 = create_chart(
+        client,
+        "Tote Lookup - Orders",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["consolidationid", "orderid", "sourcetotes", "status", "station", "totalexpected", "totalconsolidated", "createdat"],
+            "row_limit": 100
+        },
+        "Orders in consolidation with tote information"
+    )
+    charts.append(chart1)
+
+    # Create dashboard
+    dashboard_id = create_dashboard(
+        client,
+        "Tote Lookup",
+        "tote-lookup",
+        charts,
+        "Dashboard for looking up orders by tote ID"
+    )
+
+    return dashboard_id
+
+
+def setup_route_performance_dashboard(client, database_id):
+    """Setup the Route Performance by Zone dashboard"""
+    print(f"\n{BLUE}═══ Setting up Route Performance Dashboard ═══{NC}")
+
+    # Try physical table first
+    dataset_id = create_dataset(
+        client, database_id,
+        "gold", "route_performance_by_zone_daily",
+        "Daily route performance metrics by warehouse zone"
+    )
+
+    if not dataset_id:
+        # Create virtual dataset using MongoDB routing_db
+        # Note: MongoDB column names are lowercase without underscores
+        sql = """
+SELECT
+    CAST(createdat AS DATE) AS route_date,
+    routeid,
+    orderid,
+    zone,
+    strategy,
+    status,
+    estimateddistance,
+    totalitems,
+    createdat
+FROM mongodb.routing_db.routes
+ORDER BY createdat DESC
+"""
+        dataset_id = create_virtual_dataset(
+            client, database_id,
+            "vw_route_performance_by_zone",
+            sql,
+            "routing_db"
+        )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Route Performance dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Routes by Zone bar chart
+    chart1 = create_chart(
+        client,
+        "Route Performance - Routes by Zone",
+        "dist_bar",
+        dataset_id,
+        {
+            "viz_type": "dist_bar",
+            "metrics": [{"label": "Total Routes", "expressionType": "SQL", "sqlExpression": "COUNT(*)"}],
+            "groupby": ["zone"],
+            "row_limit": 20,
+            "order_desc": True,
+            "show_legend": True,
+            "y_axis_format": "SMART_NUMBER",
+            "color_scheme": "supersetColors"
+        },
+        "Number of routes per zone"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Distance Distribution
+    chart2 = create_chart(
+        client,
+        "Route Performance - Avg Distance",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Avg Distance", "expressionType": "SQL", "sqlExpression": "AVG(estimateddistance)"},
+            "y_axis_format": ",.0f"
+        },
+        "Average estimated distance (m)"
+    )
+    charts.append(chart2)
+
+    # Chart 3: Details Table
+    chart3 = create_chart(
+        client,
+        "Route Performance - Details",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["route_date", "routeid", "orderid", "zone", "strategy", "status", "estimateddistance", "totalitems"],
+            "row_limit": 100
+        },
+        "Route performance details"
+    )
+    charts.append(chart3)
+
+    # Create dashboard
+    dashboard_id = create_dashboard(
+        client,
+        "Route Performance by Zone",
+        "route-performance",
+        charts,
+        "Dashboard for analyzing picking route efficiency across warehouse zones"
+    )
+
+    return dashboard_id
+
+
+def setup_route_optimization_dashboard(client, database_id):
+    """Setup the Route Optimization Analysis dashboard"""
+    print(f"\n{BLUE}═══ Setting up Route Optimization Dashboard ═══{NC}")
+
+    # Try physical table first
+    dataset_id = create_dataset(
+        client, database_id,
+        "gold", "route_optimization_candidates",
+        "Routes with optimization scores and flags"
+    )
+
+    if not dataset_id:
+        # Create virtual dataset using MongoDB routing_db
+        # Note: MongoDB column names are lowercase without underscores
+        sql = """
+SELECT
+    routeid,
+    orderid,
+    CAST(createdat AS DATE) AS route_date,
+    zone,
+    strategy,
+    status,
+    estimateddistance,
+    totalitems,
+    CASE WHEN estimateddistance > 500 THEN 2 ELSE 0 END +
+    CASE WHEN totalitems > 20 THEN 2 ELSE 0 END AS optimization_score,
+    createdat
+FROM mongodb.routing_db.routes
+ORDER BY createdat DESC
+"""
+        dataset_id = create_virtual_dataset(
+            client, database_id,
+            "vw_route_optimization_candidates",
+            sql,
+            "routing_db"
+        )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Route Optimization dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Optimization Score Distribution
+    chart1 = create_chart(
+        client,
+        "Route Optimization - Score Distribution",
+        "dist_bar",
+        dataset_id,
+        {
+            "viz_type": "dist_bar",
+            "metrics": [{"label": "Route Count", "expressionType": "SQL", "sqlExpression": "COUNT(*)"}],
+            "groupby": ["optimization_score"],
+            "row_limit": 20,
+            "order_desc": False,
+            "show_legend": True,
+            "y_axis_format": "SMART_NUMBER",
+            "color_scheme": "supersetColors"
+        },
+        "Distribution of routes by optimization score"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Routes Needing Attention Table
+    chart2 = create_chart(
+        client,
+        "Route Optimization - Routes Needing Attention",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["routeid", "orderid", "route_date", "zone", "strategy", "status", "estimateddistance", "totalitems", "optimization_score"],
+            "row_limit": 50,
+            "order_by_cols": [["optimization_score", False]]
+        },
+        "Routes with highest optimization scores"
+    )
+    charts.append(chart2)
+
+    # Create dashboard
+    dashboard_id = create_dashboard(
+        client,
+        "Route Optimization Analysis",
+        "route-optimization",
+        charts,
+        "Dashboard for identifying routes that need optimization"
+    )
+
+    return dashboard_id
+
+
+# ============================================
+# NEW DATA PRODUCT DASHBOARDS
+# ============================================
+
+def setup_labor_performance_dashboard(client, database_id):
+    """Setup the Labor Performance dashboard"""
+    print(f"\n{BLUE}═══ Setting up Labor Performance Dashboard ═══{NC}")
+
+    dataset_id = create_dataset(
+        client, database_id,
+        "gold", "labor_productivity_daily",
+        "Daily labor productivity metrics by worker, zone, and shift"
+    )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Labor Performance dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Total Workers KPI
+    chart1 = create_chart(
+        client,
+        "Labor - Total Workers",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Workers", "expressionType": "SQL", "sqlExpression": "COUNT(DISTINCT worker_id)"},
+            "subheader": "Active Workers"
+        },
+        "Total active workers"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Avg Items Per Hour
+    chart2 = create_chart(
+        client,
+        "Labor - Avg Items/Hour",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Items/Hour", "expressionType": "SQL", "sqlExpression": "AVG(items_per_hour)"},
+            "y_axis_format": ",.1f",
+            "subheader": "Items Per Hour"
+        },
+        "Average items processed per hour"
+    )
+    charts.append(chart2)
+
+    # Chart 3: Productivity by Zone
+    chart3 = create_chart(
+        client,
+        "Labor - Productivity by Zone",
+        "dist_bar",
+        dataset_id,
+        {
+            "viz_type": "dist_bar",
+            "metrics": [{"label": "Items/Hour", "expressionType": "SQL", "sqlExpression": "AVG(items_per_hour)"}],
+            "groupby": ["zone"],
+            "row_limit": 10,
+            "order_desc": True,
+            "show_legend": True,
+            "y_axis_format": ",.1f",
+            "color_scheme": "supersetColors"
+        },
+        "Average productivity by zone"
+    )
+    charts.append(chart3)
+
+    # Chart 4: Worker Performance Table
+    chart4 = create_chart(
+        client,
+        "Labor - Worker Performance",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["date", "worker_id", "worker_name", "zone", "shift_type", "tasks_completed", "items_processed", "items_per_hour", "accuracy_rate"],
+            "row_limit": 100
+        },
+        "Worker performance details"
+    )
+    charts.append(chart4)
+
+    dashboard_id = create_dashboard(
+        client,
+        "Labor Performance",
+        "labor-performance",
+        charts,
+        "Dashboard for monitoring workforce productivity and utilization"
+    )
+
+    return dashboard_id
+
+
+def setup_inventory_analytics_dashboard(client, database_id):
+    """Setup the Inventory Analytics dashboard"""
+    print(f"\n{BLUE}═══ Setting up Inventory Analytics Dashboard ═══{NC}")
+
+    dataset_id = create_dataset(
+        client, database_id,
+        "silver", "inventory_current",
+        "Current inventory levels and stock status"
+    )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Inventory Analytics dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Total SKUs
+    chart1 = create_chart(
+        client,
+        "Inventory - Total SKUs",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "SKUs", "expressionType": "SQL", "sqlExpression": "COUNT(DISTINCT sku)"},
+            "subheader": "SKUs"
+        },
+        "Total unique SKUs"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Total Units
+    chart2 = create_chart(
+        client,
+        "Inventory - Total Units",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Units", "expressionType": "SQL", "sqlExpression": "SUM(total_quantity)"},
+            "y_axis_format": ",",
+            "subheader": "Units"
+        },
+        "Total units in inventory"
+    )
+    charts.append(chart2)
+
+    # Chart 3: Low Stock Alerts
+    chart3 = create_chart(
+        client,
+        "Inventory - Low Stock Alerts",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Low Stock", "expressionType": "SQL", "sqlExpression": "SUM(CASE WHEN available_quantity <= reorder_point THEN 1 ELSE 0 END)"},
+            "subheader": "Alerts"
+        },
+        "SKUs below reorder point"
+    )
+    charts.append(chart3)
+
+    # Chart 4: Inventory Table
+    chart4 = create_chart(
+        client,
+        "Inventory - Reorder Alerts",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["sku", "product_name", "total_quantity", "available_quantity", "reserved_quantity", "reorder_point"],
+            "row_limit": 100
+        },
+        "SKUs requiring reorder"
+    )
+    charts.append(chart4)
+
+    dashboard_id = create_dashboard(
+        client,
+        "Inventory Analytics",
+        "inventory-analytics",
+        charts,
+        "Dashboard for stock visibility and inventory health monitoring"
+    )
+
+    return dashboard_id
+
+
+def setup_wave_performance_dashboard(client, database_id):
+    """Setup the Wave Performance dashboard"""
+    print(f"\n{BLUE}═══ Setting up Wave Performance Dashboard ═══{NC}")
+
+    dataset_id = create_dataset(
+        client, database_id,
+        "gold", "wave_performance_daily",
+        "Daily wave execution metrics by wave type"
+    )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Wave Performance dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Total Waves
+    chart1 = create_chart(
+        client,
+        "Wave - Total Waves",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Waves", "expressionType": "SQL", "sqlExpression": "SUM(waves_created)"},
+            "subheader": "Waves Created"
+        },
+        "Total waves created"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Completion Rate
+    chart2 = create_chart(
+        client,
+        "Wave - Completion Rate",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Rate", "expressionType": "SQL", "sqlExpression": "100.0 * SUM(waves_completed) / NULLIF(SUM(waves_created), 0)"},
+            "y_axis_format": ",.1f",
+            "subheader": "% Completion"
+        },
+        "Wave completion rate"
+    )
+    charts.append(chart2)
+
+    # Chart 3: Waves by Type
+    chart3 = create_chart(
+        client,
+        "Wave - By Type",
+        "dist_bar",
+        dataset_id,
+        {
+            "viz_type": "dist_bar",
+            "metrics": [{"label": "Waves", "expressionType": "SQL", "sqlExpression": "SUM(waves_created)"}],
+            "groupby": ["wave_type"],
+            "row_limit": 10,
+            "order_desc": True,
+            "show_legend": True,
+            "color_scheme": "supersetColors"
+        },
+        "Waves by type"
+    )
+    charts.append(chart3)
+
+    # Chart 4: Wave Details Table
+    chart4 = create_chart(
+        client,
+        "Wave - Performance Details",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["date", "wave_type", "waves_created", "waves_completed", "waves_cancelled", "avg_orders_per_wave", "avg_completion_time_hours"],
+            "row_limit": 100
+        },
+        "Wave performance details"
+    )
+    charts.append(chart4)
+
+    dashboard_id = create_dashboard(
+        client,
+        "Wave Performance",
+        "wave-performance",
+        charts,
+        "Dashboard for monitoring wave creation, completion rates, and cycle times"
+    )
+
+    return dashboard_id
+
+
+def setup_receiving_dashboard(client, database_id):
+    """Setup the Receiving Operations dashboard"""
+    print(f"\n{BLUE}═══ Setting up Receiving Dashboard ═══{NC}")
+
+    dataset_id = create_dataset(
+        client, database_id,
+        "gold", "receiving_metrics_daily",
+        "Daily receiving metrics by dock door"
+    )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Receiving dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Total Receipts
+    chart1 = create_chart(
+        client,
+        "Receiving - Total Receipts",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Receipts", "expressionType": "SQL", "sqlExpression": "SUM(total_receipts)"},
+            "subheader": "Receipts"
+        },
+        "Total receipts processed"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Dock-to-Stock Time
+    chart2 = create_chart(
+        client,
+        "Receiving - Dock-to-Stock",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Minutes", "expressionType": "SQL", "sqlExpression": "AVG(avg_dock_to_stock_minutes)"},
+            "y_axis_format": ",.0f",
+            "subheader": "Avg Minutes"
+        },
+        "Average dock-to-stock time"
+    )
+    charts.append(chart2)
+
+    # Chart 3: Units by Dock Door
+    chart3 = create_chart(
+        client,
+        "Receiving - Units by Dock",
+        "dist_bar",
+        dataset_id,
+        {
+            "viz_type": "dist_bar",
+            "metrics": [{"label": "Units", "expressionType": "SQL", "sqlExpression": "SUM(total_units_received)"}],
+            "groupby": ["dock_door"],
+            "row_limit": 10,
+            "order_desc": True,
+            "show_legend": True,
+            "color_scheme": "supersetColors"
+        },
+        "Units received by dock door"
+    )
+    charts.append(chart3)
+
+    # Chart 4: Receiving Details Table
+    chart4 = create_chart(
+        client,
+        "Receiving - Details",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["date", "dock_door", "total_receipts", "completed_receipts", "total_units_received", "receiving_accuracy", "avg_dock_to_stock_minutes", "on_time_rate"],
+            "row_limit": 100
+        },
+        "Receiving performance details"
+    )
+    charts.append(chart4)
+
+    dashboard_id = create_dashboard(
+        client,
+        "Receiving Operations",
+        "receiving",
+        charts,
+        "Dashboard for monitoring inbound operations and vendor performance"
+    )
+
+    return dashboard_id
+
+
+def setup_operations_kpi_dashboard(client, database_id):
+    """Setup the Operations KPI executive dashboard"""
+    print(f"\n{BLUE}═══ Setting up Operations KPI Dashboard ═══{NC}")
+
+    dataset_id = create_dataset(
+        client, database_id,
+        "gold", "operations_summary_daily",
+        "Daily operations summary with key metrics across all domains"
+    )
+
+    if not dataset_id:
+        print(f"{YELLOW}Skipping Operations KPI dashboard - dataset not available{NC}")
+        return None
+
+    charts = []
+
+    # Chart 1: Orders Received
+    chart1 = create_chart(
+        client,
+        "KPI - Orders Today",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Orders", "expressionType": "SQL", "sqlExpression": "SUM(orders_received)"},
+            "subheader": "Orders"
+        },
+        "Total orders received"
+    )
+    charts.append(chart1)
+
+    # Chart 2: Fulfillment Rate
+    chart2 = create_chart(
+        client,
+        "KPI - Fulfillment Rate",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Rate", "expressionType": "SQL", "sqlExpression": "100.0 * SUM(orders_completed) / NULLIF(SUM(orders_received), 0)"},
+            "y_axis_format": ",.1f",
+            "subheader": "% Fulfillment"
+        },
+        "Order fulfillment rate"
+    )
+    charts.append(chart2)
+
+    # Chart 3: Items Picked
+    chart3 = create_chart(
+        client,
+        "KPI - Items Picked",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Items", "expressionType": "SQL", "sqlExpression": "SUM(items_picked)"},
+            "y_axis_format": ",",
+            "subheader": "Items"
+        },
+        "Total items picked"
+    )
+    charts.append(chart3)
+
+    # Chart 4: Shipments Sent
+    chart4 = create_chart(
+        client,
+        "KPI - Shipments",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Shipments", "expressionType": "SQL", "sqlExpression": "SUM(shipments_sent)"},
+            "subheader": "Shipments"
+        },
+        "Total shipments sent"
+    )
+    charts.append(chart4)
+
+    # Chart 5: Active Workers
+    chart5 = create_chart(
+        client,
+        "KPI - Active Workers",
+        "big_number_total",
+        dataset_id,
+        {
+            "viz_type": "big_number_total",
+            "metric": {"label": "Workers", "expressionType": "SQL", "sqlExpression": "SUM(active_workers)"},
+            "subheader": "Workers"
+        },
+        "Active workers"
+    )
+    charts.append(chart5)
+
+    # Chart 6: Operations Summary Table
+    chart6 = create_chart(
+        client,
+        "KPI - Operations Summary",
+        "table",
+        dataset_id,
+        {
+            "viz_type": "table",
+            "query_mode": "raw",
+            "all_columns": ["date", "orders_received", "orders_completed", "order_completion_rate", "items_picked", "packages_packed", "shipments_sent", "receipts_completed", "returns_processed", "active_workers"],
+            "row_limit": 30
+        },
+        "Daily operations summary"
+    )
+    charts.append(chart6)
+
+    dashboard_id = create_dashboard(
+        client,
+        "Operations KPI",
+        "operations-kpi",
+        charts,
+        "Executive-level overview of warehouse operations with key performance indicators"
+    )
+
+    return dashboard_id
+
+
 def main():
     print_banner()
 
@@ -552,6 +1330,16 @@ def main():
     # Setup dashboards
     requirements_chart = setup_orders_requirements_chart(client, database_id)
     order_flow_dash = setup_order_flow_dashboard(client, database_id)
+    tote_lookup_dash = setup_tote_lookup_dashboard(client, database_id)
+    route_performance_dash = setup_route_performance_dashboard(client, database_id)
+    route_optimization_dash = setup_route_optimization_dashboard(client, database_id)
+
+    # Setup new data product dashboards
+    labor_performance_dash = setup_labor_performance_dashboard(client, database_id)
+    inventory_analytics_dash = setup_inventory_analytics_dashboard(client, database_id)
+    wave_performance_dash = setup_wave_performance_dashboard(client, database_id)
+    receiving_dash = setup_receiving_dashboard(client, database_id)
+    operations_kpi_dash = setup_operations_kpi_dashboard(client, database_id)
 
     # Summary
     print(f"\n{BLUE}═══════════════════════════════════════════════════════════{NC}")
@@ -564,7 +1352,23 @@ def main():
         print(f"  {GREEN}✓{NC} Orders by Special Requirements (chart)")
     if order_flow_dash:
         print(f"  {GREEN}✓{NC} Order Flow Tracker (dashboard)")
-    print(f"\n{YELLOW}Note:{NC} Add native filters for order_id lookups in the Order Flow Tracker.")
+    if tote_lookup_dash:
+        print(f"  {GREEN}✓{NC} Tote Lookup (dashboard)")
+    if route_performance_dash:
+        print(f"  {GREEN}✓{NC} Route Performance by Zone (dashboard)")
+    if route_optimization_dash:
+        print(f"  {GREEN}✓{NC} Route Optimization Analysis (dashboard)")
+    if labor_performance_dash:
+        print(f"  {GREEN}✓{NC} Labor Performance (dashboard)")
+    if inventory_analytics_dash:
+        print(f"  {GREEN}✓{NC} Inventory Analytics (dashboard)")
+    if wave_performance_dash:
+        print(f"  {GREEN}✓{NC} Wave Performance (dashboard)")
+    if receiving_dash:
+        print(f"  {GREEN}✓{NC} Receiving Operations (dashboard)")
+    if operations_kpi_dash:
+        print(f"  {GREEN}✓{NC} Operations KPI (dashboard)")
+    print(f"\n{YELLOW}Note:{NC} Add native filters for order_id/tote_id lookups in the dashboards.")
 
 
 if __name__ == "__main__":

@@ -94,3 +94,9 @@ type AnalyzeRouteQuery struct {
 type SuggestStrategyQuery struct {
 	Items []domain.RouteItem
 }
+
+// CalculateMultiRouteCommand calculates multiple routes for an order
+// Supports zone-based splitting and capacity limits
+type CalculateMultiRouteCommand struct {
+	RouteRequest domain.RouteRequest
+}

@@ -137,6 +137,378 @@ Request:
 }
 ```
 
+### Reprocessing API
+
+#### Get Eligible Orders for Retry
+
+```http
+GET /api/v1/reprocessing/eligible?limit=100&maxRetries=5
+```
+
+#### Get Retry Metadata
+
+```http
+GET /api/v1/reprocessing/orders/{orderId}/retry-count
+```
+
+#### Increment Retry Count
+
+```http
+POST /api/v1/reprocessing/orders/{orderId}/retry-count
+```
+
+Request:
+```json
+{
+  "failureReason": "Picking station offline",
+  "failedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+#### Reset Order for Retry
+
+```http
+POST /api/v1/reprocessing/orders/{orderId}/reset
+```
+
+#### Move to Dead Letter Queue
+
+```http
+POST /api/v1/reprocessing/orders/{orderId}/dlq
+```
+
+Request:
+```json
+{
+  "failureStatus": "picking",
+  "failureReason": "Max retries exceeded"
+}
+```
+
+### Dead Letter Queue API
+
+#### List DLQ Entries
+
+```http
+GET /api/v1/dead-letter-queue?resolved=false&limit=50
+```
+
+#### Get DLQ Statistics
+
+```http
+GET /api/v1/dead-letter-queue/stats
+```
+
+Response:
+```json
+{
+  "totalEntries": 42,
+  "unresolvedCount": 15,
+  "resolvedCount": 27,
+  "byFailureStatus": { "picking": 8, "packing": 4 }
+}
+```
+
+#### Resolve DLQ Entry
+
+```http
+PATCH /api/v1/dead-letter-queue/{orderId}/resolve
+```
+
+Request:
+```json
+{
+  "resolution": "manual_retry",
+  "notes": "Inventory replenished",
+  "resolvedBy": "SUPERVISOR-001"
+}
+```
+
+## Unit Service API (Port 8014)
+
+The Unit Service provides individual unit-level tracking throughout fulfillment.
+
+### Create Units
+
+```http
+POST /api/v1/units
+```
+
+Request:
+```json
+{
+  "sku": "SKU-001",
+  "shipmentId": "SHIP-12345",
+  "locationId": "RECV-DOCK-01",
+  "quantity": 10,
+  "createdBy": "WORKER-001"
+}
+```
+
+### Reserve Units
+
+```http
+POST /api/v1/units/reserve
+```
+
+Request:
+```json
+{
+  "orderId": "ORD-12345",
+  "pathId": "PATH-001",
+  "items": [
+    { "sku": "SKU-001", "quantity": 2 }
+  ],
+  "handlerId": "SYSTEM"
+}
+```
+
+### Get Unit
+
+```http
+GET /api/v1/units/{unitId}
+GET /api/v1/units/order/{orderId}
+```
+
+### Get Unit Audit Trail
+
+```http
+GET /api/v1/units/{unitId}/audit
+```
+
+### Unit Operations
+
+```http
+POST /api/v1/units/{unitId}/pick
+POST /api/v1/units/{unitId}/consolidate
+POST /api/v1/units/{unitId}/pack
+POST /api/v1/units/{unitId}/ship
+POST /api/v1/units/{unitId}/exception
+```
+
+### Exception Management
+
+```http
+GET /api/v1/exceptions/order/{orderId}
+GET /api/v1/exceptions/unresolved
+POST /api/v1/exceptions/{exceptionId}/resolve
+```
+
+## Process Path Service API (Port 8015)
+
+The Process Path Service determines optimal fulfillment paths based on item characteristics.
+
+### Determine Process Path
+
+```http
+POST /api/v1/process-paths/determine
+```
+
+Request:
+```json
+{
+  "orderId": "ORD-12345",
+  "items": [
+    {
+      "sku": "SKU-001",
+      "quantity": 2,
+      "weight": 1.5,
+      "isFragile": true,
+      "isHazmat": false,
+      "requiresColdChain": false
+    }
+  ],
+  "giftWrap": true,
+  "totalValue": 299.99
+}
+```
+
+Response:
+```json
+{
+  "pathId": "PATH-001",
+  "requirements": ["multi_item", "gift_wrap", "fragile"],
+  "consolidationRequired": true,
+  "giftWrapRequired": true,
+  "specialHandling": ["fragile_packing"]
+}
+```
+
+### Get Process Path
+
+```http
+GET /api/v1/process-paths/{pathId}
+GET /api/v1/process-paths/order/{orderId}
+```
+
+### Assign Station
+
+```http
+PUT /api/v1/process-paths/{pathId}/station
+```
+
+Request:
+```json
+{
+  "stationId": "STATION-A01"
+}
+```
+
+## WES Service API (Port 8016)
+
+The Warehouse Execution System coordinates order execution through configurable process paths.
+
+### Resolve Execution Plan
+
+```http
+POST /api/v1/execution-plans/resolve
+```
+
+Request:
+```json
+{
+  "itemCount": 8,
+  "multiZone": false
+}
+```
+
+Response (200):
+```json
+{
+  "templateId": "tpl-pick-wall-pack",
+  "pathType": "pick_wall_pack",
+  "stages": [
+    {"stageType": "picking", "sequence": 0},
+    {"stageType": "walling", "sequence": 1},
+    {"stageType": "packing", "sequence": 2}
+  ]
+}
+```
+
+### Create Task Route
+
+```http
+POST /api/v1/routes
+```
+
+Request:
+```json
+{
+  "orderId": "ORD-12345",
+  "waveId": "WAVE-001",
+  "templateId": "tpl-pick-wall-pack",
+  "specialHandling": ["fragile"]
+}
+```
+
+### Get Task Route
+
+```http
+GET /api/v1/routes/{routeId}
+GET /api/v1/routes/order/{orderId}
+```
+
+### Stage Operations
+
+```http
+POST /api/v1/routes/{routeId}/stages/current/assign
+POST /api/v1/routes/{routeId}/stages/current/start
+POST /api/v1/routes/{routeId}/stages/current/complete
+POST /api/v1/routes/{routeId}/stages/current/fail
+```
+
+Assign Worker Request:
+```json
+{
+  "workerId": "PICKER-001",
+  "taskId": "PT-12345"
+}
+```
+
+Fail Stage Request:
+```json
+{
+  "error": "Picker reported item shortage"
+}
+```
+
+### List Templates
+
+```http
+GET /api/v1/templates?activeOnly=true
+GET /api/v1/templates/{templateId}
+```
+
+## Walling Service API (Port 8017)
+
+The Walling Service manages put-wall sorting operations for medium-sized orders.
+
+### Create Walling Task
+
+```http
+POST /api/v1/tasks
+```
+
+Request:
+```json
+{
+  "orderId": "ORD-12345",
+  "waveId": "WAVE-001",
+  "routeId": "RT-xyz",
+  "putWallId": "PUTWALL-1",
+  "destinationBin": "BIN-A1",
+  "sourceTotes": [
+    {"toteId": "TOTE-001", "pickTaskId": "PT-001", "itemCount": 3}
+  ],
+  "itemsToSort": [
+    {"sku": "SKU-001", "quantity": 2, "fromToteId": "TOTE-001"}
+  ]
+}
+```
+
+### Get Tasks
+
+```http
+GET /api/v1/tasks/{taskId}
+GET /api/v1/tasks/pending?putWallId=PUTWALL-1&limit=10
+GET /api/v1/tasks/walliner/{wallinerId}/active
+```
+
+### Assign Walliner
+
+```http
+POST /api/v1/tasks/{taskId}/assign
+```
+
+Request:
+```json
+{
+  "wallinerId": "WALLINER-001",
+  "station": "STATION-1"
+}
+```
+
+### Sort Item
+
+```http
+POST /api/v1/tasks/{taskId}/sort
+```
+
+Request:
+```json
+{
+  "sku": "SKU-001",
+  "quantity": 1,
+  "fromToteId": "TOTE-001"
+}
+```
+
+### Complete Task
+
+```http
+POST /api/v1/tasks/{taskId}/complete
+```
+
 ## Waving Service API (Port 8002)
 
 ### Create Wave

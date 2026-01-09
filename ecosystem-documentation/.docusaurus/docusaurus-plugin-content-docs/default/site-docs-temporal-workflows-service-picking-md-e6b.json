@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/service-picking",
+  "title": "Picking Service - PickingWorkflow",
+  "description": "Service-level workflow that handles the picking process with signal-based worker coordination.",
+  "source": "@site/docs/temporal/workflows/service-picking.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/service-picking",
+  "permalink": "/wms-platform/temporal/workflows/service-picking",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 14,
+  "frontMatter": {
+    "sidebar_position": 14,
+    "slug": "/temporal/workflows/service-picking"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Cancellation Workflows",
+    "permalink": "/wms-platform/temporal/workflows/cancellation"
+  },
+  "next": {
+    "title": "Consolidation Service - ConsolidationWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/service-consolidation"
+  }
+}

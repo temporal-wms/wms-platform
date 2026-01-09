@@ -1,141 +1,437 @@
 asyncapi: 3.0.0
 info:
-  title: Packing Service Events
+  title: WMS Packing Service Events
   version: 1.0.0
   description: |
-    Event-driven API for the Packing Service.
+    AsyncAPI specification for Packing Service domain events.
 
-    This service publishes events related to packing operations including
-    task creation, packaging selection, sealing, and label application.
+    The Packing service publishes events to track pack task execution progress.
+    Events follow the CloudEvents 1.0 specification.
+
+    **Event Flow:**
+    1. PackTaskCreated - When a new pack task is created
+    2. PackTaskAssigned - When a packer is assigned to a task
+    3. ItemVerified - When each item is scanned and verified
+    4. PackagingSuggested - When system suggests packaging
+    5. PackageSelected - When package type is selected
+    6. PackageSealed - When package is sealed
+    7. LabelApplied - When shipping label is applied
+    8. PackTaskCompleted - When packing is complete
+    9. PackTaskCancelled - When a task is cancelled
+
+    **Integration:**
+    - WES listens for PackTaskCompleted to advance route stages
+    - Shipping service listens for packaging events
   contact:
     name: WMS Platform Team
-    email: wms-platform@example.com
+    email: wms@example.com
 
 servers:
-  development:
+  kafka:
     host: localhost:9092
     protocol: kafka
-    description: Local development Kafka
+    description: Local Kafka broker
+
+defaultContentType: application/json
 
 channels:
   wms.packing.events:
     address: wms.packing.events
+    description: Packing task events topic (3 partitions, keyed by orderId)
     messages:
-      PackTaskCreated:
-        $ref: '#/components/messages/PackTaskCreated'
-      PackagingSuggested:
-        $ref: '#/components/messages/PackagingSuggested'
-      PackageSealed:
-        $ref: '#/components/messages/PackageSealed'
-      LabelApplied:
-        $ref: '#/components/messages/LabelApplied'
-      PackTaskCompleted:
-        $ref: '#/components/messages/PackTaskCompleted'
-    description: Packing and packaging events
+      packTaskCreated:
+        $ref: '#/components/messages/PackTaskCreatedEvent'
+      packTaskAssigned:
+        $ref: '#/components/messages/PackTaskAssignedEvent'
+      itemVerified:
+        $ref: '#/components/messages/ItemVerifiedEvent'
+      packagingSuggested:
+        $ref: '#/components/messages/PackagingSuggestedEvent'
+      packageSelected:
+        $ref: '#/components/messages/PackageSelectedEvent'
+      packageSealed:
+        $ref: '#/components/messages/PackageSealedEvent'
+      labelApplied:
+        $ref: '#/components/messages/LabelAppliedEvent'
+      packTaskCompleted:
+        $ref: '#/components/messages/PackTaskCompletedEvent'
+      packTaskCancelled:
+        $ref: '#/components/messages/PackTaskCancelledEvent'
 
 operations:
   publishPackTaskCreated:
     action: send
     channel:
       $ref: '#/channels/wms.packing.events'
+    summary: Publish pack task created event
+    description: Published when a new pack task is created for an order
     messages:
-      - $ref: '#/channels/wms.packing.events/messages/PackTaskCreated'
-    description: Published when a packing task is created
+      - $ref: '#/channels/wms.packing.events/messages/packTaskCreated'
+
+  publishPackTaskAssigned:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    summary: Publish pack task assigned event
+    description: Published when a packer is assigned to a task
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/packTaskAssigned'
+
+  publishItemVerified:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    summary: Publish item verified event
+    description: Published when an item is scanned and verified
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/itemVerified'
+
+  publishPackagingSuggested:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    summary: Publish packaging suggested event
+    description: Published when system suggests optimal packaging
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/packagingSuggested'
+
+  publishPackageSelected:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    summary: Publish package selected event
+    description: Published when package type is selected
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/packageSelected'
+
+  publishPackageSealed:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    summary: Publish package sealed event
+    description: Published when package is sealed
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/packageSealed'
+
+  publishLabelApplied:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    summary: Publish label applied event
+    description: Published when shipping label is applied
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/labelApplied'
 
   publishPackTaskCompleted:
     action: send
     channel:
       $ref: '#/channels/wms.packing.events'
+    summary: Publish pack task completed event
+    description: Published when packing task is complete
     messages:
-      - $ref: '#/channels/wms.packing.events/messages/PackTaskCompleted'
-    description: Published when a packing task is completed
+      - $ref: '#/channels/wms.packing.events/messages/packTaskCompleted'
+
+  publishPackTaskCancelled:
+    action: send
+    channel:
+      $ref: '#/channels/wms.packing.events'
+    summary: Publish pack task cancelled event
+    description: Published when a pack task is cancelled
+    messages:
+      - $ref: '#/channels/wms.packing.events/messages/packTaskCancelled'
 
 components:
   messages:
-    PackTaskCreated:
-      name: PackTaskCreated
-      title: Pack Task Created Event
-      summary: Published when a packing task is created
-      contentType: application/cloudevents+json
+    PackTaskCreatedEvent:
+      name: PackTaskCreatedEvent
+      title: Pack Task Created
+      summary: Published when a new pack task is created
+      description: |
+        Triggered when WES creates a pack task during route execution.
+        Contains the list of items to be packed.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/PackTaskCreatedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: taskCreated
+          summary: Pack task created
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            routeId: "RT-xyz123"
+            sourceType: "tote"
+            sourceToteId: "TOTE-001"
+            items:
+              - sku: "WIDGET-001"
+                quantity: 2
+            totalItems: 1
+            totalQuantity: 2
+            createdAt: "2024-12-24T10:00:00Z"
 
-    PackagingSuggested:
-      name: PackagingSuggested
-      title: Packaging Suggested Event
-      summary: Published when packaging type is suggested for an order
-      contentType: application/cloudevents+json
+    PackTaskAssignedEvent:
+      name: PackTaskAssignedEvent
+      title: Pack Task Assigned
+      summary: Published when a packer is assigned to a task
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/PackTaskAssignedPayload'
+      examples:
+        - name: assigned
+          summary: Packer assigned to task
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            packerId: "PACKER-001"
+            stationId: "PACK-STATION-5"
+            assignedAt: "2024-12-24T10:05:00Z"
+
+    ItemVerifiedEvent:
+      name: ItemVerifiedEvent
+      title: Item Verified
+      summary: Published when an item is scanned and verified
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/ItemVerifiedPayload'
+      examples:
+        - name: itemVerified
+          summary: Item verified
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            sku: "WIDGET-001"
+            quantity: 1
+            verifiedAt: "2024-12-24T10:08:00Z"
+
+    PackagingSuggestedEvent:
+      name: PackagingSuggestedEvent
+      title: Packaging Suggested
+      summary: Published when system suggests optimal packaging
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/PackagingSuggestedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: suggested
+          summary: Packaging suggestion
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            suggestedPackageType: "medium_box"
+            dimensions:
+              length: 14
+              width: 10
+              height: 6
+            suggestedAt: "2024-12-24T10:10:00Z"
 
-    PackageSealed:
-      name: PackageSealed
-      title: Package Sealed Event
-      summary: Published when a package is sealed
-      contentType: application/cloudevents+json
+    PackageSelectedEvent:
+      name: PackageSelectedEvent
+      title: Package Selected
+      summary: Published when package type is selected
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/PackageSelectedPayload'
+      examples:
+        - name: selected
+          summary: Package selected
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            packageType: "medium_box"
+            packageId: "PKG-001"
+            dimensions:
+              length: 14
+              width: 10
+              height: 6
+            selectedAt: "2024-12-24T10:12:00Z"
+
+    PackageSealedEvent:
+      name: PackageSealedEvent
+      title: Package Sealed
+      summary: Published when package is sealed
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/PackageSealedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: sealed
+          summary: Package sealed
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            packageId: "PKG-001"
+            packageType: "medium_box"
+            weight: 3.5
+            sealedAt: "2024-12-24T10:15:00Z"
 
-    LabelApplied:
-      name: LabelApplied
-      title: Label Applied Event
-      summary: Published when a shipping label is applied to a package
-      contentType: application/cloudevents+json
+    LabelAppliedEvent:
+      name: LabelAppliedEvent
+      title: Label Applied
+      summary: Published when shipping label is applied
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/LabelAppliedPayload'
-      headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+      examples:
+        - name: labelApplied
+          summary: Shipping label applied
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            packageId: "PKG-001"
+            trackingNumber: "1Z999AA10123456784"
+            carrier: "UPS"
+            appliedAt: "2024-12-24T10:16:00Z"
 
-    PackTaskCompleted:
-      name: PackTaskCompleted
-      title: Pack Task Completed Event
-      summary: Published when a packing task is completed
-      contentType: application/cloudevents+json
+    PackTaskCompletedEvent:
+      name: PackTaskCompletedEvent
+      title: Pack Task Completed
+      summary: Published when packing task is complete
+      description: |
+        Triggered when pack task is fully completed.
+        WES listens for this event to advance to shipping.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CloudEventHeaders'
       payload:
         $ref: '#/components/schemas/PackTaskCompletedPayload'
+      examples:
+        - name: completed
+          summary: Pack task completed
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            routeId: "RT-xyz123"
+            packerId: "PACKER-001"
+            packageId: "PKG-001"
+            trackingNumber: "1Z999AA10123456784"
+            carrier: "UPS"
+            weight: 3.5
+            duration: "PT8M45S"
+            completedAt: "2024-12-24T10:18:45Z"
+
+    PackTaskCancelledEvent:
+      name: PackTaskCancelledEvent
+      title: Pack Task Cancelled
+      summary: Published when a pack task is cancelled
+      contentType: application/json
       headers:
-        $ref: '#/components/schemas/CloudEventsHeaders'
+        $ref: '#/components/schemas/CloudEventHeaders'
+      payload:
+        $ref: '#/components/schemas/PackTaskCancelledPayload'
+      examples:
+        - name: cancelled
+          summary: Pack task cancelled
+          payload:
+            taskId: "PK-a1b2c3d4"
+            orderId: "ORD-12345678"
+            reason: "Order cancelled by customer"
+            cancelledAt: "2024-12-24T10:12:00Z"
 
   schemas:
-    CloudEventsHeaders:
+    CloudEventHeaders:
       type: object
+      description: CloudEvents 1.0 headers with WMS extensions
       properties:
-        ce-specversion:
+        ce_specversion:
           type: string
           const: '1.0'
-        ce-type:
+        ce_type:
           type: string
-        ce-source:
+          description: Event type
+        ce_source:
           type: string
-        ce-id:
+          const: '/wms/packing-service'
+        ce_subject:
           type: string
-        ce-time:
+          description: Task ID
+        ce_id:
+          type: string
+          format: uuid
+        ce_time:
           type: string
           format: date-time
-        ce-wmscorrelationid:
+        ce_datacontenttype:
           type: string
-        ce-wmsworkflowid:
+          const: 'application/json'
+        ce_wmscorrelationid:
           type: string
-        content-type:
+        ce_wmsworkflowid:
           type: string
-          const: application/json
 
     PackTaskCreatedPayload:
       type: object
       properties:
         taskId:
           type: string
+          example: "PK-a1b2c3d4"
         orderId:
           type: string
-        consolidationId:
+          example: "ORD-12345678"
+        routeId:
           type: string
+          example: "RT-xyz123"
+        sourceType:
+          type: string
+          enum: [tote, putwall_bin, consolidation]
+        sourceToteId:
+          type: string
+        sourceBinId:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              quantity:
+                type: integer
+        totalItems:
+          type: integer
+        totalQuantity:
+          type: integer
         createdAt:
+          type: string
+          format: date-time
+
+    PackTaskAssignedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        packerId:
+          type: string
+        stationId:
+          type: string
+        assignedAt:
+          type: string
+          format: date-time
+
+    ItemVerifiedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        verifiedAt:
           type: string
           format: date-time
 
@@ -159,6 +455,30 @@ components:
             height:
               type: number
         suggestedAt:
+          type: string
+          format: date-time
+
+    PackageSelectedPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        packageType:
+          type: string
+        packageId:
+          type: string
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        selectedAt:
           type: string
           format: date-time
 
@@ -203,10 +523,35 @@ components:
           type: string
         orderId:
           type: string
+        routeId:
+          type: string
+        packerId:
+          type: string
         packageId:
           type: string
-        workerId:
+        trackingNumber:
           type: string
+        carrier:
+          type: string
+        weight:
+          type: number
+        duration:
+          type: string
+          description: ISO 8601 duration
+          example: "PT8M45S"
         completedAt:
+          type: string
+          format: date-time
+
+    PackTaskCancelledPayload:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        reason:
+          type: string
+        cancelledAt:
           type: string
           format: date-time

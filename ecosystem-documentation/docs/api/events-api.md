@@ -29,6 +29,8 @@ All events follow CloudEvents 1.0 specification:
 |-------|-------------|------------|
 | wms.orders.events | Order lifecycle events | 3 |
 | wms.waves.events | Wave management events | 3 |
+| wms.wes.events | WES execution events | 3 |
+| wms.walling.events | Walling/put-wall events | 3 |
 | wms.routes.events | Route calculation events | 3 |
 | wms.picking.events | Picking operation events | 6 |
 | wms.consolidation.events | Consolidation events | 3 |
@@ -131,6 +133,136 @@ Published when a new order is placed.
 }
 ```
 
+## WES Events
+
+### wms.wes.route-created
+
+Published when a new task route is created for an order.
+
+```json
+{
+  "type": "wms.wes.route-created",
+  "source": "/wms/wes-service",
+  "subject": "RT-a1b2c3d4",
+  "data": {
+    "routeId": "RT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "waveId": "WAVE-2024-001",
+    "pathType": "pick_wall_pack",
+    "stages": ["picking", "walling", "packing"],
+    "createdAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+### wms.wes.stage-completed
+
+Published when a stage completes successfully.
+
+```json
+{
+  "type": "wms.wes.stage-completed",
+  "source": "/wms/wes-service",
+  "subject": "RT-a1b2c3d4",
+  "data": {
+    "routeId": "RT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "stageType": "picking",
+    "stageIndex": 0,
+    "taskId": "PT-001",
+    "workerId": "PICKER-001",
+    "duration": "PT12M30S",
+    "completedAt": "2024-01-15T10:45:00Z"
+  }
+}
+```
+
+### wms.wes.route-completed
+
+Published when all stages are complete.
+
+```json
+{
+  "type": "wms.wes.route-completed",
+  "source": "/wms/wes-service",
+  "subject": "RT-a1b2c3d4",
+  "data": {
+    "routeId": "RT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "pathType": "pick_wall_pack",
+    "stagesCompleted": 3,
+    "totalDuration": "PT45M",
+    "completedAt": "2024-01-15T11:15:00Z"
+  }
+}
+```
+
+## Walling Events
+
+### wms.walling.task-created
+
+Published when a new walling task is created.
+
+```json
+{
+  "type": "wms.walling.task-created",
+  "source": "/wms/walling-service",
+  "subject": "WT-a1b2c3d4",
+  "data": {
+    "taskId": "WT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "waveId": "WAVE-2024-001",
+    "routeId": "RT-xyz",
+    "putWallId": "PUTWALL-1",
+    "destinationBin": "BIN-A1",
+    "itemCount": 5,
+    "sourceTotes": ["TOTE-001", "TOTE-002"],
+    "createdAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+### wms.walling.item-sorted
+
+Published when an item is sorted to a bin.
+
+```json
+{
+  "type": "wms.walling.item-sorted",
+  "source": "/wms/walling-service",
+  "subject": "WT-a1b2c3d4",
+  "data": {
+    "taskId": "WT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "sku": "SKU-001",
+    "quantity": 1,
+    "fromToteId": "TOTE-001",
+    "toBinId": "BIN-A1",
+    "sortedAt": "2024-01-15T10:35:00Z"
+  }
+}
+```
+
+### wms.walling.task-completed
+
+Published when all items are sorted.
+
+```json
+{
+  "type": "wms.walling.task-completed",
+  "source": "/wms/walling-service",
+  "subject": "WT-a1b2c3d4",
+  "data": {
+    "taskId": "WT-a1b2c3d4",
+    "orderId": "ORD-12345",
+    "routeId": "RT-xyz",
+    "itemsSorted": 5,
+    "duration": "PT8M15S",
+    "completedAt": "2024-01-15T10:38:15Z"
+  }
+}
+```
+
 ## Picking Events
 
 ### wms.picking.task-completed
@@ -229,6 +361,8 @@ Published when a new order is placed.
 | Service | Consumer Group | Topics |
 |---------|---------------|--------|
 | Waving Service | wms-waving | wms.orders.events |
+| WES Service | wms-wes | wms.waves.events, wms.walling.events |
+| Walling Service | wms-walling | wms.wes.events |
 | Picking Service | wms-picking | wms.waves.events |
 | Inventory Service | wms-inventory | wms.orders.events, wms.picking.events |
 | Analytics | wms-analytics | All topics |

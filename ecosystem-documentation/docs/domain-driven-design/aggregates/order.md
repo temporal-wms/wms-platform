@@ -228,10 +228,10 @@ type OrderRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/orders | Create order |
-| GET | /api/v1/orders/{id} | Get order by ID |
+| GET | /api/v1/orders/\{id\} | Get order by ID |
 | GET | /api/v1/orders | List orders |
-| PUT | /api/v1/orders/{id}/validate | Validate order |
-| PUT | /api/v1/orders/{id}/cancel | Cancel order |
+| PUT | /api/v1/orders/\{id\}/validate | Validate order |
+| PUT | /api/v1/orders/\{id\}/cancel | Cancel order |
 
 ## Related Documentation
 

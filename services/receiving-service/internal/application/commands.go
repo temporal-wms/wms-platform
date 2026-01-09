@@ -1,30 +1,25 @@
 package application
 
-import "time"
+import (
+	"github.com/wms-platform/services/receiving-service/internal/domain"
+)
 
 // CreateShipmentCommand represents a command to create a new inbound shipment
 type CreateShipmentCommand struct {
-	// ASN fields
-	ASNID           string    `json:"asnId" binding:"required"`
-	CarrierName     string    `json:"carrierName" binding:"required"`
-	TrackingNumber  string    `json:"trackingNumber"`
-	ExpectedArrival time.Time `json:"expectedArrival" binding:"required"`
-	ContainerCount  int       `json:"containerCount"`
-	TotalWeight     float64   `json:"totalWeight"`
-	SpecialHandling []string  `json:"specialHandling"`
-
-	// Supplier fields
-	SupplierID   string `json:"supplierId" binding:"required"`
-	SupplierName string `json:"supplierName" binding:"required"`
-	ContactName  string `json:"contactName"`
-	ContactPhone string `json:"contactPhone"`
-	ContactEmail string `json:"contactEmail"`
+	// Optional explicit shipment ID (will be generated if not provided)
+	ShipmentID string `json:"shipmentId"`
 
 	// Purchase order
 	PurchaseOrderID string `json:"purchaseOrderId"`
 
+	// ASN - can be provided as nested struct or flat fields
+	ASN domain.AdvanceShippingNotice `json:"asn"`
+
+	// Supplier - can be provided as nested struct or flat fields
+	Supplier domain.Supplier `json:"supplier"`
+
 	// Expected items
-	ExpectedItems []ExpectedItemInput `json:"expectedItems" binding:"required,min=1"`
+	ExpectedItems []domain.ExpectedItem `json:"expectedItems" binding:"required,min=1"`
 }
 
 // ExpectedItemInput represents an expected item in a shipment

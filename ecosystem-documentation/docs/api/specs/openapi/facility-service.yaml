@@ -1,0 +1,665 @@
+openapi: 3.0.3
+info:
+  title: Facility Service API
+  description: |
+    Comprehensive REST API for facility and station management operations in the WMS platform.
+
+    This service handles:
+    - Station creation and management
+    - Station capability configuration
+    - Station status management
+    - Station queries by zone, type, and status
+    - Finding capable stations for task routing
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8011/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Stations
+    description: Station management operations
+  - name: Capabilities
+    description: Station capability management
+  - name: Queries
+    description: Station query operations
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /stations:
+    post:
+      summary: Create a new station
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      description: Creates a new station in the facility
+      tags:
+        - Stations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStationRequest'
+            examples:
+              packingStation:
+                summary: Packing station with gift wrap capability
+                value:
+                  stationId: "STN-PACK-001"
+                  name: "Packing Station 1"
+                  zone: "zone-a"
+                  stationType: "packing"
+                  capabilities: ["single_item", "gift_wrap"]
+                  maxConcurrentTasks: 5
+              shippingStation:
+                summary: Shipping station with hazmat capability
+                value:
+                  stationId: "STN-SHIP-001"
+                  name: "Shipping Station 1"
+                  zone: "zone-b"
+                  stationType: "shipping"
+                  capabilities: ["multi_item", "hazmat", "oversized"]
+                  maxConcurrentTasks: 3
+      responses:
+        '201':
+          description: Station created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Station already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+
+    get:
+      summary: List stations
+      description: Retrieve a paginated list of all stations
+      tags:
+        - Stations
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of stations to return
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of stations to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of stations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StationResponse'
+
+  /stations/{stationId}:
+    get:
+      summary: Get station by ID
+      tags:
+        - Stations
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          description: Unique station identifier
+          schema:
+            type: string
+          example: "STN-PACK-001"
+      responses:
+        '200':
+          description: Station retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationResponse'
+        '404':
+          description: Station not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update station
+      description: Update station details (name, zone, max concurrent tasks)
+      tags:
+        - Stations
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStationRequest'
+      responses:
+        '200':
+          description: Station updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationResponse'
+        '404':
+          description: Station not found
+        '400':
+          description: Invalid request
+
+    delete:
+      summary: Delete station
+      tags:
+        - Stations
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '204':
+          description: Station deleted successfully
+        '404':
+          description: Station not found
+
+  /stations/{stationId}/capabilities:
+    put:
+      summary: Set all capabilities
+      description: Replace all capabilities for a station
+      tags:
+        - Capabilities
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetCapabilitiesRequest'
+            example:
+              capabilities: ["single_item", "multi_item", "gift_wrap", "fragile"]
+      responses:
+        '200':
+          description: Capabilities updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationResponse'
+        '400':
+          description: Invalid capability
+        '404':
+          description: Station not found
+
+  /stations/{stationId}/capabilities/{capability}:
+    post:
+      summary: Add capability
+      description: Add a single capability to a station
+      tags:
+        - Capabilities
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: capability
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/StationCapability'
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Capability added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationResponse'
+        '400':
+          description: Invalid capability
+        '404':
+          description: Station not found
+        '409':
+          description: Capability already exists on station
+
+    delete:
+      summary: Remove capability
+      description: Remove a single capability from a station
+      tags:
+        - Capabilities
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: capability
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/StationCapability'
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      responses:
+        '200':
+          description: Capability removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationResponse'
+        '404':
+          description: Station or capability not found
+
+  /stations/{stationId}/status:
+    put:
+      summary: Set station status
+      description: Update the operational status of a station
+      tags:
+        - Stations
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetStatusRequest'
+            examples:
+              activate:
+                summary: Activate station
+                value:
+                  status: "active"
+              maintenance:
+                summary: Set to maintenance mode
+                value:
+                  status: "maintenance"
+      responses:
+        '200':
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationResponse'
+        '400':
+          description: Invalid status
+        '404':
+          description: Station not found
+
+  /stations/find-capable:
+    post:
+      summary: Find capable stations
+      description: Find stations that have all required capabilities, optionally filtered by type and zone
+      tags:
+        - Queries
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FindCapableStationsRequest'
+            examples:
+              giftWrapStation:
+                summary: Find gift wrap capable packing stations
+                value:
+                  requirements: ["gift_wrap", "single_item"]
+                  stationType: "packing"
+                  zone: "zone-a"
+              hazmatStation:
+                summary: Find hazmat capable stations
+                value:
+                  requirements: ["hazmat"]
+      responses:
+        '200':
+          description: List of capable stations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StationResponse'
+
+  /stations/zone/{zone}:
+    get:
+      summary: Get stations by zone
+      description: Retrieve all stations in a specific zone
+      tags:
+        - Queries
+      parameters:
+        - name: zone
+          in: path
+          required: true
+          description: Zone identifier
+          schema:
+            type: string
+          example: "zone-a"
+      responses:
+        '200':
+          description: List of stations in the zone
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StationResponse'
+
+  /stations/type/{type}:
+    get:
+      summary: Get stations by type
+      description: Retrieve all stations of a specific type
+      tags:
+        - Queries
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/StationType'
+      responses:
+        '200':
+          description: List of stations of the specified type
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StationResponse'
+
+  /stations/status/{status}:
+    get:
+      summary: Get stations by status
+      description: Retrieve all stations with a specific status
+      tags:
+        - Queries
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/StationStatus'
+      responses:
+        '200':
+          description: List of stations with the specified status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StationResponse'
+
+  /health:
+    get:
+      summary: Health check
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "facility-service"
+
+components:
+  schemas:
+    CreateStationRequest:
+      type: object
+      required:
+        - stationId
+        - name
+        - zone
+        - stationType
+      properties:
+        stationId:
+          type: string
+          description: Unique station identifier
+          example: "STN-PACK-001"
+        name:
+          type: string
+          description: Human-readable station name
+          example: "Packing Station 1"
+        zone:
+          type: string
+          description: Zone where the station is located
+          example: "zone-a"
+        stationType:
+          $ref: '#/components/schemas/StationType'
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/StationCapability'
+          description: Initial capabilities for the station
+        maxConcurrentTasks:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Maximum number of concurrent tasks the station can handle
+
+    UpdateStationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated station name
+        zone:
+          type: string
+          description: Updated zone
+        maxConcurrentTasks:
+          type: integer
+          minimum: 1
+          description: Updated max concurrent tasks
+
+    SetCapabilitiesRequest:
+      type: object
+      required:
+        - capabilities
+      properties:
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/StationCapability'
+          description: Complete list of capabilities to set
+
+    SetStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/StationStatus'
+
+    FindCapableStationsRequest:
+      type: object
+      required:
+        - requirements
+      properties:
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/StationCapability'
+          description: Required capabilities that stations must have
+        stationType:
+          $ref: '#/components/schemas/StationType'
+        zone:
+          type: string
+          description: Optional zone filter
+
+    StationResponse:
+      type: object
+      properties:
+        stationId:
+          type: string
+          example: "STN-PACK-001"
+        name:
+          type: string
+          example: "Packing Station 1"
+        zone:
+          type: string
+          example: "zone-a"
+        stationType:
+          type: string
+          example: "packing"
+        status:
+          type: string
+          example: "active"
+        capabilities:
+          type: array
+          items:
+            type: string
+          example: ["single_item", "gift_wrap"]
+        maxConcurrentTasks:
+          type: integer
+          example: 5
+        currentTasks:
+          type: integer
+          example: 2
+        availableCapacity:
+          type: integer
+          example: 3
+        assignedWorkerId:
+          type: string
+          example: "WORKER-123"
+        equipment:
+          type: array
+          items:
+            $ref: '#/components/schemas/StationEquipment'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    StationEquipment:
+      type: object
+      properties:
+        equipmentId:
+          type: string
+          example: "EQ-001"
+        equipmentType:
+          type: string
+          description: Type of equipment (scale, printer, cold_storage, hazmat_cabinet)
+          example: "scale"
+        status:
+          type: string
+          description: Equipment status (active, inactive, maintenance)
+          example: "active"
+
+    StationType:
+      type: string
+      enum:
+        - packing
+        - consolidation
+        - shipping
+        - receiving
+      description: Type of station
+
+    StationStatus:
+      type: string
+      enum:
+        - active
+        - inactive
+        - maintenance
+      description: Operational status of the station
+
+    StationCapability:
+      type: string
+      enum:
+        - single_item
+        - multi_item
+        - gift_wrap
+        - hazmat
+        - oversized
+        - fragile
+        - cold_chain
+        - high_value
+      description: Capability that a station can support
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

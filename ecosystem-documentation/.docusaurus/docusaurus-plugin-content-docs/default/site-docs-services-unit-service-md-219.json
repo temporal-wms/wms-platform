@@ -1,0 +1,17 @@
+{
+  "id": "services/unit-service",
+  "title": "Unit Service",
+  "description": "The Unit Service provides individual unit-level tracking throughout the warehouse fulfillment process, maintaining a complete audit trail of each physical unit's journey from receiving to shipping.",
+  "source": "@site/docs/services/unit-service.md",
+  "sourceDirName": "services",
+  "slug": "/services/unit-service",
+  "permalink": "/wms-platform/services/unit-service",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 16,
+  "frontMatter": {
+    "sidebar_position": 16
+  }
+}

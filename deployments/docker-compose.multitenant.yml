@@ -1,0 +1,121 @@
+version: '3.8'
+
+# Multi-Tenant Services Extension
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.multitenant.yml up
+
+services:
+  # =====================
+  # Multi-Tenant Services
+  # =====================
+
+  seller-service:
+    build:
+      context: ..
+      dockerfile: services/seller-service/Dockerfile
+    container_name: wms-seller-service
+    ports:
+      - "8010:8010"
+    environment:
+      - PORT=8010
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=seller_service
+      - KAFKA_BROKERS=kafka:9092
+      - LOG_LEVEL=debug
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - multitenant
+      - full
+    restart: unless-stopped
+
+  billing-service:
+    build:
+      context: ..
+      dockerfile: services/billing-service/Dockerfile
+    container_name: wms-billing-service
+    ports:
+      - "8011:8011"
+    environment:
+      - PORT=8011
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=billing_service
+      - KAFKA_BROKERS=kafka:9092
+      - SELLER_SERVICE_URL=http://seller-service:8010
+      - LOG_LEVEL=debug
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      seller-service:
+        condition: service_started
+    networks:
+      - wms-network
+    profiles:
+      - multitenant
+      - full
+    restart: unless-stopped
+
+  channel-service:
+    build:
+      context: ..
+      dockerfile: services/channel-service/Dockerfile
+    container_name: wms-channel-service
+    ports:
+      - "8012:8012"
+    environment:
+      - PORT=8012
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=channel_service
+      - KAFKA_BROKERS=kafka:9092
+      - LOG_LEVEL=debug
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wms-network
+    profiles:
+      - multitenant
+      - full
+    restart: unless-stopped
+
+  seller-portal:
+    build:
+      context: ..
+      dockerfile: services/seller-portal/Dockerfile
+    container_name: wms-seller-portal
+    ports:
+      - "8013:8013"
+    environment:
+      - PORT=8013
+      - SELLER_SERVICE_URL=http://seller-service:8010
+      - ORDER_SERVICE_URL=http://order-service:8001
+      - INVENTORY_SERVICE_URL=http://inventory-service:8020
+      - BILLING_SERVICE_URL=http://billing-service:8011
+      - CHANNEL_SERVICE_URL=http://channel-service:8012
+      - LOG_LEVEL=debug
+    depends_on:
+      seller-service:
+        condition: service_started
+      billing-service:
+        condition: service_started
+      channel-service:
+        condition: service_started
+    networks:
+      - wms-network
+    profiles:
+      - multitenant
+      - full
+    restart: unless-stopped
+
+networks:
+  wms-network:
+    external: true
+    name: deployments_wms-network

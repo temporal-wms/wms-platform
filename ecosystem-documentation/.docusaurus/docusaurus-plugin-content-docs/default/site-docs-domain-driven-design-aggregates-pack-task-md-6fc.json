@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/aggregates/pack-task",
+  "title": "PackTask Aggregate",
+  "description": "The PackTask aggregate manages the packing process for orders.",
+  "source": "@site/docs/domain-driven-design/aggregates/pack-task.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/pack-task",
+  "permalink": "/wms-platform/domain-driven-design/aggregates/pack-task",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 6,
+  "frontMatter": {
+    "sidebar_position": 6
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "ConsolidationUnit Aggregate",
+    "permalink": "/wms-platform/domain-driven-design/aggregates/consolidation-unit"
+  },
+  "next": {
+    "title": "Shipment Aggregate",
+    "permalink": "/wms-platform/domain-driven-design/aggregates/shipment"
+  }
+}

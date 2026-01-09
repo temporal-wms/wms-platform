@@ -69,6 +69,9 @@ type OrderFilter struct {
 	WaveID     *string
 	FromDate   *string
 	ToDate     *string
+	// Multi-tenant filters
+	SellerID  *string // Filter by seller (for 3PL queries)
+	ChannelID *string // Filter by sales channel
 }
 
 // EventPublisher defines the interface for publishing domain events

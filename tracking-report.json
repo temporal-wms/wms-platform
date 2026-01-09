@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-01-07T12:24:09.571Z",
+  "trackingConfig": {
+    "enabled": true,
+    "logLevel": "standard",
+    "captureEntitySnapshots": true,
+    "captureWorkflowSnapshots": true,
+    "trackSignals": true
+  },
+  "metrics": {
+    "snapshots_captured": 24,
+    "state_changes": 9,
+    "signals_tracked": 0,
+    "workflow_query_duration": {
+      "avg_ms": 1.3181818181818181,
+      "p95_ms": 2
+    },
+    "entity_query_duration": {
+      "avg_ms": 13.090909090909092,
+      "p95_ms": 12
+    }
+  }
+}

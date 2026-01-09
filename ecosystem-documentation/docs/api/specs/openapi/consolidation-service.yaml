@@ -1,0 +1,798 @@
+openapi: 3.0.3
+info:
+  title: WMS Consolidation Service API
+  description: |
+    REST API for order consolidation operations in the WMS Platform.
+
+    This service handles:
+    - Consolidation task creation for multi-item orders
+    - Item arrival tracking at consolidation stations
+    - Order completion tracking when all items arrive
+    - Integration with packing for consolidated orders
+
+    **Consolidation Process:**
+    Multi-item orders often have items picked from different locations
+    by different pickers. The consolidation service brings all items
+    together before packing.
+
+    **Consolidation Lifecycle:**
+    1. Created - Consolidation task created for an order
+    2. In Progress - Items being consolidated at station
+    3. Completed - All items received, ready for packing
+    4. Cancelled - Consolidation cancelled
+
+    **Integration:**
+    - WES creates consolidation tasks for multi-item orders
+    - Picking routes deliver items to consolidation stations
+    - Upon completion, signals WES to proceed to packing
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8012/api/v1
+    description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Consolidations
+    description: |
+      Consolidation task management operations including creation,
+      item tracking, and completion.
+  - name: Items
+    description: |
+      Item consolidation operations for tracking individual items
+      arriving at consolidation stations.
+  - name: Queries
+    description: |
+      Query operations for finding consolidations by station,
+      order, or status.
+  - name: Health
+    description: Service health and readiness checks
+
+paths:
+  /consolidations:
+    post:
+      summary: Create consolidation
+      description: |
+        Creates a new consolidation task for a multi-item order.
+
+        **Behavior:**
+        - Creates consolidation record for the order
+        - Assigns to specified station
+        - Calculates expected items from order
+        - Publishes `ConsolidationStarted` event
+
+        **Integration:**
+        - Called by WES workflow for multi-item orders
+      tags: [Consolidations]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWaveNumber'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsolidationRequest'
+            examples:
+              multiItemOrder:
+                summary: Multi-item order consolidation
+                value:
+                  orderId: "ORD-A1B2C3D4"
+                  waveId: "WAVE-2024-00123"
+                  stationId: "CONSOL-STATION-01"
+                  expectedItems:
+                    - sku: "WIDGET-001"
+                      productName: "Premium Widget"
+                      quantity: 2
+                      routeId: "RT-abc123"
+                    - sku: "GADGET-002"
+                      productName: "Smart Gadget"
+                      quantity: 1
+                      routeId: "RT-def456"
+              singleRouteConsolidation:
+                summary: Consolidation with single route
+                value:
+                  orderId: "ORD-E5F6G7H8"
+                  stationId: "CONSOL-STATION-02"
+                  expectedItems:
+                    - sku: "PART-003"
+                      productName: "Essential Part"
+                      quantity: 5
+                      routeId: "RT-xyz789"
+      responses:
+        '201':
+          description: Consolidation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsolidationResponse'
+              examples:
+                created:
+                  value:
+                    consolidationId: "CONSOL-a1b2c3d4"
+                    orderId: "ORD-A1B2C3D4"
+                    waveId: "WAVE-2024-00123"
+                    stationId: "CONSOL-STATION-01"
+                    status: "in_progress"
+                    expectedItems:
+                      - sku: "WIDGET-001"
+                        productName: "Premium Widget"
+                        quantity: 2
+                        consolidated: false
+                        consolidatedQty: 0
+                      - sku: "GADGET-002"
+                        productName: "Smart Gadget"
+                        quantity: 1
+                        consolidated: false
+                        consolidatedQty: 0
+                    totalExpectedItems: 2
+                    totalExpectedQuantity: 3
+                    consolidatedItems: 0
+                    consolidatedQuantity: 0
+                    createdAt: "2024-12-24T10:00:00Z"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Consolidation already exists for order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List consolidations
+      description: Retrieve a paginated list of consolidations with optional filtering
+      tags: [Queries]
+      parameters:
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [in_progress, completed, cancelled]
+        - name: stationId
+          in: query
+          description: Filter by station
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of consolidations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsolidationResponse'
+                  total:
+                    type: integer
+
+  /consolidations/{consolidationId}:
+    get:
+      summary: Get consolidation by ID
+      description: Retrieve detailed information about a specific consolidation
+      tags: [Consolidations]
+      parameters:
+        - name: consolidationId
+          in: path
+          required: true
+          description: Unique consolidation identifier
+          schema:
+            type: string
+          example: "CONSOL-a1b2c3d4"
+      responses:
+        '200':
+          description: Consolidation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsolidationResponse'
+        '404':
+          description: Consolidation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consolidations/{consolidationId}/consolidate:
+    post:
+      summary: Consolidate item
+      description: |
+        Record an item being consolidated (arrived at station).
+
+        **Behavior:**
+        - Updates item status to consolidated
+        - Records arrival time and source (tote/route)
+        - Publishes `ItemConsolidated` event
+        - If all items consolidated, triggers completion
+
+        **Validation:**
+        - SKU must match expected item
+        - Quantity cannot exceed expected
+        - Consolidation must be in_progress
+      tags: [Items]
+      parameters:
+        - name: consolidationId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "CONSOL-a1b2c3d4"
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsolidateItemRequest'
+            examples:
+              fullConsolidation:
+                summary: Full quantity consolidated
+                value:
+                  sku: "WIDGET-001"
+                  quantity: 2
+                  toteId: "TOTE-001"
+                  routeId: "RT-abc123"
+                  workerId: "PICKER-001"
+              partialConsolidation:
+                summary: Partial quantity
+                value:
+                  sku: "GADGET-002"
+                  quantity: 1
+                  toteId: "TOTE-002"
+                  routeId: "RT-def456"
+      responses:
+        '200':
+          description: Item consolidated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsolidationResponse'
+        '400':
+          description: Invalid consolidation request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unknownSku:
+                  value:
+                    error: "SKU not expected in this consolidation"
+                    code: "UNKNOWN_SKU"
+                overConsolidated:
+                  value:
+                    error: "Quantity exceeds expected"
+                    code: "QUANTITY_EXCEEDED"
+        '404':
+          description: Consolidation not found
+
+  /consolidations/{consolidationId}/complete:
+    post:
+      summary: Complete consolidation
+      description: |
+        Mark the consolidation as completed.
+
+        **State Transition:** `in_progress` -> `completed`
+
+        **Behavior:**
+        - Validates all items have been consolidated
+        - Records completion time and duration
+        - Publishes `ConsolidationCompleted` event
+        - Signals WES workflow to proceed to packing
+
+        **Integration:**
+        - WES workflow advances to packing stage
+      tags: [Consolidations]
+      parameters:
+        - name: consolidationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/WMSWorkflowID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  description: Optional completion notes
+                forceComplete:
+                  type: boolean
+                  default: false
+                  description: Force complete even if items missing
+            example:
+              notes: "All items verified"
+      responses:
+        '200':
+          description: Consolidation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsolidationResponse'
+              example:
+                consolidationId: "CONSOL-a1b2c3d4"
+                orderId: "ORD-A1B2C3D4"
+                status: "completed"
+                consolidatedItems: 2
+                consolidatedQuantity: 3
+                duration: "PT5M30S"
+                completedAt: "2024-12-24T10:05:30Z"
+        '400':
+          description: Cannot complete - items missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Not all items consolidated"
+                code: "INCOMPLETE_CONSOLIDATION"
+                details:
+                  missingItems: 1
+        '404':
+          description: Consolidation not found
+
+  /consolidations/{consolidationId}/cancel:
+    post:
+      summary: Cancel consolidation
+      description: |
+        Cancel a consolidation task.
+
+        **State Transition:** `in_progress` -> `cancelled`
+
+        **Use Cases:**
+        - Order cancelled
+        - Items not available
+        - Consolidation error
+      tags: [Consolidations]
+      parameters:
+        - name: consolidationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/WMSCorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  description: Reason for cancellation
+            example:
+              reason: "Order cancelled by customer"
+      responses:
+        '200':
+          description: Consolidation cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsolidationResponse'
+        '400':
+          description: Cannot cancel completed consolidation
+        '404':
+          description: Consolidation not found
+
+  /consolidations/order/{orderId}:
+    get:
+      summary: Get consolidation by order ID
+      description: Retrieve the consolidation associated with an order
+      tags: [Queries]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "ORD-A1B2C3D4"
+      responses:
+        '200':
+          description: Consolidation for order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsolidationResponse'
+        '404':
+          description: No consolidation found for order
+
+  /consolidations/station/{stationId}:
+    get:
+      summary: Get consolidations at station
+      description: Retrieve all active consolidations at a specific station
+      tags: [Queries]
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "CONSOL-STATION-01"
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [in_progress, completed, cancelled]
+            default: in_progress
+      responses:
+        '200':
+          description: Consolidations at station
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stationId:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsolidationResponse'
+                  total:
+                    type: integer
+
+  /consolidations/wave/{waveId}:
+    get:
+      summary: Get consolidations by wave
+      description: Retrieve all consolidations for a specific wave
+      tags: [Queries]
+      parameters:
+        - name: waveId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "WAVE-2024-00123"
+      responses:
+        '200':
+          description: Consolidations for wave
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  waveId:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsolidationResponse'
+                  total:
+                    type: integer
+                  completedCount:
+                    type: integer
+                  inProgressCount:
+                    type: integer
+
+  /consolidations/status/{status}:
+    get:
+      summary: Get consolidations by status
+      description: Retrieve all consolidations with a specific status
+      tags: [Queries]
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [in_progress, completed, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Consolidations with status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsolidationResponse'
+                  total:
+                    type: integer
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                service: "consolidation-service"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
+
+components:
+  schemas:
+    CreateConsolidationRequest:
+      type: object
+      required: [orderId, stationId, expectedItems]
+      properties:
+        orderId:
+          type: string
+          description: Order ID for this consolidation
+          example: "ORD-A1B2C3D4"
+        waveId:
+          type: string
+          description: Wave ID (if part of a wave)
+          example: "WAVE-2024-00123"
+        stationId:
+          type: string
+          description: Consolidation station ID
+          example: "CONSOL-STATION-01"
+        expectedItems:
+          type: array
+          description: Items expected to arrive
+          items:
+            $ref: '#/components/schemas/ExpectedItem'
+
+    ExpectedItem:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku:
+          type: string
+          description: Product SKU
+          example: "WIDGET-001"
+        productName:
+          type: string
+          description: Product name for display
+          example: "Premium Widget"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Expected quantity
+          example: 2
+        routeId:
+          type: string
+          description: Route ID that will deliver this item
+          example: "RT-abc123"
+
+    ConsolidateItemRequest:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku:
+          type: string
+          description: Product SKU being consolidated
+          example: "WIDGET-001"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity being consolidated
+          example: 2
+        toteId:
+          type: string
+          description: Source tote ID
+          example: "TOTE-001"
+        routeId:
+          type: string
+          description: Source route ID
+          example: "RT-abc123"
+        workerId:
+          type: string
+          description: Worker who delivered the item
+          example: "PICKER-001"
+
+    ConsolidationResponse:
+      type: object
+      properties:
+        consolidationId:
+          type: string
+          description: Unique consolidation identifier
+          example: "CONSOL-a1b2c3d4"
+        orderId:
+          type: string
+          description: Associated order ID
+          example: "ORD-A1B2C3D4"
+        waveId:
+          type: string
+          description: Associated wave ID
+          example: "WAVE-2024-00123"
+        stationId:
+          type: string
+          description: Consolidation station
+          example: "CONSOL-STATION-01"
+        status:
+          $ref: '#/components/schemas/ConsolidationStatus'
+        expectedItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsolidationItem'
+        totalExpectedItems:
+          type: integer
+          description: Number of distinct items expected
+          example: 2
+        totalExpectedQuantity:
+          type: integer
+          description: Total quantity expected across all items
+          example: 3
+        consolidatedItems:
+          type: integer
+          description: Number of distinct items consolidated
+          example: 1
+        consolidatedQuantity:
+          type: integer
+          description: Total quantity consolidated
+          example: 2
+        consolidationRecords:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsolidationRecord'
+        duration:
+          type: string
+          description: ISO 8601 duration (when completed)
+          example: "PT5M30S"
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ConsolidationItem:
+      type: object
+      properties:
+        sku:
+          type: string
+          example: "WIDGET-001"
+        productName:
+          type: string
+          example: "Premium Widget"
+        quantity:
+          type: integer
+          description: Expected quantity
+          example: 2
+        consolidated:
+          type: boolean
+          description: Whether all quantity has been consolidated
+          example: true
+        consolidatedQty:
+          type: integer
+          description: Quantity consolidated so far
+          example: 2
+
+    ConsolidationRecord:
+      type: object
+      properties:
+        sku:
+          type: string
+          example: "WIDGET-001"
+        quantity:
+          type: integer
+          example: 2
+        toteId:
+          type: string
+          example: "TOTE-001"
+        routeId:
+          type: string
+          example: "RT-abc123"
+        workerId:
+          type: string
+          example: "PICKER-001"
+        consolidatedAt:
+          type: string
+          format: date-time
+
+    ConsolidationStatus:
+      type: string
+      enum:
+        - in_progress
+        - completed
+        - cancelled
+      description: |
+        Consolidation status:
+        - `in_progress`: Waiting for items to arrive
+        - `completed`: All items consolidated
+        - `cancelled`: Consolidation cancelled
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        service:
+          type: string
+          example: "consolidation-service"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Consolidation not found"
+        code:
+          type: string
+          description: Error code
+          example: "NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+
+  parameters:
+    WMSCorrelationID:
+      name: X-WMS-Correlation-ID
+      in: header
+      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WMSWaveNumber:
+      name: X-WMS-Wave-Number
+      in: header
+      description: CloudEvents extension for wave-based processing correlation
+      required: false
+      schema:
+        type: string
+      example: "WAVE-2024-00123"
+
+    WMSWorkflowID:
+      name: X-WMS-Workflow-ID
+      in: header
+      description: CloudEvents extension for Temporal workflow correlation
+      required: false
+      schema:
+        type: string
+      example: "order-fulfillment-ORD-12345"

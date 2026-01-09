@@ -1,0 +1,26 @@
+{
+  "id": "domain-driven-design/value-objects",
+  "title": "Value Objects",
+  "description": "This document describes the value objects used across the WMS Platform.",
+  "source": "@site/docs/domain-driven-design/value-objects.md",
+  "sourceDirName": "domain-driven-design",
+  "slug": "/domain-driven-design/value-objects",
+  "permalink": "/wms-platform/domain-driven-design/value-objects",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 6,
+  "frontMatter": {
+    "sidebar_position": 6
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Domain Events",
+    "permalink": "/wms-platform/domain-driven-design/domain-events"
+  },
+  "next": {
+    "title": "Order Service",
+    "permalink": "/wms-platform/services/order-service"
+  }
+}

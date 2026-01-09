@@ -1,0 +1,71 @@
+---
+id: move-order-to-dead-letter-queue
+title: "Move order to dead letter queue"
+description: "Move a failed order to the dead letter queue after max retries exceeded"
+sidebar_label: "Move order to dead letter queue"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VktTIzcQ/isqnZIqsM2eUj6FBQ5UZbOsIdkDUKn2qPFo0UiDpDE4Lv/37ZbGMMYzpMjLB9Co1Y+v32upMBRe11E7K6fyk1uiAHEH2qASziv0IjoRSxQKQQmDMdLVQ4MNvbvjcwVPwmP0GoPApwJRoZIHMsIiyOm1nGHtXYEhaLuQtweyBg8VEiNT19LSB+lNms6ZT7MZNcSSzh4fGu1J3DT6Bg9kKEqsQE7XMq5qZguklsRuNrf5MYb40akVvyicjWgjH6GujS6AIY6/Bca53hfl5t+wiDtKryX7ofF4GSE2gWjt9wyBxTAa72r0kbCzqN3n+2a+FtADhH9sQ6idDVnqh8mE/+0G6nMKTUXhUhyg01++kHl/G/MujG0w+gAUTYiuGiT/cw8w+OhXJ67JQFqyJmQL9Ex3Xi+0BZNc8J+iCcMwaq/JjrgaILpKB1SnaPQS/eo47j8jTzhfAVGkgoiHUVMhsM5S1zU9OFaKsiD8VYaSNES+LNiYbDLS/z91feIUpqQgT/rVfra2rP3AmfSh32dDqLPqPsrWmF5xrXk9tUBNREfDV1tn0JWOWHW9At4DA399P5AN4b4ZCplqivhrakc99IcGbNxF3knJxup44XXR5bVNNc/UR9SLMvaQOghTMp8ThnzrIpjzV4g6+hL9y5smpSdfhzS39N/BNAM2wxKHisYjBVq9J6mbWr2P5bVnZm1DzP0hOLPErnFz5wyCfaY2uUvu60JCyGVTgW3A/JFaDdcI2AKNSYOL2iwYtlbedpR97M/5Lfk9zrAuYn9T+Z89S0PjLNVeO3VoLJdO8fh1IVUOT+GpHPvOCB+ndhrG67atbsbKPHDfQb/czvTGG2IrY6yn47Fx5M6SBE5/mkyOxlDr8fKIGHbH2Sku0bi6ouklsigC15UUSBTxjh6rMMInqGqDo8JVQ/IucjnTx7M46n88CGcva8JZltMzuTsu3B1XnWBpe+eS07t5Ki5JG/UBcXxxvmfUiatqjyXaQFNBzM4ur/iZoCi1mxZlJSwwOYF7VpreQWib9q+vny5FTYnJQR3d2Bt7VeqQ0LG+EqwyGKY39lBkS1IysQOIIpZgtEqfLw+MvsNiVRjs6H2mHnIDEEAxX9hkUPRQ3BP0F/48HUXOwJDUkGt5D7yxhJ3TIeM+Gk1Gk3Y9gSJlarv2MaaLFpO4Qqi4/ipyOdEo0j93Ip0ylxOTjO1ISAvr8566t6O+jkFnL/w3d91cdxGf4phCpFMjSrm7bovoWnaLSB7krYRXyunL6suVRFnKxcIc6/UcAv7mzWbD1+xbakLXdFyC1zDnrKNqUzrwmer2DkzANwD/MGsXhx/FkNHboWq5Ky7zdJB0vMdVZ0vfcGcsyUe8f5EJmXqSFR1esYwX7r1NlAs7cxwXBdbxzbe3nbZ08fnyih7P2w2/SiuF9PDIOxH9TZa6BDz113S3lgbsoqH8JnqWyb/vQfqC8w==
+sidebar_class_name: "post api-method"
+info_path: api/order-service/order-service-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Move order to dead letter queue"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/reprocessing/orders/{orderId}/dlq"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Move a failed order to the dead letter queue after max retries exceeded
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"orderId","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"type":"object","required":["failureStatus","failureReason"],"properties":{"failureStatus":{"type":"string"},"failureReason":{"type":"string"}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Order moved to DLQ","content":{"application/json":{"schema":{"type":"object","properties":{"orderId":{"type":"string"},"customerId":{"type":"string"},"failureStatus":{"type":"string"},"failureReason":{"type":"string"},"retryCount":{"type":"integer"},"originalOrder":{"type":"object","properties":{"orderId":{"type":"string"},"customerId":{"type":"string"},"status":{"type":"string"},"priority":{"type":"string"},"promisedDeliveryAt":{"type":"string","format":"date-time"},"shippingAddress":{"type":"object","required":["street","city","state","zipCode","country"],"properties":{"street":{"type":"string"},"street2":{"type":"string"},"city":{"type":"string"},"state":{"type":"string"},"zipCode":{"type":"string"},"country":{"type":"string"}},"title":"Address"},"items":{"type":"array","items":{"type":"object","properties":{"sku":{"type":"string"},"productName":{"type":"string"},"quantity":{"type":"integer"},"unitPrice":{"type":"number"},"weight":{"type":"number"}},"title":"OrderItem"}},"totalItems":{"type":"integer"},"totalQuantity":{"type":"integer"},"totalWeight":{"type":"number"},"totalValue":{"type":"number"},"waveId":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"}},"title":"OrderResponse"},"resolved":{"type":"boolean"},"resolution":{"type":"string","enum":["manual_retry","cancelled","escalated"]},"resolvedBy":{"type":"string"},"resolvedAt":{"type":"string","format":"date-time"},"notes":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"}},"title":"DLQEntry"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

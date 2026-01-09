@@ -101,20 +101,45 @@ type ReprocessingOrchestrationInput struct {
 	FailureStatuses []string `json:"failureStatuses"`
 	MaxRetries      int      `json:"maxRetries"`
 	BatchSize       int      `json:"batchSize"`
+	// ContinueAsNew support - accumulated results from previous runs
+	AccumulatedResult *ReprocessingResult `json:"accumulatedResult,omitempty"`
+	// Internal continuation tracking
+	ContinuationCount int `json:"continuationCount,omitempty"`
 }
 
 // ReprocessingOrchestrationWorkflow orchestrates the reprocessing of failed workflows
 func ReprocessingOrchestrationWorkflow(ctx workflow.Context, input ReprocessingOrchestrationInput) (*ReprocessingResult, error) {
 	logger := workflow.GetLogger(ctx)
+
+	// Workflow versioning for safe deployments
+	// Version 1: Added ContinueAsNew support for handling large batches
+	version := workflow.GetVersion(ctx, "ReprocessingOrchestrationWorkflow", workflow.DefaultVersion, ReprocessingOrchestrationWorkflowVersion)
+	logger.Info("Workflow version", "version", version)
+
 	logger.Info("Starting reprocessing orchestration",
 		"failureStatuses", input.FailureStatuses,
 		"maxRetries", input.MaxRetries,
 		"batchSize", input.BatchSize,
+		"continuationCount", input.ContinuationCount,
 	)
 
-	result := &ReprocessingResult{
-		ProcessedAt: workflow.Now(ctx),
+	// Initialize or use accumulated results from previous continuation
+	var result *ReprocessingResult
+	if input.AccumulatedResult != nil {
+		result = input.AccumulatedResult
+		logger.Info("Continuing from previous run",
+			"previousFoundCount", result.FoundCount,
+			"previousRestartedCount", result.RestartedCount,
+		)
+	} else {
+		result = &ReprocessingResult{
+			ProcessedAt: workflow.Now(ctx),
+		}
 	}
+
+	// ContinueAsNew safety limit: process max 1000 workflows per continuation
+	// This prevents hitting the 50K event history limit
+	const maxWorkflowsPerContinuation = 1000
 
 	// Activity options
 	ao := workflow.ActivityOptions{
@@ -128,11 +153,17 @@ func ReprocessingOrchestrationWorkflow(ctx workflow.Context, input ReprocessingO
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
 	// Step 1: Query for failed workflows that need reprocessing
+	// Use maxWorkflowsPerContinuation to limit query size for ContinueAsNew safety
+	queryLimit := input.BatchSize
+	if queryLimit > maxWorkflowsPerContinuation {
+		queryLimit = maxWorkflowsPerContinuation
+	}
+
 	var failedWorkflows []FailedWorkflowInfo
 	err := workflow.ExecuteActivity(ctx, "QueryFailedWorkflows", QueryFailedWorkflowsInput{
 		FailureStatuses: input.FailureStatuses,
 		MaxRetries:      input.MaxRetries,
-		Limit:           input.BatchSize,
+		Limit:           queryLimit,
 	}).Get(ctx, &failedWorkflows)
 
 	if err != nil {
@@ -140,14 +171,23 @@ func ReprocessingOrchestrationWorkflow(ctx workflow.Context, input ReprocessingO
 		return result, fmt.Errorf("failed to query failed workflows: %w", err)
 	}
 
-	result.FoundCount = len(failedWorkflows)
+	currentBatchCount := len(failedWorkflows)
+	result.FoundCount += currentBatchCount
 
-	if len(failedWorkflows) == 0 {
-		logger.Info("No failed workflows found for reprocessing")
+	if currentBatchCount == 0 {
+		logger.Info("No more failed workflows found for reprocessing - completing",
+			"totalFound", result.FoundCount,
+			"totalRestarted", result.RestartedCount,
+			"totalDLQ", result.DLQCount,
+			"totalErrors", result.ErrorCount,
+		)
 		return result, nil
 	}
 
-	logger.Info("Found failed workflows for reprocessing", "count", len(failedWorkflows))
+	logger.Info("Found failed workflows for this batch",
+		"batchCount", currentBatchCount,
+		"continuationCount", input.ContinuationCount,
+	)
 
 	// Step 2: Process each failed workflow
 	for _, fw := range failedWorkflows {
@@ -189,12 +229,41 @@ func ReprocessingOrchestrationWorkflow(ctx workflow.Context, input ReprocessingO
 		}
 	}
 
-	logger.Info("Reprocessing orchestration completed",
-		"found", result.FoundCount,
-		"restarted", result.RestartedCount,
-		"dlq", result.DLQCount,
-		"errors", result.ErrorCount,
-		"skipped", result.SkippedCount,
+	logger.Info("Batch processing completed",
+		"batchFound", currentBatchCount,
+		"totalFound", result.FoundCount,
+		"totalRestarted", result.RestartedCount,
+		"totalDLQ", result.DLQCount,
+		"totalErrors", result.ErrorCount,
+		"totalSkipped", result.SkippedCount,
+	)
+
+	// Check if we should continue processing more workflows
+	// If we found exactly queryLimit workflows, there might be more to process
+	if currentBatchCount >= queryLimit {
+		logger.Info("Batch limit reached - using ContinueAsNew to process more workflows",
+			"queryLimit", queryLimit,
+			"continuationCount", input.ContinuationCount,
+		)
+
+		// Use ContinueAsNew to start a fresh workflow execution with accumulated results
+		return result, workflow.NewContinueAsNewError(ctx, ReprocessingOrchestrationWorkflow, ReprocessingOrchestrationInput{
+			FailureStatuses:   input.FailureStatuses,
+			MaxRetries:        input.MaxRetries,
+			BatchSize:         input.BatchSize,
+			AccumulatedResult: result,
+			ContinuationCount: input.ContinuationCount + 1,
+		})
+	}
+
+	// No more workflows to process - return final results
+	logger.Info("Reprocessing orchestration completed - no more workflows to process",
+		"totalFound", result.FoundCount,
+		"totalRestarted", result.RestartedCount,
+		"totalDLQ", result.DLQCount,
+		"totalErrors", result.ErrorCount,
+		"totalSkipped", result.SkippedCount,
+		"continuations", input.ContinuationCount,
 	)
 
 	return result, nil

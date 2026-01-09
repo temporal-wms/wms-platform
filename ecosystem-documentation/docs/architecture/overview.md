@@ -24,6 +24,7 @@ graph TB
         subgraph "Orchestration Layer"
             Temporal[Temporal Server]
             Orchestrator[Orchestrator<br/>Temporal Worker]
+            WESWorker[WES Worker<br/>Temporal Worker]
         end
 
         subgraph "Domain Services"
@@ -36,6 +37,13 @@ graph TB
             Shipping[Shipping Service<br/>:8007]
             Inventory[Inventory Service<br/>:8008]
             Labor[Labor Service<br/>:8009]
+            Unit[Unit Service<br/>:8014]
+            ProcessPath[Process Path Service<br/>:8015]
+        end
+
+        subgraph "Execution Services"
+            WES[WES Service<br/>:8016]
+            Walling[Walling Service<br/>:8017]
         end
 
         subgraph "Infrastructure"
@@ -50,12 +58,16 @@ graph TB
     Gateway --> Order
 
     Orchestrator --> Temporal
+    WESWorker --> Temporal
+    Orchestrator --> WESWorker
+
+    WESWorker --> WES
+    WESWorker --> Walling
+    WESWorker --> Picking
+    WESWorker --> Packing
+
     Orchestrator --> Order
     Orchestrator --> Waving
-    Orchestrator --> Routing
-    Orchestrator --> Picking
-    Orchestrator --> Consolidation
-    Orchestrator --> Packing
     Orchestrator --> Shipping
     Orchestrator --> Inventory
 
@@ -63,12 +75,17 @@ graph TB
     Order --> MongoDB
     Waving --> Kafka
     Waving --> MongoDB
+    WES --> Kafka
+    WES --> MongoDB
+    Walling --> Kafka
+    Walling --> MongoDB
     Picking --> Kafka
     Picking --> MongoDB
     Shipping --> Carrier
 
     Labor --> Picking
     Labor --> Packing
+    Labor --> Walling
 ```
 
 ## Architectural Principles
@@ -88,6 +105,10 @@ Each service represents a bounded context with:
 - **Temporal** for durable workflow execution
 - **Saga Pattern** with automatic compensation
 - **Child Workflows** for complex sub-processes
+- **18+ Workflows** across orchestrator and service layers
+- **100+ Activities** for granular operations
+
+See [Temporal Workflows Documentation](/temporal/overview) for comprehensive workflow details.
 
 ### 4. Resilience Patterns
 - **Circuit Breakers** for external calls
@@ -123,8 +144,9 @@ graph LR
 - **Guaranteed Delivery**: Outbox pattern ensures events are published
 
 ### Workflow Signals
-- **Wave Assignment**: Signal to workflow when order is assigned to wave
-- **Pick Completion**: Signal when picking is complete
+- **Wave Assignment**: Signal to parent workflow when order is assigned to wave
+- **Walling Completed**: Signal to WES child workflow when put-wall sorting is complete
+- **Pick Completion**: Signal when picking stage is complete
 
 ## Data Architecture
 
@@ -132,6 +154,8 @@ graph LR
 Each service owns its database:
 - **Order Service** → `orders_db`
 - **Waving Service** → `waves_db`
+- **WES Service** → `wes_db`
+- **Walling Service** → `walling_db`
 - **Routing Service** → `routing_db`
 - **Picking Service** → `picking_db`
 - **Consolidation Service** → `consolidation_db`
@@ -139,6 +163,8 @@ Each service owns its database:
 - **Shipping Service** → `shipping_db`
 - **Inventory Service** → `inventory_db`
 - **Labor Service** → `labor_db`
+- **Unit Service** → `unit_db`
+- **Process Path Service** → `process_path_db`
 
 ### Event Store
 Kafka serves as the event store for:
@@ -231,5 +257,14 @@ graph TB
 ## Related Documentation
 
 - [C4 Diagrams](/architecture/c4-diagrams/context) - Detailed architectural views
+- [WES Execution](/architecture/sequence-diagrams/wes-execution) - WES workflow details
+- [Walling Workflow](/architecture/sequence-diagrams/walling-workflow) - Put-wall sorting flow
 - [Bounded Contexts](/domain-driven-design/bounded-contexts) - Domain decomposition
 - [Infrastructure](/infrastructure/overview) - Deployment details
+
+### Temporal Workflows
+- [Temporal Overview](/temporal/overview) - Workflow architecture and patterns
+- [Order Fulfillment Workflow](/temporal/workflows/order-fulfillment) - Main saga workflow
+- [Workflow Hierarchy](/temporal/diagrams/workflow-hierarchy) - Parent-child relationships
+- [Order Flow Diagram](/temporal/diagrams/order-flow) - Complete order processing flow
+- [Activities Overview](/temporal/activities/overview) - Activity patterns and conventions

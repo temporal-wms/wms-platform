@@ -1,0 +1,26 @@
+{
+  "id": "architecture/system-diagrams/data-flow",
+  "title": "Data Flow Diagrams",
+  "description": "This document describes the data flows within the WMS Platform, including synchronous API calls and asynchronous event flows.",
+  "source": "@site/docs/architecture/system-diagrams/data-flow.md",
+  "sourceDirName": "architecture/system-diagrams",
+  "slug": "/architecture/system-diagrams/data-flow",
+  "permalink": "/wms-platform/architecture/system-diagrams/data-flow",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Kubernetes Deployment",
+    "permalink": "/wms-platform/architecture/system-diagrams/deployment"
+  },
+  "next": {
+    "title": "Order Fulfillment Workflow",
+    "permalink": "/wms-platform/architecture/sequence-diagrams/order-fulfillment"
+  }
+}

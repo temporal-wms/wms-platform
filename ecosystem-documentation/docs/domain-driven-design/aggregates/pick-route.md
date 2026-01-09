@@ -211,7 +211,7 @@ type PickRouteRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/routes/calculate | Calculate optimal route |
-| GET | /api/v1/routes/{id} | Get route by ID |
+| GET | /api/v1/routes/\{id\} | Get route by ID |
 
 ## Related Documentation
 

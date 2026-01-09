@@ -1,0 +1,535 @@
+{
+  "/wms-platform/-ec0": {
+    "__comp": "5e95c892",
+    "__context": {
+      "plugin": "aba21aa0"
+    }
+  },
+  "/wms-platform/-b90": {
+    "__comp": "a7bd4aaa",
+    "__props": "e5836312"
+  },
+  "/wms-platform/-24f": {
+    "__comp": "a94703ab"
+  },
+  "/wms-platform/api/catalog-15a": {
+    "__comp": "4c5e977b",
+    "content": "11acf869"
+  },
+  "/wms-platform/api/events-api-382": {
+    "__comp": "4c5e977b",
+    "content": "53cde753"
+  },
+  "/wms-platform/api/order-service/cancel-order-1c7": {
+    "__comp": "4c5e977b",
+    "content": "1ce529c2"
+  },
+  "/wms-platform/api/order-service/create-a-new-order-a95": {
+    "__comp": "4c5e977b",
+    "content": "aa8a93b6"
+  },
+  "/wms-platform/api/order-service/get-dlq-statistics-9ae": {
+    "__comp": "4c5e977b",
+    "content": "79d21b87"
+  },
+  "/wms-platform/api/order-service/get-order-by-id-dd7": {
+    "__comp": "4c5e977b",
+    "content": "b54fa678"
+  },
+  "/wms-platform/api/order-service/get-orders-eligible-for-retry-da8": {
+    "__comp": "4c5e977b",
+    "content": "a3c43dc9"
+  },
+  "/wms-platform/api/order-service/get-retry-metadata-for-order-bec": {
+    "__comp": "4c5e977b",
+    "content": "06f1ec6a"
+  },
+  "/wms-platform/api/order-service/get-specific-dlq-entry-d10": {
+    "__comp": "4c5e977b",
+    "content": "37610b47"
+  },
+  "/wms-platform/api/order-service/health-check-1e3": {
+    "__comp": "4c5e977b",
+    "content": "66253cb4"
+  },
+  "/wms-platform/api/order-service/increment-retry-count-7ad": {
+    "__comp": "4c5e977b",
+    "content": "0d47c977"
+  },
+  "/wms-platform/api/order-service/list-dead-letter-queue-entries-255": {
+    "__comp": "4c5e977b",
+    "content": "016ad3ee"
+  },
+  "/wms-platform/api/order-service/list-orders-b1e": {
+    "__comp": "4c5e977b",
+    "content": "ea9ef4d0"
+  },
+  "/wms-platform/api/order-service/move-order-to-dead-letter-queue-437": {
+    "__comp": "4c5e977b",
+    "content": "d68c0762"
+  },
+  "/wms-platform/api/order-service/order-service-api-87a": {
+    "__comp": "4c5e977b",
+    "content": "1ef0c439"
+  },
+  "/wms-platform/api/order-service/reset-order-for-retry-94a": {
+    "__comp": "4c5e977b",
+    "content": "0839c200"
+  },
+  "/wms-platform/api/order-service/resolve-dlq-entry-341": {
+    "__comp": "4c5e977b",
+    "content": "9074be5e"
+  },
+  "/wms-platform/api/order-service/validate-order-c58": {
+    "__comp": "4c5e977b",
+    "content": "4ff9f81e"
+  },
+  "/wms-platform/api/rest-api-300": {
+    "__comp": "4c5e977b",
+    "content": "c4741e79"
+  },
+  "/wms-platform/api/specs/asyncapi-f8e": {
+    "__comp": "4c5e977b",
+    "content": "c8d884cb"
+  },
+  "/wms-platform/api/specs/openapi-700": {
+    "__comp": "4c5e977b",
+    "content": "4f06f9e6"
+  },
+  "/wms-platform/architecture/c4-diagrams/code-c47": {
+    "__comp": "4c5e977b",
+    "content": "735b293d"
+  },
+  "/wms-platform/architecture/c4-diagrams/components-22a": {
+    "__comp": "4c5e977b",
+    "content": "1d1a136d"
+  },
+  "/wms-platform/architecture/c4-diagrams/containers-791": {
+    "__comp": "4c5e977b",
+    "content": "c6a7a97d"
+  },
+  "/wms-platform/architecture/c4-diagrams/context-46f": {
+    "__comp": "4c5e977b",
+    "content": "aeecbef0"
+  },
+  "/wms-platform/architecture/overview-a5d": {
+    "__comp": "4c5e977b",
+    "content": "0b1ac180"
+  },
+  "/wms-platform/architecture/sequence-diagrams/order-cancellation-8da": {
+    "__comp": "4c5e977b",
+    "content": "ae780f7f"
+  },
+  "/wms-platform/architecture/sequence-diagrams/order-fulfillment-2a6": {
+    "__comp": "4c5e977b",
+    "content": "37d052b2"
+  },
+  "/wms-platform/architecture/sequence-diagrams/packing-workflow-5a6": {
+    "__comp": "4c5e977b",
+    "content": "a726a46e"
+  },
+  "/wms-platform/architecture/sequence-diagrams/picking-workflow-37d": {
+    "__comp": "4c5e977b",
+    "content": "587cb519"
+  },
+  "/wms-platform/architecture/sequence-diagrams/receiving-workflow-132": {
+    "__comp": "4c5e977b",
+    "content": "ce23d725"
+  },
+  "/wms-platform/architecture/sequence-diagrams/reprocessing-workflow-940": {
+    "__comp": "4c5e977b",
+    "content": "71963008"
+  },
+  "/wms-platform/architecture/sequence-diagrams/shipping-workflow-96b": {
+    "__comp": "4c5e977b",
+    "content": "55dc048f"
+  },
+  "/wms-platform/architecture/sequence-diagrams/unit-tracking-544": {
+    "__comp": "4c5e977b",
+    "content": "a89786ea"
+  },
+  "/wms-platform/architecture/sequence-diagrams/walling-workflow-b63": {
+    "__comp": "4c5e977b",
+    "content": "5e9968eb"
+  },
+  "/wms-platform/architecture/sequence-diagrams/wes-execution-9bc": {
+    "__comp": "4c5e977b",
+    "content": "ea3025f1"
+  },
+  "/wms-platform/architecture/system-diagrams/data-flow-58d": {
+    "__comp": "4c5e977b",
+    "content": "f70c2c5f"
+  },
+  "/wms-platform/architecture/system-diagrams/deployment-655": {
+    "__comp": "4c5e977b",
+    "content": "d97da82b"
+  },
+  "/wms-platform/architecture/system-diagrams/infrastructure-b9f": {
+    "__comp": "4c5e977b",
+    "content": "78c90a97"
+  },
+  "/wms-platform/domain-driven-design/aggregates/consolidation-unit-a78": {
+    "__comp": "4c5e977b",
+    "content": "9b6ec2fe"
+  },
+  "/wms-platform/domain-driven-design/aggregates/inbound-shipment-26a": {
+    "__comp": "4c5e977b",
+    "content": "bd131949"
+  },
+  "/wms-platform/domain-driven-design/aggregates/inventory-item-72a": {
+    "__comp": "4c5e977b",
+    "content": "db924218"
+  },
+  "/wms-platform/domain-driven-design/aggregates/order-c92": {
+    "__comp": "4c5e977b",
+    "content": "34617a25"
+  },
+  "/wms-platform/domain-driven-design/aggregates/pack-task-65b": {
+    "__comp": "4c5e977b",
+    "content": "6fc4b1a7"
+  },
+  "/wms-platform/domain-driven-design/aggregates/pick-route-60b": {
+    "__comp": "4c5e977b",
+    "content": "1c9e1237"
+  },
+  "/wms-platform/domain-driven-design/aggregates/pick-task-b1f": {
+    "__comp": "4c5e977b",
+    "content": "4564a845"
+  },
+  "/wms-platform/domain-driven-design/aggregates/process-path-b03": {
+    "__comp": "4c5e977b",
+    "content": "0fffc963"
+  },
+  "/wms-platform/domain-driven-design/aggregates/putaway-task-f2c": {
+    "__comp": "4c5e977b",
+    "content": "2986e3c6"
+  },
+  "/wms-platform/domain-driven-design/aggregates/shipment-64d": {
+    "__comp": "4c5e977b",
+    "content": "d39b9054"
+  },
+  "/wms-platform/domain-driven-design/aggregates/sortation-batch-f33": {
+    "__comp": "4c5e977b",
+    "content": "7d37b9de"
+  },
+  "/wms-platform/domain-driven-design/aggregates/station-690": {
+    "__comp": "4c5e977b",
+    "content": "1041e949"
+  },
+  "/wms-platform/domain-driven-design/aggregates/task-route-d61": {
+    "__comp": "4c5e977b",
+    "content": "52e9ed62"
+  },
+  "/wms-platform/domain-driven-design/aggregates/unit-fdb": {
+    "__comp": "4c5e977b",
+    "content": "7ad82cc7"
+  },
+  "/wms-platform/domain-driven-design/aggregates/walling-task-194": {
+    "__comp": "4c5e977b",
+    "content": "3cfd5b09"
+  },
+  "/wms-platform/domain-driven-design/aggregates/wave-bd7": {
+    "__comp": "4c5e977b",
+    "content": "9cf20bce"
+  },
+  "/wms-platform/domain-driven-design/aggregates/worker-5c2": {
+    "__comp": "4c5e977b",
+    "content": "d72a20ab"
+  },
+  "/wms-platform/domain-driven-design/bounded-contexts-a46": {
+    "__comp": "4c5e977b",
+    "content": "5e58a269"
+  },
+  "/wms-platform/domain-driven-design/context-map-c7d": {
+    "__comp": "4c5e977b",
+    "content": "402586ef"
+  },
+  "/wms-platform/domain-driven-design/domain-events-56a": {
+    "__comp": "4c5e977b",
+    "content": "7afed558"
+  },
+  "/wms-platform/domain-driven-design/overview-313": {
+    "__comp": "4c5e977b",
+    "content": "fc44e560"
+  },
+  "/wms-platform/domain-driven-design/value-objects-458": {
+    "__comp": "4c5e977b",
+    "content": "8173e67d"
+  },
+  "/wms-platform/infrastructure/kafka-953": {
+    "__comp": "4c5e977b",
+    "content": "eeac9702"
+  },
+  "/wms-platform/infrastructure/mongodb-2b9": {
+    "__comp": "4c5e977b",
+    "content": "d7b49d25"
+  },
+  "/wms-platform/infrastructure/observability-1d0": {
+    "__comp": "4c5e977b",
+    "content": "3b5712dc"
+  },
+  "/wms-platform/infrastructure/overview-a8c": {
+    "__comp": "4c5e977b",
+    "content": "294c6217"
+  },
+  "/wms-platform/infrastructure/temporal-659": {
+    "__comp": "4c5e977b",
+    "content": "1f896f3a"
+  },
+  "/wms-platform/services/billing-service-05e": {
+    "__comp": "4c5e977b",
+    "content": "ea14ae6a"
+  },
+  "/wms-platform/services/channel-service-9d3": {
+    "__comp": "4c5e977b",
+    "content": "cb67e2d2"
+  },
+  "/wms-platform/services/consolidation-service-fea": {
+    "__comp": "4c5e977b",
+    "content": "a3bcec2a"
+  },
+  "/wms-platform/services/facility-service-a9e": {
+    "__comp": "4c5e977b",
+    "content": "f00486eb"
+  },
+  "/wms-platform/services/inventory-service-8c0": {
+    "__comp": "4c5e977b",
+    "content": "2037f247"
+  },
+  "/wms-platform/services/labor-service-5af": {
+    "__comp": "4c5e977b",
+    "content": "5478ba74"
+  },
+  "/wms-platform/services/orchestrator-439": {
+    "__comp": "4c5e977b",
+    "content": "c411b666"
+  },
+  "/wms-platform/services/order-service-3dd": {
+    "__comp": "4c5e977b",
+    "content": "7a0205d4"
+  },
+  "/wms-platform/services/packing-service-576": {
+    "__comp": "4c5e977b",
+    "content": "24593d93"
+  },
+  "/wms-platform/services/picking-service-69b": {
+    "__comp": "4c5e977b",
+    "content": "6ad59882"
+  },
+  "/wms-platform/services/process-path-service-3ef": {
+    "__comp": "4c5e977b",
+    "content": "8f1b7954"
+  },
+  "/wms-platform/services/receiving-service-139": {
+    "__comp": "4c5e977b",
+    "content": "8876032d"
+  },
+  "/wms-platform/services/routing-service-a75": {
+    "__comp": "4c5e977b",
+    "content": "af842b9c"
+  },
+  "/wms-platform/services/seller-portal-10a": {
+    "__comp": "4c5e977b",
+    "content": "de2e6408"
+  },
+  "/wms-platform/services/seller-service-745": {
+    "__comp": "4c5e977b",
+    "content": "3b173a60"
+  },
+  "/wms-platform/services/shipping-service-5ec": {
+    "__comp": "4c5e977b",
+    "content": "27311430"
+  },
+  "/wms-platform/services/sortation-service-8bd": {
+    "__comp": "4c5e977b",
+    "content": "6bfaf21b"
+  },
+  "/wms-platform/services/stow-service-cea": {
+    "__comp": "4c5e977b",
+    "content": "41949828"
+  },
+  "/wms-platform/services/unit-service-0c4": {
+    "__comp": "4c5e977b",
+    "content": "2193447b"
+  },
+  "/wms-platform/services/walling-service-e83": {
+    "__comp": "4c5e977b",
+    "content": "15ddb308"
+  },
+  "/wms-platform/services/waving-service-9ec": {
+    "__comp": "4c5e977b",
+    "content": "9192a2ab"
+  },
+  "/wms-platform/services/wes-service-b65": {
+    "__comp": "4c5e977b",
+    "content": "92ca6f50"
+  },
+  "/wms-platform/temporal/activities/consolidation-activities-88e": {
+    "__comp": "4c5e977b",
+    "content": "34e27a10"
+  },
+  "/wms-platform/temporal/activities/giftwrap-activities-18a": {
+    "__comp": "4c5e977b",
+    "content": "72eaf8e9"
+  },
+  "/wms-platform/temporal/activities/inventory-activities-728": {
+    "__comp": "4c5e977b",
+    "content": "a305ba14"
+  },
+  "/wms-platform/temporal/activities/order-activities-fb8": {
+    "__comp": "4c5e977b",
+    "content": "3ee88fae"
+  },
+  "/wms-platform/temporal/activities/overview-388": {
+    "__comp": "4c5e977b",
+    "content": "923a3b85"
+  },
+  "/wms-platform/temporal/activities/packing-activities-4b7": {
+    "__comp": "4c5e977b",
+    "content": "3663a5ed"
+  },
+  "/wms-platform/temporal/activities/picking-activities-8c2": {
+    "__comp": "4c5e977b",
+    "content": "2d139665"
+  },
+  "/wms-platform/temporal/activities/process-path-activities-5a2": {
+    "__comp": "4c5e977b",
+    "content": "a299873a"
+  },
+  "/wms-platform/temporal/activities/receiving-activities-a9b": {
+    "__comp": "4c5e977b",
+    "content": "776e76fd"
+  },
+  "/wms-platform/temporal/activities/reprocessing-activities-bbe": {
+    "__comp": "4c5e977b",
+    "content": "ab9134b4"
+  },
+  "/wms-platform/temporal/activities/routing-activities-5be": {
+    "__comp": "4c5e977b",
+    "content": "967d7ed0"
+  },
+  "/wms-platform/temporal/activities/shipping-activities-2b9": {
+    "__comp": "4c5e977b",
+    "content": "37a76186"
+  },
+  "/wms-platform/temporal/activities/slam-activities-d7b": {
+    "__comp": "4c5e977b",
+    "content": "a0b6f0a8"
+  },
+  "/wms-platform/temporal/activities/sortation-activities-f0d": {
+    "__comp": "4c5e977b",
+    "content": "d5196fbd"
+  },
+  "/wms-platform/temporal/activities/stow-activities-7f3": {
+    "__comp": "4c5e977b",
+    "content": "d587e5c1"
+  },
+  "/wms-platform/temporal/activities/unit-activities-3ed": {
+    "__comp": "4c5e977b",
+    "content": "990500b9"
+  },
+  "/wms-platform/temporal/diagrams/order-flow-c0d": {
+    "__comp": "4c5e977b",
+    "content": "c770b191"
+  },
+  "/wms-platform/temporal/diagrams/signal-flow-119": {
+    "__comp": "4c5e977b",
+    "content": "a6c49203"
+  },
+  "/wms-platform/temporal/diagrams/workflow-hierarchy-474": {
+    "__comp": "4c5e977b",
+    "content": "20afa5de"
+  },
+  "/wms-platform/temporal/overview-96e": {
+    "__comp": "4c5e977b",
+    "content": "771f5a59"
+  },
+  "/wms-platform/temporal/retry-policies-0d9": {
+    "__comp": "4c5e977b",
+    "content": "abd4c98d"
+  },
+  "/wms-platform/temporal/signals-queries-e42": {
+    "__comp": "4c5e977b",
+    "content": "454a7676"
+  },
+  "/wms-platform/temporal/task-queues-ca7": {
+    "__comp": "4c5e977b",
+    "content": "3c2c2916"
+  },
+  "/wms-platform/temporal/workflows/cancellation-488": {
+    "__comp": "4c5e977b",
+    "content": "ed7c422f"
+  },
+  "/wms-platform/temporal/workflows/consolidation-d63": {
+    "__comp": "4c5e977b",
+    "content": "1e5718d7"
+  },
+  "/wms-platform/temporal/workflows/gift-wrap-79f": {
+    "__comp": "4c5e977b",
+    "content": "59a95d7c"
+  },
+  "/wms-platform/temporal/workflows/inbound-fulfillment-ff4": {
+    "__comp": "4c5e977b",
+    "content": "0c686218"
+  },
+  "/wms-platform/temporal/workflows/order-fulfillment-563": {
+    "__comp": "4c5e977b",
+    "content": "059e3aff"
+  },
+  "/wms-platform/temporal/workflows/packing-2c7": {
+    "__comp": "4c5e977b",
+    "content": "26a832cf"
+  },
+  "/wms-platform/temporal/workflows/picking-da1": {
+    "__comp": "4c5e977b",
+    "content": "134dd51e"
+  },
+  "/wms-platform/temporal/workflows/planning-aa9": {
+    "__comp": "4c5e977b",
+    "content": "ee316834"
+  },
+  "/wms-platform/temporal/workflows/reprocessing-626": {
+    "__comp": "4c5e977b",
+    "content": "207ffcf4"
+  },
+  "/wms-platform/temporal/workflows/service-consolidation-927": {
+    "__comp": "4c5e977b",
+    "content": "b5bc3262"
+  },
+  "/wms-platform/temporal/workflows/service-packing-b03": {
+    "__comp": "4c5e977b",
+    "content": "934046ff"
+  },
+  "/wms-platform/temporal/workflows/service-picking-a0f": {
+    "__comp": "4c5e977b",
+    "content": "e6bf6227"
+  },
+  "/wms-platform/temporal/workflows/service-shipping-2b7": {
+    "__comp": "4c5e977b",
+    "content": "6be5bde8"
+  },
+  "/wms-platform/temporal/workflows/service-wes-32a": {
+    "__comp": "4c5e977b",
+    "content": "395c7e2b"
+  },
+  "/wms-platform/temporal/workflows/shipping-dd6": {
+    "__comp": "4c5e977b",
+    "content": "1862d3c5"
+  },
+  "/wms-platform/temporal/workflows/sortation-f2f": {
+    "__comp": "4c5e977b",
+    "content": "a1e41907"
+  },
+  "/wms-platform/temporal/workflows/stock-shortage-23d": {
+    "__comp": "4c5e977b",
+    "content": "0a7e865e"
+  },
+  "/wms-platform/temporal/workflows/wes-execution-d81": {
+    "__comp": "4c5e977b",
+    "content": "ed8f4352"
+  },
+  "/wms-platform/-c5c": {
+    "__comp": "4c5e977b",
+    "content": "0e384e19"
+  }
+}

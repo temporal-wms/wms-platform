@@ -1,0 +1,27 @@
+{
+  "id": "temporal/workflows/service-consolidation",
+  "title": "Consolidation Service - ConsolidationWorkflow",
+  "description": "Service-level workflow that handles item consolidation with signal-based progress tracking.",
+  "source": "@site/docs/temporal/workflows/service-consolidation.md",
+  "sourceDirName": "temporal/workflows",
+  "slug": "/temporal/workflows/service-consolidation",
+  "permalink": "/wms-platform/temporal/workflows/service-consolidation",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 16,
+  "frontMatter": {
+    "sidebar_position": 16,
+    "slug": "/temporal/workflows/service-consolidation"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Picking Service - PickingWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/service-picking"
+  },
+  "next": {
+    "title": "Packing Service - PackingWorkflow",
+    "permalink": "/wms-platform/temporal/workflows/service-packing"
+  }
+}

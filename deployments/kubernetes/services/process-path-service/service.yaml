@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: process-path-service
+  namespace: wms-platform
+  labels:
+    app: process-path-service
+spec:
+  type: ClusterIP
+  selector:
+    app: process-path-service
+  ports:
+    - name: http
+      port: 8015
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 9015
+      targetPort: grpc
+      protocol: TCP

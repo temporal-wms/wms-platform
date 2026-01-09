@@ -1,0 +1,197 @@
+# Superset Dataset Configuration: Operations KPI
+# Dataset for the Operations KPI executive dashboard
+
+dataset:
+  name: operations_summary_daily
+  description: "Daily operations summary with key metrics across all domains"
+  database: trino
+  schema: iceberg.gold
+  table_name: operations_summary_daily
+
+  # Main time column for time series
+  main_dttm_col: date
+
+  # Columns
+  columns:
+    - column_name: date
+      type: DATE
+      is_dttm: true
+      filterable: true
+      groupby: true
+      description: "Date of the metrics"
+
+    # Order Metrics
+    - column_name: orders_received
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Orders received"
+
+    - column_name: orders_completed
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Orders completed"
+
+    - column_name: orders_cancelled
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Orders cancelled"
+
+    - column_name: order_completion_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Order completion rate"
+
+    - column_name: avg_order_fulfillment_hours
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average order fulfillment time (hours)"
+
+    # Picking Metrics
+    - column_name: pick_tasks_completed
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Pick tasks completed"
+
+    - column_name: items_picked
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Items picked"
+
+    - column_name: avg_pick_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average pick rate"
+
+    - column_name: picking_accuracy
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Picking accuracy rate"
+
+    # Packing Metrics
+    - column_name: packages_packed
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Packages packed"
+
+    - column_name: avg_pack_time_minutes
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average pack time (minutes)"
+
+    # Shipping Metrics
+    - column_name: shipments_sent
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Shipments sent"
+
+    - column_name: on_time_shipments
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "On-time shipments"
+
+    - column_name: shipping_on_time_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Shipping on-time rate"
+
+    # Receiving Metrics
+    - column_name: receipts_completed
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Receipts completed"
+
+    - column_name: units_received
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Units received"
+
+    - column_name: avg_dock_to_stock_minutes
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average dock-to-stock time (minutes)"
+
+    # Returns Metrics
+    - column_name: returns_processed
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Returns processed"
+
+    - column_name: return_restock_rate
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Return restock rate"
+
+    # Labor Metrics
+    - column_name: active_workers
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Active workers"
+
+    - column_name: avg_productivity
+      type: DOUBLE
+      filterable: false
+      groupby: false
+      description: "Average productivity"
+
+    # Inventory Metrics
+    - column_name: low_stock_alerts
+      type: BIGINT
+      filterable: false
+      groupby: false
+      description: "Low stock alerts"
+
+  # Metrics
+  metrics:
+    - metric_name: total_orders
+      expression: "SUM(orders_received)"
+      description: "Total orders received"
+
+    - metric_name: total_completed
+      expression: "SUM(orders_completed)"
+      description: "Total orders completed"
+
+    - metric_name: fulfillment_rate
+      expression: "CAST(SUM(orders_completed) AS DOUBLE) / NULLIF(SUM(orders_received), 0) * 100"
+      description: "Fulfillment rate (%)"
+
+    - metric_name: total_items_picked
+      expression: "SUM(items_picked)"
+      description: "Total items picked"
+
+    - metric_name: total_shipments
+      expression: "SUM(shipments_sent)"
+      description: "Total shipments sent"
+
+    - metric_name: avg_fulfillment_hours
+      expression: "AVG(avg_order_fulfillment_hours)"
+      description: "Average fulfillment time (hours)"
+
+---
+# Hourly throughput dataset
+dataset:
+  name: hourly_throughput
+  description: "Hourly operations throughput"
+  database: trino
+  schema: iceberg.gold
+  table_name: hourly_throughput
+  main_dttm_col: date

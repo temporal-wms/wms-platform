@@ -68,6 +68,46 @@ func (s *RoutingApplicationService) CalculateRoute(ctx context.Context, cmd Calc
 	return ToPickRouteDTO(route), nil
 }
 
+// CalculateMultiRoute calculates multiple routes for an order with zone and capacity splitting
+func (s *RoutingApplicationService) CalculateMultiRoute(ctx context.Context, cmd CalculateMultiRouteCommand) (*MultiRouteResultDTO, error) {
+	result, err := s.routeCalculator.CalculateRoutes(ctx, cmd.RouteRequest)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to calculate multi-route")
+		return nil, fmt.Errorf("failed to calculate multi-route: %w", err)
+	}
+
+	// Save all routes
+	for _, route := range result.Routes {
+		if err := s.repo.Save(ctx, route); err != nil {
+			s.logger.WithError(err).Error("Failed to save route", "routeId", route.RouteID)
+			return nil, fmt.Errorf("failed to save route %s: %w", route.RouteID, err)
+		}
+	}
+
+	// Log business event: multi-route created
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "route.multi_created",
+		EntityType: "route",
+		EntityID:   cmd.RouteRequest.OrderID,
+		Action:     "multi_route_created",
+		RelatedIDs: map[string]string{
+			"orderId":     cmd.RouteRequest.OrderID,
+			"waveId":      cmd.RouteRequest.WaveID,
+			"totalRoutes": fmt.Sprintf("%d", result.TotalRoutes),
+			"splitReason": string(result.SplitReason),
+		},
+	})
+
+	s.logger.Info("Multi-route calculated",
+		"orderId", cmd.RouteRequest.OrderID,
+		"totalRoutes", result.TotalRoutes,
+		"splitReason", result.SplitReason,
+		"totalItems", result.TotalItems,
+	)
+
+	return ToMultiRouteResultDTO(result), nil
+}
+
 // GetRoute retrieves a route by ID
 func (s *RoutingApplicationService) GetRoute(ctx context.Context, query GetRouteQuery) (*PickRouteDTO, error) {
 	route, err := s.repo.FindByID(ctx, query.RouteID)

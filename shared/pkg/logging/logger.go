@@ -456,6 +456,9 @@ const (
 	WMSCorrelationIDKey contextKey = "wmsCorrelationId"
 	WMSWaveNumberKey    contextKey = "wmsWaveNumber"
 	WMSWorkflowIDKey    contextKey = "wmsWorkflowId"
+	WMSFacilityIDKey    contextKey = "wmsFacilityId"
+	WMSWarehouseIDKey   contextKey = "wmsWarehouseId"
+	WMSOrderIDKey       contextKey = "wmsOrderId"
 )
 
 // extractContextAttrs extracts logging attributes from context
@@ -486,6 +489,15 @@ func extractContextAttrs(ctx context.Context) []any {
 	}
 	if v := ctx.Value(WMSWorkflowIDKey); v != nil {
 		attrs = append(attrs, "wms_workflow_id", v)
+	}
+	if v := ctx.Value(WMSFacilityIDKey); v != nil {
+		attrs = append(attrs, "wms_facility_id", v)
+	}
+	if v := ctx.Value(WMSWarehouseIDKey); v != nil {
+		attrs = append(attrs, "wms_warehouse_id", v)
+	}
+	if v := ctx.Value(WMSOrderIDKey); v != nil {
+		attrs = append(attrs, "wms_order_id", v)
 	}
 
 	return attrs
@@ -526,8 +538,23 @@ func ContextWithWMSWorkflowID(ctx context.Context, workflowID string) context.Co
 	return context.WithValue(ctx, WMSWorkflowIDKey, workflowID)
 }
 
+// ContextWithWMSFacilityID adds WMS facility ID to context (CloudEvents extension)
+func ContextWithWMSFacilityID(ctx context.Context, facilityID string) context.Context {
+	return context.WithValue(ctx, WMSFacilityIDKey, facilityID)
+}
+
+// ContextWithWMSWarehouseID adds WMS warehouse ID to context (CloudEvents extension)
+func ContextWithWMSWarehouseID(ctx context.Context, warehouseID string) context.Context {
+	return context.WithValue(ctx, WMSWarehouseIDKey, warehouseID)
+}
+
+// ContextWithWMSOrderID adds WMS order ID to context (CloudEvents extension)
+func ContextWithWMSOrderID(ctx context.Context, orderID string) context.Context {
+	return context.WithValue(ctx, WMSOrderIDKey, orderID)
+}
+
 // ContextWithCloudEventExtensions adds all CloudEvents WMS extensions to context
-func ContextWithCloudEventExtensions(ctx context.Context, correlationID, waveNumber, workflowID string) context.Context {
+func ContextWithCloudEventExtensions(ctx context.Context, correlationID, waveNumber, workflowID, facilityID, warehouseID, orderID string) context.Context {
 	if correlationID != "" {
 		ctx = context.WithValue(ctx, WMSCorrelationIDKey, correlationID)
 	}
@@ -537,6 +564,15 @@ func ContextWithCloudEventExtensions(ctx context.Context, correlationID, waveNum
 	if workflowID != "" {
 		ctx = context.WithValue(ctx, WMSWorkflowIDKey, workflowID)
 	}
+	if facilityID != "" {
+		ctx = context.WithValue(ctx, WMSFacilityIDKey, facilityID)
+	}
+	if warehouseID != "" {
+		ctx = context.WithValue(ctx, WMSWarehouseIDKey, warehouseID)
+	}
+	if orderID != "" {
+		ctx = context.WithValue(ctx, WMSOrderIDKey, orderID)
+	}
 	return ctx
 }
 
@@ -545,11 +581,14 @@ type CloudEventContext struct {
 	CorrelationID string
 	WaveNumber    string
 	WorkflowID    string
+	FacilityID    string
+	WarehouseID   string
+	OrderID       string
 }
 
 // WithCloudEventContext creates a logger with CloudEvents WMS extensions
 func (l *Logger) WithCloudEventContext(cec CloudEventContext) *Logger {
-	attrs := make([]any, 0, 6)
+	attrs := make([]any, 0, 12)
 
 	if cec.CorrelationID != "" {
 		attrs = append(attrs, "wms_correlation_id", cec.CorrelationID)
@@ -559,6 +598,15 @@ func (l *Logger) WithCloudEventContext(cec CloudEventContext) *Logger {
 	}
 	if cec.WorkflowID != "" {
 		attrs = append(attrs, "wms_workflow_id", cec.WorkflowID)
+	}
+	if cec.FacilityID != "" {
+		attrs = append(attrs, "wms_facility_id", cec.FacilityID)
+	}
+	if cec.WarehouseID != "" {
+		attrs = append(attrs, "wms_warehouse_id", cec.WarehouseID)
+	}
+	if cec.OrderID != "" {
+		attrs = append(attrs, "wms_order_id", cec.OrderID)
 	}
 
 	if len(attrs) == 0 {
@@ -597,6 +645,36 @@ func (l *Logger) WithWMSWaveNumber(waveNumber string) *Logger {
 func (l *Logger) WithWMSWorkflowID(workflowID string) *Logger {
 	return &Logger{
 		Logger:      l.Logger.With("wms_workflow_id", workflowID),
+		serviceName: l.serviceName,
+		environment: l.environment,
+		version:     l.version,
+	}
+}
+
+// WithWMSFacilityID adds WMS facility ID to the logger (CloudEvents extension)
+func (l *Logger) WithWMSFacilityID(facilityID string) *Logger {
+	return &Logger{
+		Logger:      l.Logger.With("wms_facility_id", facilityID),
+		serviceName: l.serviceName,
+		environment: l.environment,
+		version:     l.version,
+	}
+}
+
+// WithWMSWarehouseID adds WMS warehouse ID to the logger (CloudEvents extension)
+func (l *Logger) WithWMSWarehouseID(warehouseID string) *Logger {
+	return &Logger{
+		Logger:      l.Logger.With("wms_warehouse_id", warehouseID),
+		serviceName: l.serviceName,
+		environment: l.environment,
+		version:     l.version,
+	}
+}
+
+// WithWMSOrderID adds WMS order ID to the logger (CloudEvents extension)
+func (l *Logger) WithWMSOrderID(orderID string) *Logger {
+	return &Logger{
+		Logger:      l.Logger.With("wms_order_id", orderID),
 		serviceName: l.serviceName,
 		environment: l.environment,
 		version:     l.version,

@@ -1,0 +1,8 @@
+{
+  "label": "Diagrams",
+  "position": 7,
+  "link": {
+    "type": "generated-index",
+    "description": "Visual diagrams showing workflow relationships, signal flows, and system topology."
+  }
+}

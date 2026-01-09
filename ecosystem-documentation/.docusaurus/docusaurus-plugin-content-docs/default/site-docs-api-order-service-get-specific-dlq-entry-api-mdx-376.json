@@ -1,0 +1,35 @@
+{
+  "id": "api/order-service/get-specific-dlq-entry",
+  "title": "Get specific DLQ entry",
+  "description": "Get specific DLQ entry",
+  "source": "@site/docs/api/order-service/get-specific-dlq-entry.api.mdx",
+  "sourceDirName": "api/order-service",
+  "slug": "/api/order-service/get-specific-dlq-entry",
+  "permalink": "/wms-platform/api/order-service/get-specific-dlq-entry",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "id": "get-specific-dlq-entry",
+    "title": "Get specific DLQ entry",
+    "description": "Get specific DLQ entry",
+    "sidebar_label": "Get specific DLQ entry",
+    "hide_title": true,
+    "hide_table_of_contents": true,
+    "api": "eJy9Vktv4zYQ/isETy0QP7LYQ+FT0yRYBNi2ebV7SIJiLI0tbiiS4cO7XsP/vTOU7CixFCCH9mSZ8/pm5uMMNzLCMsjZnTxDKMVnjBG9uEqYUD4cSQceaqQjVtlIQ3/kTFpfor8o5ZFUhv46iBV9e3xKymMpZ9EnPJKhqLAGOdvIuHZsFqJXZim32wdWDs6agIHlH6ZT/ikxFF65qCx7Pft8JdBEvxYeyRBXyAELayKdsjo4p1UBrD75GthmcxjTzr9iEcnQeevQR9VE3GVwCI5CpBBtPShegNLJ402EmMJbGtcILaoDDc5ofWpTk0grVpTZEj3LrVdLZUD/yTD/02zCcBrOK8IR1wNCW6uA5RlqtUK/PomHalQJ62sgiSwh4igqYg/HrJRzpHBSlkSD0JffM5fu2BsiHxYMpoGM9PtDuVNbYiZFYqJkwr4oTGvanziLPvTXbCjrJnSfZAem110Lr+cmHMmoouajXTHoSEWsu1UB74ETf30+wIbwmIZaVqYi/pHvcI/8KYGJLzPvUDIZFS+9Krq2JtXzRvoN1bKKPaJOhpnMF5RDc2oj6ItXGXXiZfnVm5CyypehyK38b9BpADOscOjSeKRGl+8hdXLl+0xeV+a6nYjNfAhW88B79jW3ViOYvTQ1Y/IwFlKGfG1qMAn0P3nU8B0BU6DWeYjSnAXNaOVDJ9hv/Zzfid9TDGMj9g+V/7mytETO893bbvn44/TjW4uGYIsFXdYy+3ip9QmjCA4LtVCF2JsQAlqPlaVOyWUeUnkZzuSkpHU60nmdjp54nU427Zje8gxDv9ot1eQ1GVQxutlkoi21prIhzn6ZTo8n4NRkdSxfgzmjbaitqwmDaFxRobqeArki2/G3OozxO9RO47iw9ZC/y2Y00J+9uwde7guba96lqbghBRoD4uTy4sDPqa2dxwpNoKUgrs9vblmNaupFTl4QKWGJGTePrLy8g1BGxArFl99vhCNeck/H9+be3FYqZEAcrwJTagyzezMSDZLMJcZMErECrcr891lBqwUW60JjJ+5eOuL7LyAEtTQZUPRQPBKrnu2b5SgaAoYchlpJb5Fwbyh37mCT9/F4Op62rxMoMlHbpxLndNnmJG4Rar5+NT0QSEbN+bXTnEw6R60nsB0Pg8R7Ufr9zYj4PU6oiiqPisyITUvKO3lASnIz270eqONMPNbbbOYQ8C+vt1s+5qRpONzR5wq8gjnTgZhbqsDfRP4F6IAHkPaPNfnTdbvQfxYUshfqbtkZzm3VTG1Jn4+47jw5tzyxKkqD30UEoZGeFAW62LE7eBsyn/c39dP5LRX7X5GIy4c=",
+    "sidebar_class_name": "get api-method",
+    "info_path": "api/order-service/order-service-api",
+    "custom_edit_url": null
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Get retry metadata for order",
+    "permalink": "/wms-platform/api/order-service/get-retry-metadata-for-order"
+  },
+  "next": {
+    "title": "Health check",
+    "permalink": "/wms-platform/api/order-service/health-check"
+  }
+}

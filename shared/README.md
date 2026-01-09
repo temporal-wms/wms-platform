@@ -121,6 +121,53 @@ router.Use(middleware.Tracing())
 router.Use(middleware.ErrorHandler())
 ```
 
+#### `pkg/idempotency`
+Stripe-compliant idempotency for REST APIs and message deduplication for Kafka consumers.
+
+```go
+import "github.com/wms-platform/shared/pkg/idempotency"
+
+// REST API idempotency
+idempotencyKeyRepo := idempotency.NewMongoKeyRepository(db)
+middlewareConfig.IdempotencyConfig = &idempotency.Config{
+    ServiceName:     "order-service",
+    Repository:      idempotencyKeyRepo,
+    RequireKey:      false,  // Start with optional mode
+    OnlyMutating:    true,   // Only POST/PUT/PATCH/DELETE
+    RetentionPeriod: 24 * time.Hour,
+}
+
+// Kafka message deduplication
+idempotencyMsgRepo := idempotency.NewMongoMessageRepository(db)
+deduplicatedHandler := idempotency.DeduplicatingHandler(
+    &idempotency.ConsumerConfig{
+        ServiceName:   "order-service",
+        Topic:         "orders.received",
+        ConsumerGroup: "order-processor",
+        Repository:    idempotencyMsgRepo,
+    },
+    originalHandler,
+)
+```
+
+**Features:**
+- Stripe-compliant `Idempotency-Key` header pattern for REST APIs
+- CloudEvent ID-based deduplication for Kafka consumers
+- Request fingerprinting (SHA256) to detect parameter changes
+- Response caching for 24 hours with automatic cleanup
+- Concurrent request detection (409 Conflict)
+- Parameter mismatch detection (422 Unprocessable Entity)
+- Comprehensive Prometheus metrics for observability
+- MongoDB TTL indexes for automatic cleanup
+
+**Use cases:**
+- Preventing duplicate order creation on API retries
+- Ensuring exactly-once message processing in Kafka consumers
+- Safe network retry scenarios
+- Idempotent workflow executions
+
+See [Idempotency Package Documentation](pkg/idempotency/README.md) for complete usage guide.
+
 ### Observability
 
 #### `pkg/logging`
@@ -209,14 +256,21 @@ All packages support environment-based configuration:
 | `KAFKA_BROKERS` | kafka | Comma-separated broker addresses |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | tracing | OpenTelemetry endpoint |
 | `TRACING_ENABLED` | tracing | Enable/disable tracing |
+| `IDEMPOTENCY_REQUIRE_KEY` | idempotency | Require Idempotency-Key header (default: false) |
+| `IDEMPOTENCY_RETENTION_HOURS` | idempotency | Response cache retention in hours (default: 24) |
+| `IDEMPOTENCY_LOCK_TIMEOUT_MINUTES` | idempotency | Lock timeout in minutes (default: 5) |
+| `IDEMPOTENCY_MAX_RESPONSE_SIZE_MB` | idempotency | Max cached response size in MB (default: 1) |
 
 ## Best Practices
 
 1. **Always use production factories** for MongoDB and Kafka clients to get circuit breaker protection
 2. **Use CloudEvents** for all inter-service communication
-3. **Apply the middleware stack** in the correct order: Logger → Metrics → Tracing → ErrorHandler
+3. **Apply the middleware stack** in the correct order: Logger → Metrics → Tracing → Idempotency → ErrorHandler
 4. **Use standardized errors** from `pkg/errors` for consistent API responses
+5. **Enable idempotency** for all services to prevent duplicate operations and ensure exactly-once processing
+6. **Use UUID v4** for `Idempotency-Key` headers in client applications
 
 ## Documentation
 
 - [Resilience Guide](pkg/RESILIENCE.md) - Detailed circuit breaker and retry documentation
+- [Idempotency Guide](pkg/idempotency/README.md) - Comprehensive idempotency implementation guide

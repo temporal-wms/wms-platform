@@ -149,28 +149,61 @@ components:
   schemas:
     CloudEventsHeaders:
       type: object
+      description: |
+        CloudEvents 1.0 specification headers for event metadata.
+        These headers provide standardized event routing and tracing capabilities.
+      required:
+        - ce_specversion
+        - ce_type
+        - ce_source
+        - ce_id
+        - ce_time
       properties:
-        ce-specversion:
+        ce_specversion:
           type: string
           const: '1.0'
-        ce-type:
+          description: CloudEvents specification version
+          example: '1.0'
+        ce_type:
           type: string
-          description: Event type (e.g., receiving.shipment.arrived)
-        ce-source:
+          description: Event type following the pattern 'wms.receiving.<event>'
+          example: 'wms.receiving.shipment.arrived'
+        ce_source:
           type: string
-          description: Event source (e.g., /receiving-service)
-        ce-id:
+          description: Event source URI identifying the receiving-service
+          example: '/wms/receiving-service'
+        ce_subject:
           type: string
-          description: Unique event identifier
-        ce-time:
+          description: Event subject (typically the shipment ID)
+          example: 'SHIP-001234'
+        ce_id:
+          type: string
+          format: uuid
+          description: Unique event identifier (UUID v4)
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        ce_time:
           type: string
           format: date-time
-        ce-wmscorrelationid:
+          description: Event timestamp in RFC 3339 format
+          example: '2024-01-15T10:30:00Z'
+        ce_datacontenttype:
           type: string
-          description: WMS correlation ID for distributed tracing
-        ce-wmsworkflowid:
+          const: 'application/json'
+          description: Content type of the event data
+          example: 'application/json'
+        ce_wmscorrelationid:
+          type: string
+          format: uuid
+          description: WMS correlation ID for distributed tracing across services
+          example: '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+        ce_wmswavenumber:
+          type: string
+          description: Wave number for batch processing correlation (if applicable)
+          example: 'WAVE-2024-00123'
+        ce_wmsworkflowid:
           type: string
           description: Temporal workflow ID for workflow correlation
+          example: 'inbound-receiving-SHIP-001234'
 
     ShipmentExpectedPayload:
       type: object

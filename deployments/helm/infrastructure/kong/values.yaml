@@ -1,0 +1,78 @@
+# Kong API Gateway - Production Values
+# Deploy with: helm upgrade --install kong ./helm/infrastructure/kong -n kong -f ./helm/infrastructure/kong/values.yaml
+
+kong:
+  # Enable DB-less mode with Gateway API
+  env:
+    database: "off"
+    router_flavor: "expressions"
+    nginx_worker_processes: "2"
+
+  # Enable Gateway API controller
+  ingressController:
+    enabled: true
+    installCRDs: false  # Gateway API CRDs installed separately
+    gatewayAPI:
+      enabled: true
+
+  # Proxy configuration - Production uses LoadBalancer
+  proxy:
+    enabled: true
+    type: LoadBalancer
+    annotations: {}
+    http:
+      enabled: true
+      containerPort: 8000
+      servicePort: 80
+    tls:
+      enabled: true
+      containerPort: 8443
+      servicePort: 443
+
+  # Admin API disabled for production
+  admin:
+    enabled: false
+
+  # Status endpoint for health checks
+  status:
+    enabled: true
+    http:
+      enabled: true
+      containerPort: 8100
+    tls:
+      enabled: false
+
+  # Resources
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  # Replicas for high availability
+  replicaCount: 2
+
+  # Autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+  # Pod disruption budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # Affinity for spreading pods across nodes
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: kong
+            topologyKey: kubernetes.io/hostname

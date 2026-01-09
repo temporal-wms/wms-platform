@@ -1,0 +1,22 @@
+{
+  "id": "infrastructure/observability",
+  "title": "Observability",
+  "description": "The WMS Platform uses a comprehensive observability stack for monitoring, logging, and tracing.",
+  "source": "@site/docs/infrastructure/observability.md",
+  "sourceDirName": "infrastructure",
+  "slug": "/infrastructure/observability",
+  "permalink": "/wms-platform/infrastructure/observability",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Temporal",
+    "permalink": "/wms-platform/infrastructure/temporal"
+  }
+}

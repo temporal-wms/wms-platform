@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wes-service
+  namespace: wms-platform
+  labels:
+    app: wes-service
+    tier: backend
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8016
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: wes-service

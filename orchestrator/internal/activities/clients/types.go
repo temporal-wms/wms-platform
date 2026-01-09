@@ -147,6 +147,17 @@ type RouteItemRequest struct {
 	Quantity int    `json:"quantity"`
 }
 
+// MultiRouteResult contains the result of multi-route calculation
+type MultiRouteResult struct {
+	OrderID       string         `json:"orderId"`
+	Routes        []Route        `json:"routes"`
+	TotalRoutes   int            `json:"totalRoutes"`
+	SplitReason   string         `json:"splitReason"`
+	ZoneBreakdown map[string]int `json:"zoneBreakdown"`
+	TotalItems    int            `json:"totalItems"`
+	CreatedAt     time.Time      `json:"createdAt"`
+}
+
 // PickTask represents a pick task
 type PickTask struct {
 	TaskID           string       `json:"taskId"`

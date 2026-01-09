@@ -151,3 +151,17 @@ func NewProcessPathActivities(clients *ServiceClients, logger *slog.Logger) *Pro
 		logger:  logger,
 	}
 }
+
+// UnitActivities contains activities related to unit-level tracking
+type UnitActivities struct {
+	clients *ServiceClients
+	logger  *slog.Logger
+}
+
+// NewUnitActivities creates a new UnitActivities instance
+func NewUnitActivities(clients *ServiceClients, logger *slog.Logger) *UnitActivities {
+	return &UnitActivities{
+		clients: clients,
+		logger:  logger,
+	}
+}

@@ -67,10 +67,17 @@ const (
 
 // InventoryItem is the aggregate root for the Inventory bounded context
 type InventoryItem struct {
-	ID                    primitive.ObjectID     `bson:"_id,omitempty"`
-	SKU                   string                 `bson:"sku"`
-	ProductName           string                 `bson:"productName"`
-	Locations             []StockLocation        `bson:"locations"`
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
+	SKU         string             `bson:"sku"`
+	ProductName string             `bson:"productName"`
+
+	// Multi-tenant fields for 3PL/FBA-style operations
+	TenantID    string `bson:"tenantId" json:"tenantId"`       // 3PL operator identifier
+	FacilityID  string `bson:"facilityId" json:"facilityId"`   // Physical facility/warehouse complex
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"` // Specific warehouse within facility
+	SellerID    string `bson:"sellerId,omitempty" json:"sellerId,omitempty"` // Merchant/seller who owns this inventory
+
+	Locations []StockLocation `bson:"locations"`
 	TotalQuantity         int                    `bson:"totalQuantity"`
 	ReservedQuantity      int                    `bson:"reservedQuantity"`
 	HardAllocatedQuantity int                    `bson:"hardAllocatedQuantity"`
@@ -112,6 +119,7 @@ type Reservation struct {
 	Quantity      int       `bson:"quantity"`
 	LocationID    string    `bson:"locationId"`
 	Status        string    `bson:"status"` // active, staged, fulfilled, cancelled
+	UnitIDs       []string  `bson:"unitIds,omitempty"` // Specific units reserved for unit-level tracking
 	CreatedAt     time.Time `bson:"createdAt"`
 	ExpiresAt     time.Time `bson:"expiresAt"`
 }
@@ -126,6 +134,7 @@ type HardAllocation struct {
 	SourceLocationID  string     `bson:"sourceLocationId"`
 	StagingLocationID string     `bson:"stagingLocationId"`
 	Status            string     `bson:"status"` // staged, packed, shipped, returned
+	UnitIDs           []string   `bson:"unitIds,omitempty"` // Specific units allocated for unit-level tracking
 	StagedBy          string     `bson:"stagedBy"`
 	PackedBy          string     `bson:"packedBy,omitempty"`
 	CreatedAt         time.Time  `bson:"createdAt"`
@@ -145,10 +154,23 @@ type InventoryTransaction struct {
 	CreatedBy     string    `bson:"createdBy"`
 }
 
-// NewInventoryItem creates a new InventoryItem aggregate
+// InventoryTenantInfo holds multi-tenant identification for inventory
+type InventoryTenantInfo struct {
+	TenantID    string
+	FacilityID  string
+	WarehouseID string
+	SellerID    string
+}
+
+// NewInventoryItem creates a new InventoryItem aggregate (backward compatible, uses default tenant)
 func NewInventoryItem(sku, productName string, reorderPoint, reorderQty int) *InventoryItem {
+	return NewInventoryItemWithTenant(sku, productName, reorderPoint, reorderQty, nil)
+}
+
+// NewInventoryItemWithTenant creates a new InventoryItem aggregate with tenant context
+func NewInventoryItemWithTenant(sku, productName string, reorderPoint, reorderQty int, tenant *InventoryTenantInfo) *InventoryItem {
 	now := time.Now()
-	return &InventoryItem{
+	item := &InventoryItem{
 		SKU:                   sku,
 		ProductName:           productName,
 		Locations:             make([]StockLocation, 0),
@@ -165,6 +187,21 @@ func NewInventoryItem(sku, productName string, reorderPoint, reorderQty int) *In
 		UpdatedAt:             now,
 		DomainEvents:          make([]DomainEvent, 0),
 	}
+
+	// Set tenant information
+	if tenant != nil {
+		item.TenantID = tenant.TenantID
+		item.FacilityID = tenant.FacilityID
+		item.WarehouseID = tenant.WarehouseID
+		item.SellerID = tenant.SellerID
+	} else {
+		// Default tenant for backward compatibility
+		item.TenantID = "DEFAULT_TENANT"
+		item.FacilityID = "DEFAULT_FACILITY"
+		item.WarehouseID = "DEFAULT_WAREHOUSE"
+	}
+
+	return item
 }
 
 // ReceiveStock adds stock to a location
@@ -220,6 +257,11 @@ func (i *InventoryItem) ReceiveStock(locationID, zone string, quantity int, refe
 
 // Reserve reserves stock for an order
 func (i *InventoryItem) Reserve(orderID, locationID string, quantity int) error {
+	return i.ReserveWithUnits(orderID, locationID, quantity, nil)
+}
+
+// ReserveWithUnits reserves stock for an order with specific unit IDs
+func (i *InventoryItem) ReserveWithUnits(orderID, locationID string, quantity int, unitIDs []string) error {
 	if quantity <= 0 {
 		return ErrInvalidQuantity
 	}
@@ -246,6 +288,7 @@ func (i *InventoryItem) Reserve(orderID, locationID string, quantity int) error 
 		Quantity:      quantity,
 		LocationID:    locationID,
 		Status:        "active",
+		UnitIDs:       unitIDs,
 		CreatedAt:     time.Now(),
 		ExpiresAt:     time.Now().Add(24 * time.Hour),
 	}
@@ -536,7 +579,7 @@ func (i *InventoryItem) Stage(reservationID, stagingLocationID, stagedBy string)
 	i.ReservedQuantity -= reservation.Quantity
 	i.HardAllocatedQuantity += reservation.Quantity
 
-	// Create hard allocation
+	// Create hard allocation (copy unit IDs from reservation for unit-level tracking)
 	allocation := HardAllocation{
 		AllocationID:      generateAllocationID(),
 		ReservationID:     reservationID,
@@ -545,6 +588,7 @@ func (i *InventoryItem) Stage(reservationID, stagingLocationID, stagedBy string)
 		SourceLocationID:  reservation.LocationID,
 		StagingLocationID: stagingLocationID,
 		Status:            "staged",
+		UnitIDs:           reservation.UnitIDs,
 		StagedBy:          stagedBy,
 		CreatedAt:         time.Now(),
 	}

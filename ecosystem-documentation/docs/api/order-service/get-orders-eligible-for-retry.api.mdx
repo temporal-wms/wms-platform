@@ -1,0 +1,71 @@
+---
+id: get-orders-eligible-for-retry
+title: "Get orders eligible for retry"
+description: "Retrieve orders that are eligible for reprocessing based on retry count and status"
+sidebar_label: "Get orders eligible for retry"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1VU1PGzEQ/SuWzyEJlSpVORVRipBaFQFVD5DD4J1kDV7btWeBKMp/74w3H0sDFa1ULsjrmec3895MlrrCbJKNZIPXE32BlCw+oAqpwpQV1UAKEip0dm5vHapZSCphTMFgztbP1S1krFTw/JXSQpnQek7xlcoE1GY90ATzrCfXDL5L09OBjpCgQeJ3+HapPR+YgrONJc6ywudni2nBh2xqbEBPlpoWUaKsJ5xj4qsKZ9A60pPD8Xi1GmxxGnjqqsn/Ava+D7Wt5M8wkBLIhSVscu97ZhZc8Wq14qIT5hh8xhLwbjyWf881+GIzqTDbtbzTgoFNYKKeJAVidNaApIzusuQt9wmF2zs00kvue8REtnu1AnoL7VeyC5uz6oX6mGCbKTSvXq/7+NJVMc+xeOcFXfjeQabPYF2b8AJhXfAeyiYKqyPaDxhoNm8DfCMtwAOyrK6wTsjHv0jhHLLkJO5kLdK30hXuYHcbCNxLhXR/A822rwM3Sc+xdBio5sOoP1ijjf5iNUwPmzFpEyPrmihORiMXDLg6ZJp8GI8PRxDt6OGw+LjvqE880S7Ehr2jOigt7t4hZYbi3OFjk4f4BE10ODSheQ3vPIWqNXLYwk1lOGah1LxuTWmJuuQAa1AdnZ/t4RyHJias0WfLK+fi5PJKwsqKKS5TDXiYY+EtFix2z8p63kuofny9VNEBiULDG3/jr2qbCyF5r+YV5DBPbvyB6pgUmYWzLKcHcLYqx12AszM0C8MTt3t3e3vwCMwRWJq5L4QogblnnXb5nb1VG8UquTwju4Ln5sZz7aJgV/fhcDwcr+cZTLHdetNITefrmtQVQsNRPNNWhGJxPvbEKUaLLD2T7SGcIm2W9287m8rWeqbAcrdS/tPq7/xP+EQj1or3J5MuvluuTX+t+5BS7sb2bClxtoQsl/LU9+RWK/ncbWAZhspm4FiepBm4jAN9j4vebwir3Mr7xe6vxD77nXhLwra4XfBUDslKNNOaco01AnexcOyyjozB2Oe0t8EFZbsXTk+uWOBfaU+lGw==
+sidebar_class_name: "get api-method"
+info_path: api/order-service/order-service-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get orders eligible for retry"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reprocessing/eligible"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Retrieve orders that are eligible for reprocessing based on retry count and status
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"limit","in":"query","schema":{"type":"integer","default":100}},{"name":"maxRetries","in":"query","schema":{"type":"integer","default":5}},{"name":"status","in":"query","schema":{"type":"array","items":{"type":"string"}}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"List of eligible orders","content":{"application/json":{"schema":{"type":"object","properties":{"data":{"type":"array","items":{"type":"object","properties":{"orderId":{"type":"string"},"customerId":{"type":"string"},"status":{"type":"string"},"retryCount":{"type":"integer"},"lastFailureReason":{"type":"string"},"lastFailedAt":{"type":"string","format":"date-time"},"createdAt":{"type":"string","format":"date-time"}},"title":"EligibleOrderItem"}},"total":{"type":"integer"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

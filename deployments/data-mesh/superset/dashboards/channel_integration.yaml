@@ -1,0 +1,214 @@
+# Superset Dashboard Configuration: Channel Integration
+# Dashboard for monitoring e-commerce channel health and sync status
+
+dashboard:
+  name: "Channel Integration"
+  description: "Channel health dashboard with sync metrics, order imports, and integration status"
+  slug: channel-integration
+  published: true
+
+  # Native filters
+  filters:
+    - name: date_range
+      type: time_range
+      title: "Date Range"
+      description: "Select analysis period"
+      required: false
+      default_value: "Last 7 days"
+      filter_key: __time_range
+
+    - name: platform
+      type: select
+      title: "Platform"
+      description: "Filter by e-commerce platform"
+      required: false
+      options:
+        - shopify
+        - amazon
+        - ebay
+        - woocommerce
+        - magento
+        - bigcommerce
+      filter_key: platform
+
+    - name: status
+      type: select
+      title: "Status"
+      description: "Filter by connection status"
+      required: false
+      options:
+        - connected
+        - disconnected
+        - error
+        - syncing
+      filter_key: status
+
+  # Dashboard layout
+  layout:
+    # Row 1: KPI Cards
+    - row: 1
+      charts:
+        - name: "Connected Channels"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metric: connected_channels
+            subheader: "Active Connections"
+
+        - name: "Sync Success Rate"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metric: avg_sync_success_rate
+            subheader: "Target: 99.5%"
+            format: "{value:.1f}%"
+
+        - name: "Orders Imported Today"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metric: total_orders_imported
+            subheader: "Orders"
+
+        - name: "Channels with Errors"
+          type: big_number_total
+          width: 3
+          height: 2
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metric: error_channels
+            subheader: "Needs Attention"
+
+    # Row 2: Platform Analysis
+    - row: 2
+      charts:
+        - name: "Orders by Platform"
+          type: bar
+          width: 6
+          height: 4
+          description: "Order imports by platform"
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metric: total_orders_imported
+            dimension: platform
+            orientation: horizontal
+            sort: descending
+            show_values: true
+
+        - name: "Channels by Platform"
+          type: pie
+          width: 3
+          height: 4
+          description: "Channel distribution by platform"
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metric: total_channels
+            dimension: platform
+            show_labels: true
+
+        - name: "Connection Rate by Platform"
+          type: bar
+          width: 3
+          height: 4
+          description: "Connection rate by platform"
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metric: connection_rate
+            dimension: platform
+            orientation: vertical
+            sort: descending
+
+    # Row 3: Trends
+    - row: 3
+      charts:
+        - name: "Orders Imported Trend"
+          type: line
+          width: 8
+          height: 4
+          description: "Orders imported over time by platform"
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metrics:
+              - total_orders_imported
+            dimension: date
+            time_grain: day
+            show_legend: true
+            breakdown_by: platform
+
+        - name: "Sync Success Trend"
+          type: line
+          width: 4
+          height: 4
+          description: "Sync success rate trend"
+          dataset: channel_sync_metrics_daily
+          configuration:
+            metrics:
+              - avg_sync_success_rate
+            dimension: date
+            time_grain: day
+            y_axis_format: ".1%"
+
+    # Row 4: Channel Status Table
+    - row: 4
+      charts:
+        - name: "Channel Status Details"
+          type: table
+          width: 12
+          height: 4
+          description: "Detailed channel status"
+          dataset: channels_current
+          configuration:
+            columns:
+              - channel_id
+              - seller_id
+              - platform
+              - store_name
+              - status
+              - last_sync_at
+              - last_sync_status
+              - orders_imported
+              - products_synced
+            order_by: last_sync_at
+            order_direction: desc
+            conditional_formatting:
+              - column: status
+                conditions:
+                  - operator: "=="
+                    value: "connected"
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: "=="
+                    value: "error"
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+                  - operator: "=="
+                    value: "syncing"
+                    background_color: "#1890ff"
+                    text_color: "#ffffff"
+              - column: last_sync_status
+                conditions:
+                  - operator: "=="
+                    value: "success"
+                    background_color: "#52c41a"
+                    text_color: "#ffffff"
+                  - operator: "=="
+                    value: "failed"
+                    background_color: "#ff4d4f"
+                    text_color: "#ffffff"
+
+# Dataset references
+datasets:
+  - name: channel_sync_metrics_daily
+    database: trino
+    schema: iceberg.gold
+    table_name: channel_sync_metrics_daily
+  - name: channels_current
+    database: trino
+    schema: iceberg.silver
+    table_name: channels_current

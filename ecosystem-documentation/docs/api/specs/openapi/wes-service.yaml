@@ -1,0 +1,630 @@
+openapi: 3.0.3
+info:
+  title: WMS WES Service API
+  description: |
+    Warehouse Execution System (WES) API for the WMS Platform.
+
+    This service is the central execution orchestration layer that coordinates all warehouse operations
+    through configurable process paths. It manages stage templates and task routes for order execution.
+
+    **Process Paths:**
+    - `pick_pack` - Small orders (1-3 items): Picking → Packing
+    - `pick_wall_pack` - Medium orders (4-20 items): Picking → Walling → Packing
+    - `pick_consolidate_pack` - Multi-zone orders: Picking → Consolidation → Packing
+
+    **Key Features:**
+    - Execution plan resolution based on order profile
+    - Task route management with stage tracking
+    - Stage template management
+    - Signal-based workflow coordination
+  version: 1.0.0
+  contact:
+    name: WMS Platform Team
+    email: wms@example.com
+
+servers:
+  - url: http://localhost:8016
+    description: Development server
+
+tags:
+  - name: Execution Plans
+    description: Resolve execution plans based on order profile
+  - name: Task Routes
+    description: Manage task routes for order execution
+  - name: Stage Operations
+    description: Operations on the current stage of a route
+  - name: Templates
+    description: Stage template management
+  - name: Health
+    description: Service health and readiness
+
+paths:
+  /api/v1/execution-plans/resolve:
+    post:
+      summary: Resolve execution plan
+      description: |
+        Resolves the appropriate execution plan for an order based on item count and zone information.
+        Returns the template and stages to use for the order.
+      tags: [Execution Plans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveExecutionPlanRequest'
+            examples:
+              smallOrder:
+                summary: Small order (pick_pack)
+                value:
+                  itemCount: 2
+                  multiZone: false
+              mediumOrder:
+                summary: Medium order (pick_wall_pack)
+                value:
+                  itemCount: 8
+                  multiZone: false
+              multiZoneOrder:
+                summary: Multi-zone order (pick_consolidate_pack)
+                value:
+                  itemCount: 5
+                  multiZone: true
+      responses:
+        '200':
+          description: Execution plan resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionPlan'
+              example:
+                templateId: "tpl-pick-wall-pack"
+                pathType: "pick_wall_pack"
+                stages:
+                  - stageType: "picking"
+                    sequence: 0
+                  - stageType: "walling"
+                    sequence: 1
+                  - stageType: "packing"
+                    sequence: 2
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/routes:
+    post:
+      summary: Create task route
+      description: |
+        Creates a new task route for an order. The route tracks execution through stages
+        based on the resolved execution plan.
+      tags: [Task Routes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRouteRequest'
+            example:
+              orderId: "ORD-12345678"
+              waveId: "WV-DIG-20241230-001"
+              templateId: "tpl-pick-wall-pack"
+              processPathId: "path-001"
+              specialHandling:
+                - "fragile"
+      responses:
+        '201':
+          description: Task route created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRoute'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/routes/{routeId}:
+    get:
+      summary: Get task route
+      description: Retrieves a task route by its ID.
+      tags: [Task Routes]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+      responses:
+        '200':
+          description: Task route found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRoute'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/routes/order/{orderId}:
+    get:
+      summary: Get task route by order
+      description: Retrieves the task route associated with an order.
+      tags: [Task Routes]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "ORD-12345678"
+      responses:
+        '200':
+          description: Task route found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRoute'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/routes/{routeId}/stages/current/assign:
+    post:
+      summary: Assign worker to current stage
+      description: |
+        Assigns a worker to the current stage of the route.
+        The stage status changes from `pending` to `assigned`.
+      tags: [Stage Operations]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignWorkerRequest'
+            example:
+              workerId: "PICKER-001"
+              taskId: "PT-12345"
+      responses:
+        '200':
+          description: Worker assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRoute'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/routes/{routeId}/stages/current/start:
+    post:
+      summary: Start current stage
+      description: |
+        Starts the current stage of the route.
+        The stage status changes from `assigned` to `in_progress`.
+      tags: [Stage Operations]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+      responses:
+        '200':
+          description: Stage started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRoute'
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/routes/{routeId}/stages/current/complete:
+    post:
+      summary: Complete current stage
+      description: |
+        Completes the current stage and advances to the next stage.
+        If this is the last stage, the route status changes to `completed`.
+      tags: [Stage Operations]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+      responses:
+        '200':
+          description: Stage completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRoute'
+        '400':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/routes/{routeId}/stages/current/fail:
+    post:
+      summary: Fail current stage
+      description: |
+        Fails the current stage with an error message.
+        The route status changes to `failed`.
+      tags: [Stage Operations]
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "RT-a1b2c3d4"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FailStageRequest'
+            example:
+              error: "Picker reported item shortage"
+      responses:
+        '200':
+          description: Stage failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRoute'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/templates:
+    get:
+      summary: List stage templates
+      description: Retrieves all stage templates, optionally filtering by active status.
+      tags: [Templates]
+      parameters:
+        - name: activeOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Filter to only active templates
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StageTemplate'
+
+  /api/v1/templates/{templateId}:
+    get:
+      summary: Get stage template
+      description: Retrieves a specific stage template by ID.
+      tags: [Templates]
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "tpl-pick-wall-pack"
+      responses:
+        '200':
+          description: Template found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageTemplate'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the service.
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the service.
+      tags: [Health]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ready"
+
+components:
+  schemas:
+    ResolveExecutionPlanRequest:
+      type: object
+      required:
+        - itemCount
+      properties:
+        itemCount:
+          type: integer
+          description: Number of items in the order
+          example: 8
+        multiZone:
+          type: boolean
+          description: Whether items span multiple warehouse zones
+          default: false
+
+    ExecutionPlan:
+      type: object
+      properties:
+        templateId:
+          type: string
+          description: ID of the stage template to use
+          example: "tpl-pick-wall-pack"
+        pathType:
+          $ref: '#/components/schemas/ProcessPathType'
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageDefinition'
+
+    CreateTaskRouteRequest:
+      type: object
+      required:
+        - orderId
+        - waveId
+        - templateId
+      properties:
+        orderId:
+          type: string
+          description: Order ID
+          example: "ORD-12345678"
+        waveId:
+          type: string
+          description: Wave ID
+          example: "WV-DIG-20241230-001"
+        templateId:
+          type: string
+          description: Stage template ID
+          example: "tpl-pick-wall-pack"
+        processPathId:
+          type: string
+          description: Process path ID
+          example: "path-001"
+        specialHandling:
+          type: array
+          items:
+            type: string
+          description: Special handling instructions
+          example: ["fragile"]
+
+    TaskRoute:
+      type: object
+      properties:
+        routeId:
+          type: string
+          description: Unique route identifier
+          example: "RT-a1b2c3d4"
+        orderId:
+          type: string
+          description: Associated order ID
+          example: "ORD-12345678"
+        waveId:
+          type: string
+          description: Associated wave ID
+          example: "WV-DIG-20241230-001"
+        pathTemplateId:
+          type: string
+          description: Stage template ID used
+          example: "tpl-pick-wall-pack"
+        pathType:
+          $ref: '#/components/schemas/ProcessPathType'
+        currentStageIdx:
+          type: integer
+          description: Index of the current stage
+          example: 1
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageStatus'
+        status:
+          $ref: '#/components/schemas/RouteStatus'
+        specialHandling:
+          type: array
+          items:
+            type: string
+          example: ["fragile"]
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    StageStatus:
+      type: object
+      properties:
+        stageType:
+          $ref: '#/components/schemas/StageType'
+        status:
+          $ref: '#/components/schemas/StageStatusType'
+        workerId:
+          type: string
+          description: Assigned worker ID
+          example: "PICKER-001"
+        taskId:
+          type: string
+          description: Associated task ID
+          example: "PT-12345"
+        startedAt:
+          type: integer
+          format: int64
+          description: Unix timestamp when started
+        completedAt:
+          type: integer
+          format: int64
+          description: Unix timestamp when completed
+        error:
+          type: string
+          description: Error message if failed
+
+    StageTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Template ID
+          example: "tpl-pick-wall-pack"
+        name:
+          type: string
+          description: Template name
+          example: "Pick-Wall-Pack"
+        pathType:
+          $ref: '#/components/schemas/ProcessPathType'
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/StageDefinition'
+        isActive:
+          type: boolean
+          description: Whether template is active
+          default: true
+
+    StageDefinition:
+      type: object
+      properties:
+        stageType:
+          $ref: '#/components/schemas/StageType'
+        sequence:
+          type: integer
+          description: Stage sequence number
+          example: 0
+
+    AssignWorkerRequest:
+      type: object
+      required:
+        - workerId
+        - taskId
+      properties:
+        workerId:
+          type: string
+          description: Worker ID to assign
+          example: "PICKER-001"
+        taskId:
+          type: string
+          description: Task ID for the stage
+          example: "PT-12345"
+
+    FailStageRequest:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message describing the failure
+          example: "Picker reported item shortage"
+
+    ProcessPathType:
+      type: string
+      enum:
+        - pick_pack
+        - pick_wall_pack
+        - pick_consolidate_pack
+      description: |
+        Process path type:
+        - `pick_pack`: Picking → Packing (1-3 items)
+        - `pick_wall_pack`: Picking → Walling → Packing (4-20 items)
+        - `pick_consolidate_pack`: Picking → Consolidation → Packing (multi-zone)
+
+    StageType:
+      type: string
+      enum:
+        - picking
+        - walling
+        - consolidation
+        - packing
+      description: Type of execution stage
+
+    StageStatusType:
+      type: string
+      enum:
+        - pending
+        - assigned
+        - in_progress
+        - completed
+        - failed
+      description: Status of a stage
+
+    RouteStatus:
+      type: string
+      enum:
+        - pending
+        - in_progress
+        - completed
+        - failed
+      description: Overall route status
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "route not found"

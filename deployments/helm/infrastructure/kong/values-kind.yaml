@@ -1,0 +1,67 @@
+# Kong API Gateway - Kind Development Values
+# Deploy with: helm upgrade --install kong ./helm/infrastructure/kong -n kong -f ./helm/infrastructure/kong/values-kind.yaml
+
+kong:
+  # Enable DB-less mode with Gateway API
+  env:
+    database: "off"
+    router_flavor: "expressions"
+
+  # Enable Gateway API controller
+  ingressController:
+    enabled: true
+    installCRDs: false  # Gateway API CRDs installed separately
+    gatewayAPI:
+      enabled: true
+
+  # Proxy configuration for Kind - uses NodePort
+  proxy:
+    enabled: true
+    type: NodePort
+    annotations: {}
+    http:
+      enabled: true
+      containerPort: 8000
+      servicePort: 80
+      nodePort: 30090
+    tls:
+      enabled: false  # Disable TLS for local development
+
+  # Admin API enabled for debugging (development only)
+  admin:
+    enabled: true
+    type: NodePort
+    http:
+      enabled: true
+      containerPort: 8001
+      servicePort: 8001
+      nodePort: 30091
+
+  # Status endpoint for health checks
+  status:
+    enabled: true
+    http:
+      enabled: true
+      containerPort: 8100
+    tls:
+      enabled: false
+
+  # Resources reduced for local development
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # Single replica for development
+  replicaCount: 1
+
+  # Disable autoscaling for development
+  autoscaling:
+    enabled: false
+
+  # Disable PDB for development
+  podDisruptionBudget:
+    enabled: false

@@ -4,6 +4,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URLS, ENDPOINTS, HTTP_PARAMS, SHIPPING_CONFIG } from './config.js';
+import { confirmShipsForOrder } from './unit.js';
 
 /**
  * Discovers pending shipments
@@ -325,6 +326,20 @@ export function processShipment(shipment) {
   if (!shipmentInfo.shipped) {
     console.warn(`Failed to complete shipping for ${shipmentId}`);
     return false;
+  }
+
+  // Step 1b: Confirm unit ships for the order
+  if (orderId) {
+    const handlerId = `SHIPPER-SIM-${__VU || 1}`;
+    const unitResult = confirmShipsForOrder(
+      orderId,
+      shipmentId,
+      shipmentInfo.trackingNumber,
+      handlerId
+    );
+    if (!unitResult.skipped) {
+      console.log(`Unit ship confirmations: ${unitResult.success}/${unitResult.total} succeeded`);
+    }
   }
 
   // Note: No signal needed - workflow activities handle progression automatically

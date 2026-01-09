@@ -1,0 +1,17 @@
+{
+  "id": "domain-driven-design/aggregates/station",
+  "title": "Station Aggregate",
+  "description": "The Station aggregate is the root of the Facility bounded context, managing warehouse stations and their capabilities for process path routing.",
+  "source": "@site/docs/domain-driven-design/aggregates/station.md",
+  "sourceDirName": "domain-driven-design/aggregates",
+  "slug": "/domain-driven-design/aggregates/station",
+  "permalink": "/wms-platform/domain-driven-design/aggregates/station",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 13,
+  "frontMatter": {
+    "sidebar_position": 13
+  }
+}

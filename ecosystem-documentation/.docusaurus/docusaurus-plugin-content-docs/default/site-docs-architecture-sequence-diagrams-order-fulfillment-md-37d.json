@@ -1,0 +1,26 @@
+{
+  "id": "architecture/sequence-diagrams/order-fulfillment",
+  "title": "Order Fulfillment Workflow",
+  "description": "This diagram shows the complete end-to-end order fulfillment saga, from order receipt to shipment confirmation using the WES (Warehouse Execution System) as the central execution engine.",
+  "source": "@site/docs/architecture/sequence-diagrams/order-fulfillment.md",
+  "sourceDirName": "architecture/sequence-diagrams",
+  "slug": "/architecture/sequence-diagrams/order-fulfillment",
+  "permalink": "/wms-platform/architecture/sequence-diagrams/order-fulfillment",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Data Flow Diagrams",
+    "permalink": "/wms-platform/architecture/system-diagrams/data-flow"
+  },
+  "next": {
+    "title": "Order Cancellation Workflow",
+    "permalink": "/wms-platform/architecture/sequence-diagrams/order-cancellation"
+  }
+}
