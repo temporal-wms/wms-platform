@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/list-dead-letter-queue-entries.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/list-dead-letter-queue-entries",
-  "permalink": "/api/order-service/list-dead-letter-queue-entries",
+  "permalink": "/wms-platform/api/order-service/list-dead-letter-queue-entries",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Increment retry count",
-    "permalink": "/api/order-service/increment-retry-count"
+    "permalink": "/wms-platform/api/order-service/increment-retry-count"
   },
   "next": {
     "title": "List orders",
-    "permalink": "/api/order-service/list-orders"
+    "permalink": "/wms-platform/api/order-service/list-orders"
   }
 }

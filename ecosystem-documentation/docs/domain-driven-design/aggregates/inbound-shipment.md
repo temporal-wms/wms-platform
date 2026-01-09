@@ -202,11 +202,11 @@ type InboundShipmentRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/shipments | Create shipment |
-| GET | /api/v1/shipments/{id} | Get shipment |
-| POST | /api/v1/shipments/{id}/arrive | Mark arrived |
-| POST | /api/v1/shipments/{id}/start | Start receiving |
-| POST | /api/v1/shipments/{id}/receive | Receive item |
-| POST | /api/v1/shipments/{id}/complete | Complete |
+| GET | /api/v1/shipments/\{id\} | Get shipment |
+| POST | /api/v1/shipments/\{id\}/arrive | Mark arrived |
+| POST | /api/v1/shipments/\{id\}/start | Start receiving |
+| POST | /api/v1/shipments/\{id\}/receive | Receive item |
+| POST | /api/v1/shipments/\{id\}/complete | Complete |
 
 ## Related Documentation
 

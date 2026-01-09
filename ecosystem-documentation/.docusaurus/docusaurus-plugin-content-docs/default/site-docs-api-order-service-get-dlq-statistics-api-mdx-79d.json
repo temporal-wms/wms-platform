@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/get-dlq-statistics.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/get-dlq-statistics",
-  "permalink": "/api/order-service/get-dlq-statistics",
+  "permalink": "/wms-platform/api/order-service/get-dlq-statistics",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Create a new order",
-    "permalink": "/api/order-service/create-a-new-order"
+    "permalink": "/wms-platform/api/order-service/create-a-new-order"
   },
   "next": {
     "title": "Get order by ID",
-    "permalink": "/api/order-service/get-order-by-id"
+    "permalink": "/wms-platform/api/order-service/get-order-by-id"
   }
 }

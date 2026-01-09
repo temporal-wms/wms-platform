@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/resolve-dlq-entry.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/resolve-dlq-entry",
-  "permalink": "/api/order-service/resolve-dlq-entry",
+  "permalink": "/wms-platform/api/order-service/resolve-dlq-entry",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Reset order for retry",
-    "permalink": "/api/order-service/reset-order-for-retry"
+    "permalink": "/wms-platform/api/order-service/reset-order-for-retry"
   },
   "next": {
     "title": "Validate order",
-    "permalink": "/api/order-service/validate-order"
+    "permalink": "/wms-platform/api/order-service/validate-order"
   }
 }

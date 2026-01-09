@@ -4,12 +4,37 @@ info:
   description: |
     REST API for wave management and order batching operations in the WMS platform.
 
-    This service handles:
-    - Wave creation and lifecycle management
-    - Order-to-wave assignment
-    - Wave scheduling and release
-    - Planning and optimization
-    - Continuous waving scheduler
+    Waves group orders for efficient batch processing, optimizing picking routes and
+    maximizing throughput while meeting carrier cutoff times.
+
+    ## Key Capabilities
+    - **Wave Creation**: Manual and automatic wave creation
+    - **Order Assignment**: Add/remove orders to/from waves
+    - **Wave Scheduling**: Schedule waves for specific release times
+    - **Continuous Waving**: Automatic wave creation based on order flow
+    - **Wave Release**: Trigger picking workflows for wave orders
+
+    ## Wave Types
+    | Type | Description | Use Case |
+    |------|-------------|----------|
+    | `single_order` | One order per wave | VIP/express orders |
+    | `batch` | Multiple orders batched | Standard fulfillment |
+    | `zone_based` | Orders grouped by zone | Zone picking optimization |
+    | `digital` | Dynamic/continuous waves | High-volume operations |
+
+    ## Wave Lifecycle
+    ```
+    planning → created → scheduled → released → completed
+                                        ↓
+                                    cancelled
+    ```
+
+    ## Integration Points
+    - **Order Service**: Provides orders for wave assignment
+    - **Picking Service**: Receives wave release triggers
+    - **Routing Service**: Optimizes pick paths within waves
+    - **Temporal Workflows**: Signals planning workflows on wave assignment
+
   version: 1.0.0
   contact:
     name: WMS Platform Team
@@ -18,6 +43,8 @@ info:
 servers:
   - url: http://localhost:8002/api/v1
     description: Development server
+  - url: https://api.wms.example.com/api/v1
+    description: Production server
 
 tags:
   - name: Waves
@@ -33,11 +60,22 @@ paths:
   /waves:
     post:
       summary: Create a new wave
+      description: |
+        Create a new wave for order batching.
+
+        **Wave Planning:**
+        - Specify wave type based on fulfillment strategy
+        - Set zone for zone-based picking
+        - Configure max orders for capacity planning
+        - Schedule release time to meet carrier cutoffs
+
+        **State Transition:** None → `planning` or `created`
       tags: [Waves]
       parameters:
         - $ref: '#/components/parameters/WMSCorrelationID'
         - $ref: '#/components/parameters/WMSWaveNumber'
         - $ref: '#/components/parameters/WMSWorkflowID'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -45,12 +83,46 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWaveRequest'
             examples:
-              batchWave:
+              batchWaveStandard:
+                summary: Standard batch wave
+                description: Regular batch wave for standard fulfillment
                 value:
                   waveType: "batch"
                   zone: "A"
                   maxOrders: 50
-                  scheduledReleaseAt: "2024-12-24T14:00:00Z"
+                  scheduledReleaseAt: "2026-01-08T14:00:00Z"
+              sameDayPriority:
+                summary: Same-day priority wave
+                description: Priority wave for same-day delivery orders
+                value:
+                  waveType: "batch"
+                  zone: "PRIORITY"
+                  maxOrders: 25
+                  scheduledReleaseAt: "2026-01-08T10:00:00Z"
+                  priority: 1
+              singleCarrierWave:
+                summary: Single carrier cutoff wave
+                description: Wave targeting specific carrier pickup time
+                value:
+                  waveType: "batch"
+                  zone: "B"
+                  maxOrders: 75
+                  scheduledReleaseAt: "2026-01-08T16:30:00Z"
+                  carrierCutoff: "FEDEX_GROUND"
+              zoneBasedWave:
+                summary: Zone-based picking wave
+                description: Wave for zone-specific batch picking
+                value:
+                  waveType: "zone_based"
+                  zone: "COLD"
+                  maxOrders: 30
+                  scheduledReleaseAt: "2026-01-08T08:00:00Z"
+              digitalContinuousWave:
+                summary: Digital/continuous wave
+                description: Dynamic wave for waveless fulfillment
+                value:
+                  waveType: "digital"
+                  maxOrders: 100
       responses:
         '201':
           description: Wave created
@@ -58,27 +130,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
+              examples:
+                created:
+                  summary: Successfully created wave
+                  value:
+                    waveId: "WV-2026-0108-001"
+                    waveNumber: 1
+                    waveType: "batch"
+                    fulfillmentMode: "wave"
+                    zone: "A"
+                    status: "planning"
+                    priority: 5
+                    maxOrders: 50
+                    orderCount: 0
+                    orders: []
+                    scheduledStart: "2026-01-08T14:00:00Z"
+                    createdAt: "2026-01-08T09:00:00Z"
+                    updatedAt: "2026-01-08T09:00:00Z"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidZone:
+                  summary: Unknown zone
+                  value:
+                    error: "Unknown zone"
+                    code: "INVALID_ZONE"
+                    details:
+                      zone: "UNKNOWN"
+                      validZones: ["A", "B", "C", "COLD", "HAZMAT", "PRIORITY"]
+                pastScheduleTime:
+                  summary: Schedule time in the past
+                  value:
+                    error: "Schedule time must be in future"
+                    code: "INVALID_SCHEDULE_TIME"
+                    details:
+                      scheduledReleaseAt: "2026-01-07T14:00:00Z"
+                      currentTime: "2026-01-08T09:00:00Z"
 
     get:
       summary: List waves
+      description: Retrieve a paginated list of waves with optional filtering
       tags: [Waves]
       parameters:
         - name: status
           in: query
+          description: Filter by wave status
           schema:
             type: string
             enum: [planning, created, scheduled, released, completed, cancelled]
         - name: zone
           in: query
+          description: Filter by warehouse zone
           schema:
             type: string
+          example: "A"
         - name: limit
           in: query
+          description: Maximum waves to return
           schema:
             type: integer
             default: 50
+            maximum: 100
         - name: offset
           in: query
+          description: Pagination offset
           schema:
             type: integer
             default: 0
@@ -96,12 +215,22 @@ paths:
                       $ref: '#/components/schemas/WaveResponse'
                   total:
                     type: integer
+                    description: Total waves matching criteria
 
   /waves/from-orders:
     post:
       summary: Create wave from orders
-      description: Create a new wave and automatically add specified orders to it
+      description: |
+        Create a new wave and automatically add specified orders to it.
+
+        **Use Cases:**
+        - Bulk assignment of orders to a new wave
+        - Creating priority waves from specific order IDs
+        - Manual wave planning by supervisors
       tags: [Waves]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -120,6 +249,45 @@ paths:
                   default: digital
                 zone:
                   type: string
+            examples:
+              bulkAssignment:
+                summary: Bulk order assignment
+                description: Create wave with multiple orders
+                value:
+                  orderIds:
+                    - "ORD-2026-0108-001"
+                    - "ORD-2026-0108-002"
+                    - "ORD-2026-0108-003"
+                    - "ORD-2026-0108-004"
+                    - "ORD-2026-0108-005"
+                  waveType: "batch"
+                  zone: "A"
+              priorityWave:
+                summary: Priority order wave
+                description: Create priority wave for VIP orders
+                value:
+                  orderIds:
+                    - "ORD-2026-0108-VIP-001"
+                    - "ORD-2026-0108-VIP-002"
+                  waveType: "batch"
+                  zone: "PRIORITY"
+              singleOrderWave:
+                summary: Single order wave
+                description: Create wave for single express order
+                value:
+                  orderIds:
+                    - "ORD-2026-0108-EXPRESS-001"
+                  waveType: "single_order"
+              coldChainWave:
+                summary: Cold chain order wave
+                description: Create wave for temperature-sensitive orders
+                value:
+                  orderIds:
+                    - "ORD-2026-0108-COLD-001"
+                    - "ORD-2026-0108-COLD-002"
+                    - "ORD-2026-0108-COLD-003"
+                  waveType: "zone_based"
+                  zone: "COLD"
       responses:
         '201':
           description: Wave created with orders
@@ -127,17 +295,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
+              examples:
+                created:
+                  value:
+                    waveId: "WV-2026-0108-002"
+                    waveNumber: 2
+                    waveType: "batch"
+                    zone: "A"
+                    status: "created"
+                    orderCount: 5
+                    orders:
+                      - "ORD-2026-0108-001"
+                      - "ORD-2026-0108-002"
+                      - "ORD-2026-0108-003"
+                      - "ORD-2026-0108-004"
+                      - "ORD-2026-0108-005"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                orderAlreadyWaved:
+                  summary: Order already in wave
+                  value:
+                    error: "Order already assigned to wave"
+                    code: "ORDER_ALREADY_WAVED"
+                    details:
+                      orderId: "ORD-2026-0108-001"
+                      existingWaveId: "WV-2026-0108-001"
+                orderNotFound:
+                  summary: Order not found
+                  value:
+                    error: "Order not found"
+                    code: "ORDER_NOT_FOUND"
+                    details:
+                      orderId: "ORD-INVALID-001"
 
   /waves/{waveId}:
     get:
       summary: Get wave by ID
+      description: Retrieve complete details for a specific wave
       tags: [Waves]
       parameters:
         - name: waveId
           in: path
           required: true
+          description: Unique wave identifier
           schema:
             type: string
+          example: "WV-2026-0108-001"
       responses:
         '200':
           description: Wave details
@@ -147,9 +355,26 @@ paths:
                 $ref: '#/components/schemas/WaveResponse'
         '404':
           description: Wave not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    error: "Wave not found"
+                    code: "WAVE_NOT_FOUND"
+                    details:
+                      waveId: "WV-INVALID-001"
 
     put:
       summary: Update wave
+      description: |
+        Update wave properties.
+
+        **Restrictions:**
+        - Cannot update released or completed waves
+        - Cannot reduce maxOrders below current orderCount
       tags: [Waves]
       parameters:
         - name: waveId
@@ -157,6 +382,8 @@ paths:
           required: true
           schema:
             type: string
+          example: "WV-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         content:
           application/json:
@@ -170,6 +397,24 @@ paths:
                 scheduledReleaseAt:
                   type: string
                   format: date-time
+                priority:
+                  type: integer
+            examples:
+              reschedule:
+                summary: Reschedule wave
+                description: Move release time to later cutoff
+                value:
+                  scheduledReleaseAt: "2026-01-08T16:00:00Z"
+              expandCapacity:
+                summary: Expand wave capacity
+                description: Increase max orders for wave
+                value:
+                  maxOrders: 75
+              changePriority:
+                summary: Change priority
+                description: Escalate wave priority
+                value:
+                  priority: 1
       responses:
         '200':
           description: Wave updated
@@ -177,10 +422,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
+        '400':
+          description: Invalid update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                cannotUpdateReleased:
+                  value:
+                    error: "Cannot update released wave"
+                    code: "INVALID_STATE_TRANSITION"
+                    details:
+                      currentStatus: "released"
 
     delete:
       summary: Delete wave
-      description: Delete a wave (only allowed in planning status)
+      description: |
+        Delete a wave.
+
+        **Restrictions:**
+        - Only waves in `planning` status can be deleted
+        - Orders in the wave will be unassigned
       tags: [Waves]
       parameters:
         - name: waveId
@@ -188,15 +451,36 @@ paths:
           required: true
           schema:
             type: string
+          example: "WV-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
       responses:
         '204':
           description: Wave deleted
         '400':
           description: Cannot delete wave in current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                cannotDelete:
+                  value:
+                    error: "Cannot delete wave"
+                    code: "INVALID_STATE_TRANSITION"
+                    details:
+                      currentStatus: "released"
+                      message: "Only waves in planning status can be deleted"
 
   /waves/{waveId}/orders:
     post:
       summary: Add order to wave
+      description: |
+        Add an order to an existing wave.
+
+        **Prerequisites:**
+        - Wave must be in `planning` or `created` status
+        - Order must not be in another wave
+        - Wave must have capacity (orderCount < maxOrders)
       tags: [Waves]
       parameters:
         - name: waveId
@@ -204,6 +488,8 @@ paths:
           required: true
           schema:
             type: string
+          example: "WV-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         required: true
         content:
@@ -214,6 +500,15 @@ paths:
               properties:
                 orderId:
                   type: string
+            examples:
+              standardOrder:
+                summary: Add standard order
+                value:
+                  orderId: "ORD-2026-0108-006"
+              priorityOrder:
+                summary: Add priority order
+                value:
+                  orderId: "ORD-2026-0108-VIP-003"
       responses:
         '200':
           description: Order added to wave
@@ -221,10 +516,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
+        '400':
+          description: Cannot add order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                waveAtCapacity:
+                  summary: Wave at capacity
+                  value:
+                    error: "Wave at capacity"
+                    code: "WAVE_AT_CAPACITY"
+                    details:
+                      waveId: "WV-2026-0108-001"
+                      maxOrders: 50
+                      currentOrders: 50
+                orderAlreadyWaved:
+                  summary: Order in another wave
+                  value:
+                    error: "Order already in wave"
+                    code: "ORDER_ALREADY_WAVED"
+                    details:
+                      orderId: "ORD-2026-0108-006"
+                      existingWaveId: "WV-2026-0108-002"
 
   /waves/{waveId}/orders/{orderId}:
     delete:
       summary: Remove order from wave
+      description: |
+        Remove an order from a wave.
+
+        **Prerequisites:**
+        - Wave must not be in `released` or `completed` status
+        - Order must be in the specified wave
       tags: [Waves]
       parameters:
         - name: waveId
@@ -232,11 +557,14 @@ paths:
           required: true
           schema:
             type: string
+          example: "WV-2026-0108-001"
         - name: orderId
           in: path
           required: true
           schema:
             type: string
+          example: "ORD-2026-0108-006"
+        - $ref: '#/components/parameters/WMSCorrelationID'
       responses:
         '200':
           description: Order removed from wave
@@ -246,11 +574,31 @@ paths:
                 $ref: '#/components/schemas/WaveResponse'
         '404':
           description: Wave or order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                orderNotInWave:
+                  value:
+                    error: "Order not in wave"
+                    code: "ORDER_NOT_IN_WAVE"
+                    details:
+                      orderId: "ORD-2026-0108-006"
+                      waveId: "WV-2026-0108-001"
 
   /waves/{waveId}/schedule:
     post:
       summary: Schedule wave
-      description: Schedule a wave for release at a specific time
+      description: |
+        Schedule a wave for release at a specific time.
+
+        **State Transition:** `created` → `scheduled`
+
+        **Use Cases:**
+        - Align with carrier pickup times
+        - Coordinate labor scheduling
+        - Balance workload across shifts
       tags: [Waves]
       parameters:
         - name: waveId
@@ -258,6 +606,8 @@ paths:
           required: true
           schema:
             type: string
+          example: "WV-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         content:
           application/json:
@@ -267,6 +617,23 @@ paths:
                 scheduledReleaseAt:
                   type: string
                   format: date-time
+            examples:
+              morningRelease:
+                summary: Morning shift release
+                value:
+                  scheduledReleaseAt: "2026-01-08T08:00:00Z"
+              afternoonCutoff:
+                summary: Afternoon carrier cutoff
+                value:
+                  scheduledReleaseAt: "2026-01-08T14:00:00Z"
+              eveningRelease:
+                summary: Evening shift release
+                value:
+                  scheduledReleaseAt: "2026-01-08T18:00:00Z"
+              immediateRelease:
+                summary: Immediate (schedule for now)
+                value:
+                  scheduledReleaseAt: "2026-01-08T09:30:00Z"
       responses:
         '200':
           description: Wave scheduled
@@ -274,11 +641,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
+              examples:
+                scheduled:
+                  value:
+                    waveId: "WV-2026-0108-001"
+                    status: "scheduled"
+                    scheduledStart: "2026-01-08T14:00:00Z"
 
   /waves/{waveId}/release:
     post:
       summary: Release wave for picking
-      description: Release a wave to trigger picking workflows
+      description: |
+        Release a wave to trigger picking workflows.
+
+        **State Transition:** `scheduled` → `released`
+
+        **Triggered Actions:**
+        - Publishes `WaveReleased` event
+        - Signals planning workflows with wave assignment
+        - Creates picking tasks for wave orders
+        - Updates order status to `waved`
       tags: [Waves]
       parameters:
         - name: waveId
@@ -286,6 +668,8 @@ paths:
           required: true
           schema:
             type: string
+          example: "WV-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
       responses:
         '200':
           description: Wave released
@@ -293,11 +677,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
+              examples:
+                released:
+                  value:
+                    waveId: "WV-2026-0108-001"
+                    status: "released"
+                    releasedAt: "2026-01-08T14:00:00Z"
+                    orderCount: 45
+        '400':
+          description: Cannot release wave
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                emptyWave:
+                  summary: Wave has no orders
+                  value:
+                    error: "Cannot release empty wave"
+                    code: "EMPTY_WAVE"
+                    details:
+                      waveId: "WV-2026-0108-001"
+                      orderCount: 0
+                notScheduled:
+                  summary: Wave not scheduled
+                  value:
+                    error: "Wave must be scheduled before release"
+                    code: "INVALID_STATE_TRANSITION"
+                    details:
+                      currentStatus: "created"
 
   /waves/{waveId}/cancel:
     post:
       summary: Cancel wave
-      description: Cancel a wave (only allowed before completion)
+      description: |
+        Cancel a wave.
+
+        **Prerequisites:**
+        - Wave must not be `completed`
+
+        **State Transition:** Any → `cancelled`
+
+        **Triggered Actions:**
+        - Unassigns orders from wave
+        - Publishes `WaveCancelled` event
+        - If released, cancels associated picking tasks
       tags: [Waves]
       parameters:
         - name: waveId
@@ -305,6 +729,8 @@ paths:
           required: true
           schema:
             type: string
+          example: "WV-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         content:
           application/json:
@@ -313,6 +739,24 @@ paths:
               properties:
                 reason:
                   type: string
+                  description: Reason for cancellation
+            examples:
+              laborShortage:
+                summary: Labor shortage
+                value:
+                  reason: "Insufficient labor for wave - rescheduling to next shift"
+              carrierDelay:
+                summary: Carrier delay
+                value:
+                  reason: "Carrier pickup delayed - consolidating with next wave"
+              inventoryIssue:
+                summary: Inventory issue
+                value:
+                  reason: "Inventory discrepancy detected - wave requires replanning"
+              customerRequest:
+                summary: Customer cancellation
+                value:
+                  reason: "Multiple orders cancelled by customers"
       responses:
         '200':
           description: Wave cancelled
@@ -320,15 +764,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WaveResponse'
+              examples:
+                cancelled:
+                  value:
+                    waveId: "WV-2026-0108-001"
+                    status: "cancelled"
+                    cancelledAt: "2026-01-08T10:30:00Z"
+                    cancelReason: "Insufficient labor for wave - rescheduling to next shift"
+        '400':
+          description: Cannot cancel completed wave
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyCompleted:
+                  value:
+                    error: "Cannot cancel completed wave"
+                    code: "INVALID_STATE_TRANSITION"
+                    details:
+                      currentStatus: "completed"
 
   /waves/status/{status}:
     get:
       summary: Get waves by status
+      description: Retrieve all waves with a specific status
       tags: [Waves]
       parameters:
         - name: status
           in: path
           required: true
+          description: Wave status to filter by
           schema:
             type: string
             enum: [planning, created, scheduled, released, completed, cancelled]
@@ -345,13 +811,16 @@ paths:
   /waves/zone/{zone}:
     get:
       summary: Get waves by zone
+      description: Retrieve all active waves for a specific warehouse zone
       tags: [Waves]
       parameters:
         - name: zone
           in: path
           required: true
+          description: Warehouse zone
           schema:
             type: string
+          example: "A"
       responses:
         '200':
           description: Waves in specified zone
@@ -365,13 +834,16 @@ paths:
   /waves/order/{orderId}:
     get:
       summary: Get wave containing order
+      description: Find which wave an order is assigned to
       tags: [Waves]
       parameters:
         - name: orderId
           in: path
           required: true
+          description: Order ID to look up
           schema:
             type: string
+          example: "ORD-2026-0108-001"
       responses:
         '200':
           description: Wave containing the order
@@ -381,13 +853,33 @@ paths:
                 $ref: '#/components/schemas/WaveResponse'
         '404':
           description: Order not found in any wave
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notWaved:
+                  value:
+                    error: "Order not assigned to any wave"
+                    code: "ORDER_NOT_WAVED"
+                    details:
+                      orderId: "ORD-2026-0108-001"
 
-  # Planning Endpoints
   /planning/auto:
     post:
       summary: Auto-plan wave
-      description: Automatically plan orders into waves based on optimization criteria
+      description: |
+        Automatically plan orders into waves based on optimization criteria.
+
+        **Optimization Factors:**
+        - Order priority
+        - Delivery cutoff times
+        - Zone proximity
+        - Labor availability
+        - Carrier schedules
       tags: [Planning]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         content:
           application/json:
@@ -400,6 +892,26 @@ paths:
                   type: integer
                 priorityWeight:
                   type: number
+            examples:
+              standardAutoplan:
+                summary: Standard auto-planning
+                value:
+                  zone: "A"
+                  maxOrdersPerWave: 50
+                  priorityWeight: 1.0
+              priorityFocused:
+                summary: Priority-focused planning
+                description: Weight towards high-priority orders
+                value:
+                  zone: "PRIORITY"
+                  maxOrdersPerWave: 25
+                  priorityWeight: 2.0
+              highVolume:
+                summary: High-volume planning
+                description: Maximize orders per wave
+                value:
+                  maxOrdersPerWave: 100
+                  priorityWeight: 0.5
       responses:
         '200':
           description: Auto-planning result
@@ -416,6 +928,18 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/WaveResponse'
+              examples:
+                result:
+                  value:
+                    wavesCreated: 3
+                    ordersAssigned: 145
+                    waves:
+                      - waveId: "WV-2026-0108-AUTO-001"
+                        orderCount: 50
+                      - waveId: "WV-2026-0108-AUTO-002"
+                        orderCount: 50
+                      - waveId: "WV-2026-0108-AUTO-003"
+                        orderCount: 45
         '501':
           description: Not implemented
 
@@ -430,6 +954,8 @@ paths:
           required: true
           schema:
             type: string
+          example: "WV-2026-0108-001"
+        - $ref: '#/components/parameters/WMSCorrelationID'
       responses:
         '200':
           description: Wave optimized
@@ -443,7 +969,12 @@ paths:
   /planning/ready-for-release:
     get:
       summary: Get waves ready for release
-      description: Get all waves in scheduled status that are ready to be released
+      description: |
+        Get all waves in scheduled status that are ready to be released.
+
+        Returns waves where:
+        - Status is `scheduled`
+        - scheduledReleaseAt <= current time
       tags: [Planning]
       responses:
         '200':
@@ -455,7 +986,6 @@ paths:
                 items:
                   $ref: '#/components/schemas/WaveResponse'
 
-  # Scheduler Endpoints
   /scheduler/status:
     get:
       summary: Get scheduler status
@@ -468,12 +998,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SchedulerStatus'
+              examples:
+                running:
+                  summary: Scheduler running
+                  value:
+                    running: true
+                    intervalSeconds: 60
+                    maxOrdersPerWave: 50
+                    lastRunAt: "2026-01-08T09:29:00Z"
+                    wavesCreatedTotal: 15
+                    ordersProcessedTotal: 720
+                stopped:
+                  summary: Scheduler stopped
+                  value:
+                    running: false
+                    intervalSeconds: 60
+                    maxOrdersPerWave: 50
+                    lastRunAt: "2026-01-08T08:00:00Z"
+                    wavesCreatedTotal: 10
+                    ordersProcessedTotal: 480
 
   /scheduler/start:
     post:
       summary: Start scheduler
-      description: Start the continuous waving scheduler
+      description: |
+        Start the continuous waving scheduler.
+
+        The scheduler automatically creates waves from pending orders
+        at the configured interval.
       tags: [Scheduler]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         content:
           application/json:
@@ -483,9 +1038,27 @@ paths:
                 intervalSeconds:
                   type: integer
                   default: 60
+                  description: Seconds between scheduler runs
                 maxOrdersPerWave:
                   type: integer
                   default: 50
+                  description: Maximum orders per auto-created wave
+            examples:
+              standard:
+                summary: Standard configuration
+                value:
+                  intervalSeconds: 60
+                  maxOrdersPerWave: 50
+              highFrequency:
+                summary: High-frequency for peak times
+                value:
+                  intervalSeconds: 30
+                  maxOrdersPerWave: 25
+              lowFrequency:
+                summary: Low-frequency for off-peak
+                value:
+                  intervalSeconds: 300
+                  maxOrdersPerWave: 100
       responses:
         '200':
           description: Scheduler started
@@ -499,6 +1072,8 @@ paths:
       summary: Stop scheduler
       description: Stop the continuous waving scheduler
       tags: [Scheduler]
+      parameters:
+        - $ref: '#/components/parameters/WMSCorrelationID'
       responses:
         '200':
           description: Scheduler stopped
@@ -514,6 +1089,20 @@ paths:
       responses:
         '200':
           description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
 
   /ready:
     get:
@@ -535,59 +1124,121 @@ components:
   schemas:
     CreateWaveRequest:
       type: object
+      description: Request to create a new wave
       required: [waveType]
       properties:
         waveType:
           type: string
+          description: |
+            Type of wave:
+            - `single_order`: One order per wave (VIP/express)
+            - `batch`: Multiple orders batched together
+            - `zone_based`: Orders grouped by warehouse zone
+            - `digital`: Dynamic/continuous wave
           enum: [single_order, batch, zone_based, digital]
+          example: "batch"
         zone:
           type: string
+          description: Warehouse zone for zone-based waves
+          example: "A"
         maxOrders:
           type: integer
+          description: Maximum orders allowed in this wave
+          example: 50
         scheduledReleaseAt:
           type: string
           format: date-time
+          description: Scheduled release time
+          example: "2026-01-08T14:00:00Z"
+        priority:
+          type: integer
+          description: Wave priority (1=highest)
+          minimum: 1
+          maximum: 10
+          default: 5
+        carrierCutoff:
+          type: string
+          description: Target carrier for cutoff alignment
+          example: "FEDEX_GROUND"
 
     WaveResponse:
       type: object
+      description: Complete wave information
       properties:
         waveId:
           type: string
+          description: Unique wave identifier
+          example: "WV-2026-0108-001"
         waveNumber:
           type: integer
+          description: Sequential wave number for the day
+          example: 1
         waveType:
           type: string
           enum: [single_order, batch, zone_based, digital]
+          example: "batch"
         fulfillmentMode:
           type: string
+          description: Wave-based or waveless fulfillment
           enum: [wave, waveless]
+          example: "wave"
         zone:
           type: string
+          description: Warehouse zone
+          example: "A"
         status:
           type: string
+          description: |
+            Wave status:
+            - `planning`: Being planned, not yet finalized
+            - `created`: Created with orders, ready for scheduling
+            - `scheduled`: Scheduled for release at specific time
+            - `released`: Released for picking
+            - `completed`: All orders fulfilled
+            - `cancelled`: Wave cancelled
           enum: [planning, created, scheduled, released, completed, cancelled]
+          example: "scheduled"
         priority:
           type: integer
+          description: Wave priority (1=highest)
+          example: 5
         maxOrders:
           type: integer
+          description: Maximum orders for this wave
+          example: 50
         orderCount:
           type: integer
+          description: Current number of orders in wave
+          example: 45
         orders:
           type: array
+          description: Order IDs in this wave
           items:
             type: string
+          example: ["ORD-2026-0108-001", "ORD-2026-0108-002"]
         scheduledStart:
           type: string
           format: date-time
+          description: Scheduled release time
         scheduledEnd:
           type: string
           format: date-time
+          description: Expected completion time
         releasedAt:
           type: string
           format: date-time
+          description: Actual release time
         completedAt:
           type: string
           format: date-time
+          description: Completion time
+        cancelledAt:
+          type: string
+          format: date-time
+          description: Cancellation time (if cancelled)
+        cancelReason:
+          type: string
+          description: Reason for cancellation
         createdAt:
           type: string
           format: date-time
@@ -597,20 +1248,49 @@ components:
 
     SchedulerStatus:
       type: object
+      description: Continuous waving scheduler status
       properties:
         running:
           type: boolean
+          description: Whether scheduler is currently running
+          example: true
         intervalSeconds:
           type: integer
+          description: Seconds between scheduler runs
+          example: 60
         maxOrdersPerWave:
           type: integer
+          description: Max orders per auto-created wave
+          example: 50
         lastRunAt:
           type: string
           format: date-time
+          description: Last scheduler execution time
         wavesCreatedTotal:
           type: integer
+          description: Total waves created by scheduler
+          example: 15
         ordersProcessedTotal:
           type: integer
+          description: Total orders processed by scheduler
+          example: 720
+
+    ErrorResponse:
+      type: object
+      description: Standard error response
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Wave not found"
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "WAVE_NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
 
   parameters:
     WMSCorrelationID:
@@ -630,7 +1310,7 @@ components:
       required: false
       schema:
         type: string
-      example: "WAVE-2024-00123"
+      example: "WV-2026-0108-001"
 
     WMSWorkflowID:
       name: X-WMS-Workflow-ID
@@ -640,3 +1320,14 @@ components:
       schema:
         type: string
       example: "order-fulfillment-ORD-12345"
+
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      description: |
+        Idempotency key for safe request retries.
+        Requests with the same key within 24 hours return cached response.
+      required: false
+      schema:
+        type: string
+      example: "idem-2026-0108-wave-001"

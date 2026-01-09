@@ -222,11 +222,11 @@ type SortationBatchRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/batches | Create batch |
-| GET | /api/v1/batches/{id} | Get batch |
-| POST | /api/v1/batches/{id}/packages | Add package |
-| POST | /api/v1/batches/{id}/sort | Sort package |
-| POST | /api/v1/batches/{id}/ready | Mark ready |
-| POST | /api/v1/batches/{id}/dispatch | Dispatch |
+| GET | /api/v1/batches/\{id\} | Get batch |
+| POST | /api/v1/batches/\{id\}/packages | Add package |
+| POST | /api/v1/batches/\{id\}/sort | Sort package |
+| POST | /api/v1/batches/\{id\}/ready | Mark ready |
+| POST | /api/v1/batches/\{id\}/dispatch | Dispatch |
 
 ## Related Documentation
 

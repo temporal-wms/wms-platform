@@ -4,11 +4,37 @@ info:
   description: |
     REST API for package sortation operations in the WMS platform.
 
-    This service handles:
-    - Sortation batch management
-    - Package-to-chute assignment
-    - Batch-based grouping by destination/carrier
-    - Dispatch coordination
+    This service manages the sorting of packed shipments to outbound lanes/chutes
+    based on destination and carrier, preparing packages for dispatch to delivery networks.
+
+    ## Key Capabilities
+    - **Sortation Batch Management**: Group packages by destination/carrier for efficient loading
+    - **Package-to-Chute Assignment**: Route packages to correct physical chutes
+    - **Multi-Carrier Support**: Handle UPS, FedEx, USPS, regional carriers
+    - **Dispatch Coordination**: Manage trailer loading and departure
+    - **Exception Handling**: No-read, misroute, and overflow management
+
+    ## Sortation Flow
+    ```
+    Packing Complete → Package Inducted → Scanned → Route Determined
+                                                        ↓
+                                              Assigned to Chute
+                                                        ↓
+                                              Physically Sorted
+                                                        ↓
+                                              Batch Ready → Dispatch
+    ```
+
+    ## Batch Lifecycle
+    ```
+    receiving → sorting → ready → dispatching → dispatched
+    ```
+
+    ## Integration Points
+    - **Packing Service**: Receives packed shipment notifications
+    - **Shipping Service**: Gets carrier and tracking information
+    - **Facility Service**: Chute configuration and capacity
+
   version: 1.0.0
   contact:
     name: WMS Platform Team
@@ -36,21 +62,59 @@ paths:
   /batches:
     post:
       summary: Create a sortation batch
-      description: Create a new sortation batch for a destination/carrier combination
+      description: |
+        Create a new sortation batch for a destination/carrier combination.
+
+        **Batch Grouping:**
+        - Packages going to same destination group via same carrier
+        - Destination groups are typically zip prefixes (e.g., "945" for Bay Area)
+        - Each batch gets assigned a physical chute for sorting
+
+        **State Transition:** None → `receiving`
       tags:
         - Batches
       parameters:
         - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateBatchRequest'
-            example:
-              sortationCenter: "MAIN-SORT"
-              destinationGroup: "945"
-              carrierId: "FEDEX"
+            examples:
+              fedexWestCoast:
+                summary: FedEx West Coast batch
+                description: Bay Area deliveries via FedEx Ground
+                value:
+                  sortationCenter: "SORT-WEST-01"
+                  destinationGroup: "945"
+                  carrierId: "FEDEX_GROUND"
+                  scheduledDispatch: "2026-01-08T18:00:00Z"
+              upsNextDay:
+                summary: UPS Next Day Air batch
+                description: Priority air shipments requiring early dispatch
+                value:
+                  sortationCenter: "SORT-WEST-01"
+                  destinationGroup: "100"
+                  carrierId: "UPS_NEXT_DAY_AIR"
+                  scheduledDispatch: "2026-01-08T16:00:00Z"
+              uspsRegional:
+                summary: USPS regional batch
+                description: USPS Priority Mail for Midwest region
+                value:
+                  sortationCenter: "SORT-CENTRAL-01"
+                  destinationGroup: "606"
+                  carrierId: "USPS_PRIORITY"
+                  scheduledDispatch: "2026-01-08T17:30:00Z"
+              amazonLogistics:
+                summary: Amazon Logistics batch
+                description: Same-day delivery via Amazon network
+                value:
+                  sortationCenter: "SORT-EAST-01"
+                  destinationGroup: "100"
+                  carrierId: "AMZL_SAME_DAY"
+                  scheduledDispatch: "2026-01-08T12:00:00Z"
       responses:
         '201':
           description: Batch created successfully
@@ -58,20 +122,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
+              examples:
+                created:
+                  summary: Successfully created batch
+                  value:
+                    batchId: "BATCH-2026-0108-001"
+                    sortationCenter: "SORT-WEST-01"
+                    destinationGroup: "945"
+                    carrierId: "FEDEX_GROUND"
+                    packages: []
+                    assignedChute: "CHUTE-A15"
+                    status: "receiving"
+                    totalPackages: 0
+                    sortedCount: 0
+                    totalWeight: 0
+                    scheduledDispatch: "2026-01-08T18:00:00Z"
+                    createdAt: "2026-01-08T10:00:00Z"
+                    updatedAt: "2026-01-08T10:00:00Z"
+                    sortingProgress: 0
         '400':
           description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidCarrier:
+                  summary: Unknown carrier
+                  value:
+                    error: "Unknown carrier"
+                    code: "INVALID_CARRIER"
+                    details:
+                      carrierId: "UNKNOWN_CARRIER"
+                      supportedCarriers: ["FEDEX_GROUND", "FEDEX_EXPRESS", "UPS_GROUND", "USPS_PRIORITY", "AMZL"]
+                noAvailableChute:
+                  summary: No chute available
+                  value:
+                    error: "No chute available"
+                    code: "NO_AVAILABLE_CHUTE"
+                    details:
+                      destinationGroup: "945"
+                      carrierId: "FEDEX_GROUND"
+                      message: "All chutes for this destination/carrier are at capacity"
 
     get:
       summary: List batches
-      description: Retrieve a list of sortation batches
+      description: Retrieve a list of sortation batches with optional filtering
       tags:
         - Batches
       parameters:
         - name: limit
           in: query
+          description: Maximum number of batches to return
           schema:
             type: integer
             default: 50
+            maximum: 100
+        - name: status
+          in: query
+          description: Filter by batch status
+          schema:
+            $ref: '#/components/schemas/SortationStatus'
+        - name: carrierId
+          in: query
+          description: Filter by carrier
+          schema:
+            type: string
+          example: "FEDEX_GROUND"
       responses:
         '200':
           description: List of batches
@@ -90,17 +207,25 @@ paths:
   /batches/status/{status}:
     get:
       summary: Get batches by status
+      description: |
+        Retrieve all batches with a specific status.
+
+        **Common Use Cases:**
+        - `receiving`: View batches accepting new packages
+        - `ready`: View batches ready for trailer loading
+        - `dispatching`: View batches being loaded
       tags:
         - Queries
       parameters:
         - name: status
           in: path
           required: true
+          description: Batch status to filter by
           schema:
             $ref: '#/components/schemas/SortationStatus'
       responses:
         '200':
-          description: List of batches with status
+          description: List of batches with the specified status
           content:
             application/json:
               schema:
@@ -116,15 +241,20 @@ paths:
   /batches/ready:
     get:
       summary: Get ready batches
-      description: Retrieve batches ready for dispatch
+      description: |
+        Retrieve batches ready for dispatch.
+
+        Used by dispatch supervisors to prioritize trailer assignments
+        based on carrier pickup schedules.
       tags:
         - Queries
       parameters:
         - name: carrierId
           in: query
+          description: Filter by carrier for upcoming pickups
           schema:
             type: string
-          description: Filter by carrier
+          example: "FEDEX_GROUND"
         - name: limit
           in: query
           schema:
@@ -148,14 +278,17 @@ paths:
   /batches/{batchId}:
     get:
       summary: Get batch by ID
+      description: Retrieve complete details for a specific sortation batch
       tags:
         - Batches
       parameters:
         - name: batchId
           in: path
           required: true
+          description: Unique batch identifier
           schema:
             type: string
+          example: "BATCH-2026-0108-001"
       responses:
         '200':
           description: Batch details
@@ -165,11 +298,32 @@ paths:
                 $ref: '#/components/schemas/BatchResponse'
         '404':
           description: Batch not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    error: "Batch not found"
+                    code: "BATCH_NOT_FOUND"
+                    details:
+                      batchId: "BATCH-INVALID-001"
 
   /batches/{batchId}/packages:
     post:
       summary: Add package to batch
-      description: Add a package to a sortation batch
+      description: |
+        Add a packed package to a sortation batch.
+
+        **Triggered by:**
+        - Packing Service upon shipment completion
+        - Package induction scan at sortation conveyor
+
+        **Validation:**
+        - Package must not already be in a batch
+        - Batch must be in `receiving` or `sorting` status
+        - Carrier must match batch carrier
       tags:
         - Packages
       parameters:
@@ -178,6 +332,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "BATCH-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         required: true
@@ -185,13 +340,54 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AddPackageRequest'
-            example:
-              packageId: "PKG-001234"
-              orderId: "ORD-001234"
-              trackingNumber: "794644790132"
-              destination: "94501"
-              carrierId: "FEDEX"
-              weight: 2.5
+            examples:
+              standardPackage:
+                summary: Standard e-commerce package
+                description: Regular sized package for ground delivery
+                value:
+                  packageId: "PKG-2026-0108-001234"
+                  orderId: "ORD-2026-0108-001"
+                  trackingNumber: "794644790132001234"
+                  destination: "94501"
+                  carrierId: "FEDEX_GROUND"
+                  weight: 2.5
+              multiPackageOrder:
+                summary: Multi-package order (1 of 3)
+                description: First package of a split shipment
+                value:
+                  packageId: "PKG-2026-0108-002001"
+                  orderId: "ORD-2026-0108-002"
+                  trackingNumber: "1Z999AA10123456784"
+                  destination: "10001"
+                  carrierId: "UPS_GROUND"
+                  weight: 8.2
+                  packageNumber: 1
+                  totalPackages: 3
+              heavyPackage:
+                summary: Heavy package
+                description: Oversized package requiring special handling
+                value:
+                  packageId: "PKG-2026-0108-003456"
+                  orderId: "ORD-2026-0108-003"
+                  trackingNumber: "9400111899223456789012"
+                  destination: "60601"
+                  carrierId: "USPS_PRIORITY"
+                  weight: 25.0
+                  dimensions:
+                    length: 36
+                    width: 24
+                    height: 12
+              sameDayPackage:
+                summary: Same-day delivery package
+                description: Priority package for same-day delivery network
+                value:
+                  packageId: "PKG-2026-0108-004567"
+                  orderId: "ORD-2026-0108-004"
+                  trackingNumber: "AMZL-2026-0108-004567"
+                  destination: "10001"
+                  carrierId: "AMZL_SAME_DAY"
+                  weight: 1.2
+                  priority: "same_day"
       responses:
         '200':
           description: Package added to batch
@@ -199,13 +395,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
+              examples:
+                added:
+                  summary: Package successfully added
+                  value:
+                    batchId: "BATCH-2026-0108-001"
+                    totalPackages: 45
+                    sortedCount: 38
+                    sortingProgress: 84.4
         '400':
           description: Invalid request or batch status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                packageExists:
+                  summary: Package already in batch
+                  value:
+                    error: "Package already exists"
+                    code: "PACKAGE_ALREADY_IN_BATCH"
+                    details:
+                      packageId: "PKG-2026-0108-001234"
+                      existingBatchId: "BATCH-2026-0108-001"
+                carrierMismatch:
+                  summary: Carrier doesn't match batch
+                  value:
+                    error: "Carrier mismatch"
+                    code: "CARRIER_MISMATCH"
+                    details:
+                      packageCarrier: "UPS_GROUND"
+                      batchCarrier: "FEDEX_GROUND"
 
   /batches/{batchId}/sort:
     post:
       summary: Sort package to chute
-      description: Record a package sorted to a chute
+      description: |
+        Record a package sorted to a physical chute.
+
+        **Physical Process:**
+        1. Worker scans package barcode
+        2. System displays assigned chute
+        3. Worker places package in chute
+        4. Worker confirms sort with scan
+
+        **Exception Handling:**
+        - No-read: Package barcode unreadable
+        - Misroute: Package assigned to wrong batch
+        - Chute full: Redirect to overflow
       tags:
         - Packages
       parameters:
@@ -214,6 +451,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "BATCH-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         required: true
@@ -221,10 +459,41 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SortPackageRequest'
-            example:
-              packageId: "PKG-001234"
-              chuteId: "CHUTE-A01"
-              workerId: "WORKER-001"
+            examples:
+              standardSort:
+                summary: Standard sort to assigned chute
+                description: Normal package sort to destination chute
+                value:
+                  packageId: "PKG-2026-0108-001234"
+                  chuteId: "CHUTE-A15"
+                  workerId: "WORKER-SORT-001"
+              noReadException:
+                summary: No-read exception handling
+                description: Manual lookup when barcode unreadable
+                value:
+                  packageId: "PKG-2026-0108-002345"
+                  chuteId: "CHUTE-A15"
+                  workerId: "WORKER-SORT-002"
+                  manualLookup: true
+                  lookupMethod: "tracking_number"
+              overflowSort:
+                summary: Overflow chute redirect
+                description: Primary chute full, sorted to overflow
+                value:
+                  packageId: "PKG-2026-0108-003456"
+                  chuteId: "CHUTE-OVERFLOW-01"
+                  workerId: "WORKER-SORT-003"
+                  isOverflow: true
+                  originalChute: "CHUTE-A15"
+              misrouteCorrection:
+                summary: Misroute correction
+                description: Package was in wrong batch, corrected
+                value:
+                  packageId: "PKG-2026-0108-004567"
+                  chuteId: "CHUTE-B22"
+                  workerId: "WORKER-SORT-001"
+                  isMisrouteCorrection: true
+                  originalBatchId: "BATCH-2026-0108-002"
       responses:
         '200':
           description: Package sorted
@@ -232,13 +501,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
+              examples:
+                sorted:
+                  summary: Package successfully sorted
+                  value:
+                    batchId: "BATCH-2026-0108-001"
+                    totalPackages: 45
+                    sortedCount: 39
+                    sortingProgress: 86.7
         '400':
           description: Invalid request or package already sorted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadySorted:
+                  summary: Package already sorted
+                  value:
+                    error: "Package already sorted"
+                    code: "PACKAGE_ALREADY_SORTED"
+                    details:
+                      packageId: "PKG-2026-0108-001234"
+                      sortedAt: "2026-01-08T11:30:00Z"
+                      sortedBy: "WORKER-SORT-001"
+                packageNotInBatch:
+                  summary: Package not in this batch
+                  value:
+                    error: "Package not found in batch"
+                    code: "PACKAGE_NOT_IN_BATCH"
+                    details:
+                      packageId: "PKG-2026-0108-999999"
+                      batchId: "BATCH-2026-0108-001"
 
   /batches/{batchId}/ready:
     post:
       summary: Mark batch as ready
-      description: Mark the batch as ready for dispatch
+      description: |
+        Mark the batch as ready for dispatch.
+
+        **Prerequisites:**
+        - All packages in batch must be sorted (sortedCount == totalPackages)
+        - Batch must be in `sorting` status
+
+        **State Transition:** `sorting` → `ready`
+
+        **Triggered Actions:**
+        - Notifies dispatch team
+        - Triggers trailer assignment workflow
       tags:
         - Dispatch
       parameters:
@@ -247,6 +557,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "BATCH-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       responses:
         '200':
@@ -255,11 +566,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
+              examples:
+                ready:
+                  value:
+                    batchId: "BATCH-2026-0108-001"
+                    status: "ready"
+                    totalPackages: 45
+                    sortedCount: 45
+                    sortingProgress: 100
+                    totalWeight: 112.5
+        '400':
+          description: Cannot mark ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unsortedPackages:
+                  summary: Packages not all sorted
+                  value:
+                    error: "Unsorted packages remain"
+                    code: "UNSORTED_PACKAGES"
+                    details:
+                      totalPackages: 45
+                      sortedCount: 40
+                      unsortedCount: 5
 
   /batches/{batchId}/dispatch:
     post:
       summary: Dispatch batch
-      description: Dispatch the batch (assign trailer and dispatch)
+      description: |
+        Dispatch the batch - assign trailer and mark as dispatched.
+
+        **Prerequisites:**
+        - Batch must be in `ready` status
+        - Trailer must be available at dispatch dock
+
+        **State Transition:** `ready` → `dispatching` → `dispatched`
+
+        **Triggered Actions:**
+        - Assigns packages to trailer manifest
+        - Updates carrier tracking status
+        - Publishes `BatchDispatched` event
       tags:
         - Dispatch
       parameters:
@@ -268,6 +616,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "BATCH-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         required: true
@@ -275,9 +624,32 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DispatchBatchRequest'
-            example:
-              trailerId: "TRL-001"
-              dispatchDock: "DOCK-OUT-A1"
+            examples:
+              standardDispatch:
+                summary: Standard trailer dispatch
+                description: Regular carrier pickup
+                value:
+                  trailerId: "TRL-FEDEX-001"
+                  dispatchDock: "DOCK-OUT-A1"
+                  driverId: "DRV-FEDEX-123"
+                  sealNumber: "SEAL-20260108-001"
+              ltlDispatch:
+                summary: LTL (Less Than Truckload) dispatch
+                description: Shared trailer with multiple batches
+                value:
+                  trailerId: "TRL-LTL-SHARED-005"
+                  dispatchDock: "DOCK-OUT-B2"
+                  manifestPosition: 3
+                  isLTL: true
+              expeditedDispatch:
+                summary: Expedited dispatch
+                description: Priority air cargo dispatch
+                value:
+                  trailerId: "TRL-AIR-UPS-001"
+                  dispatchDock: "DOCK-AIR-01"
+                  driverId: "DRV-UPS-AIR-456"
+                  sealNumber: "SEAL-AIR-20260108-001"
+                  flightNumber: "5X1234"
       responses:
         '200':
           description: Batch dispatched
@@ -285,20 +657,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
+              examples:
+                dispatched:
+                  value:
+                    batchId: "BATCH-2026-0108-001"
+                    status: "dispatched"
+                    trailerId: "TRL-FEDEX-001"
+                    dispatchDock: "DOCK-OUT-A1"
+                    dispatchedAt: "2026-01-08T17:45:00Z"
+                    totalPackages: 45
+                    totalWeight: 112.5
 
   /health:
     get:
       summary: Health check
+      description: Check if the service is healthy and ready to accept requests
       tags:
         - Health
       responses:
         '200':
           description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
 
 components:
   schemas:
     CreateBatchRequest:
       type: object
+      description: Request to create a new sortation batch
       required:
         - sortationCenter
         - destinationGroup
@@ -306,16 +704,29 @@ components:
       properties:
         sortationCenter:
           type: string
-          description: Sortation center identifier
+          description: Sortation center identifier where batch is being created
+          example: "SORT-WEST-01"
         destinationGroup:
           type: string
-          description: Destination group (zip prefix or region)
+          description: |
+            Destination group - typically a zip prefix or region code.
+            Examples: "945" (Bay Area), "100" (NYC), "606" (Chicago)
+          example: "945"
         carrierId:
           type: string
-          description: Carrier identifier
+          description: |
+            Carrier identifier for delivery network.
+            Common values: FEDEX_GROUND, FEDEX_EXPRESS, UPS_GROUND, UPS_NEXT_DAY_AIR, USPS_PRIORITY, AMZL
+          example: "FEDEX_GROUND"
+        scheduledDispatch:
+          type: string
+          format: date-time
+          description: Scheduled dispatch time for carrier pickup
+          example: "2026-01-08T18:00:00Z"
 
     AddPackageRequest:
       type: object
+      description: Request to add a package to a sortation batch
       required:
         - packageId
         - orderId
@@ -323,20 +734,58 @@ components:
       properties:
         packageId:
           type: string
+          description: Unique package identifier from packing
+          example: "PKG-2026-0108-001234"
         orderId:
           type: string
+          description: Associated order ID
+          example: "ORD-2026-0108-001"
         trackingNumber:
           type: string
+          description: Carrier tracking number
+          example: "794644790132001234"
         destination:
           type: string
-          description: Destination zip code or region
+          description: Destination zip code for routing
+          example: "94501"
         carrierId:
           type: string
+          description: Carrier for this package
+          example: "FEDEX_GROUND"
         weight:
           type: number
+          format: double
+          description: Package weight in pounds
+          example: 2.5
+        packageNumber:
+          type: integer
+          description: Package number for multi-package orders (1 of N)
+          example: 1
+        totalPackages:
+          type: integer
+          description: Total packages in the order
+          example: 1
+        dimensions:
+          type: object
+          description: Package dimensions in inches
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        priority:
+          type: string
+          description: Delivery priority
+          enum:
+            - standard
+            - next_day
+            - same_day
 
     SortPackageRequest:
       type: object
+      description: Request to record package sorted to chute
       required:
         - packageId
         - chuteId
@@ -344,109 +793,215 @@ components:
       properties:
         packageId:
           type: string
+          description: Package being sorted
+          example: "PKG-2026-0108-001234"
         chuteId:
           type: string
+          description: Chute where package was sorted
+          example: "CHUTE-A15"
         workerId:
           type: string
+          description: Worker who performed the sort
+          example: "WORKER-SORT-001"
+        manualLookup:
+          type: boolean
+          description: Whether package required manual lookup (no-read)
+          default: false
+        lookupMethod:
+          type: string
+          description: How package was identified if manual
+          enum:
+            - tracking_number
+            - order_id
+            - weight_dimensions
+        isOverflow:
+          type: boolean
+          description: Whether package went to overflow chute
+          default: false
+        originalChute:
+          type: string
+          description: Original assigned chute if overflow
+        isMisrouteCorrection:
+          type: boolean
+          description: Whether this corrects a misroute
+          default: false
+        originalBatchId:
+          type: string
+          description: Original batch if misroute correction
 
     DispatchBatchRequest:
       type: object
+      description: Request to dispatch a sortation batch
       required:
         - trailerId
         - dispatchDock
       properties:
         trailerId:
           type: string
+          description: Trailer identifier for transport
+          example: "TRL-FEDEX-001"
         dispatchDock:
           type: string
+          description: Outbound dock where trailer is loaded
+          example: "DOCK-OUT-A1"
+        driverId:
+          type: string
+          description: Driver identifier (if applicable)
+          example: "DRV-FEDEX-123"
+        sealNumber:
+          type: string
+          description: Trailer seal number for security
+          example: "SEAL-20260108-001"
+        manifestPosition:
+          type: integer
+          description: Position in trailer for LTL shipments
+        isLTL:
+          type: boolean
+          description: Whether this is a Less Than Truckload shipment
+          default: false
+        flightNumber:
+          type: string
+          description: Flight number for air cargo
 
     BatchResponse:
       type: object
+      description: Complete sortation batch information
       properties:
         batchId:
           type: string
+          description: Unique batch identifier
+          example: "BATCH-2026-0108-001"
         sortationCenter:
           type: string
+          example: "SORT-WEST-01"
         destinationGroup:
           type: string
+          example: "945"
         carrierId:
           type: string
+          example: "FEDEX_GROUND"
         packages:
           type: array
+          description: Packages in this batch
           items:
             $ref: '#/components/schemas/SortedPackage'
         assignedChute:
           type: string
+          description: Physical chute assigned to this batch
+          example: "CHUTE-A15"
         status:
           $ref: '#/components/schemas/SortationStatus'
         totalPackages:
           type: integer
+          description: Total packages in batch
+          example: 45
         sortedCount:
           type: integer
+          description: Packages successfully sorted
+          example: 40
         totalWeight:
           type: number
+          format: double
+          description: Total weight in pounds
+          example: 112.5
         trailerId:
           type: string
+          description: Assigned trailer (when dispatching)
+          example: "TRL-FEDEX-001"
         dispatchDock:
           type: string
+          description: Dispatch dock location
+          example: "DOCK-OUT-A1"
         scheduledDispatch:
           type: string
           format: date-time
+          description: Scheduled dispatch time
+          example: "2026-01-08T18:00:00Z"
         createdAt:
           type: string
           format: date-time
+          example: "2026-01-08T10:00:00Z"
         updatedAt:
           type: string
           format: date-time
+          example: "2026-01-08T17:30:00Z"
         dispatchedAt:
           type: string
           format: date-time
+          description: Actual dispatch time
+          example: "2026-01-08T17:45:00Z"
         sortingProgress:
           type: number
-          description: Sorting progress percentage
+          format: double
+          description: Sorting progress percentage (0-100)
+          example: 88.9
 
     SortedPackage:
       type: object
+      description: Package in a sortation batch
       properties:
         packageId:
           type: string
+          example: "PKG-2026-0108-001234"
         orderId:
           type: string
+          example: "ORD-2026-0108-001"
         trackingNumber:
           type: string
+          example: "794644790132001234"
         destination:
           type: string
+          example: "94501"
         carrierId:
           type: string
+          example: "FEDEX_GROUND"
         weight:
           type: number
+          format: double
+          example: 2.5
         assignedChute:
           type: string
+          example: "CHUTE-A15"
         sortedAt:
           type: string
           format: date-time
+          description: When package was sorted
         sortedBy:
           type: string
+          description: Worker who sorted the package
         isSorted:
           type: boolean
+          description: Whether package has been sorted
+          example: true
 
     Chute:
       type: object
+      description: Physical sortation chute
       properties:
         chuteId:
           type: string
+          example: "CHUTE-A15"
         chuteNumber:
           type: integer
+          example: 15
         destination:
           type: string
+          description: Destination group this chute serves
+          example: "945"
         carrierId:
           type: string
+          example: "FEDEX_GROUND"
         capacity:
           type: integer
+          description: Maximum packages before overflow
+          example: 100
         currentCount:
           type: integer
+          description: Current package count
+          example: 45
         status:
           type: string
+          description: Chute status
           enum:
             - active
             - full
@@ -454,6 +1009,14 @@ components:
 
     SortationStatus:
       type: string
+      description: |
+        Current status of the sortation batch:
+        - `receiving`: Accepting new packages
+        - `sorting`: Packages being sorted to chutes
+        - `ready`: All packages sorted, awaiting dispatch
+        - `dispatching`: Being loaded onto trailer
+        - `dispatched`: Loaded and departed
+        - `cancelled`: Batch cancelled
       enum:
         - receiving
         - sorting
@@ -464,18 +1027,41 @@ components:
 
     ErrorResponse:
       type: object
+      description: Standard error response format
       properties:
         error:
           type: string
+          description: Human-readable error message
+          example: "Package already sorted"
         code:
           type: string
+          description: Machine-readable error code
+          example: "PACKAGE_ALREADY_SORTED"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
 
   parameters:
     WMSCorrelationID:
       name: X-WMS-Correlation-ID
       in: header
-      description: CloudEvents extension for distributed tracing
+      description: |
+        Correlation ID for distributed tracing (CloudEvents format).
+        If not provided, the service will generate one.
       required: false
       schema:
         type: string
         format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      description: |
+        Idempotency key for safe request retries.
+        Requests with the same key within 24 hours return cached response.
+      required: false
+      schema:
+        type: string
+      example: "idem-2026-0108-sort-001"

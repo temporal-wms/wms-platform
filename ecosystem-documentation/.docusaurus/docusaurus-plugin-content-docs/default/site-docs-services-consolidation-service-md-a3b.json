@@ -5,7 +5,7 @@
   "source": "@site/docs/services/consolidation-service.md",
   "sourceDirName": "services",
   "slug": "/services/consolidation-service",
-  "permalink": "/services/consolidation-service",
+  "permalink": "/wms-platform/services/consolidation-service",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Picking Service",
-    "permalink": "/services/picking-service"
+    "permalink": "/wms-platform/services/picking-service"
   },
   "next": {
     "title": "Packing Service",
-    "permalink": "/services/packing-service"
+    "permalink": "/wms-platform/services/packing-service"
   }
 }

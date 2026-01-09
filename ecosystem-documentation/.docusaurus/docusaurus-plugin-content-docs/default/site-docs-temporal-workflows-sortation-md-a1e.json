@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/sortation.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/sortation",
-  "permalink": "/temporal/workflows/sortation",
+  "permalink": "/wms-platform/temporal/workflows/sortation",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "ShippingWorkflow",
-    "permalink": "/temporal/workflows/shipping"
+    "permalink": "/wms-platform/temporal/workflows/shipping"
   },
   "next": {
     "title": "GiftWrapWorkflow",
-    "permalink": "/temporal/workflows/gift-wrap"
+    "permalink": "/wms-platform/temporal/workflows/gift-wrap"
   }
 }

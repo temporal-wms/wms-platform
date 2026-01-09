@@ -7,11 +7,13 @@ const config = {
   tagline: 'Warehouse Management System - Enterprise Documentation',
   favicon: 'img/favicon.ico',
 
-  url: 'https://wms-platform.example.com',
-  baseUrl: '/',
+  url: 'https://temporal-wms.github.io',
+  baseUrl: '/wms-platform/',
 
-  organizationName: 'wms-platform',
-  projectName: 'wms-platform-docs',
+  organizationName: 'temporal-wms',
+  projectName: 'wms-platform',
+  deploymentBranch: 'gh-pages',
+  trailingSlash: false,
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
@@ -85,7 +87,7 @@ const config = {
             label: 'Documentation',
           },
           {
-            href: 'https://github.com/wms-platform/wms-platform',
+            href: 'https://github.com/temporal-wms/wms-platform',
             label: 'GitHub',
             position: 'right',
           },

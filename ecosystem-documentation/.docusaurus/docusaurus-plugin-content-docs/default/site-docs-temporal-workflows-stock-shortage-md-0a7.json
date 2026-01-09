@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/stock-shortage.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/stock-shortage",
-  "permalink": "/temporal/workflows/stock-shortage",
+  "permalink": "/wms-platform/temporal/workflows/stock-shortage",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "InboundFulfillmentWorkflow",
-    "permalink": "/temporal/workflows/inbound-fulfillment"
+    "permalink": "/wms-platform/temporal/workflows/inbound-fulfillment"
   },
   "next": {
     "title": "ReprocessingWorkflow",
-    "permalink": "/temporal/workflows/reprocessing"
+    "permalink": "/wms-platform/temporal/workflows/reprocessing"
   }
 }

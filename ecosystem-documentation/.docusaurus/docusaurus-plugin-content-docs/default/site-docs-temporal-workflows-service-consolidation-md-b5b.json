@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/service-consolidation.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/service-consolidation",
-  "permalink": "/temporal/workflows/service-consolidation",
+  "permalink": "/wms-platform/temporal/workflows/service-consolidation",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Picking Service - PickingWorkflow",
-    "permalink": "/temporal/workflows/service-picking"
+    "permalink": "/wms-platform/temporal/workflows/service-picking"
   },
   "next": {
     "title": "Packing Service - PackingWorkflow",
-    "permalink": "/temporal/workflows/service-packing"
+    "permalink": "/wms-platform/temporal/workflows/service-packing"
   }
 }

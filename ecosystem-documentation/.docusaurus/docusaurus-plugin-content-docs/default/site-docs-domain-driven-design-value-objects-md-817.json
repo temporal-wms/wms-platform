@@ -5,7 +5,7 @@
   "source": "@site/docs/domain-driven-design/value-objects.md",
   "sourceDirName": "domain-driven-design",
   "slug": "/domain-driven-design/value-objects",
-  "permalink": "/domain-driven-design/value-objects",
+  "permalink": "/wms-platform/domain-driven-design/value-objects",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Domain Events",
-    "permalink": "/domain-driven-design/domain-events"
+    "permalink": "/wms-platform/domain-driven-design/domain-events"
   },
   "next": {
     "title": "Order Service",
-    "permalink": "/services/order-service"
+    "permalink": "/wms-platform/services/order-service"
   }
 }

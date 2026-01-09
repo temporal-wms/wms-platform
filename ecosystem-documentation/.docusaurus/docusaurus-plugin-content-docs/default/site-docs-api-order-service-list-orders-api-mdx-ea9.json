@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/list-orders.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/list-orders",
-  "permalink": "/api/order-service/list-orders",
+  "permalink": "/wms-platform/api/order-service/list-orders",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "List dead letter queue entries",
-    "permalink": "/api/order-service/list-dead-letter-queue-entries"
+    "permalink": "/wms-platform/api/order-service/list-dead-letter-queue-entries"
   },
   "next": {
     "title": "Move order to dead letter queue",
-    "permalink": "/api/order-service/move-order-to-dead-letter-queue"
+    "permalink": "/wms-platform/api/order-service/move-order-to-dead-letter-queue"
   }
 }

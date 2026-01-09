@@ -3,736 +3,775 @@ import ComponentCreator from '@docusaurus/ComponentCreator';
 
 export default [
   {
-    path: '/__docusaurus/debug',
-    component: ComponentCreator('/__docusaurus/debug', '5ff'),
-    exact: true
-  },
-  {
-    path: '/__docusaurus/debug/config',
-    component: ComponentCreator('/__docusaurus/debug/config', '5ba'),
-    exact: true
-  },
-  {
-    path: '/__docusaurus/debug/content',
-    component: ComponentCreator('/__docusaurus/debug/content', 'a2b'),
-    exact: true
-  },
-  {
-    path: '/__docusaurus/debug/globalData',
-    component: ComponentCreator('/__docusaurus/debug/globalData', 'c3c'),
-    exact: true
-  },
-  {
-    path: '/__docusaurus/debug/metadata',
-    component: ComponentCreator('/__docusaurus/debug/metadata', '156'),
-    exact: true
-  },
-  {
-    path: '/__docusaurus/debug/registry',
-    component: ComponentCreator('/__docusaurus/debug/registry', '88c'),
-    exact: true
-  },
-  {
-    path: '/__docusaurus/debug/routes',
-    component: ComponentCreator('/__docusaurus/debug/routes', '000'),
-    exact: true
-  },
-  {
-    path: '/',
-    component: ComponentCreator('/', 'bab'),
+    path: '/wms-platform/',
+    component: ComponentCreator('/wms-platform/', 'ec0'),
     routes: [
       {
-        path: '/',
-        component: ComponentCreator('/', '6c5'),
+        path: '/wms-platform/',
+        component: ComponentCreator('/wms-platform/', 'b90'),
         routes: [
           {
-            path: '/',
-            component: ComponentCreator('/', '4af'),
+            path: '/wms-platform/',
+            component: ComponentCreator('/wms-platform/', '24f'),
             routes: [
               {
-                path: '/api/catalog',
-                component: ComponentCreator('/api/catalog', 'f82'),
+                path: '/wms-platform/api/catalog',
+                component: ComponentCreator('/wms-platform/api/catalog', '15a'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/events-api',
-                component: ComponentCreator('/api/events-api', 'd0f'),
+                path: '/wms-platform/api/events-api',
+                component: ComponentCreator('/wms-platform/api/events-api', '382'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/cancel-order',
-                component: ComponentCreator('/api/order-service/cancel-order', '61b'),
+                path: '/wms-platform/api/order-service/cancel-order',
+                component: ComponentCreator('/wms-platform/api/order-service/cancel-order', '1c7'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/create-a-new-order',
-                component: ComponentCreator('/api/order-service/create-a-new-order', '719'),
+                path: '/wms-platform/api/order-service/create-a-new-order',
+                component: ComponentCreator('/wms-platform/api/order-service/create-a-new-order', 'a95'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/get-dlq-statistics',
-                component: ComponentCreator('/api/order-service/get-dlq-statistics', '712'),
+                path: '/wms-platform/api/order-service/get-dlq-statistics',
+                component: ComponentCreator('/wms-platform/api/order-service/get-dlq-statistics', '9ae'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/get-order-by-id',
-                component: ComponentCreator('/api/order-service/get-order-by-id', 'c68'),
+                path: '/wms-platform/api/order-service/get-order-by-id',
+                component: ComponentCreator('/wms-platform/api/order-service/get-order-by-id', 'dd7'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/get-orders-eligible-for-retry',
-                component: ComponentCreator('/api/order-service/get-orders-eligible-for-retry', '5a5'),
+                path: '/wms-platform/api/order-service/get-orders-eligible-for-retry',
+                component: ComponentCreator('/wms-platform/api/order-service/get-orders-eligible-for-retry', 'da8'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/get-retry-metadata-for-order',
-                component: ComponentCreator('/api/order-service/get-retry-metadata-for-order', 'a9b'),
+                path: '/wms-platform/api/order-service/get-retry-metadata-for-order',
+                component: ComponentCreator('/wms-platform/api/order-service/get-retry-metadata-for-order', 'bec'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/get-specific-dlq-entry',
-                component: ComponentCreator('/api/order-service/get-specific-dlq-entry', '004'),
+                path: '/wms-platform/api/order-service/get-specific-dlq-entry',
+                component: ComponentCreator('/wms-platform/api/order-service/get-specific-dlq-entry', 'd10'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/health-check',
-                component: ComponentCreator('/api/order-service/health-check', '401'),
+                path: '/wms-platform/api/order-service/health-check',
+                component: ComponentCreator('/wms-platform/api/order-service/health-check', '1e3'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/increment-retry-count',
-                component: ComponentCreator('/api/order-service/increment-retry-count', '650'),
+                path: '/wms-platform/api/order-service/increment-retry-count',
+                component: ComponentCreator('/wms-platform/api/order-service/increment-retry-count', '7ad'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/list-dead-letter-queue-entries',
-                component: ComponentCreator('/api/order-service/list-dead-letter-queue-entries', '3af'),
+                path: '/wms-platform/api/order-service/list-dead-letter-queue-entries',
+                component: ComponentCreator('/wms-platform/api/order-service/list-dead-letter-queue-entries', '255'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/list-orders',
-                component: ComponentCreator('/api/order-service/list-orders', '3d6'),
+                path: '/wms-platform/api/order-service/list-orders',
+                component: ComponentCreator('/wms-platform/api/order-service/list-orders', 'b1e'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/move-order-to-dead-letter-queue',
-                component: ComponentCreator('/api/order-service/move-order-to-dead-letter-queue', '975'),
+                path: '/wms-platform/api/order-service/move-order-to-dead-letter-queue',
+                component: ComponentCreator('/wms-platform/api/order-service/move-order-to-dead-letter-queue', '437'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/order-service-api',
-                component: ComponentCreator('/api/order-service/order-service-api', '65d'),
+                path: '/wms-platform/api/order-service/order-service-api',
+                component: ComponentCreator('/wms-platform/api/order-service/order-service-api', '87a'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/reset-order-for-retry',
-                component: ComponentCreator('/api/order-service/reset-order-for-retry', '116'),
+                path: '/wms-platform/api/order-service/reset-order-for-retry',
+                component: ComponentCreator('/wms-platform/api/order-service/reset-order-for-retry', '94a'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/resolve-dlq-entry',
-                component: ComponentCreator('/api/order-service/resolve-dlq-entry', '190'),
+                path: '/wms-platform/api/order-service/resolve-dlq-entry',
+                component: ComponentCreator('/wms-platform/api/order-service/resolve-dlq-entry', '341'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/order-service/validate-order',
-                component: ComponentCreator('/api/order-service/validate-order', '9fd'),
+                path: '/wms-platform/api/order-service/validate-order',
+                component: ComponentCreator('/wms-platform/api/order-service/validate-order', 'c58'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/rest-api',
-                component: ComponentCreator('/api/rest-api', '7c4'),
+                path: '/wms-platform/api/rest-api',
+                component: ComponentCreator('/wms-platform/api/rest-api', '300'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/specs/asyncapi/',
-                component: ComponentCreator('/api/specs/asyncapi/', '515'),
+                path: '/wms-platform/api/specs/asyncapi',
+                component: ComponentCreator('/wms-platform/api/specs/asyncapi', 'f8e'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/api/specs/openapi/',
-                component: ComponentCreator('/api/specs/openapi/', '7c1'),
+                path: '/wms-platform/api/specs/openapi',
+                component: ComponentCreator('/wms-platform/api/specs/openapi', '700'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/c4-diagrams/code',
-                component: ComponentCreator('/architecture/c4-diagrams/code', '82f'),
+                path: '/wms-platform/architecture/c4-diagrams/code',
+                component: ComponentCreator('/wms-platform/architecture/c4-diagrams/code', 'c47'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/c4-diagrams/components',
-                component: ComponentCreator('/architecture/c4-diagrams/components', 'c6d'),
+                path: '/wms-platform/architecture/c4-diagrams/components',
+                component: ComponentCreator('/wms-platform/architecture/c4-diagrams/components', '22a'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/c4-diagrams/containers',
-                component: ComponentCreator('/architecture/c4-diagrams/containers', 'd94'),
+                path: '/wms-platform/architecture/c4-diagrams/containers',
+                component: ComponentCreator('/wms-platform/architecture/c4-diagrams/containers', '791'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/c4-diagrams/context',
-                component: ComponentCreator('/architecture/c4-diagrams/context', '6a3'),
+                path: '/wms-platform/architecture/c4-diagrams/context',
+                component: ComponentCreator('/wms-platform/architecture/c4-diagrams/context', '46f'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/overview',
-                component: ComponentCreator('/architecture/overview', 'c05'),
+                path: '/wms-platform/architecture/overview',
+                component: ComponentCreator('/wms-platform/architecture/overview', 'a5d'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/sequence-diagrams/order-cancellation',
-                component: ComponentCreator('/architecture/sequence-diagrams/order-cancellation', '636'),
+                path: '/wms-platform/architecture/sequence-diagrams/order-cancellation',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/order-cancellation', '8da'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/sequence-diagrams/order-fulfillment',
-                component: ComponentCreator('/architecture/sequence-diagrams/order-fulfillment', '167'),
+                path: '/wms-platform/architecture/sequence-diagrams/order-fulfillment',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/order-fulfillment', '2a6'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/sequence-diagrams/packing-workflow',
-                component: ComponentCreator('/architecture/sequence-diagrams/packing-workflow', '69f'),
+                path: '/wms-platform/architecture/sequence-diagrams/packing-workflow',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/packing-workflow', '5a6'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/sequence-diagrams/picking-workflow',
-                component: ComponentCreator('/architecture/sequence-diagrams/picking-workflow', '097'),
+                path: '/wms-platform/architecture/sequence-diagrams/picking-workflow',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/picking-workflow', '37d'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/architecture/sequence-diagrams/shipping-workflow',
-                component: ComponentCreator('/architecture/sequence-diagrams/shipping-workflow', 'd01'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/architecture/sequence-diagrams/walling-workflow',
-                component: ComponentCreator('/architecture/sequence-diagrams/walling-workflow', 'a45'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/architecture/sequence-diagrams/wes-execution',
-                component: ComponentCreator('/architecture/sequence-diagrams/wes-execution', '2bb'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/architecture/system-diagrams/data-flow',
-                component: ComponentCreator('/architecture/system-diagrams/data-flow', '0ca'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/architecture/system-diagrams/deployment',
-                component: ComponentCreator('/architecture/system-diagrams/deployment', '785'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/architecture/system-diagrams/infrastructure',
-                component: ComponentCreator('/architecture/system-diagrams/infrastructure', 'db0'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/aggregates/consolidation-unit',
-                component: ComponentCreator('/domain-driven-design/aggregates/consolidation-unit', '244'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/aggregates/inbound-shipment',
-                component: ComponentCreator('/domain-driven-design/aggregates/inbound-shipment', 'a33'),
+                path: '/wms-platform/architecture/sequence-diagrams/receiving-workflow',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/receiving-workflow', '132'),
                 exact: true
               },
               {
-                path: '/domain-driven-design/aggregates/inventory-item',
-                component: ComponentCreator('/domain-driven-design/aggregates/inventory-item', 'b95'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/aggregates/order',
-                component: ComponentCreator('/domain-driven-design/aggregates/order', '0e8'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/aggregates/pack-task',
-                component: ComponentCreator('/domain-driven-design/aggregates/pack-task', '764'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/aggregates/pick-route',
-                component: ComponentCreator('/domain-driven-design/aggregates/pick-route', '363'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/aggregates/pick-task',
-                component: ComponentCreator('/domain-driven-design/aggregates/pick-task', '813'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/aggregates/putaway-task',
-                component: ComponentCreator('/domain-driven-design/aggregates/putaway-task', 'd45'),
+                path: '/wms-platform/architecture/sequence-diagrams/reprocessing-workflow',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/reprocessing-workflow', '940'),
                 exact: true
               },
               {
-                path: '/domain-driven-design/aggregates/shipment',
-                component: ComponentCreator('/domain-driven-design/aggregates/shipment', 'ef8'),
+                path: '/wms-platform/architecture/sequence-diagrams/shipping-workflow',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/shipping-workflow', '96b'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/domain-driven-design/aggregates/sortation-batch',
-                component: ComponentCreator('/domain-driven-design/aggregates/sortation-batch', '92b'),
+                path: '/wms-platform/architecture/sequence-diagrams/unit-tracking',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/unit-tracking', '544'),
                 exact: true
               },
               {
-                path: '/domain-driven-design/aggregates/station',
-                component: ComponentCreator('/domain-driven-design/aggregates/station', 'c27'),
+                path: '/wms-platform/architecture/sequence-diagrams/walling-workflow',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/walling-workflow', 'b63'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/architecture/sequence-diagrams/wes-execution',
+                component: ComponentCreator('/wms-platform/architecture/sequence-diagrams/wes-execution', '9bc'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/architecture/system-diagrams/data-flow',
+                component: ComponentCreator('/wms-platform/architecture/system-diagrams/data-flow', '58d'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/architecture/system-diagrams/deployment',
+                component: ComponentCreator('/wms-platform/architecture/system-diagrams/deployment', '655'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/architecture/system-diagrams/infrastructure',
+                component: ComponentCreator('/wms-platform/architecture/system-diagrams/infrastructure', 'b9f'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/domain-driven-design/aggregates/consolidation-unit',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/consolidation-unit', 'a78'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/domain-driven-design/aggregates/inbound-shipment',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/inbound-shipment', '26a'),
                 exact: true
               },
               {
-                path: '/domain-driven-design/aggregates/task-route',
-                component: ComponentCreator('/domain-driven-design/aggregates/task-route', 'c4f'),
+                path: '/wms-platform/domain-driven-design/aggregates/inventory-item',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/inventory-item', '72a'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/domain-driven-design/aggregates/walling-task',
-                component: ComponentCreator('/domain-driven-design/aggregates/walling-task', '183'),
+                path: '/wms-platform/domain-driven-design/aggregates/order',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/order', 'c92'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/domain-driven-design/aggregates/wave',
-                component: ComponentCreator('/domain-driven-design/aggregates/wave', 'a29'),
+                path: '/wms-platform/domain-driven-design/aggregates/pack-task',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/pack-task', '65b'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/domain-driven-design/aggregates/worker',
-                component: ComponentCreator('/domain-driven-design/aggregates/worker', 'bc1'),
+                path: '/wms-platform/domain-driven-design/aggregates/pick-route',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/pick-route', '60b'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/domain-driven-design/bounded-contexts',
-                component: ComponentCreator('/domain-driven-design/bounded-contexts', '19e'),
+                path: '/wms-platform/domain-driven-design/aggregates/pick-task',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/pick-task', 'b1f'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/domain-driven-design/context-map',
-                component: ComponentCreator('/domain-driven-design/context-map', 'b15'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/domain-events',
-                component: ComponentCreator('/domain-driven-design/domain-events', '5b4'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/overview',
-                component: ComponentCreator('/domain-driven-design/overview', '36a'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/domain-driven-design/value-objects',
-                component: ComponentCreator('/domain-driven-design/value-objects', 'b19'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/infrastructure/kafka',
-                component: ComponentCreator('/infrastructure/kafka', '461'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/infrastructure/mongodb',
-                component: ComponentCreator('/infrastructure/mongodb', '184'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/infrastructure/observability',
-                component: ComponentCreator('/infrastructure/observability', '4de'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/infrastructure/overview',
-                component: ComponentCreator('/infrastructure/overview', 'd07'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/infrastructure/temporal',
-                component: ComponentCreator('/infrastructure/temporal', 'd51'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/consolidation-service',
-                component: ComponentCreator('/services/consolidation-service', 'b90'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/facility-service',
-                component: ComponentCreator('/services/facility-service', '566'),
+                path: '/wms-platform/domain-driven-design/aggregates/process-path',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/process-path', 'b03'),
                 exact: true
               },
               {
-                path: '/services/inventory-service',
-                component: ComponentCreator('/services/inventory-service', 'a07'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/labor-service',
-                component: ComponentCreator('/services/labor-service', '267'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/orchestrator',
-                component: ComponentCreator('/services/orchestrator', 'cd4'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/order-service',
-                component: ComponentCreator('/services/order-service', '3db'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/packing-service',
-                component: ComponentCreator('/services/packing-service', 'f29'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/picking-service',
-                component: ComponentCreator('/services/picking-service', '902'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/process-path-service',
-                component: ComponentCreator('/services/process-path-service', '51f'),
+                path: '/wms-platform/domain-driven-design/aggregates/putaway-task',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/putaway-task', 'f2c'),
                 exact: true
               },
               {
-                path: '/services/receiving-service',
-                component: ComponentCreator('/services/receiving-service', '794'),
+                path: '/wms-platform/domain-driven-design/aggregates/shipment',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/shipment', '64d'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/domain-driven-design/aggregates/sortation-batch',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/sortation-batch', 'f33'),
                 exact: true
               },
               {
-                path: '/services/routing-service',
-                component: ComponentCreator('/services/routing-service', 'a34'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/shipping-service',
-                component: ComponentCreator('/services/shipping-service', '202'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/services/sortation-service',
-                component: ComponentCreator('/services/sortation-service', 'cab'),
+                path: '/wms-platform/domain-driven-design/aggregates/station',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/station', '690'),
                 exact: true
               },
               {
-                path: '/services/stow-service',
-                component: ComponentCreator('/services/stow-service', 'fb0'),
+                path: '/wms-platform/domain-driven-design/aggregates/task-route',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/task-route', 'd61'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/domain-driven-design/aggregates/unit',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/unit', 'fdb'),
                 exact: true
               },
               {
-                path: '/services/walling-service',
-                component: ComponentCreator('/services/walling-service', '2cc'),
+                path: '/wms-platform/domain-driven-design/aggregates/walling-task',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/walling-task', '194'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/services/waving-service',
-                component: ComponentCreator('/services/waving-service', 'e88'),
+                path: '/wms-platform/domain-driven-design/aggregates/wave',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/wave', 'bd7'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/services/wes-service',
-                component: ComponentCreator('/services/wes-service', '1f8'),
+                path: '/wms-platform/domain-driven-design/aggregates/worker',
+                component: ComponentCreator('/wms-platform/domain-driven-design/aggregates/worker', '5c2'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/consolidation-activities',
-                component: ComponentCreator('/temporal/activities/consolidation-activities', 'b59'),
+                path: '/wms-platform/domain-driven-design/bounded-contexts',
+                component: ComponentCreator('/wms-platform/domain-driven-design/bounded-contexts', 'a46'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/inventory-activities',
-                component: ComponentCreator('/temporal/activities/inventory-activities', '7bd'),
+                path: '/wms-platform/domain-driven-design/context-map',
+                component: ComponentCreator('/wms-platform/domain-driven-design/context-map', 'c7d'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/order-activities',
-                component: ComponentCreator('/temporal/activities/order-activities', 'fea'),
+                path: '/wms-platform/domain-driven-design/domain-events',
+                component: ComponentCreator('/wms-platform/domain-driven-design/domain-events', '56a'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/overview',
-                component: ComponentCreator('/temporal/activities/overview', '225'),
+                path: '/wms-platform/domain-driven-design/overview',
+                component: ComponentCreator('/wms-platform/domain-driven-design/overview', '313'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/packing-activities',
-                component: ComponentCreator('/temporal/activities/packing-activities', '9e9'),
+                path: '/wms-platform/domain-driven-design/value-objects',
+                component: ComponentCreator('/wms-platform/domain-driven-design/value-objects', '458'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/picking-activities',
-                component: ComponentCreator('/temporal/activities/picking-activities', '7c5'),
+                path: '/wms-platform/infrastructure/kafka',
+                component: ComponentCreator('/wms-platform/infrastructure/kafka', '953'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/process-path-activities',
-                component: ComponentCreator('/temporal/activities/process-path-activities', 'eb8'),
+                path: '/wms-platform/infrastructure/mongodb',
+                component: ComponentCreator('/wms-platform/infrastructure/mongodb', '2b9'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/receiving-activities',
-                component: ComponentCreator('/temporal/activities/receiving-activities', '17c'),
+                path: '/wms-platform/infrastructure/observability',
+                component: ComponentCreator('/wms-platform/infrastructure/observability', '1d0'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/shipping-activities',
-                component: ComponentCreator('/temporal/activities/shipping-activities', 'd95'),
+                path: '/wms-platform/infrastructure/overview',
+                component: ComponentCreator('/wms-platform/infrastructure/overview', 'a8c'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/slam-activities',
-                component: ComponentCreator('/temporal/activities/slam-activities', '29a'),
+                path: '/wms-platform/infrastructure/temporal',
+                component: ComponentCreator('/wms-platform/infrastructure/temporal', '659'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/sortation-activities',
-                component: ComponentCreator('/temporal/activities/sortation-activities', '798'),
+                path: '/wms-platform/services/billing-service',
+                component: ComponentCreator('/wms-platform/services/billing-service', '05e'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/activities/unit-activities',
-                component: ComponentCreator('/temporal/activities/unit-activities', '580'),
+                path: '/wms-platform/services/channel-service',
+                component: ComponentCreator('/wms-platform/services/channel-service', '9d3'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/diagrams/order-flow',
-                component: ComponentCreator('/temporal/diagrams/order-flow', 'fa6'),
+                path: '/wms-platform/services/consolidation-service',
+                component: ComponentCreator('/wms-platform/services/consolidation-service', 'fea'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/diagrams/signal-flow',
-                component: ComponentCreator('/temporal/diagrams/signal-flow', '832'),
+                path: '/wms-platform/services/facility-service',
+                component: ComponentCreator('/wms-platform/services/facility-service', 'a9e'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/services/inventory-service',
+                component: ComponentCreator('/wms-platform/services/inventory-service', '8c0'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/diagrams/workflow-hierarchy',
-                component: ComponentCreator('/temporal/diagrams/workflow-hierarchy', '0e4'),
+                path: '/wms-platform/services/labor-service',
+                component: ComponentCreator('/wms-platform/services/labor-service', '5af'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/overview',
-                component: ComponentCreator('/temporal/overview', 'ff4'),
+                path: '/wms-platform/services/orchestrator',
+                component: ComponentCreator('/wms-platform/services/orchestrator', '439'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/retry-policies',
-                component: ComponentCreator('/temporal/retry-policies', 'f87'),
+                path: '/wms-platform/services/order-service',
+                component: ComponentCreator('/wms-platform/services/order-service', '3dd'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/signals-queries',
-                component: ComponentCreator('/temporal/signals-queries', 'e04'),
+                path: '/wms-platform/services/packing-service',
+                component: ComponentCreator('/wms-platform/services/packing-service', '576'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/task-queues',
-                component: ComponentCreator('/temporal/task-queues', '37d'),
+                path: '/wms-platform/services/picking-service',
+                component: ComponentCreator('/wms-platform/services/picking-service', '69b'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/cancellation',
-                component: ComponentCreator('/temporal/workflows/cancellation', 'd8e'),
+                path: '/wms-platform/services/process-path-service',
+                component: ComponentCreator('/wms-platform/services/process-path-service', '3ef'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/services/receiving-service',
+                component: ComponentCreator('/wms-platform/services/receiving-service', '139'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/services/routing-service',
+                component: ComponentCreator('/wms-platform/services/routing-service', 'a75'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/consolidation',
-                component: ComponentCreator('/temporal/workflows/consolidation', 'd9a'),
+                path: '/wms-platform/services/seller-portal',
+                component: ComponentCreator('/wms-platform/services/seller-portal', '10a'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/gift-wrap',
-                component: ComponentCreator('/temporal/workflows/gift-wrap', 'fe8'),
+                path: '/wms-platform/services/seller-service',
+                component: ComponentCreator('/wms-platform/services/seller-service', '745'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/inbound-fulfillment',
-                component: ComponentCreator('/temporal/workflows/inbound-fulfillment', '032'),
+                path: '/wms-platform/services/shipping-service',
+                component: ComponentCreator('/wms-platform/services/shipping-service', '5ec'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/order-fulfillment',
-                component: ComponentCreator('/temporal/workflows/order-fulfillment', 'ed4'),
+                path: '/wms-platform/services/sortation-service',
+                component: ComponentCreator('/wms-platform/services/sortation-service', '8bd'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/services/stow-service',
+                component: ComponentCreator('/wms-platform/services/stow-service', 'cea'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/services/unit-service',
+                component: ComponentCreator('/wms-platform/services/unit-service', '0c4'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/services/walling-service',
+                component: ComponentCreator('/wms-platform/services/walling-service', 'e83'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/packing',
-                component: ComponentCreator('/temporal/workflows/packing', '3f2'),
+                path: '/wms-platform/services/waving-service',
+                component: ComponentCreator('/wms-platform/services/waving-service', '9ec'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/picking',
-                component: ComponentCreator('/temporal/workflows/picking', '039'),
+                path: '/wms-platform/services/wes-service',
+                component: ComponentCreator('/wms-platform/services/wes-service', 'b65'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/planning',
-                component: ComponentCreator('/temporal/workflows/planning', 'c68'),
+                path: '/wms-platform/temporal/activities/consolidation-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/consolidation-activities', '88e'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/reprocessing',
-                component: ComponentCreator('/temporal/workflows/reprocessing', 'd5a'),
+                path: '/wms-platform/temporal/activities/giftwrap-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/giftwrap-activities', '18a'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/temporal/activities/inventory-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/inventory-activities', '728'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/service-consolidation',
-                component: ComponentCreator('/temporal/workflows/service-consolidation', 'f78'),
+                path: '/wms-platform/temporal/activities/order-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/order-activities', 'fb8'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/service-packing',
-                component: ComponentCreator('/temporal/workflows/service-packing', '7f8'),
+                path: '/wms-platform/temporal/activities/overview',
+                component: ComponentCreator('/wms-platform/temporal/activities/overview', '388'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/service-picking',
-                component: ComponentCreator('/temporal/workflows/service-picking', '4ee'),
+                path: '/wms-platform/temporal/activities/packing-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/packing-activities', '4b7'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/service-shipping',
-                component: ComponentCreator('/temporal/workflows/service-shipping', '7dd'),
+                path: '/wms-platform/temporal/activities/picking-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/picking-activities', '8c2'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/service-wes',
-                component: ComponentCreator('/temporal/workflows/service-wes', '0b6'),
+                path: '/wms-platform/temporal/activities/process-path-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/process-path-activities', '5a2'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/shipping',
-                component: ComponentCreator('/temporal/workflows/shipping', '3cb'),
+                path: '/wms-platform/temporal/activities/receiving-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/receiving-activities', 'a9b'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/sortation',
-                component: ComponentCreator('/temporal/workflows/sortation', 'ea5'),
+                path: '/wms-platform/temporal/activities/reprocessing-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/reprocessing-activities', 'bbe'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/temporal/activities/routing-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/routing-activities', '5be'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/temporal/activities/shipping-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/shipping-activities', '2b9'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/stock-shortage',
-                component: ComponentCreator('/temporal/workflows/stock-shortage', '898'),
+                path: '/wms-platform/temporal/activities/slam-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/slam-activities', 'd7b'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/temporal/workflows/wes-execution',
-                component: ComponentCreator('/temporal/workflows/wes-execution', '802'),
+                path: '/wms-platform/temporal/activities/sortation-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/sortation-activities', 'f0d'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
               {
-                path: '/',
-                component: ComponentCreator('/', '774'),
+                path: '/wms-platform/temporal/activities/stow-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/stow-activities', '7f3'),
+                exact: true
+              },
+              {
+                path: '/wms-platform/temporal/activities/unit-activities',
+                component: ComponentCreator('/wms-platform/temporal/activities/unit-activities', '3ed'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/diagrams/order-flow',
+                component: ComponentCreator('/wms-platform/temporal/diagrams/order-flow', 'c0d'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/diagrams/signal-flow',
+                component: ComponentCreator('/wms-platform/temporal/diagrams/signal-flow', '119'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/diagrams/workflow-hierarchy',
+                component: ComponentCreator('/wms-platform/temporal/diagrams/workflow-hierarchy', '474'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/overview',
+                component: ComponentCreator('/wms-platform/temporal/overview', '96e'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/retry-policies',
+                component: ComponentCreator('/wms-platform/temporal/retry-policies', '0d9'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/signals-queries',
+                component: ComponentCreator('/wms-platform/temporal/signals-queries', 'e42'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/task-queues',
+                component: ComponentCreator('/wms-platform/temporal/task-queues', 'ca7'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/cancellation',
+                component: ComponentCreator('/wms-platform/temporal/workflows/cancellation', '488'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/consolidation',
+                component: ComponentCreator('/wms-platform/temporal/workflows/consolidation', 'd63'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/gift-wrap',
+                component: ComponentCreator('/wms-platform/temporal/workflows/gift-wrap', '79f'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/inbound-fulfillment',
+                component: ComponentCreator('/wms-platform/temporal/workflows/inbound-fulfillment', 'ff4'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/order-fulfillment',
+                component: ComponentCreator('/wms-platform/temporal/workflows/order-fulfillment', '563'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/packing',
+                component: ComponentCreator('/wms-platform/temporal/workflows/packing', '2c7'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/picking',
+                component: ComponentCreator('/wms-platform/temporal/workflows/picking', 'da1'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/planning',
+                component: ComponentCreator('/wms-platform/temporal/workflows/planning', 'aa9'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/reprocessing',
+                component: ComponentCreator('/wms-platform/temporal/workflows/reprocessing', '626'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/service-consolidation',
+                component: ComponentCreator('/wms-platform/temporal/workflows/service-consolidation', '927'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/service-packing',
+                component: ComponentCreator('/wms-platform/temporal/workflows/service-packing', 'b03'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/service-picking',
+                component: ComponentCreator('/wms-platform/temporal/workflows/service-picking', 'a0f'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/service-shipping',
+                component: ComponentCreator('/wms-platform/temporal/workflows/service-shipping', '2b7'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/service-wes',
+                component: ComponentCreator('/wms-platform/temporal/workflows/service-wes', '32a'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/shipping',
+                component: ComponentCreator('/wms-platform/temporal/workflows/shipping', 'dd6'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/sortation',
+                component: ComponentCreator('/wms-platform/temporal/workflows/sortation', 'f2f'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/stock-shortage',
+                component: ComponentCreator('/wms-platform/temporal/workflows/stock-shortage', '23d'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/temporal/workflows/wes-execution',
+                component: ComponentCreator('/wms-platform/temporal/workflows/wes-execution', 'd81'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/wms-platform/',
+                component: ComponentCreator('/wms-platform/', 'c5c'),
                 exact: true,
                 sidebar: "docsSidebar"
               }

@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/get-specific-dlq-entry.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/get-specific-dlq-entry",
-  "permalink": "/api/order-service/get-specific-dlq-entry",
+  "permalink": "/wms-platform/api/order-service/get-specific-dlq-entry",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Get retry metadata for order",
-    "permalink": "/api/order-service/get-retry-metadata-for-order"
+    "permalink": "/wms-platform/api/order-service/get-retry-metadata-for-order"
   },
   "next": {
     "title": "Health check",
-    "permalink": "/api/order-service/health-check"
+    "permalink": "/wms-platform/api/order-service/health-check"
   }
 }

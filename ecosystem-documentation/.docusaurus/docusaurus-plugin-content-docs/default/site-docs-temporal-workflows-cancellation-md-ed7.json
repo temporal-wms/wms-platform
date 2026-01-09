@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/cancellation.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/cancellation",
-  "permalink": "/temporal/workflows/cancellation",
+  "permalink": "/wms-platform/temporal/workflows/cancellation",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "ReprocessingWorkflow",
-    "permalink": "/temporal/workflows/reprocessing"
+    "permalink": "/wms-platform/temporal/workflows/reprocessing"
   },
   "next": {
     "title": "Picking Service - PickingWorkflow",
-    "permalink": "/temporal/workflows/service-picking"
+    "permalink": "/wms-platform/temporal/workflows/service-picking"
   }
 }

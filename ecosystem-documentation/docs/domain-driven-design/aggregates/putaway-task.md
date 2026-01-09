@@ -219,12 +219,12 @@ type PutawayTaskRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/tasks | Create task |
-| GET | /api/v1/tasks/{id} | Get task |
-| POST | /api/v1/tasks/{id}/assign | Assign worker |
-| POST | /api/v1/tasks/{id}/start | Start stow |
-| POST | /api/v1/tasks/{id}/stow | Record progress |
-| POST | /api/v1/tasks/{id}/complete | Complete task |
-| POST | /api/v1/tasks/{id}/fail | Mark failed |
+| GET | /api/v1/tasks/\{id\} | Get task |
+| POST | /api/v1/tasks/\{id\}/assign | Assign worker |
+| POST | /api/v1/tasks/\{id\}/start | Start stow |
+| POST | /api/v1/tasks/\{id\}/stow | Record progress |
+| POST | /api/v1/tasks/\{id\}/complete | Complete task |
+| POST | /api/v1/tasks/\{id\}/fail | Mark failed |
 
 ## Related Documentation
 

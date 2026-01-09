@@ -294,11 +294,11 @@ type WorkerRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /api/v1/workers | List workers |
-| GET | /api/v1/workers/{id} | Get worker by ID |
-| POST | /api/v1/workers/{id}/shift/start | Start shift |
-| POST | /api/v1/workers/{id}/shift/end | End shift |
-| POST | /api/v1/workers/{id}/tasks/assign | Assign task |
-| POST | /api/v1/workers/{id}/tasks/complete | Complete task |
+| GET | /api/v1/workers/\{id\} | Get worker by ID |
+| POST | /api/v1/workers/\{id\}/shift/start | Start shift |
+| POST | /api/v1/workers/\{id\}/shift/end | End shift |
+| POST | /api/v1/workers/\{id\}/tasks/assign | Assign task |
+| POST | /api/v1/workers/\{id\}/tasks/complete | Complete task |
 
 ## Related Documentation
 

@@ -5,7 +5,7 @@
   "source": "@site/docs/infrastructure/mongodb.md",
   "sourceDirName": "infrastructure",
   "slug": "/infrastructure/mongodb",
-  "permalink": "/infrastructure/mongodb",
+  "permalink": "/wms-platform/infrastructure/mongodb",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Infrastructure Overview",
-    "permalink": "/infrastructure/overview"
+    "permalink": "/wms-platform/infrastructure/overview"
   },
   "next": {
     "title": "Apache Kafka",
-    "permalink": "/infrastructure/kafka"
+    "permalink": "/wms-platform/infrastructure/kafka"
   }
 }

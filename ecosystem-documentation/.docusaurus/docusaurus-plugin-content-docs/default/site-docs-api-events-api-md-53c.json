@@ -5,7 +5,7 @@
   "source": "@site/docs/api/events-api.md",
   "sourceDirName": "api",
   "slug": "/api/events-api",
-  "permalink": "/api/events-api",
+  "permalink": "/wms-platform/api/events-api",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "REST API Reference",
-    "permalink": "/api/rest-api"
+    "permalink": "/wms-platform/api/rest-api"
   },
   "next": {
     "title": "Introduction",
-    "permalink": "/api/order-service/order-service-api"
+    "permalink": "/wms-platform/api/order-service/order-service-api"
   }
 }

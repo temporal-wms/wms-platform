@@ -5,7 +5,7 @@
   "source": "@site/docs/infrastructure/kafka.md",
   "sourceDirName": "infrastructure",
   "slug": "/infrastructure/kafka",
-  "permalink": "/infrastructure/kafka",
+  "permalink": "/wms-platform/infrastructure/kafka",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "MongoDB",
-    "permalink": "/infrastructure/mongodb"
+    "permalink": "/wms-platform/infrastructure/mongodb"
   },
   "next": {
     "title": "Temporal",
-    "permalink": "/infrastructure/temporal"
+    "permalink": "/wms-platform/infrastructure/temporal"
   }
 }

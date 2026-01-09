@@ -1,0 +1,26 @@
+{
+  "id": "services/seller-portal",
+  "title": "Seller Portal",
+  "description": "The Seller Portal is a Backend-for-Frontend (BFF) service that provides a unified API for seller dashboards, aggregating data from multiple WMS services to deliver order metrics, inventory status, billing information, and channel integrations.",
+  "source": "@site/docs/services/seller-portal.md",
+  "sourceDirName": "services",
+  "slug": "/services/seller-portal",
+  "permalink": "/wms-platform/services/seller-portal",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 16,
+  "frontMatter": {
+    "sidebar_position": 16
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Channel Service",
+    "permalink": "/wms-platform/services/channel-service"
+  },
+  "next": {
+    "title": "Temporal Workflow Architecture",
+    "permalink": "/wms-platform/temporal/overview"
+  }
+}

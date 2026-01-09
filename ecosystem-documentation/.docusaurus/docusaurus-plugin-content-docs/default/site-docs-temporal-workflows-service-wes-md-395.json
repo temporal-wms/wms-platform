@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/service-wes.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/service-wes",
-  "permalink": "/temporal/workflows/service-wes",
+  "permalink": "/wms-platform/temporal/workflows/service-wes",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Shipping Service - ShippingWorkflow",
-    "permalink": "/temporal/workflows/service-shipping"
+    "permalink": "/wms-platform/temporal/workflows/service-shipping"
   },
   "next": {
     "title": "Activities Overview",
-    "permalink": "/temporal/activities/overview"
+    "permalink": "/wms-platform/temporal/activities/overview"
   }
 }

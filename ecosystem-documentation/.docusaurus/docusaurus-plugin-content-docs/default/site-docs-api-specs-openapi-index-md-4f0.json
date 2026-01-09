@@ -5,7 +5,7 @@
   "source": "@site/docs/api/specs/openapi/index.md",
   "sourceDirName": "api/specs/openapi",
   "slug": "/api/specs/openapi/",
-  "permalink": "/api/specs/openapi/",
+  "permalink": "/wms-platform/api/specs/openapi/",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Validate order",
-    "permalink": "/api/order-service/validate-order"
+    "permalink": "/wms-platform/api/order-service/validate-order"
   },
   "next": {
     "title": "AsyncAPI Specifications",
-    "permalink": "/api/specs/asyncapi/"
+    "permalink": "/wms-platform/api/specs/asyncapi/"
   }
 }

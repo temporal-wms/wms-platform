@@ -5,7 +5,7 @@
   "source": "@site/docs/domain-driven-design/aggregates/pick-route.md",
   "sourceDirName": "domain-driven-design/aggregates",
   "slug": "/domain-driven-design/aggregates/pick-route",
-  "permalink": "/domain-driven-design/aggregates/pick-route",
+  "permalink": "/wms-platform/domain-driven-design/aggregates/pick-route",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "PickTask Aggregate",
-    "permalink": "/domain-driven-design/aggregates/pick-task"
+    "permalink": "/wms-platform/domain-driven-design/aggregates/pick-task"
   },
   "next": {
     "title": "ConsolidationUnit Aggregate",
-    "permalink": "/domain-driven-design/aggregates/consolidation-unit"
+    "permalink": "/wms-platform/domain-driven-design/aggregates/consolidation-unit"
   }
 }

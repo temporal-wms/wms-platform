@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/wes-execution.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/wes-execution",
-  "permalink": "/temporal/workflows/wes-execution",
+  "permalink": "/wms-platform/temporal/workflows/wes-execution",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "PlanningWorkflow",
-    "permalink": "/temporal/workflows/planning"
+    "permalink": "/wms-platform/temporal/workflows/planning"
   },
   "next": {
     "title": "OrchestratedPickingWorkflow",
-    "permalink": "/temporal/workflows/picking"
+    "permalink": "/wms-platform/temporal/workflows/picking"
   }
 }

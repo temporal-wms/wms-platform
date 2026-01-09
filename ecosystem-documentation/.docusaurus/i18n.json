@@ -13,8 +13,8 @@
       "calendar": "gregory",
       "path": "en",
       "translate": false,
-      "url": "https://wms-platform.example.com",
-      "baseUrl": "/"
+      "url": "https://temporal-wms.github.io",
+      "baseUrl": "/wms-platform/"
     }
   }
 }

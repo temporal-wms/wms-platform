@@ -217,10 +217,10 @@ type WaveRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/waves | Create wave |
-| GET | /api/v1/waves/{id} | Get wave by ID |
-| POST | /api/v1/waves/{id}/orders | Add order to wave |
-| PUT | /api/v1/waves/{id}/schedule | Schedule wave |
-| PUT | /api/v1/waves/{id}/release | Release wave |
+| GET | /api/v1/waves/\{id\} | Get wave by ID |
+| POST | /api/v1/waves/\{id\}/orders | Add order to wave |
+| PUT | /api/v1/waves/\{id\}/schedule | Schedule wave |
+| PUT | /api/v1/waves/\{id\}/release | Release wave |
 
 ## Related Documentation
 

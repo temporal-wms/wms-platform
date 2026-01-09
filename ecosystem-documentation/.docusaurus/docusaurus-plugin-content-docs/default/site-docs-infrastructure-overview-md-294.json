@@ -5,7 +5,7 @@
   "source": "@site/docs/infrastructure/overview.md",
   "sourceDirName": "infrastructure",
   "slug": "/infrastructure/overview",
-  "permalink": "/infrastructure/overview",
+  "permalink": "/wms-platform/infrastructure/overview",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "AsyncAPI Specifications",
-    "permalink": "/api/specs/asyncapi/"
+    "permalink": "/wms-platform/api/specs/asyncapi/"
   },
   "next": {
     "title": "MongoDB",
-    "permalink": "/infrastructure/mongodb"
+    "permalink": "/wms-platform/infrastructure/mongodb"
   }
 }

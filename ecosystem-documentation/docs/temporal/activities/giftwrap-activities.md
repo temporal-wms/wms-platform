@@ -165,4 +165,4 @@ sequenceDiagram
 ## Related Documentation
 
 - [Order Fulfillment Workflow](../workflows/order-fulfillment) - Parent workflow
-- [Gift Wrap Workflow](../workflows/giftwrap) - Child workflow for gift wrap operations
+- [Gift Wrap Workflow](../workflows/gift-wrap) - Child workflow for gift wrap operations

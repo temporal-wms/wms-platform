@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/activities/shipping-activities.md",
   "sourceDirName": "temporal/activities",
   "slug": "/temporal/activities/shipping-activities",
-  "permalink": "/temporal/activities/shipping-activities",
+  "permalink": "/wms-platform/temporal/activities/shipping-activities",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Packing Activities",
-    "permalink": "/temporal/activities/packing-activities"
+    "permalink": "/wms-platform/temporal/activities/packing-activities"
   },
   "next": {
     "title": "Receiving Activities",
-    "permalink": "/temporal/activities/receiving-activities"
+    "permalink": "/wms-platform/temporal/activities/receiving-activities"
   }
 }

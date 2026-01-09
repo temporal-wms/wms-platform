@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/health-check.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/health-check",
-  "permalink": "/api/order-service/health-check",
+  "permalink": "/wms-platform/api/order-service/health-check",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Get specific DLQ entry",
-    "permalink": "/api/order-service/get-specific-dlq-entry"
+    "permalink": "/wms-platform/api/order-service/get-specific-dlq-entry"
   },
   "next": {
     "title": "Increment retry count",
-    "permalink": "/api/order-service/increment-retry-count"
+    "permalink": "/wms-platform/api/order-service/increment-retry-count"
   }
 }

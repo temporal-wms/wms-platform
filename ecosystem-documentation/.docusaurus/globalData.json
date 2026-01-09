@@ -1,584 +1,644 @@
 {
   "docusaurus-plugin-content-docs": {
     "default": {
-      "path": "/",
+      "path": "/wms-platform/",
       "versions": [
         {
           "name": "current",
           "label": "Next",
           "isLast": true,
-          "path": "/",
+          "path": "/wms-platform/",
           "mainDocId": "intro",
           "docs": [
             {
               "id": "api/catalog",
-              "path": "/api/catalog",
+              "path": "/wms-platform/api/catalog",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/events-api",
-              "path": "/api/events-api",
+              "path": "/wms-platform/api/events-api",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/cancel-order",
-              "path": "/api/order-service/cancel-order",
+              "path": "/wms-platform/api/order-service/cancel-order",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/create-a-new-order",
-              "path": "/api/order-service/create-a-new-order",
+              "path": "/wms-platform/api/order-service/create-a-new-order",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/get-dlq-statistics",
-              "path": "/api/order-service/get-dlq-statistics",
+              "path": "/wms-platform/api/order-service/get-dlq-statistics",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/get-order-by-id",
-              "path": "/api/order-service/get-order-by-id",
+              "path": "/wms-platform/api/order-service/get-order-by-id",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/get-orders-eligible-for-retry",
-              "path": "/api/order-service/get-orders-eligible-for-retry",
+              "path": "/wms-platform/api/order-service/get-orders-eligible-for-retry",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/get-retry-metadata-for-order",
-              "path": "/api/order-service/get-retry-metadata-for-order",
+              "path": "/wms-platform/api/order-service/get-retry-metadata-for-order",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/get-specific-dlq-entry",
-              "path": "/api/order-service/get-specific-dlq-entry",
+              "path": "/wms-platform/api/order-service/get-specific-dlq-entry",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/health-check",
-              "path": "/api/order-service/health-check",
+              "path": "/wms-platform/api/order-service/health-check",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/increment-retry-count",
-              "path": "/api/order-service/increment-retry-count",
+              "path": "/wms-platform/api/order-service/increment-retry-count",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/list-dead-letter-queue-entries",
-              "path": "/api/order-service/list-dead-letter-queue-entries",
+              "path": "/wms-platform/api/order-service/list-dead-letter-queue-entries",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/list-orders",
-              "path": "/api/order-service/list-orders",
+              "path": "/wms-platform/api/order-service/list-orders",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/move-order-to-dead-letter-queue",
-              "path": "/api/order-service/move-order-to-dead-letter-queue",
+              "path": "/wms-platform/api/order-service/move-order-to-dead-letter-queue",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/order-service-api",
-              "path": "/api/order-service/order-service-api",
+              "path": "/wms-platform/api/order-service/order-service-api",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/reset-order-for-retry",
-              "path": "/api/order-service/reset-order-for-retry",
+              "path": "/wms-platform/api/order-service/reset-order-for-retry",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/resolve-dlq-entry",
-              "path": "/api/order-service/resolve-dlq-entry",
+              "path": "/wms-platform/api/order-service/resolve-dlq-entry",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/order-service/validate-order",
-              "path": "/api/order-service/validate-order",
+              "path": "/wms-platform/api/order-service/validate-order",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/rest-api",
-              "path": "/api/rest-api",
+              "path": "/wms-platform/api/rest-api",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/specs/asyncapi/index",
-              "path": "/api/specs/asyncapi/",
+              "path": "/wms-platform/api/specs/asyncapi/",
               "sidebar": "docsSidebar"
             },
             {
               "id": "api/specs/openapi/index",
-              "path": "/api/specs/openapi/",
+              "path": "/wms-platform/api/specs/openapi/",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/c4-diagrams/code",
-              "path": "/architecture/c4-diagrams/code",
+              "path": "/wms-platform/architecture/c4-diagrams/code",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/c4-diagrams/components",
-              "path": "/architecture/c4-diagrams/components",
+              "path": "/wms-platform/architecture/c4-diagrams/components",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/c4-diagrams/containers",
-              "path": "/architecture/c4-diagrams/containers",
+              "path": "/wms-platform/architecture/c4-diagrams/containers",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/c4-diagrams/context",
-              "path": "/architecture/c4-diagrams/context",
+              "path": "/wms-platform/architecture/c4-diagrams/context",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/overview",
-              "path": "/architecture/overview",
+              "path": "/wms-platform/architecture/overview",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/sequence-diagrams/order-cancellation",
-              "path": "/architecture/sequence-diagrams/order-cancellation",
+              "path": "/wms-platform/architecture/sequence-diagrams/order-cancellation",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/sequence-diagrams/order-fulfillment",
-              "path": "/architecture/sequence-diagrams/order-fulfillment",
+              "path": "/wms-platform/architecture/sequence-diagrams/order-fulfillment",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/sequence-diagrams/packing-workflow",
-              "path": "/architecture/sequence-diagrams/packing-workflow",
+              "path": "/wms-platform/architecture/sequence-diagrams/packing-workflow",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/sequence-diagrams/picking-workflow",
-              "path": "/architecture/sequence-diagrams/picking-workflow",
+              "path": "/wms-platform/architecture/sequence-diagrams/picking-workflow",
               "sidebar": "docsSidebar"
+            },
+            {
+              "id": "architecture/sequence-diagrams/receiving-workflow",
+              "path": "/wms-platform/architecture/sequence-diagrams/receiving-workflow"
+            },
+            {
+              "id": "architecture/sequence-diagrams/reprocessing-workflow",
+              "path": "/wms-platform/architecture/sequence-diagrams/reprocessing-workflow"
             },
             {
               "id": "architecture/sequence-diagrams/shipping-workflow",
-              "path": "/architecture/sequence-diagrams/shipping-workflow",
+              "path": "/wms-platform/architecture/sequence-diagrams/shipping-workflow",
               "sidebar": "docsSidebar"
             },
             {
+              "id": "architecture/sequence-diagrams/unit-tracking",
+              "path": "/wms-platform/architecture/sequence-diagrams/unit-tracking"
+            },
+            {
               "id": "architecture/sequence-diagrams/walling-workflow",
-              "path": "/architecture/sequence-diagrams/walling-workflow",
+              "path": "/wms-platform/architecture/sequence-diagrams/walling-workflow",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/sequence-diagrams/wes-execution",
-              "path": "/architecture/sequence-diagrams/wes-execution",
+              "path": "/wms-platform/architecture/sequence-diagrams/wes-execution",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/system-diagrams/data-flow",
-              "path": "/architecture/system-diagrams/data-flow",
+              "path": "/wms-platform/architecture/system-diagrams/data-flow",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/system-diagrams/deployment",
-              "path": "/architecture/system-diagrams/deployment",
+              "path": "/wms-platform/architecture/system-diagrams/deployment",
               "sidebar": "docsSidebar"
             },
             {
               "id": "architecture/system-diagrams/infrastructure",
-              "path": "/architecture/system-diagrams/infrastructure",
+              "path": "/wms-platform/architecture/system-diagrams/infrastructure",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/consolidation-unit",
-              "path": "/domain-driven-design/aggregates/consolidation-unit",
+              "path": "/wms-platform/domain-driven-design/aggregates/consolidation-unit",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/inbound-shipment",
-              "path": "/domain-driven-design/aggregates/inbound-shipment"
+              "path": "/wms-platform/domain-driven-design/aggregates/inbound-shipment"
             },
             {
               "id": "domain-driven-design/aggregates/inventory-item",
-              "path": "/domain-driven-design/aggregates/inventory-item",
+              "path": "/wms-platform/domain-driven-design/aggregates/inventory-item",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/order",
-              "path": "/domain-driven-design/aggregates/order",
+              "path": "/wms-platform/domain-driven-design/aggregates/order",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/pack-task",
-              "path": "/domain-driven-design/aggregates/pack-task",
+              "path": "/wms-platform/domain-driven-design/aggregates/pack-task",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/pick-route",
-              "path": "/domain-driven-design/aggregates/pick-route",
+              "path": "/wms-platform/domain-driven-design/aggregates/pick-route",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/pick-task",
-              "path": "/domain-driven-design/aggregates/pick-task",
+              "path": "/wms-platform/domain-driven-design/aggregates/pick-task",
               "sidebar": "docsSidebar"
             },
             {
+              "id": "domain-driven-design/aggregates/process-path",
+              "path": "/wms-platform/domain-driven-design/aggregates/process-path"
+            },
+            {
               "id": "domain-driven-design/aggregates/putaway-task",
-              "path": "/domain-driven-design/aggregates/putaway-task"
+              "path": "/wms-platform/domain-driven-design/aggregates/putaway-task"
             },
             {
               "id": "domain-driven-design/aggregates/shipment",
-              "path": "/domain-driven-design/aggregates/shipment",
+              "path": "/wms-platform/domain-driven-design/aggregates/shipment",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/sortation-batch",
-              "path": "/domain-driven-design/aggregates/sortation-batch"
+              "path": "/wms-platform/domain-driven-design/aggregates/sortation-batch"
             },
             {
               "id": "domain-driven-design/aggregates/station",
-              "path": "/domain-driven-design/aggregates/station"
+              "path": "/wms-platform/domain-driven-design/aggregates/station"
             },
             {
               "id": "domain-driven-design/aggregates/task-route",
-              "path": "/domain-driven-design/aggregates/task-route",
+              "path": "/wms-platform/domain-driven-design/aggregates/task-route",
               "sidebar": "docsSidebar"
             },
             {
+              "id": "domain-driven-design/aggregates/unit",
+              "path": "/wms-platform/domain-driven-design/aggregates/unit"
+            },
+            {
               "id": "domain-driven-design/aggregates/walling-task",
-              "path": "/domain-driven-design/aggregates/walling-task",
+              "path": "/wms-platform/domain-driven-design/aggregates/walling-task",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/wave",
-              "path": "/domain-driven-design/aggregates/wave",
+              "path": "/wms-platform/domain-driven-design/aggregates/wave",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/aggregates/worker",
-              "path": "/domain-driven-design/aggregates/worker",
+              "path": "/wms-platform/domain-driven-design/aggregates/worker",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/bounded-contexts",
-              "path": "/domain-driven-design/bounded-contexts",
+              "path": "/wms-platform/domain-driven-design/bounded-contexts",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/context-map",
-              "path": "/domain-driven-design/context-map",
+              "path": "/wms-platform/domain-driven-design/context-map",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/domain-events",
-              "path": "/domain-driven-design/domain-events",
+              "path": "/wms-platform/domain-driven-design/domain-events",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/overview",
-              "path": "/domain-driven-design/overview",
+              "path": "/wms-platform/domain-driven-design/overview",
               "sidebar": "docsSidebar"
             },
             {
               "id": "domain-driven-design/value-objects",
-              "path": "/domain-driven-design/value-objects",
+              "path": "/wms-platform/domain-driven-design/value-objects",
               "sidebar": "docsSidebar"
             },
             {
               "id": "infrastructure/kafka",
-              "path": "/infrastructure/kafka",
+              "path": "/wms-platform/infrastructure/kafka",
               "sidebar": "docsSidebar"
             },
             {
               "id": "infrastructure/mongodb",
-              "path": "/infrastructure/mongodb",
+              "path": "/wms-platform/infrastructure/mongodb",
               "sidebar": "docsSidebar"
             },
             {
               "id": "infrastructure/observability",
-              "path": "/infrastructure/observability",
+              "path": "/wms-platform/infrastructure/observability",
               "sidebar": "docsSidebar"
             },
             {
               "id": "infrastructure/overview",
-              "path": "/infrastructure/overview",
+              "path": "/wms-platform/infrastructure/overview",
               "sidebar": "docsSidebar"
             },
             {
               "id": "infrastructure/temporal",
-              "path": "/infrastructure/temporal",
+              "path": "/wms-platform/infrastructure/temporal",
               "sidebar": "docsSidebar"
             },
             {
               "id": "intro",
-              "path": "/",
+              "path": "/wms-platform/",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "services/billing-service",
+              "path": "/wms-platform/services/billing-service",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "services/channel-service",
+              "path": "/wms-platform/services/channel-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/consolidation-service",
-              "path": "/services/consolidation-service",
+              "path": "/wms-platform/services/consolidation-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/facility-service",
-              "path": "/services/facility-service"
+              "path": "/wms-platform/services/facility-service"
             },
             {
               "id": "services/inventory-service",
-              "path": "/services/inventory-service",
+              "path": "/wms-platform/services/inventory-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/labor-service",
-              "path": "/services/labor-service",
+              "path": "/wms-platform/services/labor-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/orchestrator",
-              "path": "/services/orchestrator",
+              "path": "/wms-platform/services/orchestrator",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/order-service",
-              "path": "/services/order-service",
+              "path": "/wms-platform/services/order-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/packing-service",
-              "path": "/services/packing-service",
+              "path": "/wms-platform/services/packing-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/picking-service",
-              "path": "/services/picking-service",
+              "path": "/wms-platform/services/picking-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/process-path-service",
-              "path": "/services/process-path-service"
+              "path": "/wms-platform/services/process-path-service"
             },
             {
               "id": "services/receiving-service",
-              "path": "/services/receiving-service"
+              "path": "/wms-platform/services/receiving-service"
             },
             {
               "id": "services/routing-service",
-              "path": "/services/routing-service",
+              "path": "/wms-platform/services/routing-service",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "services/seller-portal",
+              "path": "/wms-platform/services/seller-portal",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "services/seller-service",
+              "path": "/wms-platform/services/seller-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/shipping-service",
-              "path": "/services/shipping-service",
+              "path": "/wms-platform/services/shipping-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/sortation-service",
-              "path": "/services/sortation-service"
+              "path": "/wms-platform/services/sortation-service"
             },
             {
               "id": "services/stow-service",
-              "path": "/services/stow-service"
+              "path": "/wms-platform/services/stow-service"
+            },
+            {
+              "id": "services/unit-service",
+              "path": "/wms-platform/services/unit-service"
             },
             {
               "id": "services/walling-service",
-              "path": "/services/walling-service",
+              "path": "/wms-platform/services/walling-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/waving-service",
-              "path": "/services/waving-service",
+              "path": "/wms-platform/services/waving-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "services/wes-service",
-              "path": "/services/wes-service",
+              "path": "/wms-platform/services/wes-service",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/consolidation-activities",
-              "path": "/temporal/activities/consolidation-activities",
+              "path": "/wms-platform/temporal/activities/consolidation-activities",
               "sidebar": "docsSidebar"
             },
             {
+              "id": "temporal/activities/giftwrap-activities",
+              "path": "/wms-platform/temporal/activities/giftwrap-activities"
+            },
+            {
               "id": "temporal/activities/inventory-activities",
-              "path": "/temporal/activities/inventory-activities",
+              "path": "/wms-platform/temporal/activities/inventory-activities",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/order-activities",
-              "path": "/temporal/activities/order-activities",
+              "path": "/wms-platform/temporal/activities/order-activities",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/overview",
-              "path": "/temporal/activities/overview",
+              "path": "/wms-platform/temporal/activities/overview",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/packing-activities",
-              "path": "/temporal/activities/packing-activities",
+              "path": "/wms-platform/temporal/activities/packing-activities",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/picking-activities",
-              "path": "/temporal/activities/picking-activities",
+              "path": "/wms-platform/temporal/activities/picking-activities",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/process-path-activities",
-              "path": "/temporal/activities/process-path-activities",
+              "path": "/wms-platform/temporal/activities/process-path-activities",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/receiving-activities",
-              "path": "/temporal/activities/receiving-activities",
+              "path": "/wms-platform/temporal/activities/receiving-activities",
               "sidebar": "docsSidebar"
             },
             {
+              "id": "temporal/activities/reprocessing-activities",
+              "path": "/wms-platform/temporal/activities/reprocessing-activities"
+            },
+            {
+              "id": "temporal/activities/routing-activities",
+              "path": "/wms-platform/temporal/activities/routing-activities"
+            },
+            {
               "id": "temporal/activities/shipping-activities",
-              "path": "/temporal/activities/shipping-activities",
+              "path": "/wms-platform/temporal/activities/shipping-activities",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/slam-activities",
-              "path": "/temporal/activities/slam-activities",
+              "path": "/wms-platform/temporal/activities/slam-activities",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/activities/sortation-activities",
-              "path": "/temporal/activities/sortation-activities",
+              "path": "/wms-platform/temporal/activities/sortation-activities",
               "sidebar": "docsSidebar"
             },
             {
+              "id": "temporal/activities/stow-activities",
+              "path": "/wms-platform/temporal/activities/stow-activities"
+            },
+            {
               "id": "temporal/activities/unit-activities",
-              "path": "/temporal/activities/unit-activities",
+              "path": "/wms-platform/temporal/activities/unit-activities",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/diagrams/order-flow",
-              "path": "/temporal/diagrams/order-flow",
+              "path": "/wms-platform/temporal/diagrams/order-flow",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/diagrams/signal-flow",
-              "path": "/temporal/diagrams/signal-flow",
+              "path": "/wms-platform/temporal/diagrams/signal-flow",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/diagrams/workflow-hierarchy",
-              "path": "/temporal/diagrams/workflow-hierarchy",
+              "path": "/wms-platform/temporal/diagrams/workflow-hierarchy",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/overview",
-              "path": "/temporal/overview",
+              "path": "/wms-platform/temporal/overview",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/retry-policies",
-              "path": "/temporal/retry-policies",
+              "path": "/wms-platform/temporal/retry-policies",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/signals-queries",
-              "path": "/temporal/signals-queries",
+              "path": "/wms-platform/temporal/signals-queries",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/task-queues",
-              "path": "/temporal/task-queues",
+              "path": "/wms-platform/temporal/task-queues",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/cancellation",
-              "path": "/temporal/workflows/cancellation",
+              "path": "/wms-platform/temporal/workflows/cancellation",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/consolidation",
-              "path": "/temporal/workflows/consolidation",
+              "path": "/wms-platform/temporal/workflows/consolidation",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/gift-wrap",
-              "path": "/temporal/workflows/gift-wrap",
+              "path": "/wms-platform/temporal/workflows/gift-wrap",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/inbound-fulfillment",
-              "path": "/temporal/workflows/inbound-fulfillment",
+              "path": "/wms-platform/temporal/workflows/inbound-fulfillment",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/order-fulfillment",
-              "path": "/temporal/workflows/order-fulfillment",
+              "path": "/wms-platform/temporal/workflows/order-fulfillment",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/packing",
-              "path": "/temporal/workflows/packing",
+              "path": "/wms-platform/temporal/workflows/packing",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/picking",
-              "path": "/temporal/workflows/picking",
+              "path": "/wms-platform/temporal/workflows/picking",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/planning",
-              "path": "/temporal/workflows/planning",
+              "path": "/wms-platform/temporal/workflows/planning",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/reprocessing",
-              "path": "/temporal/workflows/reprocessing",
+              "path": "/wms-platform/temporal/workflows/reprocessing",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/service-consolidation",
-              "path": "/temporal/workflows/service-consolidation",
+              "path": "/wms-platform/temporal/workflows/service-consolidation",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/service-packing",
-              "path": "/temporal/workflows/service-packing",
+              "path": "/wms-platform/temporal/workflows/service-packing",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/service-picking",
-              "path": "/temporal/workflows/service-picking",
+              "path": "/wms-platform/temporal/workflows/service-picking",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/service-shipping",
-              "path": "/temporal/workflows/service-shipping",
+              "path": "/wms-platform/temporal/workflows/service-shipping",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/service-wes",
-              "path": "/temporal/workflows/service-wes",
+              "path": "/wms-platform/temporal/workflows/service-wes",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/shipping",
-              "path": "/temporal/workflows/shipping",
+              "path": "/wms-platform/temporal/workflows/shipping",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/sortation",
-              "path": "/temporal/workflows/sortation",
+              "path": "/wms-platform/temporal/workflows/sortation",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/stock-shortage",
-              "path": "/temporal/workflows/stock-shortage",
+              "path": "/wms-platform/temporal/workflows/stock-shortage",
               "sidebar": "docsSidebar"
             },
             {
               "id": "temporal/workflows/wes-execution",
-              "path": "/temporal/workflows/wes-execution",
+              "path": "/wms-platform/temporal/workflows/wes-execution",
               "sidebar": "docsSidebar"
             }
           ],
@@ -586,7 +646,7 @@
           "sidebars": {
             "docsSidebar": {
               "link": {
-                "path": "/",
+                "path": "/wms-platform/",
                 "label": "intro"
               }
             }

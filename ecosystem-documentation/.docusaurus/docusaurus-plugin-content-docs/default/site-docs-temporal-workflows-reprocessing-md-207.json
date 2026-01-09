@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/reprocessing.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/reprocessing",
-  "permalink": "/temporal/workflows/reprocessing",
+  "permalink": "/wms-platform/temporal/workflows/reprocessing",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "StockShortageWorkflow",
-    "permalink": "/temporal/workflows/stock-shortage"
+    "permalink": "/wms-platform/temporal/workflows/stock-shortage"
   },
   "next": {
     "title": "Cancellation Workflows",
-    "permalink": "/temporal/workflows/cancellation"
+    "permalink": "/wms-platform/temporal/workflows/cancellation"
   }
 }

@@ -5,7 +5,7 @@
   "source": "@site/docs/infrastructure/observability.md",
   "sourceDirName": "infrastructure",
   "slug": "/infrastructure/observability",
-  "permalink": "/infrastructure/observability",
+  "permalink": "/wms-platform/infrastructure/observability",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,6 +17,6 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Temporal",
-    "permalink": "/infrastructure/temporal"
+    "permalink": "/wms-platform/infrastructure/temporal"
   }
 }

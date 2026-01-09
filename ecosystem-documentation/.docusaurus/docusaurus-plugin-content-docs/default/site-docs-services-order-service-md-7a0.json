@@ -1,11 +1,11 @@
 {
   "id": "services/order-service",
   "title": "Order Service",
-  "description": "The Order Service manages the complete order lifecycle from receipt to completion.",
+  "description": "The Order Service manages the complete order lifecycle from receipt to completion, including error handling with retry logic and dead letter queue management.",
   "source": "@site/docs/services/order-service.md",
   "sourceDirName": "services",
   "slug": "/services/order-service",
-  "permalink": "/services/order-service",
+  "permalink": "/wms-platform/services/order-service",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Value Objects",
-    "permalink": "/domain-driven-design/value-objects"
+    "permalink": "/wms-platform/domain-driven-design/value-objects"
   },
   "next": {
     "title": "Waving Service",
-    "permalink": "/services/waving-service"
+    "permalink": "/wms-platform/services/waving-service"
   }
 }

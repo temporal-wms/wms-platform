@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/increment-retry-count.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/increment-retry-count",
-  "permalink": "/api/order-service/increment-retry-count",
+  "permalink": "/wms-platform/api/order-service/increment-retry-count",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Health check",
-    "permalink": "/api/order-service/health-check"
+    "permalink": "/wms-platform/api/order-service/health-check"
   },
   "next": {
     "title": "List dead letter queue entries",
-    "permalink": "/api/order-service/list-dead-letter-queue-entries"
+    "permalink": "/wms-platform/api/order-service/list-dead-letter-queue-entries"
   }
 }

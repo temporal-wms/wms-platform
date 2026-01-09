@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/service-picking.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/service-picking",
-  "permalink": "/temporal/workflows/service-picking",
+  "permalink": "/wms-platform/temporal/workflows/service-picking",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Cancellation Workflows",
-    "permalink": "/temporal/workflows/cancellation"
+    "permalink": "/wms-platform/temporal/workflows/cancellation"
   },
   "next": {
     "title": "Consolidation Service - ConsolidationWorkflow",
-    "permalink": "/temporal/workflows/service-consolidation"
+    "permalink": "/wms-platform/temporal/workflows/service-consolidation"
   }
 }

@@ -5,7 +5,7 @@
   "source": "@site/docs/architecture/system-diagrams/deployment.md",
   "sourceDirName": "architecture/system-diagrams",
   "slug": "/architecture/system-diagrams/deployment",
-  "permalink": "/architecture/system-diagrams/deployment",
+  "permalink": "/wms-platform/architecture/system-diagrams/deployment",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Infrastructure Topology",
-    "permalink": "/architecture/system-diagrams/infrastructure"
+    "permalink": "/wms-platform/architecture/system-diagrams/infrastructure"
   },
   "next": {
     "title": "Data Flow Diagrams",
-    "permalink": "/architecture/system-diagrams/data-flow"
+    "permalink": "/wms-platform/architecture/system-diagrams/data-flow"
   }
 }

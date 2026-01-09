@@ -334,12 +334,33 @@ All services expose:
 
 ## Documentation
 
+**Comprehensive Documentation:** https://temporal-wms.github.io/wms-platform/
+
+The complete documentation site includes:
+- Architecture overview and sequence diagrams
+- Domain-Driven Design patterns and aggregates
+- Service specifications and API references
+- Temporal workflows and activities
+- Infrastructure and deployment guides
+
+### Additional Resources
+
 - [API Documentation](docs/API_DOCUMENTATION.md)
 - [AsyncAPI Specification](docs/asyncapi.yaml)
 - [Idempotency Guide](shared/pkg/idempotency/README.md)
 - [Resilience Guide](shared/pkg/RESILIENCE.md)
 - [Kubernetes Deployment](deployments/kubernetes/README.md)
 - [Architecture Diagrams](docs/diagrams/)
+
+### Build Documentation Locally
+
+```bash
+cd ecosystem-documentation
+npm install
+npm start  # Opens http://localhost:3000
+```
+
+See [ecosystem-documentation/DEPLOYMENT.md](ecosystem-documentation/DEPLOYMENT.md) for deployment details.
 
 ## Contributing
 

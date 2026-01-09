@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/get-orders-eligible-for-retry.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/get-orders-eligible-for-retry",
-  "permalink": "/api/order-service/get-orders-eligible-for-retry",
+  "permalink": "/wms-platform/api/order-service/get-orders-eligible-for-retry",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Get order by ID",
-    "permalink": "/api/order-service/get-order-by-id"
+    "permalink": "/wms-platform/api/order-service/get-order-by-id"
   },
   "next": {
     "title": "Get retry metadata for order",
-    "permalink": "/api/order-service/get-retry-metadata-for-order"
+    "permalink": "/wms-platform/api/order-service/get-retry-metadata-for-order"
   }
 }

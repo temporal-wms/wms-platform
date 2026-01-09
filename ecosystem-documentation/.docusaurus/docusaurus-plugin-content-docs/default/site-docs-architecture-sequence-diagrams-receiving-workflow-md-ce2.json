@@ -1,0 +1,17 @@
+{
+  "id": "architecture/sequence-diagrams/receiving-workflow",
+  "title": "Receiving Workflow",
+  "description": "This document describes the inbound receiving flow for processing incoming shipments, from dock arrival through putaway to storage locations.",
+  "source": "@site/docs/architecture/sequence-diagrams/receiving-workflow.md",
+  "sourceDirName": "architecture/sequence-diagrams",
+  "slug": "/architecture/sequence-diagrams/receiving-workflow",
+  "permalink": "/wms-platform/architecture/sequence-diagrams/receiving-workflow",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 12,
+  "frontMatter": {
+    "sidebar_position": 12
+  }
+}

@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/order-service-api.info.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/order-service-api",
-  "permalink": "/api/order-service/order-service-api",
+  "permalink": "/wms-platform/api/order-service/order-service-api",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -24,10 +24,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Events API (AsyncAPI)",
-    "permalink": "/api/events-api"
+    "permalink": "/wms-platform/api/events-api"
   },
   "next": {
     "title": "Cancel order",
-    "permalink": "/api/order-service/cancel-order"
+    "permalink": "/wms-platform/api/order-service/cancel-order"
   }
 }

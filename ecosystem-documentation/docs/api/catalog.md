@@ -113,5 +113,5 @@ graph LR
 
 - [REST API Guide](./rest-api) - REST conventions and examples
 - [Events API Guide](./events-api) - Event format and Kafka topics
-- [OpenAPI Specifications](./specs/openapi/index) - All REST API specs
-- [AsyncAPI Specifications](./specs/asyncapi/index) - All Event API specs
+- [OpenAPI Specifications](./specs/openapi/) - All REST API specs
+- [AsyncAPI Specifications](./specs/asyncapi/) - All Event API specs

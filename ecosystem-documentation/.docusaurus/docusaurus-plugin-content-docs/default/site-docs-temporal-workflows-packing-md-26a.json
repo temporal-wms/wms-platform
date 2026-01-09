@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/workflows/packing.md",
   "sourceDirName": "temporal/workflows",
   "slug": "/temporal/workflows/packing",
-  "permalink": "/temporal/workflows/packing",
+  "permalink": "/wms-platform/temporal/workflows/packing",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "ConsolidationWorkflow",
-    "permalink": "/temporal/workflows/consolidation"
+    "permalink": "/wms-platform/temporal/workflows/consolidation"
   },
   "next": {
     "title": "ShippingWorkflow",
-    "permalink": "/temporal/workflows/shipping"
+    "permalink": "/wms-platform/temporal/workflows/shipping"
   }
 }

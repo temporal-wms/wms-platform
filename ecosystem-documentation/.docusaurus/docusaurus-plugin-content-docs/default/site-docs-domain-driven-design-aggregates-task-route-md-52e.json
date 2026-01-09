@@ -5,7 +5,7 @@
   "source": "@site/docs/domain-driven-design/aggregates/task-route.md",
   "sourceDirName": "domain-driven-design/aggregates",
   "slug": "/domain-driven-design/aggregates/task-route",
-  "permalink": "/domain-driven-design/aggregates/task-route",
+  "permalink": "/wms-platform/domain-driven-design/aggregates/task-route",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Wave Aggregate",
-    "permalink": "/domain-driven-design/aggregates/wave"
+    "permalink": "/wms-platform/domain-driven-design/aggregates/wave"
   },
   "next": {
     "title": "WallingTask Aggregate",
-    "permalink": "/domain-driven-design/aggregates/walling-task"
+    "permalink": "/wms-platform/domain-driven-design/aggregates/walling-task"
   }
 }

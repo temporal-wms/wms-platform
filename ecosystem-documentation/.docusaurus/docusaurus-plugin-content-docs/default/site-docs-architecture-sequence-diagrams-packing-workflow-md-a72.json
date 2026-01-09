@@ -5,7 +5,7 @@
   "source": "@site/docs/architecture/sequence-diagrams/packing-workflow.md",
   "sourceDirName": "architecture/sequence-diagrams",
   "slug": "/architecture/sequence-diagrams/packing-workflow",
-  "permalink": "/architecture/sequence-diagrams/packing-workflow",
+  "permalink": "/wms-platform/architecture/sequence-diagrams/packing-workflow",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Picking Workflow",
-    "permalink": "/architecture/sequence-diagrams/picking-workflow"
+    "permalink": "/wms-platform/architecture/sequence-diagrams/picking-workflow"
   },
   "next": {
     "title": "Shipping Workflow (SLAM Process)",
-    "permalink": "/architecture/sequence-diagrams/shipping-workflow"
+    "permalink": "/wms-platform/architecture/sequence-diagrams/shipping-workflow"
   }
 }

@@ -4,12 +4,37 @@ info:
   description: |
     REST API for putaway task management in the WMS platform.
 
-    This service handles:
-    - Putaway task creation and management
-    - Storage strategy support (chaotic, directed, velocity, zone-based)
-    - Location assignment based on item constraints
-    - Worker task assignment
-    - Task lifecycle tracking
+    This service manages the storage of received inventory into warehouse locations,
+    optimizing placement based on item characteristics, velocity, and constraints.
+
+    ## Key Capabilities
+    - **Putaway Task Management**: Create, assign, and track putaway tasks from receiving
+    - **Storage Strategies**: Support for chaotic, directed, velocity-based, and zone-based storage
+    - **Constraint Handling**: Route items to appropriate locations (cold storage, hazmat zones, etc.)
+    - **Worker Task Assignment**: Assign tasks to workers based on certifications and workload
+    - **Location Optimization**: Balance inventory across warehouse locations
+
+    ## Storage Strategies
+    | Strategy | Description | Use Case |
+    |----------|-------------|----------|
+    | `chaotic` | Random available location (Amazon-style) | Fast stow, any product |
+    | `directed` | System-assigned based on slotting rules | Organized warehouses |
+    | `velocity` | Places by pick frequency (A/B/C zones) | High-volume items near pack |
+    | `zone_based` | Category-specific storage zones | Grocery, apparel, electronics |
+
+    ## Task Lifecycle
+    ```
+    pending → assigned → in_progress → completed
+                                    ↓
+                                 failed (with retry)
+    ```
+
+    ## Integration Points
+    - **Receiving Service**: Triggers putaway tasks upon receiving completion
+    - **Inventory Service**: Updates location inventory on stow completion
+    - **Facility Service**: Provides available storage locations and capacity
+    - **Labor Service**: Worker availability and certification checks
+
   version: 1.0.0
   contact:
     name: WMS Platform Team
@@ -23,9 +48,9 @@ servers:
 
 tags:
   - name: Tasks
-    description: Putaway task operations
+    description: Putaway task creation and management
   - name: Workflow
-    description: Task workflow operations
+    description: Task workflow operations (assign, start, stow, complete)
   - name: Queries
     description: Task query operations
   - name: Health
@@ -35,31 +60,125 @@ paths:
   /tasks:
     post:
       summary: Create a putaway task
-      description: Create a new putaway task for received items
+      description: |
+        Create a new putaway task for received items.
+
+        **Triggered by:**
+        - Receiving Service upon shipment completion
+        - Manual putaway requests for replenishment
+
+        **Location Assignment:**
+        - System automatically assigns target location based on strategy and constraints
+        - Respects cold chain, hazmat, and capacity requirements
+
+        **State Transition:** None → `pending`
       tags:
         - Tasks
       parameters:
         - $ref: '#/components/parameters/WMSCorrelationID'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateTaskRequest'
-            example:
-              shipmentId: "SHIP-001234"
-              sku: "SKU-12345"
-              productName: "Widget A"
-              quantity: 100
-              sourceToteId: "TOTE-001"
-              sourceLocationId: "RCV-STAGE-01"
-              strategy: "chaotic"
-              constraints:
-                isHazmat: false
-                requiresColdChain: false
-                isOversized: false
-                weight: 0.5
-              priority: 1
+            examples:
+              standardPutaway:
+                summary: Standard single item putaway
+                description: Regular inventory item to reserve location
+                value:
+                  shipmentId: "SHIP-2026-0108-001"
+                  sku: "ELEC-HDMI-CBL-6FT"
+                  productName: "HDMI Cable 6ft Premium"
+                  quantity: 200
+                  sourceToteId: "TOTE-RCV-001"
+                  sourceLocationId: "RCV-STAGE-A01"
+                  strategy: "chaotic"
+                  constraints:
+                    isHazmat: false
+                    requiresColdChain: false
+                    isOversized: false
+                    isFragile: false
+                    isHighValue: false
+                    weight: 0.15
+                  priority: 5
+              bulkPutaway:
+                summary: Bulk putaway to pick face
+                description: High-velocity items going directly to pick locations
+                value:
+                  shipmentId: "SHIP-2026-0108-002"
+                  sku: "APPAREL-TSHIRT-BLK-M"
+                  productName: "Classic T-Shirt Black Medium"
+                  quantity: 500
+                  sourceToteId: "TOTE-RCV-002"
+                  sourceLocationId: "RCV-STAGE-A02"
+                  strategy: "velocity"
+                  constraints:
+                    isHazmat: false
+                    requiresColdChain: false
+                    isOversized: false
+                    isFragile: false
+                    isHighValue: false
+                    weight: 0.25
+                  priority: 3
+              hazmatPutaway:
+                summary: Hazmat item to certified zone
+                description: Hazardous materials requiring specialized storage
+                value:
+                  shipmentId: "SHIP-2026-0108-003"
+                  sku: "AUTO-BATT-12V-750CCA"
+                  productName: "Car Battery 12V 750 CCA"
+                  quantity: 50
+                  sourceToteId: "TOTE-HAZMAT-001"
+                  sourceLocationId: "RCV-HAZMAT-01"
+                  strategy: "zone_based"
+                  constraints:
+                    isHazmat: true
+                    requiresColdChain: false
+                    isOversized: false
+                    isFragile: false
+                    isHighValue: false
+                    weight: 18.5
+                  priority: 2
+              coldChainPutaway:
+                summary: Cold chain to refrigerated zone
+                description: Temperature-sensitive items to cold storage
+                value:
+                  shipmentId: "SHIP-2026-0108-004"
+                  sku: "FOOD-STEAK-WAGYU-8OZ"
+                  productName: "Premium Wagyu Beef Steak 8oz"
+                  quantity: 100
+                  sourceToteId: "TOTE-COLD-001"
+                  sourceLocationId: "RCV-COLD-01"
+                  strategy: "zone_based"
+                  constraints:
+                    isHazmat: false
+                    requiresColdChain: true
+                    isOversized: false
+                    isFragile: false
+                    isHighValue: false
+                    weight: 0.25
+                  priority: 1
+              oversizedPutaway:
+                summary: Oversized item to floor location
+                description: Large/heavy items requiring forklift and floor storage
+                value:
+                  shipmentId: "SHIP-2026-0108-005"
+                  sku: "FURN-SOFA-SECT-GRY"
+                  productName: "Sectional Sofa Gray 3-Piece"
+                  quantity: 10
+                  sourceToteId: null
+                  sourceLocationId: "RCV-OVERSIZED-01"
+                  strategy: "directed"
+                  constraints:
+                    isHazmat: false
+                    requiresColdChain: false
+                    isOversized: true
+                    isFragile: false
+                    isHighValue: true
+                    weight: 95.0
+                  priority: 2
       responses:
         '201':
           description: Task created successfully
@@ -67,25 +186,85 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
+              examples:
+                created:
+                  summary: Successfully created putaway task
+                  value:
+                    taskId: "STOW-2026-0108-001"
+                    shipmentId: "SHIP-2026-0108-001"
+                    sku: "ELEC-HDMI-CBL-6FT"
+                    productName: "HDMI Cable 6ft Premium"
+                    quantity: 200
+                    sourceToteId: "TOTE-RCV-001"
+                    sourceLocationId: "RCV-STAGE-A01"
+                    targetLocationId: "A-12-03-02"
+                    targetLocation:
+                      locationId: "A-12-03-02"
+                      zone: "A"
+                      aisle: "12"
+                      rack: "03"
+                      level: "02"
+                      bin: null
+                      locationType: "reserve"
+                      capacity: 500
+                      currentOccupancy: 150
+                    strategy: "chaotic"
+                    constraints:
+                      isHazmat: false
+                      requiresColdChain: false
+                      isOversized: false
+                      isFragile: false
+                      isHighValue: false
+                      weight: 0.15
+                    status: "pending"
+                    priority: 5
+                    stowedQuantity: 0
+                    createdAt: "2026-01-08T14:35:00Z"
+                    updatedAt: "2026-01-08T14:35:00Z"
         '400':
           description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidQuantity:
+                  summary: Invalid quantity
+                  value:
+                    error: "Invalid quantity"
+                    code: "INVALID_QUANTITY"
+                    details:
+                      message: "Quantity must be greater than 0"
+                noLocationAvailable:
+                  summary: No suitable location available
+                  value:
+                    error: "No location available"
+                    code: "NO_LOCATION_AVAILABLE"
+                    details:
+                      constraints: "requiresColdChain: true"
+                      message: "No cold storage locations have sufficient capacity"
 
     get:
       summary: List tasks
-      description: Retrieve a paginated list of putaway tasks
+      description: Retrieve a paginated list of putaway tasks with optional filtering
       tags:
         - Tasks
       parameters:
         - name: limit
           in: query
+          description: Maximum number of tasks to return (1-100)
           schema:
             type: integer
             default: 50
+            minimum: 1
+            maximum: 100
         - name: offset
           in: query
+          description: Number of tasks to skip for pagination
           schema:
             type: integer
             default: 0
+            minimum: 0
       responses:
         '200':
           description: List of tasks
@@ -100,19 +279,35 @@ paths:
                       $ref: '#/components/schemas/TaskResponse'
                   total:
                     type: integer
+                    description: Total number of tasks
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
 
   /tasks/pending:
     get:
       summary: Get pending tasks
-      description: Retrieve tasks waiting for assignment
+      description: |
+        Retrieve tasks waiting for assignment.
+
+        Used by supervisors and labor management to view the putaway queue
+        and assign workers based on certifications and workload.
       tags:
         - Queries
       parameters:
         - name: limit
           in: query
+          description: Maximum number of tasks to return
           schema:
             type: integer
             default: 20
+        - name: zone
+          in: query
+          description: Filter by warehouse zone
+          schema:
+            type: string
+          example: "COLD"
       responses:
         '200':
           description: List of pending tasks
@@ -126,17 +321,19 @@ paths:
   /tasks/status/{status}:
     get:
       summary: Get tasks by status
+      description: Retrieve all tasks with a specific status
       tags:
         - Queries
       parameters:
         - name: status
           in: path
           required: true
+          description: Task status to filter by
           schema:
             $ref: '#/components/schemas/PutawayStatus'
       responses:
         '200':
-          description: List of tasks with status
+          description: List of tasks with the specified status
           content:
             application/json:
               schema:
@@ -147,15 +344,20 @@ paths:
   /tasks/worker/{workerId}:
     get:
       summary: Get tasks by worker
-      description: Retrieve tasks assigned to a specific worker
+      description: |
+        Retrieve tasks assigned to a specific worker.
+
+        Used by mobile devices to show worker's current task queue.
       tags:
         - Queries
       parameters:
         - name: workerId
           in: path
           required: true
+          description: Worker ID to filter by
           schema:
             type: string
+          example: "WORKER-STOW-001"
       responses:
         '200':
           description: List of tasks for worker
@@ -169,15 +371,20 @@ paths:
   /tasks/shipment/{shipmentId}:
     get:
       summary: Get tasks by shipment
-      description: Retrieve all putaway tasks for a shipment
+      description: |
+        Retrieve all putaway tasks generated from a shipment.
+
+        Used to track putaway progress for a complete receiving session.
       tags:
         - Queries
       parameters:
         - name: shipmentId
           in: path
           required: true
+          description: Shipment ID to filter by
           schema:
             type: string
+          example: "SHIP-2026-0108-001"
       responses:
         '200':
           description: List of tasks for shipment
@@ -191,14 +398,17 @@ paths:
   /tasks/{taskId}:
     get:
       summary: Get task by ID
+      description: Retrieve complete details for a specific putaway task
       tags:
         - Tasks
       parameters:
         - name: taskId
           in: path
           required: true
+          description: Unique task identifier
           schema:
             type: string
+          example: "STOW-2026-0108-001"
       responses:
         '200':
           description: Task details
@@ -208,11 +418,34 @@ paths:
                 $ref: '#/components/schemas/TaskResponse'
         '404':
           description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    error: "Task not found"
+                    code: "TASK_NOT_FOUND"
+                    details:
+                      taskId: "STOW-INVALID-001"
 
   /tasks/{taskId}/assign:
     post:
       summary: Assign task to worker
-      description: Assign a putaway task to a worker
+      description: |
+        Assign a putaway task to a specific worker.
+
+        **Prerequisites:**
+        - Task must be in `pending` status
+        - Worker must be available and have required certifications
+
+        **Certification Checks:**
+        - Hazmat tasks require hazmat-certified workers
+        - Cold chain tasks require cold chain training
+        - Forklift tasks require forklift certification
+
+        **State Transition:** `pending` → `assigned`
       tags:
         - Workflow
       parameters:
@@ -221,6 +454,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "STOW-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         required: true
@@ -233,7 +467,28 @@ paths:
               properties:
                 workerId:
                   type: string
-                  example: "WORKER-001"
+                  description: ID of the worker to assign the task
+                  example: "WORKER-STOW-001"
+            examples:
+              standardWorker:
+                summary: Standard stow worker
+                value:
+                  workerId: "WORKER-STOW-001"
+              hazmatCertified:
+                summary: Hazmat-certified worker
+                description: Required for hazardous materials
+                value:
+                  workerId: "WORKER-HAZMAT-001"
+              forkliftOperator:
+                summary: Forklift operator
+                description: Required for oversized items
+                value:
+                  workerId: "WORKER-FORKLIFT-001"
+              coldChainWorker:
+                summary: Cold chain trained worker
+                description: Required for refrigerated zone access
+                value:
+                  workerId: "WORKER-COLD-001"
       responses:
         '200':
           description: Task assigned
@@ -241,11 +496,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
+              examples:
+                assigned:
+                  value:
+                    taskId: "STOW-2026-0108-001"
+                    status: "assigned"
+                    assignedWorkerId: "WORKER-STOW-001"
+                    updatedAt: "2026-01-08T14:40:00Z"
+        '400':
+          description: Cannot assign task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                workerNotCertified:
+                  summary: Worker lacks required certification
+                  value:
+                    error: "Worker not certified"
+                    code: "WORKER_NOT_CERTIFIED"
+                    details:
+                      workerId: "WORKER-STOW-001"
+                      requiredCertification: "hazmat"
+                      message: "This task requires hazmat certification"
+                taskNotPending:
+                  summary: Task already assigned
+                  value:
+                    error: "Invalid status transition"
+                    code: "INVALID_STATUS_TRANSITION"
+                    details:
+                      currentStatus: "in_progress"
+                      message: "Cannot assign task that is already in progress"
 
   /tasks/{taskId}/start:
     post:
       summary: Start stow process
-      description: Begin the stow process for a task
+      description: |
+        Begin the stow process for an assigned task.
+
+        **Prerequisites:**
+        - Task must be in `assigned` status
+        - Worker should be at the source location
+
+        **State Transition:** `assigned` → `in_progress`
+
+        **Actions:**
+        - Publishes `StowStarted` event
+        - Updates task start timestamp
       tags:
         - Workflow
       parameters:
@@ -254,6 +551,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "STOW-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       responses:
         '200':
@@ -262,11 +560,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
+              examples:
+                started:
+                  value:
+                    taskId: "STOW-2026-0108-001"
+                    status: "in_progress"
+                    stowedQuantity: 0
+                    updatedAt: "2026-01-08T14:45:00Z"
 
   /tasks/{taskId}/stow:
     post:
       summary: Record stow progress
-      description: Record items stowed at location
+      description: |
+        Record items stowed at a location.
+
+        **Use Cases:**
+        - Partial stow (putting some items at one location)
+        - Split stow (items going to multiple locations)
+        - Complete stow (all items at one location)
+
+        **Validation:**
+        - Location must be valid and have capacity
+        - Quantity cannot exceed remaining items
+        - Location constraints must match item constraints
       tags:
         - Workflow
       parameters:
@@ -275,6 +591,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "STOW-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         required: true
@@ -288,12 +605,42 @@ paths:
               properties:
                 quantity:
                   type: integer
+                  description: Number of units stowed at this location
                   minimum: 1
                 locationId:
                   type: string
-            example:
-              quantity: 25
-              locationId: "A-01-02-03"
+                  description: Target storage location ID
+            examples:
+              fullStow:
+                summary: Complete stow at single location
+                description: All 200 units stowed at assigned location
+                value:
+                  quantity: 200
+                  locationId: "A-12-03-02"
+              partialStow:
+                summary: Partial stow (split across locations)
+                description: First batch of units stowed, more to follow
+                value:
+                  quantity: 100
+                  locationId: "A-12-03-02"
+              pickFaceReplenishment:
+                summary: Stow to pick face location
+                description: High-velocity items going to forward pick
+                value:
+                  quantity: 50
+                  locationId: "PICK-A-01-01"
+              coldStorageStow:
+                summary: Stow to cold storage
+                description: Temperature-sensitive items to freezer
+                value:
+                  quantity: 100
+                  locationId: "COLD-B-05-01"
+              hazmatZoneStow:
+                summary: Stow to hazmat zone
+                description: Hazardous materials to certified location
+                value:
+                  quantity: 50
+                  locationId: "HAZMAT-C-01-01"
       responses:
         '200':
           description: Stow progress recorded
@@ -301,11 +648,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
+              examples:
+                partialProgress:
+                  summary: Partial stow recorded
+                  value:
+                    taskId: "STOW-2026-0108-001"
+                    status: "in_progress"
+                    quantity: 200
+                    stowedQuantity: 100
+                    updatedAt: "2026-01-08T14:50:00Z"
+                complete:
+                  summary: All items stowed
+                  value:
+                    taskId: "STOW-2026-0108-001"
+                    status: "in_progress"
+                    quantity: 200
+                    stowedQuantity: 200
+                    updatedAt: "2026-01-08T14:55:00Z"
+        '400':
+          description: Invalid stow request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                exceedsRemaining:
+                  summary: Quantity exceeds remaining items
+                  value:
+                    error: "Invalid quantity"
+                    code: "QUANTITY_EXCEEDS_REMAINING"
+                    details:
+                      requested: 150
+                      remaining: 100
+                      message: "Cannot stow 150 units, only 100 remaining"
+                locationFull:
+                  summary: Location at capacity
+                  value:
+                    error: "Location at capacity"
+                    code: "LOCATION_FULL"
+                    details:
+                      locationId: "A-12-03-02"
+                      availableCapacity: 50
+                      requestedQuantity: 100
+                constraintMismatch:
+                  summary: Location doesn't support constraints
+                  value:
+                    error: "Constraint mismatch"
+                    code: "CONSTRAINT_MISMATCH"
+                    details:
+                      locationId: "A-12-03-02"
+                      itemConstraint: "requiresColdChain"
+                      message: "Location is not cold storage"
 
   /tasks/{taskId}/complete:
     post:
       summary: Complete task
-      description: Mark the putaway task as complete
+      description: |
+        Mark the putaway task as complete.
+
+        **Prerequisites:**
+        - Task must be in `in_progress` status
+        - All items must be stowed (stowedQuantity == quantity)
+
+        **State Transition:** `in_progress` → `completed`
+
+        **Triggered Actions:**
+        - Publishes `StowCompleted` event
+        - Updates inventory at target location(s)
+        - Releases worker for next task
       tags:
         - Workflow
       parameters:
@@ -314,6 +724,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "STOW-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       responses:
         '200':
@@ -322,11 +733,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
+              examples:
+                completed:
+                  value:
+                    taskId: "STOW-2026-0108-001"
+                    status: "completed"
+                    quantity: 200
+                    stowedQuantity: 200
+                    updatedAt: "2026-01-08T15:00:00Z"
+        '400':
+          description: Cannot complete task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                itemsRemaining:
+                  summary: Not all items stowed
+                  value:
+                    error: "Items remaining"
+                    code: "ITEMS_REMAINING"
+                    details:
+                      stowedQuantity: 150
+                      totalQuantity: 200
+                      remainingQuantity: 50
+                      message: "Cannot complete task with 50 items remaining"
 
   /tasks/{taskId}/fail:
     post:
       summary: Mark task as failed
-      description: Mark the putaway task as failed with reason
+      description: |
+        Mark the putaway task as failed with reason.
+
+        **Common Failure Reasons:**
+        - Location not accessible (blocked, maintenance)
+        - Item damage discovered during stow
+        - Equipment failure
+        - Inventory count mismatch
+
+        **State Transition:** `in_progress` → `failed`
+
+        **Recovery:**
+        - Failed tasks can be reassigned to retry
+        - Inventory remains at source location until retry succeeds
       tags:
         - Workflow
       parameters:
@@ -335,6 +784,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "STOW-2026-0108-001"
         - $ref: '#/components/parameters/WMSCorrelationID'
       requestBody:
         required: true
@@ -347,8 +797,24 @@ paths:
               properties:
                 reason:
                   type: string
-            example:
-              reason: "Location not accessible"
+                  description: Detailed reason for failure
+            examples:
+              locationBlocked:
+                summary: Location not accessible
+                value:
+                  reason: "Location A-12-03-02 blocked by pallet, cannot access bin"
+              itemDamage:
+                summary: Item damage discovered
+                value:
+                  reason: "Discovered 10 units damaged during transport, moved to inspection"
+              countMismatch:
+                summary: Inventory count mismatch
+                value:
+                  reason: "Expected 200 units in tote, only found 185. Discrepancy reported."
+              equipmentFailure:
+                summary: Equipment failure
+                value:
+                  reason: "Forklift battery died, unable to reach reserve location"
       responses:
         '200':
           description: Task marked as failed
@@ -356,20 +822,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
+              examples:
+                failed:
+                  value:
+                    taskId: "STOW-2026-0108-001"
+                    status: "failed"
+                    failureReason: "Location A-12-03-02 blocked by pallet, cannot access bin"
+                    updatedAt: "2026-01-08T15:05:00Z"
 
   /health:
     get:
       summary: Health check
+      description: Check if the service is healthy and ready to accept requests
       tags:
         - Health
       responses:
         '200':
           description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
 
 components:
   schemas:
     CreateTaskRequest:
       type: object
+      description: Request to create a new putaway task
       required:
         - shipmentId
         - sku
@@ -378,88 +867,143 @@ components:
       properties:
         shipmentId:
           type: string
+          description: Source shipment ID from receiving
+          example: "SHIP-2026-0108-001"
         sku:
           type: string
+          description: Stock Keeping Unit
+          example: "ELEC-HDMI-CBL-6FT"
         productName:
           type: string
+          description: Human-readable product name
+          example: "HDMI Cable 6ft Premium"
         quantity:
           type: integer
+          description: Number of units to stow
           minimum: 1
+          example: 200
         sourceToteId:
           type: string
+          description: Tote containing the items (null for oversized)
+          example: "TOTE-RCV-001"
         sourceLocationId:
           type: string
+          description: Current staging location
+          example: "RCV-STAGE-A01"
         strategy:
           $ref: '#/components/schemas/StorageStrategy'
         constraints:
           $ref: '#/components/schemas/ItemConstraints'
         priority:
           type: integer
+          description: Task priority (1=highest, 10=lowest)
           minimum: 1
+          maximum: 10
           default: 5
+          example: 5
 
     ItemConstraints:
       type: object
+      description: Storage constraints based on item characteristics
       properties:
         isHazmat:
           type: boolean
+          description: Requires hazmat-certified zone
           default: false
         requiresColdChain:
           type: boolean
+          description: Requires temperature-controlled storage
           default: false
         isOversized:
           type: boolean
+          description: Requires floor/pallet rack storage
           default: false
         isFragile:
           type: boolean
+          description: Requires careful handling
           default: false
         isHighValue:
           type: boolean
+          description: Requires secure storage location
           default: false
         weight:
           type: number
+          format: double
+          description: Weight per unit in kilograms
+          example: 0.15
 
     StorageLocation:
       type: object
+      description: Warehouse storage location details
       properties:
         locationId:
           type: string
+          description: Unique location identifier
+          example: "A-12-03-02"
         zone:
           type: string
+          description: Warehouse zone
+          example: "A"
         aisle:
           type: string
+          description: Aisle number
+          example: "12"
         rack:
           type: string
+          description: Rack number
+          example: "03"
         level:
           type: string
+          description: Shelf level
+          example: "02"
         bin:
           type: string
+          description: Bin identifier (optional)
         locationType:
           $ref: '#/components/schemas/LocationType'
         capacity:
           type: number
+          format: double
+          description: Maximum capacity in units or cubic feet
+          example: 500
         currentOccupancy:
           type: number
+          format: double
+          description: Current units stored
+          example: 150
 
     TaskResponse:
       type: object
+      description: Complete putaway task information
       properties:
         taskId:
           type: string
+          description: Unique task identifier
+          example: "STOW-2026-0108-001"
         shipmentId:
           type: string
+          description: Source shipment
+          example: "SHIP-2026-0108-001"
         sku:
           type: string
+          example: "ELEC-HDMI-CBL-6FT"
         productName:
           type: string
+          example: "HDMI Cable 6ft Premium"
         quantity:
           type: integer
+          description: Total quantity to stow
+          example: 200
         sourceToteId:
           type: string
+          example: "TOTE-RCV-001"
         sourceLocationId:
           type: string
+          example: "RCV-STAGE-A01"
         targetLocationId:
           type: string
+          description: Assigned target location
+          example: "A-12-03-02"
         targetLocation:
           $ref: '#/components/schemas/StorageLocation'
         strategy:
@@ -470,35 +1014,52 @@ components:
           $ref: '#/components/schemas/PutawayStatus'
         assignedWorkerId:
           type: string
+          description: Worker assigned to this task
+          example: "WORKER-STOW-001"
         priority:
           type: integer
+          description: Task priority
+          example: 5
         stowedQuantity:
           type: integer
+          description: Quantity already stowed
+          example: 100
         failureReason:
           type: string
+          description: Reason for failure (if status is failed)
         createdAt:
           type: string
           format: date-time
+          example: "2026-01-08T14:35:00Z"
         updatedAt:
           type: string
           format: date-time
+          example: "2026-01-08T14:55:00Z"
 
     StorageStrategy:
       type: string
+      description: |
+        Storage placement strategy:
+        - `chaotic`: Random available location (Amazon-style) - fastest stow time
+        - `directed`: System-assigned locations based on slotting rules - organized retrieval
+        - `velocity`: Places by pick frequency (A/B/C zones) - optimizes picking
+        - `zone_based`: Category-specific storage zones - organized by product type
       enum:
         - chaotic
         - directed
         - velocity
         - zone_based
-      description: |
-        Storage placement strategy:
-        - chaotic: Random available location (Amazon-style)
-        - directed: System-assigned locations based on rules
-        - velocity: Places items based on pick frequency
-        - zone_based: Places items by product category
 
     PutawayStatus:
       type: string
+      description: |
+        Current status of the putaway task:
+        - `pending`: Created, awaiting worker assignment
+        - `assigned`: Worker assigned, awaiting start
+        - `in_progress`: Worker actively stowing items
+        - `completed`: All items successfully stowed
+        - `cancelled`: Task cancelled (items returned to source)
+        - `failed`: Task failed (see failureReason)
       enum:
         - pending
         - assigned
@@ -509,6 +1070,14 @@ components:
 
     LocationType:
       type: string
+      description: |
+        Type of storage location:
+        - `pick_face`: Forward pick location (high velocity)
+        - `reserve`: Bulk reserve storage
+        - `floor_stack`: Floor-level pallet storage
+        - `pallet_rack`: Racked pallet storage
+        - `cold_storage`: Temperature-controlled location
+        - `hazmat_zone`: Certified hazmat storage
       enum:
         - pick_face
         - reserve
@@ -519,18 +1088,41 @@ components:
 
     ErrorResponse:
       type: object
+      description: Standard error response format
       properties:
         error:
           type: string
+          description: Human-readable error message
+          example: "Invalid quantity"
         code:
           type: string
+          description: Machine-readable error code
+          example: "INVALID_QUANTITY"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
 
   parameters:
     WMSCorrelationID:
       name: X-WMS-Correlation-ID
       in: header
-      description: CloudEvents extension for distributed tracing
+      description: |
+        Correlation ID for distributed tracing (CloudEvents format).
+        If not provided, the service will generate one.
       required: false
       schema:
         type: string
         format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      description: |
+        Idempotency key for safe request retries.
+        Requests with the same key within 24 hours return cached response.
+      required: false
+      schema:
+        type: string
+      example: "idem-2026-0108-stow-001"

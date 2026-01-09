@@ -5,7 +5,7 @@
   "source": "@site/docs/services/waving-service.md",
   "sourceDirName": "services",
   "slug": "/services/waving-service",
-  "permalink": "/services/waving-service",
+  "permalink": "/wms-platform/services/waving-service",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Order Service",
-    "permalink": "/services/order-service"
+    "permalink": "/wms-platform/services/order-service"
   },
   "next": {
     "title": "WES Service",
-    "permalink": "/services/wes-service"
+    "permalink": "/wms-platform/services/wes-service"
   }
 }

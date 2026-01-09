@@ -1,522 +1,535 @@
 {
-  "/__docusaurus/debug-5ff": {
-    "__comp": "__comp---theme-debug-config-23-a-2ff",
+  "/wms-platform/-ec0": {
+    "__comp": "5e95c892",
     "__context": {
-      "plugin": "plugin---docusaurus-debugb-38-ad3"
+      "plugin": "aba21aa0"
     }
   },
-  "/__docusaurus/debug/config-5ba": {
-    "__comp": "__comp---theme-debug-config-23-a-2ff",
-    "__context": {
-      "plugin": "plugin---docusaurus-debugb-38-ad3"
-    }
-  },
-  "/__docusaurus/debug/content-a2b": {
-    "__comp": "__comp---theme-debug-contentba-8-ce7",
-    "__context": {
-      "plugin": "plugin---docusaurus-debugb-38-ad3"
-    },
-    "__props": "__props---docusaurus-debug-content-3-c-0-be2"
-  },
-  "/__docusaurus/debug/globalData-c3c": {
-    "__comp": "__comp---theme-debug-global-dataede-0fa",
-    "__context": {
-      "plugin": "plugin---docusaurus-debugb-38-ad3"
-    }
-  },
-  "/__docusaurus/debug/metadata-156": {
-    "__comp": "__comp---theme-debug-site-metadata-68-e-3d4",
-    "__context": {
-      "plugin": "plugin---docusaurus-debugb-38-ad3"
-    }
-  },
-  "/__docusaurus/debug/registry-88c": {
-    "__comp": "__comp---theme-debug-registry-679-501",
-    "__context": {
-      "plugin": "plugin---docusaurus-debugb-38-ad3"
-    }
-  },
-  "/__docusaurus/debug/routes-000": {
-    "__comp": "__comp---theme-debug-routes-946-699",
-    "__context": {
-      "plugin": "plugin---docusaurus-debugb-38-ad3"
-    }
-  },
-  "/-bab": {
-    "__comp": "__comp---theme-docs-root-5-e-9-0b6",
-    "__context": {
-      "plugin": "plugin---aba-d70"
-    }
-  },
-  "/-6c5": {
-    "__comp": "__comp---theme-doc-version-roota-7-b-5de",
-    "__props": "__props---22-d-307"
-  },
-  "/-4af": {
-    "__comp": "__comp---theme-doc-roota-94-67a"
-  },
-  "/api/catalog-f82": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-catalog-11-a-d5a"
-  },
-  "/api/events-api-d0f": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-events-api-53-c-711"
-  },
-  "/api/order-service/cancel-order-61b": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-cancel-order-1-ce-597"
-  },
-  "/api/order-service/create-a-new-order-719": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-create-a-new-orderaa-8-149"
-  },
-  "/api/order-service/get-dlq-statistics-712": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-get-dlq-statistics-79-d-755"
-  },
-  "/api/order-service/get-order-by-id-c68": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-get-order-by-idb-54-6b8"
-  },
-  "/api/order-service/get-orders-eligible-for-retry-5a5": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-get-orders-eligible-for-retrya-3-c-c98"
-  },
-  "/api/order-service/get-retry-metadata-for-order-a9b": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-get-retry-metadata-for-order-06-f-a45"
-  },
-  "/api/order-service/get-specific-dlq-entry-004": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-get-specific-dlq-entry-376-1e2"
-  },
-  "/api/order-service/health-check-401": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-health-check-662-310"
-  },
-  "/api/order-service/increment-retry-count-650": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-increment-retry-count-0-d-4-f16"
-  },
-  "/api/order-service/list-dead-letter-queue-entries-3af": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-list-dead-letter-queue-entries-016-892"
-  },
-  "/api/order-service/list-orders-3d6": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-list-ordersea-9-24f"
-  },
-  "/api/order-service/move-order-to-dead-letter-queue-975": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-move-order-to-dead-letter-queued-68-e6d"
-  },
-  "/api/order-service/order-service-api-65d": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-order-service-api-1-ef-304"
-  },
-  "/api/order-service/reset-order-for-retry-116": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-reset-order-for-retry-083-414"
-  },
-  "/api/order-service/resolve-dlq-entry-190": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-resolve-dlq-entry-907-2c4"
-  },
-  "/api/order-service/validate-order-9fd": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-order-service-validate-order-4-ff-21c"
-  },
-  "/api/rest-api-7c4": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-rest-apic-47-be5"
-  },
-  "/api/specs/asyncapi/-515": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-specs-asyncapi-c-8-d-34d"
-  },
-  "/api/specs/openapi/-7c1": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---api-specs-openapi-4-f-0-3f3"
-  },
-  "/architecture/c4-diagrams/code-82f": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-c-4-diagrams-code-735-834"
-  },
-  "/architecture/c4-diagrams/components-c6d": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-c-4-diagrams-components-1-d-1-d6e"
-  },
-  "/architecture/c4-diagrams/containers-d94": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-c-4-diagrams-containersc-6-a-6ed"
-  },
-  "/architecture/c4-diagrams/context-6a3": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-c-4-diagrams-contextaee-ac7"
-  },
-  "/architecture/overview-c05": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-overview-0-b-1-d38"
-  },
-  "/architecture/sequence-diagrams/order-cancellation-636": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-sequence-diagrams-order-cancellationae-7-2a0"
-  },
-  "/architecture/sequence-diagrams/order-fulfillment-167": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-sequence-diagrams-order-fulfillment-37-d-54f"
-  },
-  "/architecture/sequence-diagrams/packing-workflow-69f": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-sequence-diagrams-packing-workflowa-72-a62"
-  },
-  "/architecture/sequence-diagrams/picking-workflow-097": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-sequence-diagrams-picking-workflow-587-cae"
-  },
-  "/architecture/sequence-diagrams/shipping-workflow-d01": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-sequence-diagrams-shipping-workflow-55-d-2af"
-  },
-  "/architecture/sequence-diagrams/walling-workflow-a45": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-sequence-diagrams-walling-workflow-5-e-9-a36"
-  },
-  "/architecture/sequence-diagrams/wes-execution-2bb": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-sequence-diagrams-wes-executionea-3-d3e"
-  },
-  "/architecture/system-diagrams/data-flow-0ca": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-system-diagrams-data-flowf-70-478"
-  },
-  "/architecture/system-diagrams/deployment-785": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-system-diagrams-deploymentd-97-6ef"
-  },
-  "/architecture/system-diagrams/infrastructure-db0": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---architecture-system-diagrams-infrastructure-78-c-f1e"
-  },
-  "/domain-driven-design/aggregates/consolidation-unit-244": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-consolidation-unit-9-b-6-671"
-  },
-  "/domain-driven-design/aggregates/inbound-shipment-a33": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-inbound-shipmentbd-1-aac"
-  },
-  "/domain-driven-design/aggregates/inventory-item-b95": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-inventory-itemdb-9-c33"
-  },
-  "/domain-driven-design/aggregates/order-0e8": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-order-346-695"
-  },
-  "/domain-driven-design/aggregates/pack-task-764": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-pack-task-6-fc-7e6"
-  },
-  "/domain-driven-design/aggregates/pick-route-363": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-pick-route-1-c-9-b60"
-  },
-  "/domain-driven-design/aggregates/pick-task-813": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-pick-task-456-9e9"
-  },
-  "/domain-driven-design/aggregates/putaway-task-d45": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-putaway-task-298-757"
-  },
-  "/domain-driven-design/aggregates/shipment-ef8": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-shipmentd-39-fb9"
-  },
-  "/domain-driven-design/aggregates/sortation-batch-92b": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-sortation-batch-7-d-3-b86"
-  },
-  "/domain-driven-design/aggregates/station-c27": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-station-104-ba2"
-  },
-  "/domain-driven-design/aggregates/task-route-c4f": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-task-route-52-e-e84"
-  },
-  "/domain-driven-design/aggregates/walling-task-183": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-walling-task-3-cf-f19"
-  },
-  "/domain-driven-design/aggregates/wave-a29": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-wave-9-cf-b1f"
-  },
-  "/domain-driven-design/aggregates/worker-bc1": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-aggregates-workerd-72-19d"
-  },
-  "/domain-driven-design/bounded-contexts-19e": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-bounded-contexts-5-e-5-bd5"
-  },
-  "/domain-driven-design/context-map-b15": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-context-map-402-a9f"
-  },
-  "/domain-driven-design/domain-events-5b4": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-domain-events-7-af-28e"
-  },
-  "/domain-driven-design/overview-36a": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-overviewfc-4-f3c"
-  },
-  "/domain-driven-design/value-objects-b19": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---domain-driven-design-value-objects-817-75b"
-  },
-  "/infrastructure/kafka-461": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---infrastructure-kafkaeea-c3d"
-  },
-  "/infrastructure/mongodb-184": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---infrastructure-mongodbd-7-b-32f"
-  },
-  "/infrastructure/observability-4de": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---infrastructure-observability-3-b-5-c33"
-  },
-  "/infrastructure/overview-d07": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---infrastructure-overview-294-9ed"
-  },
-  "/infrastructure/temporal-d51": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---infrastructure-temporal-1-f-8-077"
-  },
-  "/services/consolidation-service-b90": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-consolidation-servicea-3-b-55b"
-  },
-  "/services/facility-service-566": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-facility-servicef-00-c65"
-  },
-  "/services/inventory-service-a07": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-inventory-service-203-b8b"
-  },
-  "/services/labor-service-267": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-labor-service-547-17e"
-  },
-  "/services/orchestrator-cd4": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-orchestratorc-41-9a1"
-  },
-  "/services/order-service-3db": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-order-service-7-a-0-9c6"
-  },
-  "/services/packing-service-f29": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-packing-service-245-15c"
-  },
-  "/services/picking-service-902": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-picking-service-6-ad-6ea"
-  },
-  "/services/process-path-service-51f": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-process-path-service-8-f-1-c6d"
-  },
-  "/services/receiving-service-794": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-receiving-service-887-8c0"
-  },
-  "/services/routing-service-a34": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-routing-serviceaf-8-f58"
-  },
-  "/services/shipping-service-202": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-shipping-service-273-4f2"
-  },
-  "/services/sortation-service-cab": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-sortation-service-6-bf-aea"
-  },
-  "/services/stow-service-fb0": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-stow-service-419-e65"
-  },
-  "/services/walling-service-2cc": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-walling-service-15-d-024"
-  },
-  "/services/waving-service-e88": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-waving-service-919-b6e"
-  },
-  "/services/wes-service-1f8": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---services-wes-service-92-c-35a"
-  },
-  "/temporal/activities/consolidation-activities-b59": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-consolidation-activities-34-e-d4e"
-  },
-  "/temporal/activities/inventory-activities-7bd": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-inventory-activitiesa-30-91c"
-  },
-  "/temporal/activities/order-activities-fea": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-order-activities-3-ee-853"
-  },
-  "/temporal/activities/overview-225": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-overview-923-1f6"
-  },
-  "/temporal/activities/packing-activities-9e9": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-packing-activities-366-9e3"
-  },
-  "/temporal/activities/picking-activities-7c5": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-picking-activities-2-d-1-8d0"
-  },
-  "/temporal/activities/process-path-activities-eb8": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-process-path-activitiesa-29-a4b"
-  },
-  "/temporal/activities/receiving-activities-17c": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-receiving-activities-776-fb7"
-  },
-  "/temporal/activities/shipping-activities-d95": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-shipping-activities-37-a-a28"
-  },
-  "/temporal/activities/slam-activities-29a": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-slam-activitiesa-0-b-ae3"
-  },
-  "/temporal/activities/sortation-activities-798": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-sortation-activitiesd-51-b44"
-  },
-  "/temporal/activities/unit-activities-580": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-activities-unit-activities-990-c5e"
-  },
-  "/temporal/diagrams/order-flow-fa6": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-diagrams-order-flowc-77-940"
-  },
-  "/temporal/diagrams/signal-flow-832": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-diagrams-signal-flowa-6-c-a86"
-  },
-  "/temporal/diagrams/workflow-hierarchy-0e4": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-diagrams-workflow-hierarchy-20-a-b10"
-  },
-  "/temporal/overview-ff4": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-overview-771-885"
-  },
-  "/temporal/retry-policies-f87": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-retry-policiesabd-71f"
-  },
-  "/temporal/signals-queries-e04": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-signals-queries-454-800"
-  },
-  "/temporal/task-queues-37d": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-task-queues-3-c-2-8d5"
-  },
-  "/temporal/workflows/cancellation-d8e": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-cancellationed-7-26b"
-  },
-  "/temporal/workflows/consolidation-d9a": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-consolidation-1-e-5-918"
-  },
-  "/temporal/workflows/gift-wrap-fe8": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-gift-wrap-59-a-01d"
-  },
-  "/temporal/workflows/inbound-fulfillment-032": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-inbound-fulfillment-0-c-6-223"
-  },
-  "/temporal/workflows/order-fulfillment-ed4": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-order-fulfillment-059-18f"
-  },
-  "/temporal/workflows/packing-3f2": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-packing-26-a-d68"
-  },
-  "/temporal/workflows/picking-039": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-picking-134-ee9"
-  },
-  "/temporal/workflows/planning-c68": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-planningee-3-e1d"
-  },
-  "/temporal/workflows/reprocessing-d5a": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-reprocessing-207-bac"
-  },
-  "/temporal/workflows/service-consolidation-f78": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-service-consolidationb-5-b-66a"
-  },
-  "/temporal/workflows/service-packing-7f8": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-service-packing-934-2ab"
-  },
-  "/temporal/workflows/service-picking-4ee": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-service-pickinge-6-b-051"
-  },
-  "/temporal/workflows/service-shipping-7dd": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-service-shipping-6-be-799"
-  },
-  "/temporal/workflows/service-wes-0b6": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-service-wes-395-ee0"
-  },
-  "/temporal/workflows/shipping-3cb": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-shipping-186-4aa"
-  },
-  "/temporal/workflows/sortation-ea5": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-sortationa-1-e-643"
-  },
-  "/temporal/workflows/stock-shortage-898": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-stock-shortage-0-a-7-785"
-  },
-  "/temporal/workflows/wes-execution-802": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---temporal-workflows-wes-executioned-8-993"
-  },
-  "/-774": {
-    "__comp": "__comp---theme-api-item-4-c-5-a29",
-    "content": "content---0-e-3-279"
+  "/wms-platform/-b90": {
+    "__comp": "a7bd4aaa",
+    "__props": "e5836312"
+  },
+  "/wms-platform/-24f": {
+    "__comp": "a94703ab"
+  },
+  "/wms-platform/api/catalog-15a": {
+    "__comp": "4c5e977b",
+    "content": "11acf869"
+  },
+  "/wms-platform/api/events-api-382": {
+    "__comp": "4c5e977b",
+    "content": "53cde753"
+  },
+  "/wms-platform/api/order-service/cancel-order-1c7": {
+    "__comp": "4c5e977b",
+    "content": "1ce529c2"
+  },
+  "/wms-platform/api/order-service/create-a-new-order-a95": {
+    "__comp": "4c5e977b",
+    "content": "aa8a93b6"
+  },
+  "/wms-platform/api/order-service/get-dlq-statistics-9ae": {
+    "__comp": "4c5e977b",
+    "content": "79d21b87"
+  },
+  "/wms-platform/api/order-service/get-order-by-id-dd7": {
+    "__comp": "4c5e977b",
+    "content": "b54fa678"
+  },
+  "/wms-platform/api/order-service/get-orders-eligible-for-retry-da8": {
+    "__comp": "4c5e977b",
+    "content": "a3c43dc9"
+  },
+  "/wms-platform/api/order-service/get-retry-metadata-for-order-bec": {
+    "__comp": "4c5e977b",
+    "content": "06f1ec6a"
+  },
+  "/wms-platform/api/order-service/get-specific-dlq-entry-d10": {
+    "__comp": "4c5e977b",
+    "content": "37610b47"
+  },
+  "/wms-platform/api/order-service/health-check-1e3": {
+    "__comp": "4c5e977b",
+    "content": "66253cb4"
+  },
+  "/wms-platform/api/order-service/increment-retry-count-7ad": {
+    "__comp": "4c5e977b",
+    "content": "0d47c977"
+  },
+  "/wms-platform/api/order-service/list-dead-letter-queue-entries-255": {
+    "__comp": "4c5e977b",
+    "content": "016ad3ee"
+  },
+  "/wms-platform/api/order-service/list-orders-b1e": {
+    "__comp": "4c5e977b",
+    "content": "ea9ef4d0"
+  },
+  "/wms-platform/api/order-service/move-order-to-dead-letter-queue-437": {
+    "__comp": "4c5e977b",
+    "content": "d68c0762"
+  },
+  "/wms-platform/api/order-service/order-service-api-87a": {
+    "__comp": "4c5e977b",
+    "content": "1ef0c439"
+  },
+  "/wms-platform/api/order-service/reset-order-for-retry-94a": {
+    "__comp": "4c5e977b",
+    "content": "0839c200"
+  },
+  "/wms-platform/api/order-service/resolve-dlq-entry-341": {
+    "__comp": "4c5e977b",
+    "content": "9074be5e"
+  },
+  "/wms-platform/api/order-service/validate-order-c58": {
+    "__comp": "4c5e977b",
+    "content": "4ff9f81e"
+  },
+  "/wms-platform/api/rest-api-300": {
+    "__comp": "4c5e977b",
+    "content": "c4741e79"
+  },
+  "/wms-platform/api/specs/asyncapi-f8e": {
+    "__comp": "4c5e977b",
+    "content": "c8d884cb"
+  },
+  "/wms-platform/api/specs/openapi-700": {
+    "__comp": "4c5e977b",
+    "content": "4f06f9e6"
+  },
+  "/wms-platform/architecture/c4-diagrams/code-c47": {
+    "__comp": "4c5e977b",
+    "content": "735b293d"
+  },
+  "/wms-platform/architecture/c4-diagrams/components-22a": {
+    "__comp": "4c5e977b",
+    "content": "1d1a136d"
+  },
+  "/wms-platform/architecture/c4-diagrams/containers-791": {
+    "__comp": "4c5e977b",
+    "content": "c6a7a97d"
+  },
+  "/wms-platform/architecture/c4-diagrams/context-46f": {
+    "__comp": "4c5e977b",
+    "content": "aeecbef0"
+  },
+  "/wms-platform/architecture/overview-a5d": {
+    "__comp": "4c5e977b",
+    "content": "0b1ac180"
+  },
+  "/wms-platform/architecture/sequence-diagrams/order-cancellation-8da": {
+    "__comp": "4c5e977b",
+    "content": "ae780f7f"
+  },
+  "/wms-platform/architecture/sequence-diagrams/order-fulfillment-2a6": {
+    "__comp": "4c5e977b",
+    "content": "37d052b2"
+  },
+  "/wms-platform/architecture/sequence-diagrams/packing-workflow-5a6": {
+    "__comp": "4c5e977b",
+    "content": "a726a46e"
+  },
+  "/wms-platform/architecture/sequence-diagrams/picking-workflow-37d": {
+    "__comp": "4c5e977b",
+    "content": "587cb519"
+  },
+  "/wms-platform/architecture/sequence-diagrams/receiving-workflow-132": {
+    "__comp": "4c5e977b",
+    "content": "ce23d725"
+  },
+  "/wms-platform/architecture/sequence-diagrams/reprocessing-workflow-940": {
+    "__comp": "4c5e977b",
+    "content": "71963008"
+  },
+  "/wms-platform/architecture/sequence-diagrams/shipping-workflow-96b": {
+    "__comp": "4c5e977b",
+    "content": "55dc048f"
+  },
+  "/wms-platform/architecture/sequence-diagrams/unit-tracking-544": {
+    "__comp": "4c5e977b",
+    "content": "a89786ea"
+  },
+  "/wms-platform/architecture/sequence-diagrams/walling-workflow-b63": {
+    "__comp": "4c5e977b",
+    "content": "5e9968eb"
+  },
+  "/wms-platform/architecture/sequence-diagrams/wes-execution-9bc": {
+    "__comp": "4c5e977b",
+    "content": "ea3025f1"
+  },
+  "/wms-platform/architecture/system-diagrams/data-flow-58d": {
+    "__comp": "4c5e977b",
+    "content": "f70c2c5f"
+  },
+  "/wms-platform/architecture/system-diagrams/deployment-655": {
+    "__comp": "4c5e977b",
+    "content": "d97da82b"
+  },
+  "/wms-platform/architecture/system-diagrams/infrastructure-b9f": {
+    "__comp": "4c5e977b",
+    "content": "78c90a97"
+  },
+  "/wms-platform/domain-driven-design/aggregates/consolidation-unit-a78": {
+    "__comp": "4c5e977b",
+    "content": "9b6ec2fe"
+  },
+  "/wms-platform/domain-driven-design/aggregates/inbound-shipment-26a": {
+    "__comp": "4c5e977b",
+    "content": "bd131949"
+  },
+  "/wms-platform/domain-driven-design/aggregates/inventory-item-72a": {
+    "__comp": "4c5e977b",
+    "content": "db924218"
+  },
+  "/wms-platform/domain-driven-design/aggregates/order-c92": {
+    "__comp": "4c5e977b",
+    "content": "34617a25"
+  },
+  "/wms-platform/domain-driven-design/aggregates/pack-task-65b": {
+    "__comp": "4c5e977b",
+    "content": "6fc4b1a7"
+  },
+  "/wms-platform/domain-driven-design/aggregates/pick-route-60b": {
+    "__comp": "4c5e977b",
+    "content": "1c9e1237"
+  },
+  "/wms-platform/domain-driven-design/aggregates/pick-task-b1f": {
+    "__comp": "4c5e977b",
+    "content": "4564a845"
+  },
+  "/wms-platform/domain-driven-design/aggregates/process-path-b03": {
+    "__comp": "4c5e977b",
+    "content": "0fffc963"
+  },
+  "/wms-platform/domain-driven-design/aggregates/putaway-task-f2c": {
+    "__comp": "4c5e977b",
+    "content": "2986e3c6"
+  },
+  "/wms-platform/domain-driven-design/aggregates/shipment-64d": {
+    "__comp": "4c5e977b",
+    "content": "d39b9054"
+  },
+  "/wms-platform/domain-driven-design/aggregates/sortation-batch-f33": {
+    "__comp": "4c5e977b",
+    "content": "7d37b9de"
+  },
+  "/wms-platform/domain-driven-design/aggregates/station-690": {
+    "__comp": "4c5e977b",
+    "content": "1041e949"
+  },
+  "/wms-platform/domain-driven-design/aggregates/task-route-d61": {
+    "__comp": "4c5e977b",
+    "content": "52e9ed62"
+  },
+  "/wms-platform/domain-driven-design/aggregates/unit-fdb": {
+    "__comp": "4c5e977b",
+    "content": "7ad82cc7"
+  },
+  "/wms-platform/domain-driven-design/aggregates/walling-task-194": {
+    "__comp": "4c5e977b",
+    "content": "3cfd5b09"
+  },
+  "/wms-platform/domain-driven-design/aggregates/wave-bd7": {
+    "__comp": "4c5e977b",
+    "content": "9cf20bce"
+  },
+  "/wms-platform/domain-driven-design/aggregates/worker-5c2": {
+    "__comp": "4c5e977b",
+    "content": "d72a20ab"
+  },
+  "/wms-platform/domain-driven-design/bounded-contexts-a46": {
+    "__comp": "4c5e977b",
+    "content": "5e58a269"
+  },
+  "/wms-platform/domain-driven-design/context-map-c7d": {
+    "__comp": "4c5e977b",
+    "content": "402586ef"
+  },
+  "/wms-platform/domain-driven-design/domain-events-56a": {
+    "__comp": "4c5e977b",
+    "content": "7afed558"
+  },
+  "/wms-platform/domain-driven-design/overview-313": {
+    "__comp": "4c5e977b",
+    "content": "fc44e560"
+  },
+  "/wms-platform/domain-driven-design/value-objects-458": {
+    "__comp": "4c5e977b",
+    "content": "8173e67d"
+  },
+  "/wms-platform/infrastructure/kafka-953": {
+    "__comp": "4c5e977b",
+    "content": "eeac9702"
+  },
+  "/wms-platform/infrastructure/mongodb-2b9": {
+    "__comp": "4c5e977b",
+    "content": "d7b49d25"
+  },
+  "/wms-platform/infrastructure/observability-1d0": {
+    "__comp": "4c5e977b",
+    "content": "3b5712dc"
+  },
+  "/wms-platform/infrastructure/overview-a8c": {
+    "__comp": "4c5e977b",
+    "content": "294c6217"
+  },
+  "/wms-platform/infrastructure/temporal-659": {
+    "__comp": "4c5e977b",
+    "content": "1f896f3a"
+  },
+  "/wms-platform/services/billing-service-05e": {
+    "__comp": "4c5e977b",
+    "content": "ea14ae6a"
+  },
+  "/wms-platform/services/channel-service-9d3": {
+    "__comp": "4c5e977b",
+    "content": "cb67e2d2"
+  },
+  "/wms-platform/services/consolidation-service-fea": {
+    "__comp": "4c5e977b",
+    "content": "a3bcec2a"
+  },
+  "/wms-platform/services/facility-service-a9e": {
+    "__comp": "4c5e977b",
+    "content": "f00486eb"
+  },
+  "/wms-platform/services/inventory-service-8c0": {
+    "__comp": "4c5e977b",
+    "content": "2037f247"
+  },
+  "/wms-platform/services/labor-service-5af": {
+    "__comp": "4c5e977b",
+    "content": "5478ba74"
+  },
+  "/wms-platform/services/orchestrator-439": {
+    "__comp": "4c5e977b",
+    "content": "c411b666"
+  },
+  "/wms-platform/services/order-service-3dd": {
+    "__comp": "4c5e977b",
+    "content": "7a0205d4"
+  },
+  "/wms-platform/services/packing-service-576": {
+    "__comp": "4c5e977b",
+    "content": "24593d93"
+  },
+  "/wms-platform/services/picking-service-69b": {
+    "__comp": "4c5e977b",
+    "content": "6ad59882"
+  },
+  "/wms-platform/services/process-path-service-3ef": {
+    "__comp": "4c5e977b",
+    "content": "8f1b7954"
+  },
+  "/wms-platform/services/receiving-service-139": {
+    "__comp": "4c5e977b",
+    "content": "8876032d"
+  },
+  "/wms-platform/services/routing-service-a75": {
+    "__comp": "4c5e977b",
+    "content": "af842b9c"
+  },
+  "/wms-platform/services/seller-portal-10a": {
+    "__comp": "4c5e977b",
+    "content": "de2e6408"
+  },
+  "/wms-platform/services/seller-service-745": {
+    "__comp": "4c5e977b",
+    "content": "3b173a60"
+  },
+  "/wms-platform/services/shipping-service-5ec": {
+    "__comp": "4c5e977b",
+    "content": "27311430"
+  },
+  "/wms-platform/services/sortation-service-8bd": {
+    "__comp": "4c5e977b",
+    "content": "6bfaf21b"
+  },
+  "/wms-platform/services/stow-service-cea": {
+    "__comp": "4c5e977b",
+    "content": "41949828"
+  },
+  "/wms-platform/services/unit-service-0c4": {
+    "__comp": "4c5e977b",
+    "content": "2193447b"
+  },
+  "/wms-platform/services/walling-service-e83": {
+    "__comp": "4c5e977b",
+    "content": "15ddb308"
+  },
+  "/wms-platform/services/waving-service-9ec": {
+    "__comp": "4c5e977b",
+    "content": "9192a2ab"
+  },
+  "/wms-platform/services/wes-service-b65": {
+    "__comp": "4c5e977b",
+    "content": "92ca6f50"
+  },
+  "/wms-platform/temporal/activities/consolidation-activities-88e": {
+    "__comp": "4c5e977b",
+    "content": "34e27a10"
+  },
+  "/wms-platform/temporal/activities/giftwrap-activities-18a": {
+    "__comp": "4c5e977b",
+    "content": "72eaf8e9"
+  },
+  "/wms-platform/temporal/activities/inventory-activities-728": {
+    "__comp": "4c5e977b",
+    "content": "a305ba14"
+  },
+  "/wms-platform/temporal/activities/order-activities-fb8": {
+    "__comp": "4c5e977b",
+    "content": "3ee88fae"
+  },
+  "/wms-platform/temporal/activities/overview-388": {
+    "__comp": "4c5e977b",
+    "content": "923a3b85"
+  },
+  "/wms-platform/temporal/activities/packing-activities-4b7": {
+    "__comp": "4c5e977b",
+    "content": "3663a5ed"
+  },
+  "/wms-platform/temporal/activities/picking-activities-8c2": {
+    "__comp": "4c5e977b",
+    "content": "2d139665"
+  },
+  "/wms-platform/temporal/activities/process-path-activities-5a2": {
+    "__comp": "4c5e977b",
+    "content": "a299873a"
+  },
+  "/wms-platform/temporal/activities/receiving-activities-a9b": {
+    "__comp": "4c5e977b",
+    "content": "776e76fd"
+  },
+  "/wms-platform/temporal/activities/reprocessing-activities-bbe": {
+    "__comp": "4c5e977b",
+    "content": "ab9134b4"
+  },
+  "/wms-platform/temporal/activities/routing-activities-5be": {
+    "__comp": "4c5e977b",
+    "content": "967d7ed0"
+  },
+  "/wms-platform/temporal/activities/shipping-activities-2b9": {
+    "__comp": "4c5e977b",
+    "content": "37a76186"
+  },
+  "/wms-platform/temporal/activities/slam-activities-d7b": {
+    "__comp": "4c5e977b",
+    "content": "a0b6f0a8"
+  },
+  "/wms-platform/temporal/activities/sortation-activities-f0d": {
+    "__comp": "4c5e977b",
+    "content": "d5196fbd"
+  },
+  "/wms-platform/temporal/activities/stow-activities-7f3": {
+    "__comp": "4c5e977b",
+    "content": "d587e5c1"
+  },
+  "/wms-platform/temporal/activities/unit-activities-3ed": {
+    "__comp": "4c5e977b",
+    "content": "990500b9"
+  },
+  "/wms-platform/temporal/diagrams/order-flow-c0d": {
+    "__comp": "4c5e977b",
+    "content": "c770b191"
+  },
+  "/wms-platform/temporal/diagrams/signal-flow-119": {
+    "__comp": "4c5e977b",
+    "content": "a6c49203"
+  },
+  "/wms-platform/temporal/diagrams/workflow-hierarchy-474": {
+    "__comp": "4c5e977b",
+    "content": "20afa5de"
+  },
+  "/wms-platform/temporal/overview-96e": {
+    "__comp": "4c5e977b",
+    "content": "771f5a59"
+  },
+  "/wms-platform/temporal/retry-policies-0d9": {
+    "__comp": "4c5e977b",
+    "content": "abd4c98d"
+  },
+  "/wms-platform/temporal/signals-queries-e42": {
+    "__comp": "4c5e977b",
+    "content": "454a7676"
+  },
+  "/wms-platform/temporal/task-queues-ca7": {
+    "__comp": "4c5e977b",
+    "content": "3c2c2916"
+  },
+  "/wms-platform/temporal/workflows/cancellation-488": {
+    "__comp": "4c5e977b",
+    "content": "ed7c422f"
+  },
+  "/wms-platform/temporal/workflows/consolidation-d63": {
+    "__comp": "4c5e977b",
+    "content": "1e5718d7"
+  },
+  "/wms-platform/temporal/workflows/gift-wrap-79f": {
+    "__comp": "4c5e977b",
+    "content": "59a95d7c"
+  },
+  "/wms-platform/temporal/workflows/inbound-fulfillment-ff4": {
+    "__comp": "4c5e977b",
+    "content": "0c686218"
+  },
+  "/wms-platform/temporal/workflows/order-fulfillment-563": {
+    "__comp": "4c5e977b",
+    "content": "059e3aff"
+  },
+  "/wms-platform/temporal/workflows/packing-2c7": {
+    "__comp": "4c5e977b",
+    "content": "26a832cf"
+  },
+  "/wms-platform/temporal/workflows/picking-da1": {
+    "__comp": "4c5e977b",
+    "content": "134dd51e"
+  },
+  "/wms-platform/temporal/workflows/planning-aa9": {
+    "__comp": "4c5e977b",
+    "content": "ee316834"
+  },
+  "/wms-platform/temporal/workflows/reprocessing-626": {
+    "__comp": "4c5e977b",
+    "content": "207ffcf4"
+  },
+  "/wms-platform/temporal/workflows/service-consolidation-927": {
+    "__comp": "4c5e977b",
+    "content": "b5bc3262"
+  },
+  "/wms-platform/temporal/workflows/service-packing-b03": {
+    "__comp": "4c5e977b",
+    "content": "934046ff"
+  },
+  "/wms-platform/temporal/workflows/service-picking-a0f": {
+    "__comp": "4c5e977b",
+    "content": "e6bf6227"
+  },
+  "/wms-platform/temporal/workflows/service-shipping-2b7": {
+    "__comp": "4c5e977b",
+    "content": "6be5bde8"
+  },
+  "/wms-platform/temporal/workflows/service-wes-32a": {
+    "__comp": "4c5e977b",
+    "content": "395c7e2b"
+  },
+  "/wms-platform/temporal/workflows/shipping-dd6": {
+    "__comp": "4c5e977b",
+    "content": "1862d3c5"
+  },
+  "/wms-platform/temporal/workflows/sortation-f2f": {
+    "__comp": "4c5e977b",
+    "content": "a1e41907"
+  },
+  "/wms-platform/temporal/workflows/stock-shortage-23d": {
+    "__comp": "4c5e977b",
+    "content": "0a7e865e"
+  },
+  "/wms-platform/temporal/workflows/wes-execution-d81": {
+    "__comp": "4c5e977b",
+    "content": "ed8f4352"
+  },
+  "/wms-platform/-c5c": {
+    "__comp": "4c5e977b",
+    "content": "0e384e19"
   }
 }

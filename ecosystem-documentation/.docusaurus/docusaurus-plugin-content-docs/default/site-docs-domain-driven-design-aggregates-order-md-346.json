@@ -5,7 +5,7 @@
   "source": "@site/docs/domain-driven-design/aggregates/order.md",
   "sourceDirName": "domain-driven-design/aggregates",
   "slug": "/domain-driven-design/aggregates/order",
-  "permalink": "/domain-driven-design/aggregates/order",
+  "permalink": "/wms-platform/domain-driven-design/aggregates/order",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Context Map",
-    "permalink": "/domain-driven-design/context-map"
+    "permalink": "/wms-platform/domain-driven-design/context-map"
   },
   "next": {
     "title": "Wave Aggregate",
-    "permalink": "/domain-driven-design/aggregates/wave"
+    "permalink": "/wms-platform/domain-driven-design/aggregates/wave"
   }
 }

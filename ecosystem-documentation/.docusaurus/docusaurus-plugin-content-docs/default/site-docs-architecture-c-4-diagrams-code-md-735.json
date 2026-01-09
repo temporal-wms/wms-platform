@@ -5,7 +5,7 @@
   "source": "@site/docs/architecture/c4-diagrams/code.md",
   "sourceDirName": "architecture/c4-diagrams",
   "slug": "/architecture/c4-diagrams/code",
-  "permalink": "/architecture/c4-diagrams/code",
+  "permalink": "/wms-platform/architecture/c4-diagrams/code",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "C4 Level 3: Component Diagrams",
-    "permalink": "/architecture/c4-diagrams/components"
+    "permalink": "/wms-platform/architecture/c4-diagrams/components"
   },
   "next": {
     "title": "Infrastructure Topology",
-    "permalink": "/architecture/system-diagrams/infrastructure"
+    "permalink": "/wms-platform/architecture/system-diagrams/infrastructure"
   }
 }

@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/move-order-to-dead-letter-queue.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/move-order-to-dead-letter-queue",
-  "permalink": "/api/order-service/move-order-to-dead-letter-queue",
+  "permalink": "/wms-platform/api/order-service/move-order-to-dead-letter-queue",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "List orders",
-    "permalink": "/api/order-service/list-orders"
+    "permalink": "/wms-platform/api/order-service/list-orders"
   },
   "next": {
     "title": "Reset order for retry",
-    "permalink": "/api/order-service/reset-order-for-retry"
+    "permalink": "/wms-platform/api/order-service/reset-order-for-retry"
   }
 }

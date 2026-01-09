@@ -38,17 +38,54 @@ This command generates static content into the `build` directory and can be serv
 
 ## Deployment
 
-Deploy the website to GitHub Pages (or other hosting providers).
+Documentation is automatically deployed to GitHub Pages: **https://temporal-wms.github.io/wms-platform/**
 
+### Automatic Deployment
+
+Changes pushed to the `main` branch in `ecosystem-documentation/` automatically trigger deployment via GitHub Actions.
+
+- **Workflow:** `.github/workflows/deploy-docs.yml`
+- **Build time:** ~2-3 minutes
+- **Monitor:** https://github.com/temporal-wms/wms-platform/actions
+
+### Manual Deployment
+
+You can also deploy manually if needed:
+
+**Mac/Linux:**
+```bash
+GIT_USER=<Your GitHub username> npm run deploy
+```
+
+**Windows:**
 ```bash
 cmd /C "set "GIT_USER=<Your GitHub username>" && npm run deploy"
 ```
 
-OR (on Mac/Linux):
+### Configuration
+
+- **URL:** https://temporal-wms.github.io
+- **Base URL:** /wms-platform/
+- **Deployment Branch:** gh-pages
+- **Build Tool:** Docusaurus 3.6.0
+
+### Testing Before Deployment
+
+Always test the production build locally:
 
 ```bash
-GIT_USER=<Your GitHub username> npm run deploy
+# Build
+npm run build
+
+# Serve (with production baseUrl)
+npm run serve
 ```
+
+Opens http://localhost:3000/wms-platform/
+
+### Troubleshooting
+
+For detailed deployment instructions, troubleshooting, and rollback procedures, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Project Structure
 

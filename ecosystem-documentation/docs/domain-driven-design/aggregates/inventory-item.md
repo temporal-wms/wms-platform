@@ -261,13 +261,13 @@ type InventoryItemRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/inventory | Create inventory item |
-| GET | /api/v1/inventory/{id} | Get by ID |
-| GET | /api/v1/inventory/sku/{sku} | Get by SKU |
-| POST | /api/v1/inventory/{id}/reserve | Reserve stock |
-| POST | /api/v1/inventory/{id}/release | Release reservation |
-| POST | /api/v1/inventory/{id}/pick | Pick stock |
-| POST | /api/v1/inventory/{id}/receive | Receive stock |
-| POST | /api/v1/inventory/{id}/adjust | Adjust stock |
+| GET | /api/v1/inventory/\{id\} | Get by ID |
+| GET | /api/v1/inventory/sku/\{sku\} | Get by SKU |
+| POST | /api/v1/inventory/\{id\}/reserve | Reserve stock |
+| POST | /api/v1/inventory/\{id\}/release | Release reservation |
+| POST | /api/v1/inventory/\{id\}/pick | Pick stock |
+| POST | /api/v1/inventory/\{id\}/receive | Receive stock |
+| POST | /api/v1/inventory/\{id\}/adjust | Adjust stock |
 
 ## Related Documentation
 

@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/activities/overview.md",
   "sourceDirName": "temporal/activities",
   "slug": "/temporal/activities/overview",
-  "permalink": "/temporal/activities/overview",
+  "permalink": "/wms-platform/temporal/activities/overview",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "WES Service - WESExecutionWorkflow",
-    "permalink": "/temporal/workflows/service-wes"
+    "permalink": "/wms-platform/temporal/workflows/service-wes"
   },
   "next": {
     "title": "Order Activities",
-    "permalink": "/temporal/activities/order-activities"
+    "permalink": "/wms-platform/temporal/activities/order-activities"
   }
 }

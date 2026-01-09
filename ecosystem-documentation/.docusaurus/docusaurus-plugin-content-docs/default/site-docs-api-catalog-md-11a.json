@@ -5,7 +5,7 @@
   "source": "@site/docs/api/catalog.md",
   "sourceDirName": "api",
   "slug": "/api/catalog",
-  "permalink": "/api/catalog",
+  "permalink": "/wms-platform/api/catalog",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Signal Flow Diagrams",
-    "permalink": "/temporal/diagrams/signal-flow"
+    "permalink": "/wms-platform/temporal/diagrams/signal-flow"
   },
   "next": {
     "title": "REST API Reference",
-    "permalink": "/api/rest-api"
+    "permalink": "/wms-platform/api/rest-api"
   }
 }

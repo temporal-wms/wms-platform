@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/overview.md",
   "sourceDirName": "temporal",
   "slug": "/temporal/overview",
-  "permalink": "/temporal/overview",
+  "permalink": "/wms-platform/temporal/overview",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,11 +17,11 @@
   },
   "sidebar": "docsSidebar",
   "previous": {
-    "title": "Orchestrator",
-    "permalink": "/services/orchestrator"
+    "title": "Seller Portal",
+    "permalink": "/wms-platform/services/seller-portal"
   },
   "next": {
     "title": "OrderFulfillmentWorkflow",
-    "permalink": "/temporal/workflows/order-fulfillment"
+    "permalink": "/wms-platform/temporal/workflows/order-fulfillment"
   }
 }

@@ -5,7 +5,7 @@
   "source": "@site/docs/architecture/c4-diagrams/context.md",
   "sourceDirName": "architecture/c4-diagrams",
   "slug": "/architecture/c4-diagrams/context",
-  "permalink": "/architecture/c4-diagrams/context",
+  "permalink": "/wms-platform/architecture/c4-diagrams/context",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Architecture Overview",
-    "permalink": "/architecture/overview"
+    "permalink": "/wms-platform/architecture/overview"
   },
   "next": {
     "title": "C4 Level 2: Container Diagram",
-    "permalink": "/architecture/c4-diagrams/containers"
+    "permalink": "/wms-platform/architecture/c4-diagrams/containers"
   }
 }

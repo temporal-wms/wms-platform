@@ -1,0 +1,18 @@
+{
+  "id": "temporal/activities/reprocessing-activities",
+  "title": "Reprocessing Activities",
+  "description": "Activities for managing failed workflow reprocessing, retry logic, and dead letter queue operations.",
+  "source": "@site/docs/temporal/activities/reprocessing-activities.md",
+  "sourceDirName": "temporal/activities",
+  "slug": "/temporal/activities/reprocessing-activities",
+  "permalink": "/wms-platform/temporal/activities/reprocessing-activities",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 15,
+  "frontMatter": {
+    "sidebar_position": 15,
+    "slug": "/temporal/activities/reprocessing-activities"
+  }
+}

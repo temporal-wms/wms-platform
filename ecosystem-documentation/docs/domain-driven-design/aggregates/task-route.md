@@ -251,4 +251,3 @@ fmt.Printf("%d/%d stages\n", completed, total) // 3/3 stages
 
 - [WES Service](/services/wes-service) - Service using this aggregate
 - [WES Execution](/architecture/sequence-diagrams/wes-execution) - Workflow sequence
-- [StageTemplate](/domain-driven-design/aggregates/stage-template) - Template model

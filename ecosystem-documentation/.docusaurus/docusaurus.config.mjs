@@ -7,10 +7,12 @@ export default {
   "title": "WMS Labs",
   "tagline": "Warehouse Management System - Enterprise Documentation",
   "favicon": "img/favicon.ico",
-  "url": "https://wms-platform.example.com",
-  "baseUrl": "/",
-  "organizationName": "wms-platform",
-  "projectName": "wms-platform-docs",
+  "url": "https://temporal-wms.github.io",
+  "baseUrl": "/wms-platform/",
+  "organizationName": "temporal-wms",
+  "projectName": "wms-platform",
+  "deploymentBranch": "gh-pages",
+  "trailingSlash": false,
   "onBrokenLinks": "throw",
   "i18n": {
     "defaultLocale": "en",
@@ -91,7 +93,7 @@ export default {
           "label": "Documentation"
         },
         {
-          "href": "https://github.com/wms-platform/wms-platform",
+          "href": "https://github.com/temporal-wms/wms-platform",
           "label": "GitHub",
           "position": "right"
         }

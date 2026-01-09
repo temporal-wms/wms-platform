@@ -5,7 +5,7 @@
   "source": "@site/docs/api/order-service/cancel-order.api.mdx",
   "sourceDirName": "api/order-service",
   "slug": "/api/order-service/cancel-order",
-  "permalink": "/api/order-service/cancel-order",
+  "permalink": "/wms-platform/api/order-service/cancel-order",
   "draft": false,
   "unlisted": false,
   "editUrl": null,
@@ -26,10 +26,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Introduction",
-    "permalink": "/api/order-service/order-service-api"
+    "permalink": "/wms-platform/api/order-service/order-service-api"
   },
   "next": {
     "title": "Create a new order",
-    "permalink": "/api/order-service/create-a-new-order"
+    "permalink": "/wms-platform/api/order-service/create-a-new-order"
   }
 }

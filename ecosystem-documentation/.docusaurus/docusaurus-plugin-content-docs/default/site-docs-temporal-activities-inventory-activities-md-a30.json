@@ -5,7 +5,7 @@
   "source": "@site/docs/temporal/activities/inventory-activities.md",
   "sourceDirName": "temporal/activities",
   "slug": "/temporal/activities/inventory-activities",
-  "permalink": "/temporal/activities/inventory-activities",
+  "permalink": "/wms-platform/temporal/activities/inventory-activities",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -18,10 +18,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "Order Activities",
-    "permalink": "/temporal/activities/order-activities"
+    "permalink": "/wms-platform/temporal/activities/order-activities"
   },
   "next": {
     "title": "Picking Activities",
-    "permalink": "/temporal/activities/picking-activities"
+    "permalink": "/wms-platform/temporal/activities/picking-activities"
   }
 }

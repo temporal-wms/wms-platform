@@ -5,7 +5,7 @@
   "source": "@site/docs/architecture/c4-diagrams/components.md",
   "sourceDirName": "architecture/c4-diagrams",
   "slug": "/architecture/c4-diagrams/components",
-  "permalink": "/architecture/c4-diagrams/components",
+  "permalink": "/wms-platform/architecture/c4-diagrams/components",
   "draft": false,
   "unlisted": false,
   "tags": [],
@@ -17,10 +17,10 @@
   "sidebar": "docsSidebar",
   "previous": {
     "title": "C4 Level 2: Container Diagram",
-    "permalink": "/architecture/c4-diagrams/containers"
+    "permalink": "/wms-platform/architecture/c4-diagrams/containers"
   },
   "next": {
     "title": "C4 Level 4: Code Diagrams",
-    "permalink": "/architecture/c4-diagrams/code"
+    "permalink": "/wms-platform/architecture/c4-diagrams/code"
   }
 }

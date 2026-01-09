@@ -244,11 +244,11 @@ type StationRepository interface {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/v1/stations | Create station |
-| GET | /api/v1/stations/{id} | Get station |
-| PUT | /api/v1/stations/{id} | Update station |
-| DELETE | /api/v1/stations/{id} | Delete station |
-| PUT | /api/v1/stations/{id}/capabilities | Set capabilities |
-| PUT | /api/v1/stations/{id}/status | Set status |
+| GET | /api/v1/stations/\{id\} | Get station |
+| PUT | /api/v1/stations/\{id\} | Update station |
+| DELETE | /api/v1/stations/\{id\} | Delete station |
+| PUT | /api/v1/stations/\{id\}/capabilities | Set capabilities |
+| PUT | /api/v1/stations/\{id\}/status | Set status |
 | POST | /api/v1/stations/find-capable | Find by capabilities |
 
 ## Process Path Routing Example
