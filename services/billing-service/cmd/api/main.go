@@ -302,7 +302,7 @@ type Config struct {
 
 func loadConfig() *Config {
 	return &Config{
-		ServerAddr: getEnv("SERVER_ADDR", ":8011"),
+		ServerAddr: getEnv("SERVER_ADDR", ":8018"),
 		MongoDB: &mongodb.Config{
 			URI:            getEnv("MONGODB_URI", "mongodb://localhost:27017"),
 			Database:       getEnv("MONGODB_DATABASE", "billing_db"),

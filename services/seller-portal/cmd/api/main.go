@@ -180,7 +180,7 @@ type Config struct {
 
 func loadConfig() *Config {
 	return &Config{
-		ServerAddr:          getEnv("SERVER_ADDR", ":8013"),
+		ServerAddr:          getEnv("SERVER_ADDR", ":8021"),
 		SellerServiceURL:    getEnv("SELLER_SERVICE_URL", "http://localhost:8010"),
 		OrderServiceURL:     getEnv("ORDER_SERVICE_URL", "http://localhost:8001"),
 		InventoryServiceURL: getEnv("INVENTORY_SERVICE_URL", "http://localhost:8002"),

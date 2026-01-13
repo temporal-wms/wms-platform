@@ -1223,10 +1223,10 @@ services:
 
     terminationGracePeriodSeconds: 30
 
-  # WES Service - Warehouse Execution System (Hybrid: API + Worker)
+  # WES Service - Warehouse Execution System (API only)
   wes-service:
     enabled: true
-    type: hybrid
+    type: api
     replicaCount: 3
     image:
       repository: wes-service

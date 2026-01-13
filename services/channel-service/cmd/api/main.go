@@ -271,10 +271,10 @@ func loadConfig() *Config {
 	kafkaConfig.ClientID = serviceName
 
 	return &Config{
-		ServerAddr: getEnv("SERVER_ADDR", ":8012"),
+		ServerAddr: getEnv("SERVER_ADDR", ":8019"),
 		MongoDB: &mongodb.Config{
 			URI:            getEnv("MONGODB_URI", "mongodb://localhost:27017"),
-			Database:       getEnv("MONGODB_DATABASE", "channel_service"),
+			Database:       getEnv("MONGODB_DATABASE", "channel_db"),
 			ConnectTimeout: 10 * time.Second,
 			MaxPoolSize:    100,
 			MinPoolSize:    10,
