@@ -8,6 +8,47 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
+// ReserveInventoryInput holds the input for reserving inventory
+type ReserveInventoryInput struct {
+	OrderID string                    `json:"orderId"`
+	Items   []ReserveInventoryItem    `json:"items"`
+}
+
+// ReserveInventoryItem represents an item to reserve
+type ReserveInventoryItem struct {
+	SKU      string `json:"sku"`
+	Quantity int    `json:"quantity"`
+}
+
+// ReserveInventory creates reservations in the inventory service
+func (a *InventoryActivities) ReserveInventory(ctx context.Context, input ReserveInventoryInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Reserving inventory", "orderId", input.OrderID, "itemCount", len(input.Items))
+
+	// Convert items to client request format
+	items := make([]clients.ReserveItemRequest, len(input.Items))
+	for i, item := range input.Items {
+		items[i] = clients.ReserveItemRequest{
+			SKU:      item.SKU,
+			Quantity: item.Quantity,
+		}
+	}
+
+	req := &clients.ReserveInventoryRequest{
+		OrderID: input.OrderID,
+		Items:   items,
+	}
+
+	err := a.clients.ReserveInventory(ctx, req)
+	if err != nil {
+		logger.Error("Failed to reserve inventory", "orderId", input.OrderID, "error", err)
+		return fmt.Errorf("failed to reserve inventory: %w", err)
+	}
+
+	logger.Info("Inventory reserved successfully", "orderId", input.OrderID)
+	return nil
+}
+
 // ConfirmInventoryPickInput holds the input for confirming inventory picks
 type ConfirmInventoryPickInput struct {
 	OrderID     string                     `json:"orderId"`
@@ -402,4 +443,67 @@ func (a *InventoryActivities) RecordStockShortage(ctx context.Context, input Rec
 		"shortageQty", input.ExpectedQty-input.ActualQty,
 	)
 	return nil
+}
+
+// GetReservationIDsInput holds the input for getting reservation IDs
+type GetReservationIDsInput struct {
+	OrderID string                    `json:"orderId"`
+	Items   []GetReservationIDsItem   `json:"items"`
+}
+
+// GetReservationIDsItem represents an item to get reservation ID for
+type GetReservationIDsItem struct {
+	SKU string `json:"sku"`
+}
+
+// GetReservationIDsOutput holds the output from getting reservation IDs
+type GetReservationIDsOutput struct {
+	Reservations map[string]string `json:"reservations"` // SKU -> ReservationID
+}
+
+// GetReservationIDs retrieves reservation IDs for an order's items
+func (a *InventoryActivities) GetReservationIDs(ctx context.Context, input GetReservationIDsInput) (*GetReservationIDsOutput, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Getting reservation IDs", "orderId", input.OrderID, "itemCount", len(input.Items))
+
+	output := &GetReservationIDsOutput{
+		Reservations: make(map[string]string),
+	}
+
+	for _, item := range input.Items {
+		// Get inventory item details which includes reservations
+		inventoryItem, err := a.clients.GetInventoryItem(ctx, item.SKU)
+		if err != nil {
+			logger.Warn("Failed to get inventory item",
+				"sku", item.SKU,
+				"orderId", input.OrderID,
+				"error", err)
+			continue
+		}
+
+		// Find the reservation for this order
+		for _, reservation := range inventoryItem.Reservations {
+			if reservation.OrderID == input.OrderID {
+				output.Reservations[item.SKU] = reservation.ReservationID
+				logger.Info("Found reservation",
+					"sku", item.SKU,
+					"orderId", input.OrderID,
+					"reservationId", reservation.ReservationID)
+				break
+			}
+		}
+
+		if _, found := output.Reservations[item.SKU]; !found {
+			logger.Warn("No reservation found for item",
+				"sku", item.SKU,
+				"orderId", input.OrderID)
+		}
+	}
+
+	logger.Info("Reservation IDs retrieved",
+		"orderId", input.OrderID,
+		"foundCount", len(output.Reservations),
+		"requestedCount", len(input.Items))
+
+	return output, nil
 }

@@ -32,6 +32,9 @@ const (
 type WallingTask struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty"`
 	TaskID         string             `bson:"taskId"`
+	TenantID    string `bson:"tenantId" json:"tenantId"`
+	FacilityID  string `bson:"facilityId" json:"facilityId"`
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"`
 	OrderID        string             `bson:"orderId"`
 	WaveID         string             `bson:"waveId"`
 	RouteID        string             `bson:"routeId,omitempty"` // Link to WES route

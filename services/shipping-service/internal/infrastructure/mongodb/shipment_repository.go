@@ -10,6 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
 	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,6 +21,7 @@ type ShipmentRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewShipmentRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *ShipmentRepository {
@@ -31,6 +33,7 @@ func NewShipmentRepository(db *mongo.Database, eventFactory *cloudevents.EventFa
 		db:           db,
 		outboxRepo:   outboxRepo,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 	repo.ensureIndexes(context.Background())
 	return repo
@@ -129,8 +132,11 @@ func (r *ShipmentRepository) Save(ctx context.Context, shipment *domain.Shipment
 }
 
 func (r *ShipmentRepository) FindByID(ctx context.Context, shipmentID string) (*domain.Shipment, error) {
+	filter := bson.M{"shipmentId": shipmentID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var s domain.Shipment
-	err := r.collection.FindOne(ctx, bson.M{"shipmentId": shipmentID}).Decode(&s)
+	err := r.collection.FindOne(ctx, filter).Decode(&s)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -138,8 +144,11 @@ func (r *ShipmentRepository) FindByID(ctx context.Context, shipmentID string) (*
 }
 
 func (r *ShipmentRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Shipment, error) {
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var s domain.Shipment
-	err := r.collection.FindOne(ctx, bson.M{"orderId": orderID}).Decode(&s)
+	err := r.collection.FindOne(ctx, filter).Decode(&s)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -147,8 +156,11 @@ func (r *ShipmentRepository) FindByOrderID(ctx context.Context, orderID string) 
 }
 
 func (r *ShipmentRepository) FindByTrackingNumber(ctx context.Context, trackingNumber string) (*domain.Shipment, error) {
+	filter := bson.M{"label.trackingNumber": trackingNumber}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var s domain.Shipment
-	err := r.collection.FindOne(ctx, bson.M{"label.trackingNumber": trackingNumber}).Decode(&s)
+	err := r.collection.FindOne(ctx, filter).Decode(&s)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -156,7 +168,10 @@ func (r *ShipmentRepository) FindByTrackingNumber(ctx context.Context, trackingN
 }
 
 func (r *ShipmentRepository) FindByStatus(ctx context.Context, status domain.ShipmentStatus) ([]*domain.Shipment, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status})
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +182,10 @@ func (r *ShipmentRepository) FindByStatus(ctx context.Context, status domain.Shi
 }
 
 func (r *ShipmentRepository) FindByCarrier(ctx context.Context, carrierCode string) ([]*domain.Shipment, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"carrier.code": carrierCode})
+	filter := bson.M{"carrier.code": carrierCode}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +196,10 @@ func (r *ShipmentRepository) FindByCarrier(ctx context.Context, carrierCode stri
 }
 
 func (r *ShipmentRepository) FindByManifestID(ctx context.Context, manifestID string) ([]*domain.Shipment, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"manifest.manifestId": manifestID})
+	filter := bson.M{"manifest.manifestId": manifestID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +214,8 @@ func (r *ShipmentRepository) FindPendingForManifest(ctx context.Context, carrier
 		"carrier.code": carrierCode,
 		"status":       domain.ShipmentStatusLabeled,
 	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -204,7 +227,10 @@ func (r *ShipmentRepository) FindPendingForManifest(ctx context.Context, carrier
 }
 
 func (r *ShipmentRepository) Delete(ctx context.Context, shipmentID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"shipmentId": shipmentID})
+	filter := bson.M{"shipmentId": shipmentID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

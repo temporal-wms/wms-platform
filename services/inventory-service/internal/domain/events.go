@@ -19,6 +19,18 @@ type InventoryReceivedEvent struct {
 func (e *InventoryReceivedEvent) EventType() string    { return "wms.inventory.received" }
 func (e *InventoryReceivedEvent) OccurredAt() time.Time { return e.ReceivedAt }
 
+// InventoryReservedEvent is published when inventory is reserved for an order
+type InventoryReservedEvent struct {
+	SKU        string    `json:"sku"`
+	OrderID    string    `json:"orderId"`
+	LocationID string    `json:"locationId"`
+	Quantity   int       `json:"quantity"`
+	ReservedAt time.Time `json:"reservedAt"`
+}
+
+func (e *InventoryReservedEvent) EventType() string    { return "wms.inventory.reserved" }
+func (e *InventoryReservedEvent) OccurredAt() time.Time { return e.ReservedAt }
+
 // InventoryAdjustedEvent is published when inventory is adjusted
 type InventoryAdjustedEvent struct {
 	SKU         string    `json:"sku"`

@@ -40,6 +40,9 @@ const (
 type Worker struct {
 	ID                primitive.ObjectID  `bson:"_id,omitempty"`
 	WorkerID          string              `bson:"workerId"`
+	TenantID    string `bson:"tenantId" json:"tenantId"`
+	FacilityID  string `bson:"facilityId" json:"facilityId"`
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"`
 	EmployeeID        string              `bson:"employeeId"`
 	Name              string              `bson:"name"`
 	Status            WorkerStatus        `bson:"status"`

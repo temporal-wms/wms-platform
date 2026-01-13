@@ -152,15 +152,30 @@ go run cmd/worker/main.go
 | `TRACING_ENABLED` | Enable distributed tracing | `true` |
 | `ENVIRONMENT` | Deployment environment | `development` |
 
-## Testing
+## Testing & Coverage
 
 ```bash
-# Unit tests
-go test ./internal/domain/...
+# Run focused unit suites inside tests/
+go test ./tests/...
 
-# Workflow tests
-go test ./tests/workflows/...
+# Collect cross-package coverage (fails locally if <90%)
+make coverage
 ```
+
+## Integration Testing
+
+```bash
+# Start MongoDB, Kafka, Temporal, API, and worker containers
+make integration-up
+
+# Run health-check integration tests (requires API up)
+make integration-test
+
+# Tear the stack down
+make integration-down
+```
+
+Set `WES_BASE_URL` when running `make integration-test` if the API is exposed on a non-default host or port.
 
 ## Related Services
 

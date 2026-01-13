@@ -27,7 +27,7 @@ import {
   SELLER_STATUS,
   CHANNEL_TYPES,
 } from '../lib/sellers.js';
-import { SELLER_CONFIG } from '../lib/config.js';
+import { SELLER_CONFIG, ORDER_CONFIG } from '../lib/config.js';
 
 // Custom metrics
 const sellersCreated = new Counter('sellers_created');
@@ -89,6 +89,8 @@ function generateSellerData(index) {
 
   return {
     tenantId: CONFIG.tenantId,
+    facilityId: ORDER_CONFIG.defaultFacilityId,
+    warehouseId: ORDER_CONFIG.defaultWarehouseId,
     companyName: `Test Company ${vuId}-${index}-${timestamp}`,
     contactName: `Contact Person ${index}`,
     contactEmail: `test-${vuId}-${index}-${timestamp}@example.com`,

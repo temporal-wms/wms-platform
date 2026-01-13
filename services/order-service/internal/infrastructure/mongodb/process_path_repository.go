@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 // ProcessPathRepository implements domain.ProcessPathRepository using MongoDB
 type ProcessPathRepository struct {
 	collection *mongo.Collection
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewProcessPathRepository creates a new MongoDB process path repository
@@ -69,7 +71,10 @@ func (r *ProcessPathRepository) FindByID(ctx context.Context, id string) (*domai
 // FindByPathID retrieves a process path by its UUID
 func (r *ProcessPathRepository) FindByPathID(ctx context.Context, pathID string) (*domain.ProcessPath, error) {
 	var path domain.ProcessPath
-	err := r.collection.FindOne(ctx, bson.M{"pathId": pathID}).Decode(&path)
+	filter := bson.M{"pathId": pathID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&path)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +84,10 @@ func (r *ProcessPathRepository) FindByPathID(ctx context.Context, pathID string)
 // FindByOrderID retrieves the process path for an order
 func (r *ProcessPathRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.ProcessPath, error) {
 	var path domain.ProcessPath
-	err := r.collection.FindOne(ctx, bson.M{"orderId": orderID}).Decode(&path)
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&path)
 	if err != nil {
 		return nil, err
 	}
@@ -89,12 +97,18 @@ func (r *ProcessPathRepository) FindByOrderID(ctx context.Context, orderID strin
 // Update updates a process path
 func (r *ProcessPathRepository) Update(ctx context.Context, path *domain.ProcessPath) error {
 	path.UpdatedAt = time.Now()
-	_, err := r.collection.ReplaceOne(ctx, bson.M{"pathId": path.PathID}, path)
+	filter := bson.M{"pathId": path.PathID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.ReplaceOne(ctx, filter, path)
 	return err
 }
 
 // Delete removes a process path
 func (r *ProcessPathRepository) Delete(ctx context.Context, pathID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"pathId": pathID})
+	filter := bson.M{"pathId": pathID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }

@@ -1,0 +1,14 @@
+covervars.go
+aggregate.cover.go
+events.cover.go
+inventory_allocation.cover.go
+inventory_refactored.cover.go
+inventory_reservation.cover.go
+inventory_transaction.cover.go
+repository.cover.go
+./aggregate_test.go
+./events_test.go
+./inventory_allocation_test.go
+./inventory_refactored_test.go
+./inventory_reservation_test.go
+./inventory_transaction_test.go

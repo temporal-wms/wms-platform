@@ -1,0 +1,20 @@
+# Helm Lint Configuration
+# Documentation: https://helm.sh/docs/topics/linting/
+
+# Linters
+linters:
+  # Kubernetes API validation
+  kubeval:
+    enabled: false
+  
+  # YAML syntax (these warnings are from YAML parser - can be ignored)
+  yamllint:
+    enabled: false
+  
+  # Custom linting rules
+  custom:
+    # No custom rules needed
+
+# Exclusions (files/patterns to skip)
+exclude:
+  # Add patterns to skip

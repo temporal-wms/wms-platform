@@ -1,56 +1,41 @@
 import React, { Suspense, lazy, ComponentType } from 'react';
 import { PageLoading } from '@wms/ui';
 import { ErrorBoundary } from './ErrorBoundary';
+import type { RemoteDefinition } from '../remotes/manifest';
 
-// Type for federated module
 type FederatedModule = {
   default: ComponentType;
 };
 
-// Lazy load remote apps
-const remoteApps: Record<string, React.LazyExoticComponent<ComponentType>> = {
-  orders: lazy(() => import('orders/App') as Promise<FederatedModule>),
-  waves: lazy(() => import('waves/App') as Promise<FederatedModule>),
-  inventory: lazy(() => import('inventory/App') as Promise<FederatedModule>),
-  picking: lazy(() => import('picking/App') as Promise<FederatedModule>),
-  packing: lazy(() => import('packing/App') as Promise<FederatedModule>),
-  shipping: lazy(() => import('shipping/App') as Promise<FederatedModule>),
-  labor: lazy(() => import('labor/App') as Promise<FederatedModule>),
-  dashboard: lazy(() => import('dashboard/App') as Promise<FederatedModule>),
+const remoteComponentCache = new Map<string, React.LazyExoticComponent<ComponentType>>();
+
+const getRemoteComponent = (remote: RemoteDefinition) => {
+  if (!remoteComponentCache.has(remote.name)) {
+    remoteComponentCache.set(remote.name, lazy(() => remote.loader()));
+  }
+
+  return remoteComponentCache.get(remote.name)!;
 };
 
 export interface RemoteAppProps {
-  name: keyof typeof remoteApps;
+  remote: RemoteDefinition;
   fallback?: React.ReactNode;
 }
 
-export function RemoteApp({ name, fallback }: RemoteAppProps) {
-  const RemoteComponent = remoteApps[name];
-
-  if (!RemoteComponent) {
-    return (
-      <div className="p-8 text-center">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          Module Not Found
-        </h2>
-        <p className="text-gray-500">
-          The "{name}" module is not available.
-        </p>
-      </div>
-    );
-  }
+export function RemoteApp({ remote, fallback }: RemoteAppProps) {
+  const RemoteComponent = getRemoteComponent(remote);
 
   return (
     <ErrorBoundary
       fallback={(error) => (
         <RemoteAppError
-          name={name}
+          name={remote.displayName}
           error={error}
           onRetry={() => window.location.reload()}
         />
       )}
     >
-      <Suspense fallback={fallback || <PageLoading message={`Loading ${name}...`} />}>
+      <Suspense fallback={fallback || <PageLoading message={`Loading ${remote.displayName}...`} />}>
         <RemoteComponent />
       </Suspense>
     </ErrorBoundary>

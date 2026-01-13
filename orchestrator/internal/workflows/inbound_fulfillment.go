@@ -16,6 +16,10 @@ type InboundFulfillmentInput struct {
 	ExpectedItems   []InboundExpectedItem  `json:"expectedItems"`
 	ExpectedArrival time.Time              `json:"expectedArrival"`
 	DockID          string                 `json:"dockId,omitempty"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // InboundExpectedItem represents an expected item in the inbound shipment
@@ -92,6 +96,17 @@ func InboundFulfillmentWorkflow(ctx workflow.Context, input InboundFulfillmentIn
 	// Calculate total expected
 	for _, item := range input.ExpectedItems {
 		result.TotalExpected += item.ExpectedQuantity
+	}
+
+	// Set tenant context for activities
+	if input.TenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", input.TenantID)
+	}
+	if input.FacilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", input.FacilityID)
+	}
+	if input.WarehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", input.WarehouseID)
 	}
 
 	// Activity options with retry policy

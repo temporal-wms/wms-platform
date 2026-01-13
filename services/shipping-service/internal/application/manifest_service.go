@@ -10,6 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/errors"
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/tenant"
 
 	"github.com/wms-platform/shipping-service/internal/domain"
 )
@@ -141,11 +142,17 @@ func (s *ManifestApplicationService) CreateManifest(ctx context.Context, cmd Cre
 		cmd.ServiceType,
 	)
 
+	// Extract tenant context and set on manifest
+	tc := tenant.FromContextOptional(ctx)
+	manifest.TenantID = tc.TenantID
+	manifest.FacilityID = tc.FacilityID
+	manifest.WarehouseID = tc.WarehouseID
+
 	if cmd.ScheduledPickup != nil {
 		manifest.ScheduledPickup = cmd.ScheduledPickup
 	}
 
-	if err := s.repo.Save(ctx, manifest); err != nil {
+	if err := s.repo.Save(ctx, manifest); err != nil{
 		s.logger.WithError(err).Error("Failed to create manifest", "manifestId", manifestID)
 		return nil, fmt.Errorf("failed to create manifest: %w", err)
 	}

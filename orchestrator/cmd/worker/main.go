@@ -84,6 +84,13 @@ func main() {
 	processPathActivities := activities.NewProcessPathActivities(serviceClients, logger)
 	giftWrapActivities := activities.NewGiftWrapActivities(serviceClients)
 
+	// Create Phase 2 & 3 enhancement activities
+	laborActivities := activities.NewLaborActivities(serviceClients, logger)
+	equipmentActivities := activities.NewEquipmentActivities(serviceClients, logger)
+	routingOptimizerActivities := activities.NewRoutingOptimizerActivities(serviceClients)
+	escalationActivities := activities.NewEscalationActivities(serviceClients)
+	continuousOptimizationActivities := activities.NewContinuousOptimizationActivities(serviceClients)
+
 	// Create Amazon-aligned fulfillment activities
 	receivingActivities := activities.NewReceivingActivities()
 	stowActivities := activities.NewStowActivities()
@@ -114,6 +121,7 @@ func main() {
 	w.RegisterWorkflow(workflows.SortationWorkflow)
 	w.RegisterWorkflow(workflows.BatchSortationWorkflow)
 	w.RegisterWorkflow(workflows.PlanningWorkflow)
+	w.RegisterWorkflow(workflows.ContinuousOptimizationWorkflow)
 	logger.Info("Registered workflows", "workflows", []string{
 		"OrderFulfillmentWorkflow",
 		"OrderCancellationWorkflow",
@@ -130,6 +138,7 @@ func main() {
 		"SortationWorkflow",
 		"BatchSortationWorkflow",
 		"PlanningWorkflow",
+		"ContinuousOptimizationWorkflow",
 	})
 
 	// Register activities
@@ -141,7 +150,9 @@ func main() {
 	w.RegisterActivity(orderActivities.MarkConsolidated)
 	w.RegisterActivity(orderActivities.MarkPacked)
 	w.RegisterActivity(inventoryActivities.ReleaseInventoryReservation)
+	w.RegisterActivity(inventoryActivities.ReserveInventory)
 	w.RegisterActivity(inventoryActivities.ConfirmInventoryPick)
+	w.RegisterActivity(inventoryActivities.GetReservationIDs)
 	w.RegisterActivity(inventoryActivities.StageInventory)
 	w.RegisterActivity(inventoryActivities.PackInventory)
 	w.RegisterActivity(inventoryActivities.ShipInventory)
@@ -187,6 +198,35 @@ func main() {
 	w.RegisterActivity(processPathActivities.FindCapableStation)
 	w.RegisterActivity(processPathActivities.GetStation)
 	w.RegisterActivity(processPathActivities.GetStationsByZone)
+	w.RegisterActivity(processPathActivities.ReserveStationCapacity)
+	w.RegisterActivity(processPathActivities.ReleaseStationCapacity)
+
+	// Register Phase 2.2: Labor certification activities
+	w.RegisterActivity(laborActivities.ValidateWorkerCertification)
+	w.RegisterActivity(laborActivities.AssignCertifiedWorker)
+	w.RegisterActivity(laborActivities.GetAvailableWorkers)
+
+	// Register Phase 2.3: Equipment availability activities
+	w.RegisterActivity(equipmentActivities.CheckEquipmentAvailability)
+	w.RegisterActivity(equipmentActivities.ReserveEquipment)
+	w.RegisterActivity(equipmentActivities.ReleaseEquipment)
+
+	// Register Phase 3.1: Routing optimizer activities (ATROPS-like)
+	w.RegisterActivity(routingOptimizerActivities.OptimizeStationSelection)
+	w.RegisterActivity(routingOptimizerActivities.GetRoutingMetrics)
+	w.RegisterActivity(routingOptimizerActivities.RerouteOrder)
+
+	// Register Phase 3.2: Escalation activities
+	w.RegisterActivity(escalationActivities.EscalateProcessPath)
+	w.RegisterActivity(escalationActivities.DetermineEscalationTier)
+	w.RegisterActivity(escalationActivities.FindFallbackStations)
+	w.RegisterActivity(escalationActivities.DowngradeProcessPath)
+
+	// Register Phase 3.3: Continuous optimization activities
+	w.RegisterActivity(continuousOptimizationActivities.MonitorSystemHealth)
+	w.RegisterActivity(continuousOptimizationActivities.RebalanceWaves)
+	w.RegisterActivity(continuousOptimizationActivities.TriggerDynamicRerouting)
+	w.RegisterActivity(continuousOptimizationActivities.PredictCapacityNeeds)
 
 	// Register gift wrap activities
 	w.RegisterActivity(giftWrapActivities.CreateGiftWrapTask)
@@ -233,6 +273,7 @@ func main() {
 	// Register unit-level tracking activities
 	w.RegisterActivity(unitActivities.CreateUnits)
 	w.RegisterActivity(unitActivities.ReserveUnits)
+	w.RegisterActivity(unitActivities.ReleaseUnits)
 	w.RegisterActivity(unitActivities.GetUnitsForOrder)
 	w.RegisterActivity(unitActivities.ConfirmUnitPick)
 	w.RegisterActivity(unitActivities.ConfirmUnitConsolidation)
@@ -252,6 +293,7 @@ func main() {
 		"MarkConsolidated",
 		"MarkPacked",
 		"ReleaseInventoryReservation",
+		"ReserveInventory",
 		"ConfirmInventoryPick",
 		"RecordStockShortage",
 		"CalculateRoute",
@@ -282,6 +324,30 @@ func main() {
 		"FindCapableStation",
 		"GetStation",
 		"GetStationsByZone",
+		"ReserveStationCapacity",
+		"ReleaseStationCapacity",
+		// Phase 2.2: Labor certification activities
+		"ValidateWorkerCertification",
+		"AssignCertifiedWorker",
+		"GetAvailableWorkers",
+		// Phase 2.3: Equipment availability activities
+		"CheckEquipmentAvailability",
+		"ReserveEquipment",
+		"ReleaseEquipment",
+		// Phase 3.1: Routing optimizer activities
+		"OptimizeStationSelection",
+		"GetRoutingMetrics",
+		"RerouteOrder",
+		// Phase 3.2: Escalation activities
+		"EscalateProcessPath",
+		"DetermineEscalationTier",
+		"FindFallbackStations",
+		"DowngradeProcessPath",
+		// Phase 3.3: Continuous optimization activities
+		"MonitorSystemHealth",
+		"RebalanceWaves",
+		"TriggerDynamicRerouting",
+		"PredictCapacityNeeds",
 		"CreateGiftWrapTask",
 		"AssignGiftWrapWorker",
 		"CheckGiftWrapStatus",
@@ -320,6 +386,7 @@ func main() {
 		// Unit-level tracking activities
 		"CreateUnits",
 		"ReserveUnits",
+		"ReleaseUnits",
 		"GetUnitsForOrder",
 		"ConfirmUnitPick",
 		"ConfirmUnitConsolidation",

@@ -19,6 +19,9 @@ const (
 type StageTemplate struct {
 	ID                primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
 	TemplateID        string             `bson:"templateId" json:"templateId"`
+	TenantID    string `bson:"tenantId" json:"tenantId"`
+	FacilityID  string `bson:"facilityId" json:"facilityId"`
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"`
 	PathType          ProcessPathType    `bson:"pathType" json:"pathType"`
 	Name              string             `bson:"name" json:"name"`
 	Description       string             `bson:"description" json:"description"`

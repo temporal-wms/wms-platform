@@ -1,0 +1,286 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/infrastructure/projections/inventory_projector.go:1:1
+package projections
+
+import (
+	"context"
+	"time"
+
+	"github.com/wms-platform/inventory-service/internal/domain"
+	"github.com/wms-platform/shared/pkg/logging"
+)
+
+// InventoryProjector handles domain events and updates the inventory list projection
+// This is the "event handler" in CQRS that keeps the read model in sync
+type InventoryProjector struct {
+	projectionRepo InventoryListProjectionRepository
+	inventoryRepo  domain.InventoryRepository // For fetching full aggregate when needed
+	logger         *logging.Logger
+}
+
+// NewInventoryProjector creates a new inventory projector
+func NewInventoryProjector(
+	projectionRepo InventoryListProjectionRepository,
+	inventoryRepo domain.InventoryRepository,
+	logger *logging.Logger,
+) *InventoryProjector {goCover_4e4e15989919__9[0] = 1 ; goCover_4e4e15989919__9[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__9[2] = 9 ; goCover_4e4e15989919__9[3] = 1;
+	return &InventoryProjector{
+		projectionRepo: projectionRepo,
+		inventoryRepo:  inventoryRepo,
+		logger:         logger,
+	}
+}
+
+// OnInventoryReceived handles InventoryReceivedEvent
+func (p *InventoryProjector) OnInventoryReceived(ctx context.Context, event *domain.InventoryReceivedEvent) error {goCover_4e4e15989919__10[0] = 5 ; goCover_4e4e15989919__10[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__10[2] = 10 ; goCover_4e4e15989919__10[3] = 1;
+	// Fetch the full inventory aggregate to build/update the projection
+	item, err := p.inventoryRepo.FindBySKU(ctx, event.SKU)
+	if err != nil || item == nil {goCover_4e4e15989919__10[6] = 1;
+		p.logger.Error("Failed to find inventory for projection", "sku", event.SKU, "error", err)
+		return err
+	}
+
+	// Check if projection exists
+	goCover_4e4e15989919__10[4] = 1;existing, _ := p.projectionRepo.FindBySKU(ctx, event.SKU)
+
+	if existing == nil {goCover_4e4e15989919__10[7] = 1;
+		// Create new projection
+		projection := p.buildProjectionFromAggregate(item)
+		projection.LastReceived = &event.ReceivedAt
+		return p.projectionRepo.Upsert(ctx, projection)
+	}
+
+	// Update existing projection
+	goCover_4e4e15989919__10[5] = 1;updates := map[string]interface{}{
+		"totalQuantity":     item.TotalQuantity,
+		"reservedQuantity":  item.ReservedQuantity,
+		"availableQuantity": item.AvailableQuantity,
+		"isLowStock":        item.AvailableQuantity <= item.ReorderPoint,
+		"isOutOfStock":      item.AvailableQuantity == 0,
+		"lastReceived":      event.ReceivedAt,
+		"locationCount":     len(item.Locations),
+		"availableLocations": p.extractAvailableLocations(item),
+		"primaryLocation":    p.findPrimaryLocation(item),
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, event.SKU, updates)
+}
+
+// OnInventoryAdjusted handles InventoryAdjustedEvent
+func (p *InventoryProjector) OnInventoryAdjusted(ctx context.Context, event *domain.InventoryAdjustedEvent) error {goCover_4e4e15989919__11[0] = 3 ; goCover_4e4e15989919__11[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__11[2] = 11 ; goCover_4e4e15989919__11[3] = 1;
+	// Fetch the full inventory aggregate
+	item, err := p.inventoryRepo.FindBySKU(ctx, event.SKU)
+	if err != nil || item == nil {goCover_4e4e15989919__11[5] = 1;
+		p.logger.Error("Failed to find inventory for projection", "sku", event.SKU, "error", err)
+		return err
+	}
+
+	// Update projection
+	goCover_4e4e15989919__11[4] = 1;updates := map[string]interface{}{
+		"totalQuantity":      item.TotalQuantity,
+		"availableQuantity":  item.AvailableQuantity,
+		"isLowStock":         item.AvailableQuantity <= item.ReorderPoint,
+		"isOutOfStock":       item.AvailableQuantity == 0,
+		"lastAdjusted":       event.AdjustedAt,
+		"availableLocations": p.extractAvailableLocations(item),
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, event.SKU, updates)
+}
+
+// OnLowStockAlert handles LowStockAlertEvent
+func (p *InventoryProjector) OnLowStockAlert(ctx context.Context, event *domain.LowStockAlertEvent) error {goCover_4e4e15989919__12[0] = 1 ; goCover_4e4e15989919__12[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__12[2] = 12 ; goCover_4e4e15989919__12[3] = 1;
+	// Update low stock flag
+	updates := map[string]interface{}{
+		"isLowStock":         true,
+		"availableQuantity":  event.CurrentQuantity,
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, event.SKU, updates)
+}
+
+// OnInventoryReserved handles inventory reservation (not a domain event yet, but useful)
+func (p *InventoryProjector) OnInventoryReserved(ctx context.Context, sku, orderID string) error {goCover_4e4e15989919__13[0] = 6 ; goCover_4e4e15989919__13[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__13[2] = 13 ; goCover_4e4e15989919__13[3] = 1;
+	// Fetch the full inventory aggregate
+	item, err := p.inventoryRepo.FindBySKU(ctx, sku)
+	if err != nil || item == nil {goCover_4e4e15989919__13[6] = 1;
+		p.logger.Error("Failed to find inventory for projection", "sku", sku, "error", err)
+		return err
+	}
+
+	// Extract active reservation order IDs
+	goCover_4e4e15989919__13[4] = 1;reservedOrders := make([]string, 0)
+	activeReservations := 0
+	for _, res := range item.Reservations {goCover_4e4e15989919__13[7] = 1;
+		if res.Status == "active" {goCover_4e4e15989919__13[8] = 1;
+			activeReservations++
+			reservedOrders = append(reservedOrders, res.OrderID)
+		}
+	}
+
+	// Update projection
+	goCover_4e4e15989919__13[5] = 1;updates := map[string]interface{}{
+		"reservedQuantity":    item.ReservedQuantity,
+		"availableQuantity":   item.AvailableQuantity,
+		"isLowStock":          item.AvailableQuantity <= item.ReorderPoint,
+		"isOutOfStock":        item.AvailableQuantity == 0,
+		"activeReservations":  activeReservations,
+		"reservedOrders":      reservedOrders,
+		"availableLocations":  p.extractAvailableLocations(item),
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, sku, updates)
+}
+
+// OnInventoryPicked handles inventory pick (update after picking)
+func (p *InventoryProjector) OnInventoryPicked(ctx context.Context, sku string) error {goCover_4e4e15989919__14[0] = 6 ; goCover_4e4e15989919__14[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__14[2] = 14 ; goCover_4e4e15989919__14[3] = 1;
+	// Fetch the full inventory aggregate
+	item, err := p.inventoryRepo.FindBySKU(ctx, sku)
+	if err != nil || item == nil {goCover_4e4e15989919__14[6] = 1;
+		p.logger.Error("Failed to find inventory for projection", "sku", sku, "error", err)
+		return err
+	}
+
+	goCover_4e4e15989919__14[4] = 1;now := time.Now()
+
+	// Extract active reservation order IDs
+	reservedOrders := make([]string, 0)
+	activeReservations := 0
+	for _, res := range item.Reservations {goCover_4e4e15989919__14[7] = 1;
+		if res.Status == "active" {goCover_4e4e15989919__14[8] = 1;
+			activeReservations++
+			reservedOrders = append(reservedOrders, res.OrderID)
+		}
+	}
+
+	// Update projection
+	goCover_4e4e15989919__14[5] = 1;updates := map[string]interface{}{
+		"totalQuantity":       item.TotalQuantity,
+		"reservedQuantity":    item.ReservedQuantity,
+		"availableQuantity":   item.AvailableQuantity,
+		"isLowStock":          item.AvailableQuantity <= item.ReorderPoint,
+		"isOutOfStock":        item.AvailableQuantity == 0,
+		"activeReservations":  activeReservations,
+		"reservedOrders":      reservedOrders,
+		"lastPicked":          now,
+		"locationCount":       len(item.Locations),
+		"availableLocations":  p.extractAvailableLocations(item),
+		"primaryLocation":     p.findPrimaryLocation(item),
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, sku, updates)
+}
+
+// OnStockShortage handles StockShortageEvent
+func (p *InventoryProjector) OnStockShortage(ctx context.Context, event *domain.StockShortageEvent) error {goCover_4e4e15989919__15[0] = 3 ; goCover_4e4e15989919__15[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__15[2] = 15 ; goCover_4e4e15989919__15[3] = 1;
+	// Fetch the full inventory aggregate
+	item, err := p.inventoryRepo.FindBySKU(ctx, event.SKU)
+	if err != nil || item == nil {goCover_4e4e15989919__15[5] = 1;
+		p.logger.Error("Failed to find inventory for projection", "sku", event.SKU, "error", err)
+		return err
+	}
+
+	goCover_4e4e15989919__15[4] = 1;now := time.Now()
+
+	// Update projection with adjusted quantities
+	updates := map[string]interface{}{
+		"totalQuantity":      item.TotalQuantity,
+		"availableQuantity":  item.AvailableQuantity,
+		"reservedQuantity":   item.ReservedQuantity,
+		"isLowStock":         item.AvailableQuantity <= item.ReorderPoint,
+		"isOutOfStock":       item.AvailableQuantity == 0,
+		"lastShortage":       now,
+		"availableLocations": p.extractAvailableLocations(item),
+		"primaryLocation":    p.findPrimaryLocation(item),
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, event.SKU, updates)
+}
+
+// OnInventoryDiscrepancy handles InventoryDiscrepancyEvent
+func (p *InventoryProjector) OnInventoryDiscrepancy(ctx context.Context, event *domain.InventoryDiscrepancyEvent) error {goCover_4e4e15989919__16[0] = 3 ; goCover_4e4e15989919__16[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__16[2] = 16 ; goCover_4e4e15989919__16[3] = 1;
+	// Fetch the full inventory aggregate
+	item, err := p.inventoryRepo.FindBySKU(ctx, event.SKU)
+	if err != nil || item == nil {goCover_4e4e15989919__16[5] = 1;
+		p.logger.Error("Failed to find inventory for projection", "sku", event.SKU, "error", err)
+		return err
+	}
+
+	goCover_4e4e15989919__16[4] = 1;now := time.Now()
+
+	// Update projection with adjusted quantities
+	updates := map[string]interface{}{
+		"totalQuantity":       item.TotalQuantity,
+		"availableQuantity":   item.AvailableQuantity,
+		"isLowStock":          item.AvailableQuantity <= item.ReorderPoint,
+		"isOutOfStock":        item.AvailableQuantity == 0,
+		"lastDiscrepancy":     now,
+		"lastDiscrepancyType": event.DiscrepancyType,
+		"availableLocations":  p.extractAvailableLocations(item),
+	}
+
+	return p.projectionRepo.UpdateFields(ctx, event.SKU, updates)
+}
+
+// buildProjectionFromAggregate creates a new projection from a full aggregate
+func (p *InventoryProjector) buildProjectionFromAggregate(item *domain.InventoryItem) *InventoryListProjection {goCover_4e4e15989919__17[0] = 4 ; goCover_4e4e15989919__17[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__17[2] = 17 ; goCover_4e4e15989919__17[3] = 1;
+	// Extract active reservation order IDs
+	reservedOrders := make([]string, 0)
+	activeReservations := 0
+	for _, res := range item.Reservations {goCover_4e4e15989919__17[5] = 1;
+		if res.Status == "active" {goCover_4e4e15989919__17[6] = 1;
+			activeReservations++
+			reservedOrders = append(reservedOrders, res.OrderID)
+		}
+	}
+
+	goCover_4e4e15989919__17[4] = 1;projection := &InventoryListProjection{
+		SKU:                item.SKU,
+		ProductName:        item.ProductName,
+		TotalQuantity:      item.TotalQuantity,
+		ReservedQuantity:   item.ReservedQuantity,
+		AvailableQuantity:  item.AvailableQuantity,
+		ReorderPoint:       item.ReorderPoint,
+		ReorderQuantity:    item.ReorderQuantity,
+		IsLowStock:         item.AvailableQuantity <= item.ReorderPoint,
+		IsOutOfStock:       item.AvailableQuantity == 0,
+		LocationCount:      len(item.Locations),
+		PrimaryLocation:    p.findPrimaryLocation(item),
+		AvailableLocations: p.extractAvailableLocations(item),
+		ActiveReservations: activeReservations,
+		ReservedOrders:     reservedOrders,
+		LastCycleCount:     item.LastCycleCount,
+		CreatedAt:          item.CreatedAt,
+		UpdatedAt:          item.UpdatedAt,
+	}
+
+	return projection
+}
+
+// extractAvailableLocations extracts location IDs with available stock
+func (p *InventoryProjector) extractAvailableLocations(item *domain.InventoryItem) []string {goCover_4e4e15989919__18[0] = 4 ; goCover_4e4e15989919__18[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__18[2] = 18 ; goCover_4e4e15989919__18[3] = 1;
+	locations := make([]string, 0)
+	for _, loc := range item.Locations {goCover_4e4e15989919__18[5] = 1;
+		if loc.Available > 0 {goCover_4e4e15989919__18[6] = 1;
+			locations = append(locations, loc.LocationID)
+		}
+	}
+	goCover_4e4e15989919__18[4] = 1;return locations
+}
+
+// findPrimaryLocation finds the location with the most available stock
+func (p *InventoryProjector) findPrimaryLocation(item *domain.InventoryItem) string {goCover_4e4e15989919__19[0] = 6 ; goCover_4e4e15989919__19[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__19[2] = 19 ; goCover_4e4e15989919__19[3] = 1;
+	if len(item.Locations) == 0 {goCover_4e4e15989919__19[6] = 1;
+		return ""
+	}
+
+	goCover_4e4e15989919__19[4] = 1;maxLocation := ""
+	maxQty := 0
+	for _, loc := range item.Locations {goCover_4e4e15989919__19[7] = 1;
+		if loc.Available > maxQty {goCover_4e4e15989919__19[8] = 1;
+			maxQty = loc.Available
+			maxLocation = loc.LocationID
+		}
+	}
+
+	goCover_4e4e15989919__19[5] = 1;return maxLocation
+}

@@ -109,27 +109,109 @@ graph TD
     DEST -->|International| Z4[Zone D<br/>Chutes 31-40]
 ```
 
-## Batch Sortation Workflow
+## BatchSortationWorkflow
 
-For high-volume batch processing:
+A high-throughput workflow for processing multiple packages in a single sortation operation.
+
+### Overview
+
+The Batch Sortation Workflow processes multiple packages at once, optimizing for:
+- Reduced API calls through batching
+- Unified batch assignment
+- Efficient chute allocation
+
+### Configuration
+
+| Property | Value |
+|----------|-------|
+| Task Queue | `orchestrator` |
+| Execution Timeout | 24 hours |
+| Activity Timeout | 5 minutes |
+| Retry Policy | 3 maximum attempts |
+
+### Input
 
 ```go
-// BatchSortationWorkflowInput for processing multiple packages
 type BatchSortationWorkflowInput struct {
-    SortationCenter string                  `json:"sortationCenter"`
-    CarrierID       string                  `json:"carrierId"`
-    Packages        []SortationWorkflowInput `json:"packages"`
+    SortationCenter string                  `json:"sortationCenter"` // Sortation facility
+    CarrierID       string                  `json:"carrierId"`       // Carrier for all packages
+    Packages        []SortationPackageInput `json:"packages"`        // Packages to sort
 }
 
-// BatchSortationWorkflowResult for batch results
-type BatchSortationWorkflowResult struct {
-    BatchID       string `json:"batchId"`
-    TotalPackages int    `json:"totalPackages"`
-    SortedCount   int    `json:"sortedCount"`
-    FailedCount   int    `json:"failedCount"`
-    Success       bool   `json:"success"`
+type SortationPackageInput struct {
+    PackageID      string  `json:"packageId"`
+    OrderID        string  `json:"orderId"`
+    TrackingNumber string  `json:"trackingNumber"`
+    Destination    string  `json:"destination"`     // Zip code
+    Weight         float64 `json:"weight"`
 }
 ```
+
+### Output
+
+```go
+type BatchSortationWorkflowResult struct {
+    BatchID       string `json:"batchId"`       // Assigned batch
+    TotalPackages int    `json:"totalPackages"` // Input package count
+    SortedCount   int    `json:"sortedCount"`   // Successfully sorted
+    FailedCount   int    `json:"failedCount"`   // Failed to sort
+    Success       bool   `json:"success"`       // All packages sorted
+}
+```
+
+### Workflow Flow
+
+```mermaid
+flowchart LR
+    A[Receive Packages] --> B[Convert to Activity Format]
+    B --> C[Execute ProcessSortation]
+    C --> D{All Sorted?}
+    D -->|Yes| E[Success: true]
+    D -->|Partial| F[Success: false]
+    D -->|All Failed| G[Return Error]
+```
+
+### Activities Used
+
+| Activity | Purpose |
+|----------|---------|
+| `ProcessSortation` | Bulk processes all packages in the batch |
+
+### Usage Example
+
+```go
+options := client.StartWorkflowOptions{
+    ID:        fmt.Sprintf("batch-sortation-%s-%d", carrierID, time.Now().Unix()),
+    TaskQueue: "orchestrator",
+}
+
+input := workflows.BatchSortationWorkflowInput{
+    SortationCenter: "MAIN-SORT",
+    CarrierID:       "UPS",
+    Packages: []workflows.SortationPackageInput{
+        {PackageID: "PKG-001", OrderID: "ORD-001", Destination: "10001", Weight: 2.5},
+        {PackageID: "PKG-002", OrderID: "ORD-002", Destination: "90210", Weight: 1.2},
+        {PackageID: "PKG-003", OrderID: "ORD-003", Destination: "33101", Weight: 3.8},
+    },
+}
+
+we, err := client.ExecuteWorkflow(ctx, options, workflows.BatchSortationWorkflow, input)
+
+var result workflows.BatchSortationWorkflowResult
+err = we.Get(ctx, &result)
+
+fmt.Printf("Sorted %d/%d packages in batch %s\n",
+    result.SortedCount, result.TotalPackages, result.BatchID)
+```
+
+### When to Use Batch vs Individual
+
+| Scenario | Recommended Workflow |
+|----------|---------------------|
+| Single package from order fulfillment | `SortationWorkflow` |
+| Wave release with 50+ packages | `BatchSortationWorkflow` |
+| Carrier pickup preparation | `BatchSortationWorkflow` |
+| Manual sort station | `SortationWorkflow` |
 
 ## Error Handling
 

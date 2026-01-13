@@ -1,0 +1,6 @@
+./commands.go
+./dtos.go
+./inventory_coordinator.go
+./inventory_query_service.go
+./inventory_service.go
+./mappers.go

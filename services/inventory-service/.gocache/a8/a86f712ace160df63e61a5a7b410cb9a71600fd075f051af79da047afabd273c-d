@@ -1,0 +1,759 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/cmd/api/main.go:1:1
+package main; import _ "runtime/coverage"
+
+import (
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/wms-platform/shared/pkg/cloudevents"
+	"github.com/wms-platform/shared/pkg/errors"
+	"github.com/wms-platform/shared/pkg/idempotency"
+	"github.com/wms-platform/shared/pkg/kafka"
+	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/metrics"
+	"github.com/wms-platform/shared/pkg/middleware"
+	"github.com/wms-platform/shared/pkg/mongodb"
+	"github.com/wms-platform/shared/pkg/outbox"
+	"github.com/wms-platform/shared/pkg/tracing"
+
+	"github.com/wms-platform/inventory-service/internal/application"
+	mongoRepo "github.com/wms-platform/inventory-service/internal/infrastructure/mongodb"
+	"github.com/wms-platform/inventory-service/internal/infrastructure/projections"
+)
+
+const serviceName = "inventory-service"
+
+func main() {goCover_768fdc3ba292__0[0] = 24 ; goCover_768fdc3ba292__0[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__0[2] = 0 ; goCover_768fdc3ba292__0[3] = 1;
+	// Setup enhanced logger
+	logConfig := logging.DefaultConfig(serviceName)
+	logConfig.Level = logging.LogLevel(getEnv("LOG_LEVEL", "info"))
+	logger := logging.New(logConfig)
+	logger.SetDefault()
+
+	logger.Info("Starting inventory-service API")
+
+	// Load configuration
+	config := loadConfig()
+	ctx := context.Background()
+
+	// Initialize OpenTelemetry tracing
+	tracingConfig := tracing.DefaultConfig(serviceName)
+	tracingConfig.OTLPEndpoint = getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	tracingConfig.Environment = getEnv("ENVIRONMENT", "development")
+	tracingConfig.Enabled = getEnv("TRACING_ENABLED", "true") == "true"
+
+	tracerProvider, err := tracing.Initialize(ctx, tracingConfig)
+	if err != nil {goCover_768fdc3ba292__0[12] = 1;
+		logger.WithError(err).Error("Failed to initialize tracing")
+		// Continue without tracing - don't exit
+	} else{ goCover_768fdc3ba292__0[13] = 1;if tracerProvider != nil {goCover_768fdc3ba292__0[14] = 1;
+		defer func() {goCover_768fdc3ba292__0[16] = 1;
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := tracerProvider.Shutdown(shutdownCtx); err != nil {goCover_768fdc3ba292__0[17] = 1;
+				logger.WithError(err).Error("Failed to shutdown tracer")
+			}
+		}()
+		goCover_768fdc3ba292__0[15] = 1;logger.Info("Tracing initialized", "endpoint", tracingConfig.OTLPEndpoint)
+	}}
+
+	// Initialize Prometheus metrics
+	goCover_768fdc3ba292__0[4] = 1;metricsConfig := metrics.DefaultConfig(serviceName)
+	m := metrics.New(metricsConfig)
+	logger.Info("Metrics initialized")
+
+	// Initialize MongoDB with instrumentation
+	mongoClient, err := mongodb.NewClient(ctx, config.MongoDB)
+	if err != nil {goCover_768fdc3ba292__0[18] = 1;
+		logger.WithError(err).Error("Failed to connect to MongoDB")
+		os.Exit(1)
+	}
+	goCover_768fdc3ba292__0[5] = 1;instrumentedMongo := mongodb.NewInstrumentedClient(mongoClient, m, logger)
+	defer instrumentedMongo.Close(ctx)
+	logger.Info("Connected to MongoDB", "database", config.MongoDB.Database)
+
+	// Initialize idempotency indexes
+	if err := idempotency.InitializeIndexes(ctx, instrumentedMongo.Database()); err != nil {goCover_768fdc3ba292__0[19] = 1;
+		logger.WithError(err).Warn("Failed to initialize idempotency indexes")
+	} else{ goCover_768fdc3ba292__0[20] = 1;{
+		logger.Info("Idempotency indexes initialized")
+	}}
+
+	// Initialize Kafka producer with instrumentation
+	goCover_768fdc3ba292__0[6] = 1;kafkaProducer := kafka.NewProducer(config.Kafka)
+	instrumentedProducer := kafka.NewInstrumentedProducer(kafkaProducer, m, logger)
+	defer instrumentedProducer.Close()
+	logger.Info("Kafka producer initialized", "brokers", config.Kafka.Brokers)
+
+	// Initialize CloudEvents factory
+	eventFactory := cloudevents.NewEventFactory("/inventory-service")
+
+	// Initialize repositories with instrumented client and event factory
+	repo := mongoRepo.NewInventoryRepository(instrumentedMongo.Database(), eventFactory)
+
+	// Initialize idempotency repository
+	idempotencyKeyRepo := idempotency.NewMongoKeyRepository(instrumentedMongo.Database())
+	logger.Info("Idempotency repositories initialized")
+
+	// Initialize CQRS projection repository
+	projectionRepo := projections.NewMongoInventoryListProjectionRepository(instrumentedMongo.Database())
+	logger.Info("Projection repository initialized")
+
+	// Initialize inventory projector for CQRS read model
+	projector := projections.NewInventoryProjector(projectionRepo, repo, logger)
+	logger.Info("Inventory projector initialized")
+
+	// Initialize query service for optimized reads
+	queryService := application.NewInventoryQueryService(projectionRepo, logger)
+	_ = queryService // TODO: Use query service in read handlers for better performance
+	logger.Info("Query service initialized")
+
+	// Initialize and start outbox publisher
+	outboxPublisher := outbox.NewPublisher(
+		repo.GetOutboxRepository(),
+		instrumentedProducer,
+		logger,
+		m,
+		&outbox.PublisherConfig{
+			PollInterval: 1 * time.Second,
+			BatchSize:    100,
+		},
+	)
+	if err := outboxPublisher.Start(ctx); err != nil {goCover_768fdc3ba292__0[21] = 1;
+		logger.WithError(err).Error("Failed to start outbox publisher")
+		os.Exit(1)
+	}
+	goCover_768fdc3ba292__0[7] = 1;defer outboxPublisher.Stop()
+	logger.Info("Outbox publisher started")
+
+	// Initialize application service with projector for CQRS
+	inventoryService := application.NewInventoryApplicationService(
+		repo,
+		instrumentedProducer,
+		eventFactory,
+		projector,
+		logger,
+	)
+
+	// Setup Gin router with middleware
+	router := gin.New()
+
+	// Apply standard middleware (includes recovery, request ID, correlation, logging, error handling)
+	middlewareConfig := middleware.DefaultConfig(serviceName, logger.Logger)
+
+	// Initialize idempotency metrics
+	idempotencyMetrics := idempotency.NewMetrics(nil)
+
+	// Configure idempotency middleware
+	middlewareConfig.IdempotencyConfig = &idempotency.Config{
+		ServiceName:     serviceName,
+		Repository:      idempotencyKeyRepo,
+		RequireKey:      false,
+		OnlyMutating:    true,
+		MaxKeyLength:    255,
+		LockTimeout:     5 * time.Minute,
+		RetentionPeriod: 24 * time.Hour,
+		MaxResponseSize: 1024 * 1024,
+		Metrics:         idempotencyMetrics,
+	}
+
+	middleware.Setup(router, middlewareConfig)
+
+	// Add metrics middleware
+	router.Use(middleware.MetricsMiddleware(m))
+
+	// Add tracing middleware
+	router.Use(middleware.SimpleTracingMiddleware(serviceName))
+
+	// Handle 404 and 405 errors
+	router.NoRoute(middleware.NoRoute())
+	router.NoMethod(middleware.NoMethod())
+
+	// Health check endpoints
+	router.GET("/health", middleware.HealthCheck(serviceName))
+	router.GET("/ready", middleware.ReadinessCheck(serviceName, func() error {goCover_768fdc3ba292__0[22] = 1;
+		return instrumentedMongo.HealthCheck(ctx)
+	}))
+
+	// Metrics endpoint
+	goCover_768fdc3ba292__0[8] = 1;router.GET("/metrics", middleware.MetricsEndpoint(m))
+
+	// API v1 routes
+	api := router.Group("/api/v1/inventory")
+	{goCover_768fdc3ba292__0[23] = 1;
+		// Static routes first (must come before wildcard routes)
+		api.POST("", createItemHandler(inventoryService, logger))
+		api.GET("", listInventoryHandler(inventoryService, logger))
+		api.GET("/location/:locationId", getByLocationHandler(inventoryService, logger))
+		api.GET("/zone/:zone", getByZoneHandler(inventoryService, logger))
+		api.GET("/low-stock", getLowStockHandler(inventoryService, logger))
+		api.POST("/release/:orderId", releaseByOrderHandler(inventoryService, logger))
+
+		// Wildcard SKU routes (must come after static routes)
+		api.GET("/:sku", getItemHandler(inventoryService, logger))
+		api.POST("/:sku/receive", receiveStockHandler(inventoryService, logger))
+		api.POST("/:sku/reserve", reserveHandler(inventoryService, logger))
+		api.POST("/:sku/pick", pickHandler(inventoryService, logger))
+		api.POST("/:sku/release", releaseReservationHandler(inventoryService, logger))
+		api.POST("/:sku/adjust", adjustHandler(inventoryService, logger))
+
+		// Hard allocation routes (physical staging lifecycle)
+		api.POST("/:sku/stage", stageHandler(inventoryService, logger))
+		api.POST("/:sku/pack", packHandler(inventoryService, logger))
+		api.POST("/:sku/ship", shipHandler(inventoryService, logger))
+		api.POST("/:sku/return-to-shelf", returnToShelfHandler(inventoryService, logger))
+
+		// Shortage handling routes
+		api.POST("/:sku/shortage", recordShortageHandler(inventoryService, logger))
+	}
+
+	// Start server
+	goCover_768fdc3ba292__0[9] = 1;srv := &http.Server{
+		Addr:         config.ServerAddr,
+		Handler:      router,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+
+	// Graceful shutdown
+	go func() {goCover_768fdc3ba292__0[24] = 1;
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {goCover_768fdc3ba292__0[25] = 1;
+			logger.Error("Server error", "error", err)
+		}
+	}()
+	goCover_768fdc3ba292__0[10] = 1;logger.Info("Server started", "addr", config.ServerAddr)
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	logger.Info("Shutting down server...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {goCover_768fdc3ba292__0[26] = 1;
+		logger.Error("Server forced to shutdown", "error", err)
+	}
+
+	goCover_768fdc3ba292__0[11] = 1;logger.Info("Server stopped")
+}
+
+// Config holds application configuration
+type Config struct {
+	ServerAddr string
+	MongoDB    *mongodb.Config
+	Kafka      *kafka.Config
+}
+
+func loadConfig() *Config {goCover_768fdc3ba292__1[0] = 1 ; goCover_768fdc3ba292__1[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__1[2] = 1 ; goCover_768fdc3ba292__1[3] = 1;
+	return &Config{
+		ServerAddr: getEnv("SERVER_ADDR", ":8008"),
+		MongoDB: &mongodb.Config{
+			URI:            getEnv("MONGODB_URI", "mongodb://localhost:27017"),
+			Database:       getEnv("MONGODB_DATABASE", "inventory_db"),
+			ConnectTimeout: 10 * time.Second,
+			MaxPoolSize:    100,
+			MinPoolSize:    10,
+		},
+		Kafka: &kafka.Config{
+			Brokers:       []string{getEnv("KAFKA_BROKERS", "localhost:9092")},
+			ConsumerGroup: "inventory-service",
+			ClientID:      "inventory-service",
+			BatchSize:     100,
+			BatchTimeout:  10 * time.Millisecond,
+			RequiredAcks:  -1,
+		},
+	}
+}
+
+func getEnv(key, defaultValue string) string {goCover_768fdc3ba292__2[0] = 3 ; goCover_768fdc3ba292__2[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__2[2] = 2 ; goCover_768fdc3ba292__2[3] = 1;
+	if value := os.Getenv(key); value != "" {goCover_768fdc3ba292__2[5] = 1;
+		return value
+	}
+	goCover_768fdc3ba292__2[4] = 1;return defaultValue
+}
+
+func createItemHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__3[0] = 6 ; goCover_768fdc3ba292__3[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__3[2] = 3 ; goCover_768fdc3ba292__3[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__3[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			SKU             string `json:"sku" binding:"required"`
+			ProductName     string `json:"productName" binding:"required"`
+			ReorderPoint    int    `json:"reorderPoint"`
+			ReorderQuantity int    `json:"reorderQuantity"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__3[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__3[5] = 1;cmd := application.CreateItemCommand{
+			SKU:             req.SKU,
+			ProductName:     req.ProductName,
+			ReorderPoint:    req.ReorderPoint,
+			ReorderQuantity: req.ReorderQuantity,
+		}
+
+		item, err := service.CreateItem(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__3[8] = 1;
+			responder.RespondInternalError(err)
+			return
+		}
+
+		goCover_768fdc3ba292__3[6] = 1;c.JSON(http.StatusCreated, item)
+	}
+}
+
+func getItemHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__4[0] = 7 ; goCover_768fdc3ba292__4[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__4[2] = 4 ; goCover_768fdc3ba292__4[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__4[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		query := application.GetItemQuery{SKU: c.Param("sku")}
+
+		item, err := service.GetItem(c.Request.Context(), query)
+		if err != nil {goCover_768fdc3ba292__4[6] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__4[8] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__4[9] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__4[7] = 1;return
+		}
+
+		goCover_768fdc3ba292__4[5] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+func receiveStockHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__5[0] = 9 ; goCover_768fdc3ba292__5[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__5[2] = 5 ; goCover_768fdc3ba292__5[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__5[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			LocationID  string `json:"locationId" binding:"required"`
+			Zone        string `json:"zone"`
+			Quantity    int    `json:"quantity" binding:"required"`
+			ReferenceID string `json:"referenceId"`
+			CreatedBy   string `json:"createdBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__5[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__5[5] = 1;cmd := application.ReceiveStockCommand{
+			SKU:         c.Param("sku"),
+			LocationID:  req.LocationID,
+			Zone:        req.Zone,
+			Quantity:    req.Quantity,
+			ReferenceID: req.ReferenceID,
+			CreatedBy:   req.CreatedBy,
+		}
+
+		item, err := service.ReceiveStock(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__5[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__5[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__5[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__5[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__5[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+func reserveHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__6[0] = 9 ; goCover_768fdc3ba292__6[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__6[2] = 6 ; goCover_768fdc3ba292__6[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__6[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			OrderID    string `json:"orderId" binding:"required"`
+			LocationID string `json:"locationId" binding:"required"`
+			Quantity   int    `json:"quantity" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__6[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__6[5] = 1;cmd := application.ReserveCommand{
+			SKU:        c.Param("sku"),
+			OrderID:    req.OrderID,
+			LocationID: req.LocationID,
+			Quantity:   req.Quantity,
+		}
+
+		item, err := service.Reserve(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__6[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__6[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__6[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__6[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__6[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+func pickHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__7[0] = 9 ; goCover_768fdc3ba292__7[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__7[2] = 7 ; goCover_768fdc3ba292__7[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__7[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			OrderID    string `json:"orderId" binding:"required"`
+			LocationID string `json:"locationId" binding:"required"`
+			Quantity   int    `json:"quantity" binding:"required"`
+			CreatedBy  string `json:"createdBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__7[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__7[5] = 1;cmd := application.PickCommand{
+			SKU:        c.Param("sku"),
+			OrderID:    req.OrderID,
+			LocationID: req.LocationID,
+			Quantity:   req.Quantity,
+			CreatedBy:  req.CreatedBy,
+		}
+
+		item, err := service.Pick(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__7[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__7[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__7[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__7[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__7[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+func releaseReservationHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__8[0] = 9 ; goCover_768fdc3ba292__8[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__8[2] = 8 ; goCover_768fdc3ba292__8[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__8[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			OrderID string `json:"orderId" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__8[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__8[5] = 1;cmd := application.ReleaseReservationCommand{
+			SKU:     c.Param("sku"),
+			OrderID: req.OrderID,
+		}
+
+		item, err := service.ReleaseReservation(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__8[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__8[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__8[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__8[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__8[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+func adjustHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__9[0] = 9 ; goCover_768fdc3ba292__9[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__9[2] = 9 ; goCover_768fdc3ba292__9[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__9[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			LocationID  string `json:"locationId" binding:"required"`
+			NewQuantity int    `json:"newQuantity" binding:"required"`
+			Reason      string `json:"reason" binding:"required"`
+			CreatedBy   string `json:"createdBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__9[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__9[5] = 1;cmd := application.AdjustCommand{
+			SKU:         c.Param("sku"),
+			LocationID:  req.LocationID,
+			NewQuantity: req.NewQuantity,
+			Reason:      req.Reason,
+			CreatedBy:   req.CreatedBy,
+		}
+
+		item, err := service.Adjust(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__9[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__9[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__9[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__9[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__9[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+func getByLocationHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__10[0] = 2 ; goCover_768fdc3ba292__10[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__10[2] = 10 ; goCover_768fdc3ba292__10[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__10[4] = 1;
+		query := application.GetByLocationQuery{LocationID: c.Param("locationId")}
+		items, _ := service.GetByLocation(c.Request.Context(), query)
+		c.JSON(http.StatusOK, items)
+	}
+}
+
+func getByZoneHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__11[0] = 2 ; goCover_768fdc3ba292__11[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__11[2] = 11 ; goCover_768fdc3ba292__11[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__11[4] = 1;
+		query := application.GetByZoneQuery{Zone: c.Param("zone")}
+		items, _ := service.GetByZone(c.Request.Context(), query)
+		c.JSON(http.StatusOK, items)
+	}
+}
+
+func getLowStockHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__12[0] = 2 ; goCover_768fdc3ba292__12[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__12[2] = 12 ; goCover_768fdc3ba292__12[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__12[4] = 1;
+		items, _ := service.GetLowStock(c.Request.Context())
+		c.JSON(http.StatusOK, items)
+	}
+}
+
+func listInventoryHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__13[0] = 2 ; goCover_768fdc3ba292__13[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__13[2] = 13 ; goCover_768fdc3ba292__13[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__13[4] = 1;
+		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+		query := application.ListInventoryQuery{
+			Limit:  limit,
+			Offset: offset,
+		}
+
+		items, _ := service.ListInventory(c.Request.Context(), query)
+		c.JSON(http.StatusOK, items)
+	}
+}
+
+func releaseByOrderHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__14[0] = 6 ; goCover_768fdc3ba292__14[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__14[2] = 14 ; goCover_768fdc3ba292__14[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__14[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		orderID := c.Param("orderId")
+		if orderID == "" {goCover_768fdc3ba292__14[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": "orderId is required"})
+			return
+		}
+
+		goCover_768fdc3ba292__14[5] = 1;cmd := application.ReleaseByOrderCommand{
+			OrderID: orderID,
+		}
+
+		releasedCount, err := service.ReleaseByOrder(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__14[8] = 1;
+			responder.RespondInternalError(err)
+			return
+		}
+
+		goCover_768fdc3ba292__14[6] = 1;c.JSON(http.StatusOK, gin.H{
+			"orderId":       orderID,
+			"releasedCount": releasedCount,
+			"message":       "Reservations released successfully",
+		})
+	}
+}
+
+// stageHandler converts a soft reservation to hard allocation (physical staging)
+func stageHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__15[0] = 9 ; goCover_768fdc3ba292__15[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__15[2] = 15 ; goCover_768fdc3ba292__15[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__15[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			ReservationID     string `json:"reservationId" binding:"required"`
+			StagingLocationID string `json:"stagingLocationId" binding:"required"`
+			StagedBy          string `json:"stagedBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__15[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__15[5] = 1;cmd := application.StageCommand{
+			SKU:               c.Param("sku"),
+			ReservationID:     req.ReservationID,
+			StagingLocationID: req.StagingLocationID,
+			StagedBy:          req.StagedBy,
+		}
+
+		item, err := service.Stage(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__15[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__15[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__15[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__15[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__15[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+// packHandler marks a hard allocation as packed
+func packHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__16[0] = 9 ; goCover_768fdc3ba292__16[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__16[2] = 16 ; goCover_768fdc3ba292__16[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__16[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			AllocationID string `json:"allocationId" binding:"required"`
+			PackedBy     string `json:"packedBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__16[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__16[5] = 1;cmd := application.PackCommand{
+			SKU:          c.Param("sku"),
+			AllocationID: req.AllocationID,
+			PackedBy:     req.PackedBy,
+		}
+
+		item, err := service.Pack(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__16[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__16[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__16[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__16[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__16[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+// shipHandler ships a packed allocation (removes inventory from system)
+func shipHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__17[0] = 9 ; goCover_768fdc3ba292__17[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__17[2] = 17 ; goCover_768fdc3ba292__17[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__17[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			AllocationID string `json:"allocationId" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__17[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__17[5] = 1;cmd := application.ShipCommand{
+			SKU:          c.Param("sku"),
+			AllocationID: req.AllocationID,
+		}
+
+		item, err := service.Ship(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__17[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__17[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__17[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__17[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__17[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+// returnToShelfHandler returns hard allocated inventory back to shelf
+func returnToShelfHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__18[0] = 9 ; goCover_768fdc3ba292__18[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__18[2] = 18 ; goCover_768fdc3ba292__18[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__18[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			AllocationID string `json:"allocationId" binding:"required"`
+			ReturnedBy   string `json:"returnedBy" binding:"required"`
+			Reason       string `json:"reason" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__18[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__18[5] = 1;cmd := application.ReturnToShelfCommand{
+			SKU:          c.Param("sku"),
+			AllocationID: req.AllocationID,
+			ReturnedBy:   req.ReturnedBy,
+			Reason:       req.Reason,
+		}
+
+		item, err := service.ReturnToShelf(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__18[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__18[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__18[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__18[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__18[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}
+
+// recordShortageHandler records a confirmed stock shortage discovered during picking
+func recordShortageHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {goCover_768fdc3ba292__19[0] = 9 ; goCover_768fdc3ba292__19[1] = goCover_768fdc3ba292_P ; goCover_768fdc3ba292__19[2] = 19 ; goCover_768fdc3ba292__19[3] = 1;
+	return func(c *gin.Context) {goCover_768fdc3ba292__19[4] = 1;
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			LocationID  string `json:"locationId" binding:"required"`
+			OrderID     string `json:"orderId" binding:"required"`
+			ExpectedQty int    `json:"expectedQty" binding:"required"`
+			ActualQty   int    `json:"actualQty" binding:"required"`
+			Reason      string `json:"reason" binding:"required"` // not_found, damaged, quantity_mismatch
+			ReportedBy  string `json:"reportedBy" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {goCover_768fdc3ba292__19[7] = 1;
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		goCover_768fdc3ba292__19[5] = 1;cmd := application.RecordShortageCommand{
+			SKU:         c.Param("sku"),
+			LocationID:  req.LocationID,
+			OrderID:     req.OrderID,
+			ExpectedQty: req.ExpectedQty,
+			ActualQty:   req.ActualQty,
+			Reason:      req.Reason,
+			ReportedBy:  req.ReportedBy,
+		}
+
+		item, err := service.RecordShortage(c.Request.Context(), cmd)
+		if err != nil {goCover_768fdc3ba292__19[8] = 1;
+			if appErr, ok := err.(*errors.AppError); ok {goCover_768fdc3ba292__19[10] = 1;
+				responder.RespondWithAppError(appErr)
+			} else{ goCover_768fdc3ba292__19[11] = 1;{
+				responder.RespondInternalError(err)
+			}}
+			goCover_768fdc3ba292__19[9] = 1;return
+		}
+
+		goCover_768fdc3ba292__19[6] = 1;c.JSON(http.StatusOK, item)
+	}
+}

@@ -1,0 +1,4 @@
+./inventory_allocation_repository.go
+./inventory_repository.go
+./inventory_reservation_repository.go
+./inventory_transaction_repository.go

@@ -1,11 +1,30 @@
+# syntax=docker/dockerfile:1
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+ARG APP_NAME=shell
+ARG VITE_K8S_DEPLOY=true
+
+COPY package.json package-lock.json tsconfig.base.json ./
+RUN npm ci
+
+COPY packages ./packages
+COPY apps ./apps
+
+# Build directly without NX to avoid project graph issues in Docker
+WORKDIR /app/apps/${APP_NAME}
+ENV VITE_K8S_DEPLOY=${VITE_K8S_DEPLOY}
+RUN npm run build
+
 FROM nginx:alpine
 
-# Copy nginx configuration
+ARG APP_NAME=shell
+
 COPY deploy/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
 
-# Copy built assets
-COPY apps/shell/dist /usr/share/nginx/html
+COPY --from=builder /app/apps/${APP_NAME}/dist /usr/share/nginx/html
 
 EXPOSE 80
 

@@ -51,7 +51,7 @@ type RemoveFacilityCommand struct {
 
 // UpdateFeeScheduleCommand represents the command to update a seller's fee schedule
 type UpdateFeeScheduleCommand struct {
-	SellerID                   string           `json:"sellerId" binding:"required"`
+	SellerID                   string           `json:"sellerId"` // Set from URL path by handler
 	StorageFeePerCubicFtPerDay float64          `json:"storageFeePerCubicFtPerDay"`
 	PickFeePerUnit             float64          `json:"pickFeePerUnit"`
 	PackFeePerOrder            float64          `json:"packFeePerOrder"`
@@ -75,7 +75,7 @@ type VolumeDiscount struct {
 
 // ConnectChannelCommand represents the command to connect a sales channel
 type ConnectChannelCommand struct {
-	SellerID         string              `json:"sellerId" binding:"required"`
+	SellerID         string              `json:"sellerId"` // Set from URL path by handler
 	ChannelType      string              `json:"channelType" binding:"required,oneof=shopify amazon ebay woocommerce"`
 	StoreName        string              `json:"storeName" binding:"required"`
 	StoreURL         string              `json:"storeUrl"`
@@ -99,7 +99,7 @@ type DisconnectChannelCommand struct {
 
 // GenerateAPIKeyCommand represents the command to generate an API key
 type GenerateAPIKeyCommand struct {
-	SellerID  string     `json:"sellerId" binding:"required"`
+	SellerID  string     `json:"sellerId"` // Set from URL path by handler
 	Name      string     `json:"name" binding:"required"`
 	Scopes    []string   `json:"scopes" binding:"required,min=1"`
 	ExpiresAt *time.Time `json:"expiresAt"`

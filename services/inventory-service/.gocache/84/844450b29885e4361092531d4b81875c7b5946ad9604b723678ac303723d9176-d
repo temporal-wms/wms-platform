@@ -1,0 +1,11 @@
+covervars.go
+commands.cover.go
+dtos.cover.go
+inventory_coordinator.cover.go
+inventory_query_service.cover.go
+inventory_service.cover.go
+mappers.cover.go
+./inventory_query_service_test.go
+./inventory_service_test.go
+./mappers_test.go
+./update_projections_test.go

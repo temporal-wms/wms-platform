@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -13,16 +14,33 @@ import (
 	"github.com/wms-platform/facility-service/internal/application"
 )
 
+// StationService defines the application service behavior needed by handlers.
+type StationService interface {
+	CreateStation(ctx context.Context, cmd application.CreateStationCommand) (*application.StationDTO, error)
+	GetStation(ctx context.Context, query application.GetStationQuery) (*application.StationDTO, error)
+	UpdateStation(ctx context.Context, cmd application.UpdateStationCommand) (*application.StationDTO, error)
+	DeleteStation(ctx context.Context, cmd application.DeleteStationCommand) error
+	SetCapabilities(ctx context.Context, cmd application.SetCapabilitiesCommand) (*application.StationDTO, error)
+	AddCapability(ctx context.Context, cmd application.AddCapabilityCommand) (*application.StationDTO, error)
+	RemoveCapability(ctx context.Context, cmd application.RemoveCapabilityCommand) (*application.StationDTO, error)
+	SetStatus(ctx context.Context, cmd application.SetStationStatusCommand) (*application.StationDTO, error)
+	FindCapableStations(ctx context.Context, query application.FindCapableStationsQuery) ([]application.StationDTO, error)
+	ListStations(ctx context.Context, query application.ListStationsQuery) ([]application.StationDTO, error)
+	GetByZone(ctx context.Context, query application.GetStationsByZoneQuery) ([]application.StationDTO, error)
+	GetByType(ctx context.Context, query application.GetStationsByTypeQuery) ([]application.StationDTO, error)
+	GetByStatus(ctx context.Context, query application.GetStationsByStatusQuery) ([]application.StationDTO, error)
+}
+
 // StationHandlers contains handlers for station operations
 type StationHandlers struct {
-	service         *application.StationApplicationService
+	service         StationService
 	logger          *logging.Logger
 	businessMetrics *middleware.BusinessMetrics
 }
 
 // NewStationHandlers creates a new StationHandlers
 func NewStationHandlers(
-	service *application.StationApplicationService,
+	service StationService,
 	logger *logging.Logger,
 	businessMetrics *middleware.BusinessMetrics,
 ) *StationHandlers {

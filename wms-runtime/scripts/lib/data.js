@@ -180,6 +180,9 @@ export function generateOrder() {
     shippingAddress: address,
     priority,
     promisedDeliveryAt,
+    tenantId: ORDER_CONFIG.defaultTenantId,
+    facilityId: ORDER_CONFIG.defaultFacilityId,
+    warehouseId: ORDER_CONFIG.defaultWarehouseId,
   };
 }
 
@@ -362,6 +365,9 @@ export function generateOrderWithType(orderType = null, forceRequirement = null)
     promisedDeliveryAt,
     requirements,                                          // Order-level requirements
     orderType: itemCount === 1 ? 'single_item' : 'multi_item',  // Order type indicator
+    tenantId: ORDER_CONFIG.defaultTenantId,
+    facilityId: ORDER_CONFIG.defaultFacilityId,
+    warehouseId: ORDER_CONFIG.defaultWarehouseId,
   };
 }
 
@@ -512,6 +518,9 @@ export function generateLargeOrder(itemCount = null, spreadAcrossZones = true) {
     requirements,
     orderType: 'large_multi_route',
     expectedRoutes: Math.ceil(effectiveItemCount / MULTI_ROUTE_CONFIG.maxItemsPerRoute),
+    tenantId: ORDER_CONFIG.defaultTenantId,
+    facilityId: ORDER_CONFIG.defaultFacilityId,
+    warehouseId: ORDER_CONFIG.defaultWarehouseId,
   };
 }
 

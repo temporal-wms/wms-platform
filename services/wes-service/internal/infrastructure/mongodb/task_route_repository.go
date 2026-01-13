@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"fmt"
 	"time"
@@ -21,6 +22,7 @@ type TaskRouteRepository struct {
 	db           *mongo.Database
 	collection   *mongo.Collection
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 	outboxRepo   *outboxMongo.OutboxRepository
 }
 
@@ -61,6 +63,7 @@ func NewTaskRouteRepository(db *mongo.Database, eventFactory *cloudevents.EventF
 		db:           db,
 		collection:   collection,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 		outboxRepo:   outboxMongo.NewOutboxRepository(db),
 	}
 }
@@ -191,7 +194,10 @@ func (r *TaskRouteRepository) FindByID(ctx context.Context, id string) (*domain.
 // FindByRouteID finds a route by its route ID
 func (r *TaskRouteRepository) FindByRouteID(ctx context.Context, routeID string) (*domain.TaskRoute, error) {
 	var route domain.TaskRoute
-	err := r.collection.FindOne(ctx, bson.M{"routeId": routeID}).Decode(&route)
+	filter := bson.M{"routeId": routeID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&route)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -205,7 +211,10 @@ func (r *TaskRouteRepository) FindByRouteID(ctx context.Context, routeID string)
 // FindByOrderID finds a route by order ID
 func (r *TaskRouteRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.TaskRoute, error) {
 	var route domain.TaskRoute
-	err := r.collection.FindOne(ctx, bson.M{"orderId": orderID}).Decode(&route)
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&route)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -218,7 +227,10 @@ func (r *TaskRouteRepository) FindByOrderID(ctx context.Context, orderID string)
 
 // FindByWaveID finds routes by wave ID
 func (r *TaskRouteRepository) FindByWaveID(ctx context.Context, waveID string) ([]*domain.TaskRoute, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"waveId": waveID})
+	filter := bson.M{"waveId": waveID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find task routes: %w", err)
 	}

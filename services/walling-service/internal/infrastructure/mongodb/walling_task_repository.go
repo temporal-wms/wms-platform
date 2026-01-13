@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"fmt"
 	"time"
@@ -14,7 +15,8 @@ import (
 
 // WallingTaskRepository implements domain.WallingTaskRepository using MongoDB
 type WallingTaskRepository struct {
-	collection *mongo.Collection
+	collection   *mongo.Collection
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewWallingTaskRepository creates a new WallingTaskRepository
@@ -48,7 +50,8 @@ func NewWallingTaskRepository(db *mongo.Database) *WallingTaskRepository {
 	_, _ = collection.Indexes().CreateMany(ctx, indexes)
 
 	return &WallingTaskRepository{
-		collection: collection,
+		collection:   collection,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 }
 
@@ -91,7 +94,10 @@ func (r *WallingTaskRepository) FindByID(ctx context.Context, id string) (*domai
 // FindByTaskID finds a task by its task ID
 func (r *WallingTaskRepository) FindByTaskID(ctx context.Context, taskID string) (*domain.WallingTask, error) {
 	var task domain.WallingTask
-	err := r.collection.FindOne(ctx, bson.M{"taskId": taskID}).Decode(&task)
+	filter := bson.M{"taskId": taskID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&task)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -105,7 +111,10 @@ func (r *WallingTaskRepository) FindByTaskID(ctx context.Context, taskID string)
 // FindByOrderID finds a task by order ID
 func (r *WallingTaskRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.WallingTask, error) {
 	var task domain.WallingTask
-	err := r.collection.FindOne(ctx, bson.M{"orderId": orderID}).Decode(&task)
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&task)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -158,7 +167,10 @@ func (r *WallingTaskRepository) FindPendingByPutWall(ctx context.Context, putWal
 
 // FindByStatus finds tasks by status
 func (r *WallingTaskRepository) FindByStatus(ctx context.Context, status domain.WallingTaskStatus) ([]*domain.WallingTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status})
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find walling tasks: %w", err)
 	}

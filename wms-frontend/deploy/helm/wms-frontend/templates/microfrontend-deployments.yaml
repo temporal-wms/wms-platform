@@ -1,0 +1,54 @@
+{{- range $name, $config := .Values.microfrontends }}
+{{- if $config.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-{{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "wms-frontend.app.labels" (dict "appName" $name) | nindent 4 }}
+spec:
+  replicas: {{ $config.replicaCount }}
+  selector:
+    {{- include "wms-frontend.app.selectorLabels" (dict "appName" $name) | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wms-frontend.app.labels" (dict "appName" $name) | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: {{ $.Values.global.imageRegistry }}/{{ $config.image.repository }}:{{ $config.image.tag }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          {{- if $.Values.configMap.enabled }}
+          envFrom:
+            - configMapRef:
+                name: {{ $.Values.configMap.name }}
+          {{- end }}
+          resources:
+            {{- toYaml $config.resources | nindent 12 }}
+          {{- if $config.healthCheck.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ $config.healthCheck.liveness.path | default "/health" }}
+              port: 80
+            initialDelaySeconds: {{ $config.healthCheck.liveness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ $config.healthCheck.liveness.periodSeconds | default 30 }}
+            timeoutSeconds: {{ $config.healthCheck.liveness.timeoutSeconds | default 5 }}
+            failureThreshold: {{ $config.healthCheck.liveness.failureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: {{ $config.healthCheck.readiness.path | default "/health" }}
+              port: 80
+            initialDelaySeconds: {{ $config.healthCheck.readiness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ $config.healthCheck.readiness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ $config.healthCheck.readiness.timeoutSeconds | default 3 }}
+            failureThreshold: {{ $config.healthCheck.readiness.failureThreshold | default 3 }}
+          {{- end }}
+{{- end }}
+{{- end }}

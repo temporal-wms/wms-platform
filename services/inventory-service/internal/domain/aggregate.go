@@ -267,8 +267,10 @@ func (i *InventoryItem) ReserveWithUnits(orderID, locationID string, quantity in
 	}
 
 	// Check availability at location
+	foundLocation := false
 	for idx := range i.Locations {
 		if i.Locations[idx].LocationID == locationID {
+			foundLocation = true
 			if i.Locations[idx].Available < quantity {
 				return ErrInsufficientStock
 			}
@@ -277,6 +279,9 @@ func (i *InventoryItem) ReserveWithUnits(orderID, locationID string, quantity in
 			i.Locations[idx].Available -= quantity
 			break
 		}
+	}
+	if !foundLocation {
+		return ErrLocationNotFound
 	}
 
 	i.ReservedQuantity += quantity
@@ -295,6 +300,14 @@ func (i *InventoryItem) ReserveWithUnits(orderID, locationID string, quantity in
 	i.Reservations = append(i.Reservations, reservation)
 	i.UpdatedAt = time.Now()
 
+	i.AddDomainEvent(&InventoryReservedEvent{
+		SKU:         i.SKU,
+		OrderID:     orderID,
+		LocationID:  locationID,
+		Quantity:    quantity,
+		ReservedAt:  time.Now(),
+	})
+
 	return nil
 }
 
@@ -305,21 +318,40 @@ func (i *InventoryItem) Pick(orderID, locationID string, quantity int, createdBy
 	}
 
 	// Find and update reservation
+	reservationIdx := -1
 	for idx := range i.Reservations {
 		if i.Reservations[idx].OrderID == orderID && i.Reservations[idx].LocationID == locationID {
-			i.Reservations[idx].Status = "fulfilled"
+			reservationIdx = idx
 			break
 		}
+	}
+	if reservationIdx == -1 {
+		return ErrReservationNotFound
+	}
+	if i.Reservations[reservationIdx].Quantity < quantity {
+		return ErrInsufficientStock
 	}
 
 	// Update location quantities
+	locationIdx := -1
 	for idx := range i.Locations {
 		if i.Locations[idx].LocationID == locationID {
-			i.Locations[idx].Quantity -= quantity
-			i.Locations[idx].Reserved -= quantity
+			locationIdx = idx
 			break
 		}
 	}
+	if locationIdx == -1 {
+		return ErrLocationNotFound
+	}
+
+	if i.Reservations[reservationIdx].Quantity == quantity {
+		i.Reservations[reservationIdx].Status = "fulfilled"
+	} else {
+		i.Reservations[reservationIdx].Quantity -= quantity
+	}
+
+	i.Locations[locationIdx].Quantity -= quantity
+	i.Locations[locationIdx].Reserved -= quantity
 
 	i.TotalQuantity -= quantity
 	i.ReservedQuantity -= quantity

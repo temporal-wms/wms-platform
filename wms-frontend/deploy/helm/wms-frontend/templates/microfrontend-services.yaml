@@ -1,0 +1,22 @@
+{{- range $name, $config := .Values.microfrontends }}
+{{- if $config.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-{{ $name }}-mf
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "wms-frontend.app.labels" (dict "appName" $name) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: wms-{{ $name }}
+    app.kubernetes.io/instance: {{ $name }}
+{{- end }}
+{{- end }}

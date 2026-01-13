@@ -13,6 +13,10 @@ type PickingWorkflowInput struct {
 	OrderID string      `json:"orderId"`
 	WaveID  string      `json:"waveId"`
 	Route   RouteResult `json:"route"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // RouteResult represents the route from the orchestrator
@@ -61,6 +65,17 @@ func PickingWorkflow(ctx workflow.Context, input PickingWorkflowInput) (*Picking
 
 	result := &PickingWorkflowResult{
 		Success: false,
+	}
+
+	// Set tenant context for activities
+	if input.TenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", input.TenantID)
+	}
+	if input.FacilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", input.FacilityID)
+	}
+	if input.WarehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", input.WarehouseID)
 	}
 
 	// Activity options with proper timeouts for picking operations

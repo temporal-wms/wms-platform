@@ -11,6 +11,7 @@ import (
 
 	"github.com/wms-platform/consolidation-service/internal/domain"
 	"github.com/wms-platform/consolidation-service/internal/infrastructure/mongodb"
+	"github.com/wms-platform/shared/pkg/cloudevents"
 	sharedtesting "github.com/wms-platform/shared/pkg/testing"
 )
 
@@ -67,7 +68,8 @@ func setupTestRepository(t *testing.T) (*mongodb.ConsolidationRepository, *share
 
 	// Create repository
 	db := client.Database("test_consolidation_db")
-	repo := mongodb.NewConsolidationRepository(db)
+	eventFactory := cloudevents.NewEventFactory("consolidation-service")
+	repo := mongodb.NewConsolidationRepository(db, eventFactory)
 
 	cleanup := func() {
 		if err := client.Disconnect(ctx); err != nil {

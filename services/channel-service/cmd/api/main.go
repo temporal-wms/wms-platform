@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
@@ -28,7 +29,83 @@ import (
 
 const serviceName = "channel-service"
 
+type mongoClient interface {
+	Database() *mongo.Database
+	Close(context.Context) error
+	HealthCheck(context.Context) error
+}
+
+type producer interface {
+	Close() error
+}
+
+type outboxPublisher interface {
+	Start(context.Context) error
+	Stop() error
+}
+
+type server interface {
+	ListenAndServe() error
+	Shutdown(context.Context) error
+}
+
+type tracerProvider interface {
+	Shutdown(context.Context) error
+}
+
+var (
+	newMongoClient          func(context.Context, *mongodb.Config) (*mongodb.Client, error)                                   = mongodb.NewClient
+	newInstrumentedMongo    func(*mongodb.Client, *metrics.Metrics, *logging.Logger) mongoClient                               = func(client *mongodb.Client, m *metrics.Metrics, logger *logging.Logger) mongoClient {
+		return mongodb.NewInstrumentedClient(client, m, logger)
+	}
+	newKafkaProducer        func(*kafka.Config) *kafka.Producer                                                                = kafka.NewProducer
+	newInstrumentedProducer func(*kafka.Producer, *metrics.Metrics, *logging.Logger) *kafka.InstrumentedProducer               = kafka.NewInstrumentedProducer
+	newOutboxPublisher      func(outbox.Repository, *kafka.InstrumentedProducer, *logging.Logger, *metrics.Metrics, *outbox.PublisherConfig) outboxPublisher = func(repo outbox.Repository, producer *kafka.InstrumentedProducer, logger *logging.Logger, m *metrics.Metrics, config *outbox.PublisherConfig) outboxPublisher {
+		return outbox.NewPublisher(repo, producer, logger, m, config)
+	}
+	newChannelRepository    func(*mongo.Database) domain.ChannelRepository                                                     = func(db *mongo.Database) domain.ChannelRepository {
+		return mongoRepo.NewChannelRepository(db)
+	}
+	newChannelOrderRepository func(*mongo.Database) domain.ChannelOrderRepository                                              = func(db *mongo.Database) domain.ChannelOrderRepository {
+		return mongoRepo.NewChannelOrderRepository(db)
+	}
+	newSyncJobRepository    func(*mongo.Database) domain.SyncJobRepository                                                     = func(db *mongo.Database) domain.SyncJobRepository {
+		return mongoRepo.NewSyncJobRepository(db)
+	}
+	newOutboxRepository     func(*mongo.Database) outbox.Repository                                                             = func(db *mongo.Database) outbox.Repository {
+		return mongoRepo.NewOutboxRepository(db)
+	}
+	newAdapterFactory       func() *domain.AdapterFactory                                                                      = domain.NewAdapterFactory
+	newShopifyAdapter       func() *adapters.ShopifyAdapter                                                                     = adapters.NewShopifyAdapter
+	newAmazonAdapter        func() *adapters.AmazonAdapter                                                                      = adapters.NewAmazonAdapter
+	newEbayAdapter          func() *adapters.EbayAdapter                                                                        = adapters.NewEbayAdapter
+	newWooCommerceAdapter   func() *adapters.WooCommerceAdapter                                                                 = adapters.NewWooCommerceAdapter
+	newRouter               func() *gin.Engine                                                                                  = func() *gin.Engine {
+		return gin.New()
+	}
+	setupMiddleware         func(*gin.Engine, *middleware.Config)                                                               = middleware.Setup
+	initializeTracing       func(context.Context, *tracing.Config) (tracerProvider, error)                                     = func(ctx context.Context, config *tracing.Config) (tracerProvider, error) {
+		return tracing.Initialize(ctx, config)
+	}
+	newServer               func(addr string, handler http.Handler) server                                                      = func(addr string, handler http.Handler) server {
+		return &http.Server{
+			Addr:         addr,
+			Handler:      handler,
+			ReadTimeout:  30 * time.Second,
+			WriteTimeout: 30 * time.Second,
+		}
+	}
+)
+
 func main() {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	if err := run(context.Background(), quit); err != nil {
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context, quit <-chan os.Signal) error {
 	// Setup enhanced logger
 	logConfig := logging.DefaultConfig(serviceName)
 	logConfig.Level = logging.LogLevel(getEnv("LOG_LEVEL", "info"))
@@ -39,7 +116,6 @@ func main() {
 
 	// Load configuration
 	config := loadConfig()
-	ctx := context.Background()
 
 	// Initialize OpenTelemetry tracing
 	tracingConfig := tracing.DefaultConfig(serviceName)
@@ -47,7 +123,7 @@ func main() {
 	tracingConfig.Environment = getEnv("ENVIRONMENT", "development")
 	tracingConfig.Enabled = getEnv("TRACING_ENABLED", "true") == "true"
 
-	tracerProvider, err := tracing.Initialize(ctx, tracingConfig)
+	tracerProvider, err := initializeTracing(ctx, tracingConfig)
 	if err != nil {
 		logger.WithError(err).Error("Failed to initialize tracing")
 	} else if tracerProvider != nil {
@@ -70,29 +146,29 @@ func main() {
 	channelMetrics := NewChannelMetrics(m)
 
 	// Initialize MongoDB with instrumentation
-	mongoClient, err := mongodb.NewClient(ctx, config.MongoDB)
+	mongoClient, err := newMongoClient(ctx, config.MongoDB)
 	if err != nil {
 		logger.WithError(err).Error("Failed to connect to MongoDB")
-		os.Exit(1)
+		return err
 	}
-	instrumentedMongo := mongodb.NewInstrumentedClient(mongoClient, m, logger)
+	instrumentedMongo := newInstrumentedMongo(mongoClient, m, logger)
 	defer instrumentedMongo.Close(ctx)
 	logger.Info("Connected to MongoDB", "database", config.MongoDB.Database)
 
 	// Create repositories
-	channelRepo := mongoRepo.NewChannelRepository(instrumentedMongo.Database())
-	orderRepo := mongoRepo.NewChannelOrderRepository(instrumentedMongo.Database())
-	syncJobRepo := mongoRepo.NewSyncJobRepository(instrumentedMongo.Database())
-	outboxRepo := mongoRepo.NewOutboxRepository(instrumentedMongo.Database())
+	channelRepo := newChannelRepository(instrumentedMongo.Database())
+	orderRepo := newChannelOrderRepository(instrumentedMongo.Database())
+	syncJobRepo := newSyncJobRepository(instrumentedMongo.Database())
+	outboxRepo := newOutboxRepository(instrumentedMongo.Database())
 
 	// Initialize Kafka producer
-	kafkaProducer := kafka.NewProducer(config.Kafka)
-	instrumentedProducer := kafka.NewInstrumentedProducer(kafkaProducer, m, logger)
+	kafkaProducer := newKafkaProducer(config.Kafka)
+	instrumentedProducer := newInstrumentedProducer(kafkaProducer, m, logger)
 	defer instrumentedProducer.Close()
 	logger.Info("Kafka producer initialized", "brokers", config.Kafka.Brokers)
 
 	// Initialize and start outbox publisher
-	outboxPublisher := outbox.NewPublisher(
+	outboxPublisher := newOutboxPublisher(
 		outboxRepo,
 		instrumentedProducer,
 		logger,
@@ -107,11 +183,11 @@ func main() {
 	}
 
 	// Create adapter factory and register adapters with instrumentation
-	adapterFactory := domain.NewAdapterFactory()
-	adapterFactory.Register(adapters.NewShopifyAdapter())
-	adapterFactory.Register(adapters.NewAmazonAdapter())
-	adapterFactory.Register(adapters.NewEbayAdapter())
-	adapterFactory.Register(adapters.NewWooCommerceAdapter())
+	adapterFactory := newAdapterFactory()
+	adapterFactory.Register(newShopifyAdapter())
+	adapterFactory.Register(newAmazonAdapter())
+	adapterFactory.Register(newEbayAdapter())
+	adapterFactory.Register(newWooCommerceAdapter())
 	logger.Info("Channel adapters registered", "adapters", []string{"shopify", "amazon", "ebay", "woocommerce"})
 
 	// Create service
@@ -126,11 +202,11 @@ func main() {
 	channelHandler := handlers.NewChannelHandler(channelService, logger, channelMetrics)
 
 	// Setup Gin router with middleware
-	router := gin.New()
+	router := newRouter()
 
 	// Apply standard middleware
 	middlewareConfig := middleware.DefaultConfig(serviceName, logger.Logger)
-	middleware.Setup(router, middlewareConfig)
+	setupMiddleware(router, middlewareConfig)
 
 	// Add metrics middleware
 	router.Use(middleware.MetricsMiddleware(m))
@@ -156,12 +232,7 @@ func main() {
 	channelHandler.RegisterRoutes(api)
 
 	// Start server
-	srv := &http.Server{
-		Addr:         config.ServerAddr,
-		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
+	srv := newServer(config.ServerAddr, router)
 
 	// Graceful shutdown
 	go func() {
@@ -172,8 +243,6 @@ func main() {
 	}()
 
 	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	logger.Info("Shutting down server...")
 
@@ -186,6 +255,7 @@ func main() {
 	}
 
 	logger.Info("Server stopped")
+	return nil
 }
 
 // Config holds application configuration

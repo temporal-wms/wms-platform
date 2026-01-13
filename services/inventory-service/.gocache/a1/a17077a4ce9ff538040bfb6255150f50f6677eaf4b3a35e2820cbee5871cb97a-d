@@ -1,0 +1,5 @@
+covervars.go
+inventory_allocation_repository.cover.go
+inventory_repository.cover.go
+inventory_reservation_repository.cover.go
+inventory_transaction_repository.cover.go

@@ -442,3 +442,24 @@ func (a *UnitActivities) GetProcessPath(ctx context.Context, input GetProcessPat
 		TargetStationID:       path.TargetStationID,
 	}, nil
 }
+
+// ReleaseUnitsInput holds the input for releasing unit reservations
+type ReleaseUnitsInput struct {
+	OrderID string `json:"orderId"`
+	Reason  string `json:"reason"`
+}
+
+// ReleaseUnits releases all unit reservations for an order (compensation activity)
+func (a *UnitActivities) ReleaseUnits(ctx context.Context, input ReleaseUnitsInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Releasing unit reservations", "orderId", input.OrderID, "reason", input.Reason)
+
+	err := a.clients.ReleaseUnits(ctx, input.OrderID)
+	if err != nil {
+		logger.Error("Failed to release unit reservations", "orderId", input.OrderID, "error", err)
+		return fmt.Errorf("failed to release unit reservations: %w", err)
+	}
+
+	logger.Info("Unit reservations released successfully", "orderId", input.OrderID)
+	return nil
+}

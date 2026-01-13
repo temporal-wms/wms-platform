@@ -151,8 +151,10 @@ type OrderFulfillmentResult struct {
 
 // WaveAssignment represents a wave assignment signal
 type WaveAssignment struct {
-	WaveID         string    `json:"waveId"`
-	ScheduledStart time.Time `json:"scheduledStart"`
+	WaveID           string    `json:"waveId"`
+	ScheduledStart   time.Time `json:"scheduledStart"`
+	TargetStationID  string    `json:"targetStationId,omitempty"`  // Pre-assigned station based on process path
+	RequiredSkills   []string  `json:"requiredSkills,omitempty"`   // Required worker skills
 }
 
 // PickResult represents the result of the picking workflow
@@ -263,6 +265,18 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		ExternalOrderID: input.ExternalOrderID,
 	}
 
+	// Set tenant context for activities and child workflows
+	// These values will be automatically propagated to activity contexts
+	if input.TenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", input.TenantID)
+	}
+	if input.FacilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", input.FacilityID)
+	}
+	if input.WarehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", input.WarehouseID)
+	}
+
 	// Query handler for workflow status - allows external systems to inspect current state
 	queryStatus := OrderFulfillmentQueryStatus{
 		OrderID:         input.OrderID,
@@ -348,6 +362,10 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		ColdChainDetails:   input.ColdChainDetails,
 		TotalValue:         input.TotalValue,
 		UnitIDs:            input.UnitIDs,
+		// Multi-tenant context
+		TenantID:    input.TenantID,
+		FacilityID:  input.FacilityID,
+		WarehouseID: input.WarehouseID,
 		// Unit tracking is now always enabled
 	}
 
@@ -517,6 +535,10 @@ func OrderFulfillmentWorkflow(ctx workflow.Context, input OrderFulfillmentInput)
 		CarrierID:      slamResult.CarrierID,
 		Destination:    destination,
 		Weight:         slamResult.ActualWeight,
+		// Multi-tenant context
+		TenantID:    input.TenantID,
+		FacilityID:  input.FacilityID,
+		WarehouseID: input.WarehouseID,
 	}
 
 	var sortationResult *SortationWorkflowResult

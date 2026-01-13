@@ -10,6 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
 	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,6 +21,7 @@ type PackTaskRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewPackTaskRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *PackTaskRepository {
@@ -31,6 +33,7 @@ func NewPackTaskRepository(db *mongo.Database, eventFactory *cloudevents.EventFa
 		db:           db,
 		outboxRepo:   outboxRepo,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 	repo.ensureIndexes(context.Background())
 
@@ -135,8 +138,10 @@ func (r *PackTaskRepository) Save(ctx context.Context, task *domain.PackTask) er
 }
 
 func (r *PackTaskRepository) FindByID(ctx context.Context, taskID string) (*domain.PackTask, error) {
+	filter := bson.M{"taskId": taskID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	var task domain.PackTask
-	err := r.collection.FindOne(ctx, bson.M{"taskId": taskID}).Decode(&task)
+	err := r.collection.FindOne(ctx, filter).Decode(&task)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -144,8 +149,10 @@ func (r *PackTaskRepository) FindByID(ctx context.Context, taskID string) (*doma
 }
 
 func (r *PackTaskRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.PackTask, error) {
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	var task domain.PackTask
-	err := r.collection.FindOne(ctx, bson.M{"orderId": orderID}).Decode(&task)
+	err := r.collection.FindOne(ctx, filter).Decode(&task)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -153,7 +160,9 @@ func (r *PackTaskRepository) FindByOrderID(ctx context.Context, orderID string) 
 }
 
 func (r *PackTaskRepository) FindByWaveID(ctx context.Context, waveID string) ([]*domain.PackTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"waveId": waveID})
+	filter := bson.M{"waveId": waveID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +173,9 @@ func (r *PackTaskRepository) FindByWaveID(ctx context.Context, waveID string) ([
 }
 
 func (r *PackTaskRepository) FindByPackerID(ctx context.Context, packerID string) ([]*domain.PackTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"packerId": packerID})
+	filter := bson.M{"packerId": packerID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +186,9 @@ func (r *PackTaskRepository) FindByPackerID(ctx context.Context, packerID string
 }
 
 func (r *PackTaskRepository) FindByStatus(ctx context.Context, status domain.PackTaskStatus) ([]*domain.PackTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status})
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +199,9 @@ func (r *PackTaskRepository) FindByStatus(ctx context.Context, status domain.Pac
 }
 
 func (r *PackTaskRepository) FindByStation(ctx context.Context, station string) ([]*domain.PackTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"station": station})
+	filter := bson.M{"station": station}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -197,8 +212,10 @@ func (r *PackTaskRepository) FindByStation(ctx context.Context, station string) 
 }
 
 func (r *PackTaskRepository) FindPending(ctx context.Context, limit int) ([]*domain.PackTask, error) {
+	filter := bson.M{"status": domain.PackTaskStatusPending}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	opts := options.Find().SetLimit(int64(limit)).SetSort(bson.D{{Key: "priority", Value: 1}})
-	cursor, err := r.collection.Find(ctx, bson.M{"status": domain.PackTaskStatusPending}, opts)
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -209,8 +226,10 @@ func (r *PackTaskRepository) FindPending(ctx context.Context, limit int) ([]*dom
 }
 
 func (r *PackTaskRepository) FindByTrackingNumber(ctx context.Context, trackingNumber string) (*domain.PackTask, error) {
+	filter := bson.M{"shippingLabel.trackingNumber": trackingNumber}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	var task domain.PackTask
-	err := r.collection.FindOne(ctx, bson.M{"shippingLabel.trackingNumber": trackingNumber}).Decode(&task)
+	err := r.collection.FindOne(ctx, filter).Decode(&task)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -218,7 +237,9 @@ func (r *PackTaskRepository) FindByTrackingNumber(ctx context.Context, trackingN
 }
 
 func (r *PackTaskRepository) Delete(ctx context.Context, taskID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"taskId": taskID})
+	filter := bson.M{"taskId": taskID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

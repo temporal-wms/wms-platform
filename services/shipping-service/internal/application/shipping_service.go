@@ -9,6 +9,7 @@ import (
 	"github.com/wms-platform/shared/pkg/errors"
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/tenant"
 
 	"github.com/wms-platform/shipping-service/internal/domain"
 )
@@ -48,6 +49,12 @@ func (s *ShippingApplicationService) CreateShipment(ctx context.Context, cmd Cre
 		cmd.Recipient,
 		cmd.Shipper,
 	)
+
+	// Extract tenant context and set on shipment
+	tc := tenant.FromContextOptional(ctx)
+	shipment.TenantID = tc.TenantID
+	shipment.FacilityID = tc.FacilityID
+	shipment.WarehouseID = tc.WarehouseID
 
 	if err := s.repo.Save(ctx, shipment); err != nil {
 		s.logger.WithError(err).Error("Failed to create shipment", "shipmentId", cmd.ShipmentID)

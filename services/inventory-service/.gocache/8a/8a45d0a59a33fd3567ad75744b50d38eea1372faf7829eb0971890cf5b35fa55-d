@@ -1,0 +1,173 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/infrastructure/mongodb/inventory_transaction_repository.go:1:1
+package mongodb
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/wms-platform/inventory-service/internal/domain"
+	"github.com/wms-platform/shared/pkg/tenant"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+type InventoryTransactionRepository struct {
+	collection   *mongo.Collection
+	tenantHelper *tenant.RepositoryHelper
+}
+
+func NewInventoryTransactionRepository(db *mongo.Database) *InventoryTransactionRepository {goCover_dfe2877813fc__32[0] = 1 ; goCover_dfe2877813fc__32[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__32[2] = 32 ; goCover_dfe2877813fc__32[3] = 1;
+	collection := db.Collection("inventory_transactions")
+
+	repo := &InventoryTransactionRepository{
+		collection:   collection,
+		tenantHelper: tenant.NewRepositoryHelper(false),
+	}
+	repo.ensureIndexes(context.Background())
+
+	return repo
+}
+
+func (r *InventoryTransactionRepository) ensureIndexes(ctx context.Context) {goCover_dfe2877813fc__33[0] = 1 ; goCover_dfe2877813fc__33[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__33[2] = 33 ; goCover_dfe2877813fc__33[3] = 1;
+	indexes := []mongo.IndexModel{
+		// Primary lookup by SKU + tenant
+		{Keys: bson.D{
+			{Key: "tenantId", Value: 1},
+			{Key: "facilityId", Value: 1},
+			{Key: "sku", Value: 1},
+			{Key: "createdAt", Value: -1},
+		}},
+		// Lookup by location
+		{Keys: bson.D{
+			{Key: "tenantId", Value: 1},
+			{Key: "facilityId", Value: 1},
+			{Key: "locationId", Value: 1},
+			{Key: "createdAt", Value: -1},
+		}},
+		// Lookup by reference (order ID, etc.)
+		{Keys: bson.D{
+			{Key: "tenantId", Value: 1},
+			{Key: "facilityId", Value: 1},
+			{Key: "referenceId", Value: 1},
+			{Key: "createdAt", Value: -1},
+		}},
+		// Lookup by transaction type
+		{Keys: bson.D{
+			{Key: "tenantId", Value: 1},
+			{Key: "facilityId", Value: 1},
+			{Key: "type", Value: 1},
+			{Key: "createdAt", Value: -1},
+		}},
+		// TTL index for old transactions (archive after 90 days)
+		{
+			Keys: bson.D{{Key: "createdAt", Value: 1}},
+			Options: options.Index().
+				SetName("idx_createdAt_ttl").
+				SetExpireAfterSeconds(7776000), // 90 days
+		},
+	}
+	r.collection.Indexes().CreateMany(ctx, indexes)
+}
+
+func (r *InventoryTransactionRepository) Save(ctx context.Context, txn *domain.InventoryTransactionAggregate) error {goCover_dfe2877813fc__34[0] = 3 ; goCover_dfe2877813fc__34[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__34[2] = 34 ; goCover_dfe2877813fc__34[3] = 1;
+	_, err := r.collection.InsertOne(ctx, txn)
+	if err != nil {goCover_dfe2877813fc__34[5] = 1;
+		return fmt.Errorf("failed to save inventory transaction: %w", err)
+	}
+	goCover_dfe2877813fc__34[4] = 1;return nil
+}
+
+func (r *InventoryTransactionRepository) FindBySKU(ctx context.Context, sku string, limit int) ([]*domain.InventoryTransactionAggregate, error) {goCover_dfe2877813fc__35[0] = 3 ; goCover_dfe2877813fc__35[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__35[2] = 35 ; goCover_dfe2877813fc__35[3] = 1;
+	filter := bson.M{"sku": sku}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "createdAt", Value: -1}}).
+		SetLimit(int64(limit))
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {goCover_dfe2877813fc__35[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__35[4] = 1;defer cursor.Close(ctx)
+
+	var transactions []*domain.InventoryTransactionAggregate
+	err = cursor.All(ctx, &transactions)
+	return transactions, err
+}
+
+func (r *InventoryTransactionRepository) FindByLocation(ctx context.Context, locationID string, limit int) ([]*domain.InventoryTransactionAggregate, error) {goCover_dfe2877813fc__36[0] = 3 ; goCover_dfe2877813fc__36[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__36[2] = 36 ; goCover_dfe2877813fc__36[3] = 1;
+	filter := bson.M{"locationId": locationID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "createdAt", Value: -1}}).
+		SetLimit(int64(limit))
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {goCover_dfe2877813fc__36[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__36[4] = 1;defer cursor.Close(ctx)
+
+	var transactions []*domain.InventoryTransactionAggregate
+	err = cursor.All(ctx, &transactions)
+	return transactions, err
+}
+
+func (r *InventoryTransactionRepository) FindByReferenceID(ctx context.Context, referenceID string) ([]*domain.InventoryTransactionAggregate, error) {goCover_dfe2877813fc__37[0] = 3 ; goCover_dfe2877813fc__37[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__37[2] = 37 ; goCover_dfe2877813fc__37[3] = 1;
+	filter := bson.M{"referenceId": referenceID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {goCover_dfe2877813fc__37[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__37[4] = 1;defer cursor.Close(ctx)
+
+	var transactions []*domain.InventoryTransactionAggregate
+	err = cursor.All(ctx, &transactions)
+	return transactions, err
+}
+
+func (r *InventoryTransactionRepository) FindByType(ctx context.Context, txnType string, startTime, endTime time.Time, limit int) ([]*domain.InventoryTransactionAggregate, error) {goCover_dfe2877813fc__38[0] = 3 ; goCover_dfe2877813fc__38[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__38[2] = 38 ; goCover_dfe2877813fc__38[3] = 1;
+	filter := bson.M{
+		"type": txnType,
+		"createdAt": bson.M{
+			"$gte": startTime,
+			"$lte": endTime,
+		},
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "createdAt", Value: -1}}).
+		SetLimit(int64(limit))
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {goCover_dfe2877813fc__38[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__38[4] = 1;defer cursor.Close(ctx)
+
+	var transactions []*domain.InventoryTransactionAggregate
+	err = cursor.All(ctx, &transactions)
+	return transactions, err
+}
+
+// GetTransactionCountBySKU returns the total transaction count for a SKU
+func (r *InventoryTransactionRepository) GetTransactionCountBySKU(ctx context.Context, sku string) (int64, error) {goCover_dfe2877813fc__39[0] = 3 ; goCover_dfe2877813fc__39[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__39[2] = 39 ; goCover_dfe2877813fc__39[3] = 1;
+	filter := bson.M{"sku": sku}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__39[5] = 1;
+		return 0, fmt.Errorf("failed to count transactions: %w", err)
+	}
+
+	goCover_dfe2877813fc__39[4] = 1;return count, nil
+}

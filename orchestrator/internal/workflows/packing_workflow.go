@@ -15,6 +15,10 @@ type PackingWorkflowInput struct {
 	// Unit-level tracking fields
 	UnitIDs []string `json:"unitIds,omitempty"` // Specific units to pack
 	PathID  string   `json:"pathId,omitempty"`  // Process path ID for consistency
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // PackingWorkflow coordinates the packing process for an order
@@ -23,6 +27,22 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (PackRe
 
 	orderID, _ := input["orderId"].(string)
 	waveID, _ := input["waveId"].(string)
+
+	// Extract tenant context
+	tenantID, _ := input["tenantId"].(string)
+	facilityID, _ := input["facilityId"].(string)
+	warehouseID, _ := input["warehouseId"].(string)
+
+	// Set tenant context for activities
+	if tenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", tenantID)
+	}
+	if facilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", facilityID)
+	}
+	if warehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", warehouseID)
+	}
 
 	// Extract unit-level tracking fields
 	var unitIDs []string

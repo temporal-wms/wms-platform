@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,12 +22,84 @@ import (
 
 	"github.com/wms-platform/services/billing-service/internal/api/handlers"
 	"github.com/wms-platform/services/billing-service/internal/application"
+	"github.com/wms-platform/services/billing-service/internal/domain"
 	mongoRepo "github.com/wms-platform/services/billing-service/internal/infrastructure/mongodb"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const serviceName = "billing-service"
 
+type instrumentedMongoClient interface {
+	Database() *mongo.Database
+	Close(context.Context) error
+	HealthCheck(context.Context) error
+}
+
+type kafkaProducer interface {
+	Close() error
+}
+
+type outboxPublisher interface {
+	Start(context.Context) error
+	Stop() error
+}
+
+type invoiceRepository interface {
+	domain.InvoiceRepository
+	GetOutboxRepository() outbox.Repository
+}
+
+var newInstrumentedMongoClient = func(ctx context.Context, cfg *mongodb.Config, m *metrics.Metrics, logger *logging.Logger) (instrumentedMongoClient, error) {
+	client, err := mongodb.NewClient(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return mongodb.NewInstrumentedClient(client, m, logger), nil
+}
+
+var newInstrumentedKafkaProducer = func(cfg *kafka.Config, m *metrics.Metrics, logger *logging.Logger) kafkaProducer {
+	producer := kafka.NewProducer(cfg)
+	return kafka.NewInstrumentedProducer(producer, m, logger)
+}
+
+var newOutboxPublisher = func(repo outbox.Repository, producer kafkaProducer, logger *logging.Logger, m *metrics.Metrics, cfg *outbox.PublisherConfig) outboxPublisher {
+	return outbox.NewPublisher(repo, producer.(*kafka.InstrumentedProducer), logger, m, cfg)
+}
+
+var newBillableActivityRepository = func(db *mongo.Database) domain.BillableActivityRepository {
+	return mongoRepo.NewBillableActivityRepository(db)
+}
+
+var newInvoiceRepository = func(db *mongo.Database, eventFactory *cloudevents.EventFactory) invoiceRepository {
+	return mongoRepo.NewInvoiceRepository(db, eventFactory)
+}
+
+var newStorageCalculationRepository = func(db *mongo.Database) domain.StorageCalculationRepository {
+	return mongoRepo.NewStorageCalculationRepository(db)
+}
+
+var newBillingService = application.NewBillingService
+
+var newBillingHandler = handlers.NewBillingHandler
+
+var newMetrics = metrics.New
+
+var initTracing = tracing.Initialize
+
+var startHTTPServer = func(srv *http.Server) error {
+	return srv.ListenAndServe()
+}
+
 func main() {
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+
+	if err := run(context.Background(), signalCh); err != nil {
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context, signalCh <-chan os.Signal) error {
 	// Setup enhanced logger
 	logConfig := logging.DefaultConfig(serviceName)
 	logConfig.Level = logging.LogLevel(getEnv("LOG_LEVEL", "info"))
@@ -37,7 +110,6 @@ func main() {
 
 	// Load configuration
 	config := loadConfig()
-	ctx := context.Background()
 
 	// Initialize OpenTelemetry tracing
 	tracingConfig := tracing.DefaultConfig(serviceName)
@@ -45,7 +117,7 @@ func main() {
 	tracingConfig.Environment = getEnv("ENVIRONMENT", "development")
 	tracingConfig.Enabled = getEnv("TRACING_ENABLED", "true") == "true"
 
-	tracerProvider, err := tracing.Initialize(ctx, tracingConfig)
+	tracerProvider, err := initTracing(ctx, tracingConfig)
 	if err != nil {
 		logger.WithError(err).Error("Failed to initialize tracing")
 	} else if tracerProvider != nil {
@@ -61,22 +133,20 @@ func main() {
 
 	// Initialize Prometheus metrics
 	metricsConfig := metrics.DefaultConfig(serviceName)
-	m := metrics.New(metricsConfig)
+	m := newMetrics(metricsConfig)
 	logger.Info("Metrics initialized")
 
 	// Initialize MongoDB with instrumentation
-	mongoClient, err := mongodb.NewClient(ctx, config.MongoDB)
+	instrumentedMongo, err := newInstrumentedMongoClient(ctx, config.MongoDB, m, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to connect to MongoDB")
-		os.Exit(1)
+		return err
 	}
-	instrumentedMongo := mongodb.NewInstrumentedClient(mongoClient, m, logger)
 	defer instrumentedMongo.Close(ctx)
 	logger.Info("Connected to MongoDB", "database", config.MongoDB.Database)
 
 	// Initialize Kafka producer with instrumentation
-	kafkaProducer := kafka.NewProducer(config.Kafka)
-	instrumentedProducer := kafka.NewInstrumentedProducer(kafkaProducer, m, logger)
+	instrumentedProducer := newInstrumentedKafkaProducer(config.Kafka, m, logger)
 	defer instrumentedProducer.Close()
 	logger.Info("Kafka producer initialized", "brokers", config.Kafka.Brokers)
 
@@ -84,12 +154,12 @@ func main() {
 	eventFactory := cloudevents.NewEventFactory("/billing-service")
 
 	// Initialize repositories
-	activityRepo := mongoRepo.NewBillableActivityRepository(instrumentedMongo.Database())
-	invoiceRepo := mongoRepo.NewInvoiceRepository(instrumentedMongo.Database(), eventFactory)
-	storageRepo := mongoRepo.NewStorageCalculationRepository(instrumentedMongo.Database())
+	activityRepo := newBillableActivityRepository(instrumentedMongo.Database())
+	invoiceRepo := newInvoiceRepository(instrumentedMongo.Database(), eventFactory)
+	storageRepo := newStorageCalculationRepository(instrumentedMongo.Database())
 
 	// Initialize and start outbox publisher
-	outboxPublisher := outbox.NewPublisher(
+	outboxPublisher := newOutboxPublisher(
 		invoiceRepo.GetOutboxRepository(),
 		instrumentedProducer,
 		logger,
@@ -101,13 +171,17 @@ func main() {
 	)
 	if err := outboxPublisher.Start(ctx); err != nil {
 		logger.WithError(err).Error("Failed to start outbox publisher")
-		os.Exit(1)
+		return err
 	}
-	defer outboxPublisher.Stop()
+	defer func() {
+		if err := outboxPublisher.Stop(); err != nil {
+			logger.WithError(err).Warn("Failed to stop outbox publisher")
+		}
+	}()
 	logger.Info("Outbox publisher started")
 
 	// Initialize application service
-	billingService := application.NewBillingService(
+	billingService := newBillingService(
 		activityRepo,
 		invoiceRepo,
 		storageRepo,
@@ -115,7 +189,7 @@ func main() {
 	)
 
 	// Initialize handlers
-	billingHandler := handlers.NewBillingHandler(billingService, logger)
+	billingHandler := newBillingHandler(billingService, logger)
 
 	// Setup Gin router with middleware
 	router := gin.New()
@@ -198,16 +272,14 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := startHTTPServer(srv); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.WithError(err).Error("Server error")
 		}
 	}()
 	logger.Info("Server started", "addr", config.ServerAddr)
 
 	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-signalCh
 	logger.Info("Shutting down server...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -218,6 +290,7 @@ func main() {
 	}
 
 	logger.Info("Server stopped")
+	return nil
 }
 
 // Config holds application configuration

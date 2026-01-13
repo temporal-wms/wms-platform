@@ -1,0 +1,7 @@
+./aggregate.go
+./events.go
+./inventory_allocation.go
+./inventory_refactored.go
+./inventory_reservation.go
+./inventory_transaction.go
+./repository.go

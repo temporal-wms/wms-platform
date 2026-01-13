@@ -32,6 +32,9 @@ const (
 type TaskRoute struct {
 	ID               primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
 	RouteID          string             `bson:"routeId" json:"routeId"`
+	TenantID    string `bson:"tenantId" json:"tenantId"`
+	FacilityID  string `bson:"facilityId" json:"facilityId"`
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"`
 	OrderID          string             `bson:"orderId" json:"orderId"`
 	WaveID           string             `bson:"waveId" json:"waveId"`
 	PathTemplateID   string             `bson:"pathTemplateId" json:"pathTemplateId"`

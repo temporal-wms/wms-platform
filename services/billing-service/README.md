@@ -176,6 +176,16 @@ go test ./internal/domain/...
 
 # Integration tests
 go test ./tests/integration/...
+
+# Full coverage report (local cache override for sandboxed envs)
+GOCACHE=./.gocache go test ./... -coverprofile=cover.out
+GOCACHE=./.gocache go tool cover -func=cover.out
+
+# Or via Make
+make coverage
+make test
+make coverage-html
+make build
 ```
 
 ## Related Services

@@ -1,0 +1,228 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/infrastructure/mongodb/inventory_repository.go:1:1
+package mongodb
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/wms-platform/inventory-service/internal/domain"
+	"github.com/wms-platform/shared/pkg/cloudevents"
+	"github.com/wms-platform/shared/pkg/kafka"
+	"github.com/wms-platform/shared/pkg/outbox"
+	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+type InventoryRepository struct {
+	collection   *mongo.Collection
+	db           *mongo.Database
+	outboxRepo   *outboxMongo.OutboxRepository
+	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
+}
+
+func NewInventoryRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *InventoryRepository {goCover_dfe2877813fc__11[0] = 1 ; goCover_dfe2877813fc__11[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__11[2] = 11 ; goCover_dfe2877813fc__11[3] = 1;
+	collection := db.Collection("inventory")
+	outboxRepo := outboxMongo.NewOutboxRepository(db)
+
+	repo := &InventoryRepository{
+		collection:   collection,
+		db:           db,
+		outboxRepo:   outboxRepo,
+		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
+	}
+	repo.ensureIndexes(context.Background())
+
+	// Create outbox indexes
+	_ = outboxRepo.EnsureIndexes(context.Background())
+
+	return repo
+}
+
+func (r *InventoryRepository) ensureIndexes(ctx context.Context) {goCover_dfe2877813fc__12[0] = 1 ; goCover_dfe2877813fc__12[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__12[2] = 12 ; goCover_dfe2877813fc__12[3] = 1;
+	indexes := []mongo.IndexModel{
+		{Keys: bson.D{{Key: "sku", Value: 1}}, Options: options.Index().SetUnique(true)},
+		{Keys: bson.D{{Key: "locations.locationId", Value: 1}}},
+		{Keys: bson.D{{Key: "locations.zone", Value: 1}}},
+		{Keys: bson.D{{Key: "availableQuantity", Value: 1}}},
+	}
+	r.collection.Indexes().CreateMany(ctx, indexes)
+}
+
+func (r *InventoryRepository) Save(ctx context.Context, item *domain.InventoryItem) error {goCover_dfe2877813fc__13[0] = 22 ; goCover_dfe2877813fc__13[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__13[2] = 13 ; goCover_dfe2877813fc__13[3] = 1;
+	item.UpdatedAt = time.Now()
+
+	// Start a MongoDB session for transaction
+	session, err := r.db.Client().StartSession()
+	if err != nil {goCover_dfe2877813fc__13[7] = 1;
+		return fmt.Errorf("failed to start session: %w", err)
+	}
+	goCover_dfe2877813fc__13[4] = 1;defer session.EndSession(ctx)
+
+	// Execute transaction
+	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {goCover_dfe2877813fc__13[8] = 1;
+		// 1. Save the aggregate
+		opts := options.Update().SetUpsert(true)
+		filter := bson.M{"sku": item.SKU}
+		update := bson.M{"$set": item}
+
+		if _, err := r.collection.UpdateOne(sessCtx, filter, update, opts); err != nil {goCover_dfe2877813fc__13[11] = 1;
+			return nil, fmt.Errorf("failed to save inventory item: %w", err)
+		}
+
+		// 2. Save domain events to outbox
+		goCover_dfe2877813fc__13[9] = 1;domainEvents := item.GetDomainEvents()
+		if len(domainEvents) > 0 {goCover_dfe2877813fc__13[12] = 1;
+			outboxEvents := make([]*outbox.OutboxEvent, 0, len(domainEvents))
+
+			for _, event := range domainEvents {goCover_dfe2877813fc__13[14] = 1;
+				// Convert domain event to CloudEvent
+				var cloudEvent *cloudevents.WMSCloudEvent
+				switch e := event.(type) {
+				case *domain.InventoryReceivedEvent:goCover_dfe2877813fc__13[17] = 1;
+					cloudEvent = r.eventFactory.CreateEvent(sessCtx, e.EventType(), "inventory/"+e.SKU, e)
+				case *domain.InventoryAdjustedEvent:goCover_dfe2877813fc__13[18] = 1;
+					cloudEvent = r.eventFactory.CreateInventoryAdjustedEvent(sessCtx, e.SKU, e.LocationID, e.OldQuantity, e.NewQuantity, "adjustment", e.Reason)
+				case *domain.LowStockAlertEvent:goCover_dfe2877813fc__13[19] = 1;
+					cloudEvent = r.eventFactory.CreateEvent(sessCtx, e.EventType(), "inventory/"+e.SKU, e)
+				default:goCover_dfe2877813fc__13[20] = 1;
+					continue
+				}
+
+				// Create outbox event from CloudEvent
+				goCover_dfe2877813fc__13[15] = 1;outboxEvent, err := outbox.NewOutboxEventFromCloudEvent(
+					item.SKU,
+					"InventoryItem",
+					kafka.Topics.InventoryEvents,
+					cloudEvent,
+				)
+				if err != nil {goCover_dfe2877813fc__13[21] = 1;
+					return nil, fmt.Errorf("failed to create outbox event: %w", err)
+				}
+
+				goCover_dfe2877813fc__13[16] = 1;outboxEvents = append(outboxEvents, outboxEvent)
+			}
+
+			// Save all outbox events in the same transaction
+			goCover_dfe2877813fc__13[13] = 1;if len(outboxEvents) > 0 {goCover_dfe2877813fc__13[22] = 1;
+				if err := r.outboxRepo.SaveAll(sessCtx, outboxEvents); err != nil {goCover_dfe2877813fc__13[23] = 1;
+					return nil, fmt.Errorf("failed to save outbox events: %w", err)
+				}
+			}
+		}
+
+		// 3. Clear domain events from the aggregate
+		goCover_dfe2877813fc__13[10] = 1;item.ClearDomainEvents()
+
+		return nil, nil
+	})
+
+	goCover_dfe2877813fc__13[5] = 1;if err != nil {goCover_dfe2877813fc__13[24] = 1;
+		return fmt.Errorf("transaction failed: %w", err)
+	}
+
+	goCover_dfe2877813fc__13[6] = 1;return nil
+}
+
+func (r *InventoryRepository) FindBySKU(ctx context.Context, sku string) (*domain.InventoryItem, error) {goCover_dfe2877813fc__14[0] = 3 ; goCover_dfe2877813fc__14[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__14[2] = 14 ; goCover_dfe2877813fc__14[3] = 1;
+	filter := bson.M{"sku": sku}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	var item domain.InventoryItem
+	err := r.collection.FindOne(ctx, filter).Decode(&item)
+	if err == mongo.ErrNoDocuments {goCover_dfe2877813fc__14[5] = 1;
+		return nil, nil
+	}
+	goCover_dfe2877813fc__14[4] = 1;return &item, err
+}
+
+func (r *InventoryRepository) FindByLocation(ctx context.Context, locationID string) ([]*domain.InventoryItem, error) {goCover_dfe2877813fc__15[0] = 3 ; goCover_dfe2877813fc__15[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__15[2] = 15 ; goCover_dfe2877813fc__15[3] = 1;
+	filter := bson.M{"locations.locationId": locationID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__15[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__15[4] = 1;defer cursor.Close(ctx)
+	var items []*domain.InventoryItem
+	err = cursor.All(ctx, &items)
+	return items, err
+}
+
+func (r *InventoryRepository) FindByZone(ctx context.Context, zone string) ([]*domain.InventoryItem, error) {goCover_dfe2877813fc__16[0] = 3 ; goCover_dfe2877813fc__16[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__16[2] = 16 ; goCover_dfe2877813fc__16[3] = 1;
+	filter := bson.M{"locations.zone": zone}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__16[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__16[4] = 1;defer cursor.Close(ctx)
+	var items []*domain.InventoryItem
+	err = cursor.All(ctx, &items)
+	return items, err
+}
+
+func (r *InventoryRepository) FindByOrderID(ctx context.Context, orderID string) ([]*domain.InventoryItem, error) {goCover_dfe2877813fc__17[0] = 3 ; goCover_dfe2877813fc__17[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__17[2] = 17 ; goCover_dfe2877813fc__17[3] = 1;
+	filter := bson.M{"reservations.orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__17[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__17[4] = 1;defer cursor.Close(ctx)
+	var items []*domain.InventoryItem
+	err = cursor.All(ctx, &items)
+	return items, err
+}
+
+func (r *InventoryRepository) FindLowStock(ctx context.Context) ([]*domain.InventoryItem, error) {goCover_dfe2877813fc__18[0] = 3 ; goCover_dfe2877813fc__18[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__18[2] = 18 ; goCover_dfe2877813fc__18[3] = 1;
+	filter := bson.M{
+		"$expr": bson.M{"$lte": []string{"$availableQuantity", "$reorderPoint"}},
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__18[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__18[4] = 1;defer cursor.Close(ctx)
+	var items []*domain.InventoryItem
+	err = cursor.All(ctx, &items)
+	return items, err
+}
+
+func (r *InventoryRepository) FindAll(ctx context.Context, limit, offset int) ([]*domain.InventoryItem, error) {goCover_dfe2877813fc__19[0] = 3 ; goCover_dfe2877813fc__19[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__19[2] = 19 ; goCover_dfe2877813fc__19[3] = 1;
+	filter := bson.M{}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	opts := options.Find().SetLimit(int64(limit)).SetSkip(int64(offset))
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {goCover_dfe2877813fc__19[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__19[4] = 1;defer cursor.Close(ctx)
+	var items []*domain.InventoryItem
+	err = cursor.All(ctx, &items)
+	return items, err
+}
+
+func (r *InventoryRepository) Delete(ctx context.Context, sku string) error {goCover_dfe2877813fc__20[0] = 1 ; goCover_dfe2877813fc__20[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__20[2] = 20 ; goCover_dfe2877813fc__20[3] = 1;
+	filter := bson.M{"sku": sku}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
+	return err
+}
+
+// GetOutboxRepository returns the outbox repository for this service
+func (r *InventoryRepository) GetOutboxRepository() outbox.Repository {goCover_dfe2877813fc__21[0] = 1 ; goCover_dfe2877813fc__21[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__21[2] = 21 ; goCover_dfe2877813fc__21[3] = 1;
+	return r.outboxRepo
+}

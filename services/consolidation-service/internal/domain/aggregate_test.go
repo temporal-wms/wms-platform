@@ -477,6 +477,12 @@ func TestConsolidationUnitGetProgress(t *testing.T) {
 	progress := unit.GetProgress()
 	assert.Equal(t, 0.0, progress)
 
+	// Handle zero-expected case
+	unit.TotalExpected = 0
+	progress = unit.GetProgress()
+	assert.Equal(t, 0.0, progress)
+	unit.TotalExpected = 10
+
 	// Consolidate partial
 	unit.ConsolidateItem("SKU-001", 5, "TOTE-001", "WORKER-123")
 	progress = unit.GetProgress()
@@ -558,6 +564,103 @@ func TestConsolidationUnitDomainEvents(t *testing.T) {
 	unit.ClearDomainEvents()
 	events = unit.GetDomainEvents()
 	assert.Len(t, events, 0)
+}
+
+func TestMultiRouteReceiveToteAndProgress(t *testing.T) {
+	unit, _ := NewMultiRouteConsolidationUnit(
+		"CONS-010",
+		"ORD-010",
+		"WAVE-010",
+		StrategyRouteBased,
+		createTestExpectedItems(),
+		2,
+		[]string{"TOTE-100", "TOTE-200"},
+	)
+
+	assert.True(t, unit.IsMultiRoute)
+
+	received, expected := unit.GetToteArrivalProgress()
+	assert.Equal(t, 0, received)
+	assert.Equal(t, 2, expected)
+	assert.False(t, unit.AllTotesReceived())
+
+	err := unit.ReceiveTote("TOTE-100", "ROUTE-1")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, unit.ReceivedRouteCount)
+	assert.Len(t, unit.ReceivedTotes, 1)
+	assert.False(t, unit.AllTotesReceived())
+
+	missing := unit.GetMissingTotes()
+	assert.ElementsMatch(t, []string{"TOTE-200"}, missing)
+
+	// Idempotent receive
+	err = unit.ReceiveTote("TOTE-100", "ROUTE-1")
+	assert.NoError(t, err)
+	assert.Len(t, unit.ReceivedTotes, 1)
+
+	err = unit.ReceiveTote("TOTE-200", "ROUTE-2")
+	assert.NoError(t, err)
+	assert.True(t, unit.AllTotesReceived())
+
+	missing = unit.GetMissingTotes()
+	assert.Empty(t, missing)
+
+	received, expected = unit.GetToteArrivalProgress()
+	assert.Equal(t, 2, received)
+	assert.Equal(t, 2, expected)
+
+	events := unit.GetDomainEvents()
+	assert.NotEmpty(t, events)
+	_, ok := events[len(events)-1].(*ToteReceivedEvent)
+	assert.True(t, ok)
+}
+
+func TestMultiRouteAllTotesReceivedByRouteCount(t *testing.T) {
+	unit, _ := NewMultiRouteConsolidationUnit(
+		"CONS-011",
+		"ORD-011",
+		"WAVE-011",
+		StrategyRouteBased,
+		createTestExpectedItems(),
+		2,
+		nil,
+	)
+
+	assert.False(t, unit.AllTotesReceived())
+
+	err := unit.ReceiveTote("TOTE-300", "ROUTE-1")
+	assert.NoError(t, err)
+	assert.False(t, unit.AllTotesReceived())
+
+	err = unit.ReceiveTote("TOTE-400", "ROUTE-2")
+	assert.NoError(t, err)
+	assert.True(t, unit.AllTotesReceived())
+}
+
+func TestReceiveToteCompletedUnit(t *testing.T) {
+	unit, _ := NewMultiRouteConsolidationUnit(
+		"CONS-012",
+		"ORD-012",
+		"WAVE-012",
+		StrategyRouteBased,
+		createTestExpectedItems(),
+		2,
+		[]string{"TOTE-500"},
+	)
+	unit.Status = ConsolidationStatusCompleted
+
+	err := unit.ReceiveTote("TOTE-500", "ROUTE-1")
+	assert.Error(t, err)
+	assert.Equal(t, ErrConsolidationComplete, err)
+}
+
+func TestAllTotesReceivedSingleRoute(t *testing.T) {
+	unit, _ := NewConsolidationUnit("CONS-013", "ORD-013", "WAVE-013", StrategyOrderBased, createTestExpectedItems())
+	assert.False(t, unit.IsMultiRoute)
+	assert.True(t, unit.AllTotesReceived())
+	received, expected := unit.GetToteArrivalProgress()
+	assert.Equal(t, 1, received)
+	assert.Equal(t, 1, expected)
 }
 
 // BenchmarkNewConsolidationUnit benchmarks consolidation unit creation

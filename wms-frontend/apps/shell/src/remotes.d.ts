@@ -38,3 +38,38 @@ declare module 'dashboard/App' {
   const App: React.ComponentType;
   export default App;
 }
+
+declare module 'receiving/App' {
+  const App: React.ComponentType;
+  export default App;
+}
+
+declare module 'stow/App' {
+  const App: React.ComponentType;
+  export default App;
+}
+
+declare module 'routing/App' {
+  const App: React.ComponentType;
+  export default App;
+}
+
+declare module 'walling/App' {
+  const App: React.ComponentType;
+  export default App;
+}
+
+declare module 'consolidation/App' {
+  const App: React.ComponentType;
+  export default App;
+}
+
+declare module 'sortation/App' {
+  const App: React.ComponentType;
+  export default App;
+}
+
+declare module 'facility/App' {
+  const App: React.ComponentType;
+  export default App;
+}

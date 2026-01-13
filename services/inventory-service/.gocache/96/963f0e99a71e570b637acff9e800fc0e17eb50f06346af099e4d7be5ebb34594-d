@@ -1,0 +1,219 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/domain/inventory_allocation.go:1:1
+package domain
+
+import (
+	"errors"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+var (
+	ErrAllocationNotStaged  = errors.New("allocation is not in staged status")
+	ErrAllocationNotPacked  = errors.New("allocation is not in packed status")
+	ErrAllocationAlreadyShipped = errors.New("allocation has already been shipped")
+)
+
+// AllocationStatus represents the status of a hard allocation
+type AllocationStatus string
+
+const (
+	AllocationStatusStaged   AllocationStatus = "staged"
+	AllocationStatusPacked   AllocationStatus = "packed"
+	AllocationStatusShipped  AllocationStatus = "shipped"
+	AllocationStatusReturned AllocationStatus = "returned"
+)
+
+// InventoryAllocationAggregate represents physically staged/locked inventory as a separate aggregate
+// This prevents unbounded growth of hardAllocations array in InventoryItem
+type InventoryAllocationAggregate struct {
+	ID            primitive.ObjectID `bson:"_id,omitempty"`
+	AllocationID  string             `bson:"allocationId"`
+	SKU           string             `bson:"sku"` // Reference to inventory item
+
+	// Multi-tenant fields
+	TenantID    string `bson:"tenantId"`
+	FacilityID  string `bson:"facilityId"`
+	WarehouseID string `bson:"warehouseId"`
+	SellerID    string `bson:"sellerId,omitempty"`
+
+	ReservationID     string           `bson:"reservationId"` // Reference to reservation
+	OrderID           string           `bson:"orderId"`
+	Quantity          int              `bson:"quantity"`
+	SourceLocationID  string           `bson:"sourceLocationId"`
+	StagingLocationID string           `bson:"stagingLocationId"`
+	Status            AllocationStatus `bson:"status"`
+	UnitIDs           []string         `bson:"unitIds,omitempty"` // Specific units allocated for unit-level tracking
+
+	StagedBy  string     `bson:"stagedBy"`
+	PackedBy  string     `bson:"packedBy,omitempty"`
+	ShippedBy string     `bson:"shippedBy,omitempty"`
+	CreatedAt time.Time  `bson:"createdAt"`
+	PackedAt  *time.Time `bson:"packedAt,omitempty"`
+	ShippedAt *time.Time `bson:"shippedAt,omitempty"`
+	UpdatedAt time.Time  `bson:"updatedAt"`
+
+	DomainEvents []DomainEvent `bson:"-"`
+}
+
+// AllocationTenantInfo holds multi-tenant identification for allocations
+type AllocationTenantInfo struct {
+	TenantID    string
+	FacilityID  string
+	WarehouseID string
+	SellerID    string
+}
+
+// NewInventoryAllocation creates a new inventory allocation aggregate
+func NewInventoryAllocation(
+	allocationID string,
+	sku string,
+	reservationID string,
+	orderID string,
+	quantity int,
+	sourceLocationID string,
+	stagingLocationID string,
+	unitIDs []string,
+	stagedBy string,
+	tenant *AllocationTenantInfo,
+) *InventoryAllocationAggregate {goCover_4dfb824e56d3__58[0] = 3 ; goCover_4dfb824e56d3__58[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__58[2] = 58 ; goCover_4dfb824e56d3__58[3] = 1;
+	now := time.Now()
+	allocation := &InventoryAllocationAggregate{
+		AllocationID:      allocationID,
+		SKU:               sku,
+		ReservationID:     reservationID,
+		OrderID:           orderID,
+		Quantity:          quantity,
+		SourceLocationID:  sourceLocationID,
+		StagingLocationID: stagingLocationID,
+		Status:            AllocationStatusStaged,
+		UnitIDs:           unitIDs,
+		StagedBy:          stagedBy,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		DomainEvents:      make([]DomainEvent, 0),
+	}
+
+	if tenant != nil {goCover_4dfb824e56d3__58[5] = 1;
+		allocation.TenantID = tenant.TenantID
+		allocation.FacilityID = tenant.FacilityID
+		allocation.WarehouseID = tenant.WarehouseID
+		allocation.SellerID = tenant.SellerID
+	}
+
+	// Emit staged event
+	goCover_4dfb824e56d3__58[4] = 1;allocation.AddDomainEvent(&InventoryStagedEvent{
+		SKU:               sku,
+		AllocationID:      allocationID,
+		OrderID:           orderID,
+		Quantity:          quantity,
+		SourceLocationID:  sourceLocationID,
+		StagingLocationID: stagingLocationID,
+		StagedBy:          stagedBy,
+		StagedAt:          now,
+	})
+
+	return allocation
+}
+
+// MarkPacked marks the allocation as packed (ready for shipping)
+func (a *InventoryAllocationAggregate) MarkPacked(packedBy string) error {goCover_4dfb824e56d3__59[0] = 3 ; goCover_4dfb824e56d3__59[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__59[2] = 59 ; goCover_4dfb824e56d3__59[3] = 1;
+	if a.Status != AllocationStatusStaged {goCover_4dfb824e56d3__59[5] = 1;
+		return ErrAllocationNotStaged
+	}
+
+	goCover_4dfb824e56d3__59[4] = 1;now := time.Now()
+	a.Status = AllocationStatusPacked
+	a.PackedBy = packedBy
+	a.PackedAt = &now
+	a.UpdatedAt = now
+
+	// Emit packed event
+	a.AddDomainEvent(&InventoryPackedEvent{
+		SKU:          a.SKU,
+		AllocationID: a.AllocationID,
+		OrderID:      a.OrderID,
+		PackedBy:     packedBy,
+		PackedAt:     now,
+	})
+
+	return nil
+}
+
+// MarkShipped marks the allocation as shipped
+func (a *InventoryAllocationAggregate) MarkShipped(shippedBy string) error {goCover_4dfb824e56d3__60[0] = 3 ; goCover_4dfb824e56d3__60[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__60[2] = 60 ; goCover_4dfb824e56d3__60[3] = 1;
+	if a.Status != AllocationStatusPacked {goCover_4dfb824e56d3__60[5] = 1;
+		return ErrAllocationNotPacked
+	}
+
+	goCover_4dfb824e56d3__60[4] = 1;now := time.Now()
+	a.Status = AllocationStatusShipped
+	a.ShippedBy = shippedBy
+	a.ShippedAt = &now
+	a.UpdatedAt = now
+
+	// Emit shipped event
+	a.AddDomainEvent(&InventoryShippedEvent{
+		SKU:          a.SKU,
+		AllocationID: a.AllocationID,
+		OrderID:      a.OrderID,
+		Quantity:     a.Quantity,
+		ShippedAt:    now,
+	})
+
+	return nil
+}
+
+// ReturnToShelf returns the allocation to the shelf
+func (a *InventoryAllocationAggregate) ReturnToShelf(returnedBy string, reason string) error {goCover_4dfb824e56d3__61[0] = 3 ; goCover_4dfb824e56d3__61[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__61[2] = 61 ; goCover_4dfb824e56d3__61[3] = 1;
+	if a.Status == AllocationStatusShipped {goCover_4dfb824e56d3__61[5] = 1;
+		return ErrAllocationAlreadyShipped
+	}
+
+	goCover_4dfb824e56d3__61[4] = 1;a.Status = AllocationStatusReturned
+	a.UpdatedAt = time.Now()
+
+	// Emit return event
+	a.AddDomainEvent(&InventoryReturnedToShelfEvent{
+		SKU:              a.SKU,
+		AllocationID:     a.AllocationID,
+		OrderID:          a.OrderID,
+		Quantity:         a.Quantity,
+		SourceLocationID: a.SourceLocationID,
+		ReturnedBy:       returnedBy,
+		Reason:           reason,
+		ReturnedAt:       time.Now(),
+	})
+
+	return nil
+}
+
+// IsActive returns true if the allocation is in staged or packed status
+func (a *InventoryAllocationAggregate) IsActive() bool {goCover_4dfb824e56d3__62[0] = 1 ; goCover_4dfb824e56d3__62[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__62[2] = 62 ; goCover_4dfb824e56d3__62[3] = 1;
+	return a.Status == AllocationStatusStaged || a.Status == AllocationStatusPacked
+}
+
+// IsShipped returns true if the allocation has been shipped
+func (a *InventoryAllocationAggregate) IsShipped() bool {goCover_4dfb824e56d3__63[0] = 1 ; goCover_4dfb824e56d3__63[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__63[2] = 63 ; goCover_4dfb824e56d3__63[3] = 1;
+	return a.Status == AllocationStatusShipped
+}
+
+// IsReturned returns true if the allocation has been returned
+func (a *InventoryAllocationAggregate) IsReturned() bool {goCover_4dfb824e56d3__64[0] = 1 ; goCover_4dfb824e56d3__64[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__64[2] = 64 ; goCover_4dfb824e56d3__64[3] = 1;
+	return a.Status == AllocationStatusReturned
+}
+
+// AddDomainEvent adds a domain event
+func (a *InventoryAllocationAggregate) AddDomainEvent(event DomainEvent) {goCover_4dfb824e56d3__65[0] = 1 ; goCover_4dfb824e56d3__65[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__65[2] = 65 ; goCover_4dfb824e56d3__65[3] = 1;
+	a.DomainEvents = append(a.DomainEvents, event)
+}
+
+// ClearDomainEvents clears all domain events
+func (a *InventoryAllocationAggregate) ClearDomainEvents() {goCover_4dfb824e56d3__66[0] = 1 ; goCover_4dfb824e56d3__66[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__66[2] = 66 ; goCover_4dfb824e56d3__66[3] = 1;
+	a.DomainEvents = make([]DomainEvent, 0)
+}
+
+// GetDomainEvents returns all domain events
+func (a *InventoryAllocationAggregate) GetDomainEvents() []DomainEvent {goCover_4dfb824e56d3__67[0] = 1 ; goCover_4dfb824e56d3__67[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__67[2] = 67 ; goCover_4dfb824e56d3__67[3] = 1;
+	return a.DomainEvents
+}

@@ -1,0 +1,116 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - mongo-data:/data/db
+
+  zookeeper:
+    image: bitnami/zookeeper:3.9
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: bitnami/kafka:3.6
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+    volumes:
+      - kafka-data:/bitnami/kafka
+
+  temporal-postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=temporal
+      - POSTGRES_PASSWORD=temporal
+      - POSTGRES_DB=temporal
+    ports:
+      - "5432:5432"
+    volumes:
+      - temporal-db:/var/lib/postgresql/data
+
+  temporal:
+    image: temporalio/auto-setup:1.24.2
+    depends_on:
+      - temporal-postgres
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-postgres
+      - POSTGRES_DB=temporal
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+    ports:
+      - "7233:7233"
+
+  wes-api:
+    build:
+      context: ../..
+      dockerfile: services/wes-service/Dockerfile
+    command: ["/app/api"]
+    environment:
+      - SERVER_ADDR=:8016
+      - MONGODB_URI=mongodb://mongo:27017
+      - MONGODB_DATABASE=wes_db
+      - KAFKA_BROKERS=kafka:9092
+      - PROCESS_PATH_SERVICE_URL=http://process-path-service:8015
+      - LOG_LEVEL=info
+    ports:
+      - "8016:8016"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  wes-worker:
+    build:
+      context: ../..
+      dockerfile: services/wes-service/Dockerfile
+    command: ["/app/worker"]
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017
+      - MONGODB_DATABASE=wes_db
+      - KAFKA_BROKERS=kafka:9092
+      - TEMPORAL_HOST=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+      - LOG_LEVEL=info
+    depends_on:
+      mongo:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+
+volumes:
+  kafka-data:
+  mongo-data:
+  temporal-db:

@@ -7,9 +7,16 @@ import (
 	"github.com/wms-platform/services/seller-service/internal/domain"
 	"github.com/wms-platform/shared/pkg/errors"
 	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/tenant"
 )
 
-// SellerApplicationService handles seller-related use cases
+// SellerApplicationService handles seller-related use cases.
+//
+// IMPORTANT: Sellers are tenant-scoped entities that can operate across
+// multiple facilities. All repository operations use tenant-only context
+// filtering (via withTenantOnlyContext) to avoid incorrect facility/warehouse
+// filtering. Facility assignments are managed through the nested
+// AssignedFacilities array in the domain model.
 type SellerApplicationService struct {
 	sellerRepo domain.SellerRepository
 	logger     *logging.Logger
@@ -26,10 +33,25 @@ func NewSellerApplicationService(
 	}
 }
 
+// withTenantOnlyContext creates a new context with only tenant ID preserved.
+// Sellers are tenant-scoped entities that can operate across multiple facilities,
+// so we explicitly remove facility/warehouse from context to avoid incorrect filtering.
+func (s *SellerApplicationService) withTenantOnlyContext(ctx context.Context) context.Context {
+	tenantID := tenant.GetTenantID(ctx)
+
+	// Create a fresh context with only tenant ID
+	newCtx := context.Background()
+	if tenantID != "" {
+		newCtx = tenant.WithTenantID(newCtx, tenantID)
+	}
+
+	return newCtx
+}
+
 // CreateSeller creates a new seller
 func (s *SellerApplicationService) CreateSeller(ctx context.Context, cmd CreateSellerCommand) (*SellerDTO, error) {
 	// Check if email already exists
-	existing, err := s.sellerRepo.FindByEmail(ctx, cmd.ContactEmail)
+	existing, err := s.sellerRepo.FindByEmail(s.withTenantOnlyContext(ctx), cmd.ContactEmail)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check email: %w", err)
 	}
@@ -55,7 +77,7 @@ func (s *SellerApplicationService) CreateSeller(ctx context.Context, cmd CreateS
 	}
 
 	// Save to repository
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		s.logger.WithError(err).Error("Failed to save seller", "sellerId", seller.SellerID)
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
@@ -67,7 +89,7 @@ func (s *SellerApplicationService) CreateSeller(ctx context.Context, cmd CreateS
 
 // GetSeller retrieves a seller by ID
 func (s *SellerApplicationService) GetSeller(ctx context.Context, query GetSellerQuery) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, query.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), query.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -105,7 +127,7 @@ func (s *SellerApplicationService) ListSellers(ctx context.Context, query ListSe
 	}
 
 	// Get total count
-	total, err := s.sellerRepo.Count(ctx, filter)
+	total, err := s.sellerRepo.Count(s.withTenantOnlyContext(ctx), filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count sellers: %w", err)
 	}
@@ -113,11 +135,11 @@ func (s *SellerApplicationService) ListSellers(ctx context.Context, query ListSe
 	// Get sellers based on filter
 	var sellers []*domain.Seller
 	if query.Status != nil {
-		sellers, err = s.sellerRepo.FindByStatus(ctx, domain.SellerStatus(*query.Status), pagination)
+		sellers, err = s.sellerRepo.FindByStatus(s.withTenantOnlyContext(ctx), domain.SellerStatus(*query.Status), pagination)
 	} else if query.TenantID != nil {
-		sellers, err = s.sellerRepo.FindByTenantID(ctx, *query.TenantID, pagination)
+		sellers, err = s.sellerRepo.FindByTenantID(s.withTenantOnlyContext(ctx), *query.TenantID, pagination)
 	} else {
-		sellers, err = s.sellerRepo.FindByTenantID(ctx, "", pagination)
+		sellers, err = s.sellerRepo.FindByTenantID(s.withTenantOnlyContext(ctx), "", pagination)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to list sellers: %w", err)
@@ -142,7 +164,7 @@ func (s *SellerApplicationService) ListSellers(ctx context.Context, query ListSe
 
 // ActivateSeller activates a seller account
 func (s *SellerApplicationService) ActivateSeller(ctx context.Context, cmd ActivateSellerCommand) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -154,7 +176,7 @@ func (s *SellerApplicationService) ActivateSeller(ctx context.Context, cmd Activ
 		return nil, errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -165,7 +187,7 @@ func (s *SellerApplicationService) ActivateSeller(ctx context.Context, cmd Activ
 
 // SuspendSeller suspends a seller account
 func (s *SellerApplicationService) SuspendSeller(ctx context.Context, cmd SuspendSellerCommand) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -177,7 +199,7 @@ func (s *SellerApplicationService) SuspendSeller(ctx context.Context, cmd Suspen
 		return nil, errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -188,7 +210,7 @@ func (s *SellerApplicationService) SuspendSeller(ctx context.Context, cmd Suspen
 
 // CloseSeller closes a seller account
 func (s *SellerApplicationService) CloseSeller(ctx context.Context, cmd CloseSellerCommand) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -200,7 +222,7 @@ func (s *SellerApplicationService) CloseSeller(ctx context.Context, cmd CloseSel
 		return nil, errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -211,7 +233,7 @@ func (s *SellerApplicationService) CloseSeller(ctx context.Context, cmd CloseSel
 
 // AssignFacility assigns a facility to a seller
 func (s *SellerApplicationService) AssignFacility(ctx context.Context, cmd AssignFacilityCommand) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -228,7 +250,7 @@ func (s *SellerApplicationService) AssignFacility(ctx context.Context, cmd Assig
 		return nil, errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -239,7 +261,7 @@ func (s *SellerApplicationService) AssignFacility(ctx context.Context, cmd Assig
 
 // RemoveFacility removes a facility from a seller
 func (s *SellerApplicationService) RemoveFacility(ctx context.Context, cmd RemoveFacilityCommand) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -251,7 +273,7 @@ func (s *SellerApplicationService) RemoveFacility(ctx context.Context, cmd Remov
 		return nil, errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -262,7 +284,7 @@ func (s *SellerApplicationService) RemoveFacility(ctx context.Context, cmd Remov
 
 // UpdateFeeSchedule updates a seller's fee schedule
 func (s *SellerApplicationService) UpdateFeeSchedule(ctx context.Context, cmd UpdateFeeScheduleCommand) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -272,7 +294,7 @@ func (s *SellerApplicationService) UpdateFeeSchedule(ctx context.Context, cmd Up
 
 	seller.UpdateFeeSchedule(cmd.ToDomainFeeSchedule())
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -283,7 +305,7 @@ func (s *SellerApplicationService) UpdateFeeSchedule(ctx context.Context, cmd Up
 
 // ConnectChannel connects a sales channel to a seller
 func (s *SellerApplicationService) ConnectChannel(ctx context.Context, cmd ConnectChannelCommand) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -301,7 +323,7 @@ func (s *SellerApplicationService) ConnectChannel(ctx context.Context, cmd Conne
 		return nil, errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -312,7 +334,7 @@ func (s *SellerApplicationService) ConnectChannel(ctx context.Context, cmd Conne
 
 // DisconnectChannel disconnects a sales channel from a seller
 func (s *SellerApplicationService) DisconnectChannel(ctx context.Context, cmd DisconnectChannelCommand) (*SellerDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -324,7 +346,7 @@ func (s *SellerApplicationService) DisconnectChannel(ctx context.Context, cmd Di
 		return nil, errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -335,7 +357,7 @@ func (s *SellerApplicationService) DisconnectChannel(ctx context.Context, cmd Di
 
 // GenerateAPIKey generates a new API key for a seller
 func (s *SellerApplicationService) GenerateAPIKey(ctx context.Context, cmd GenerateAPIKeyCommand) (*APIKeyCreatedDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -348,7 +370,7 @@ func (s *SellerApplicationService) GenerateAPIKey(ctx context.Context, cmd Gener
 		return nil, errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return nil, fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -366,7 +388,7 @@ func (s *SellerApplicationService) GenerateAPIKey(ctx context.Context, cmd Gener
 
 // RevokeAPIKey revokes an API key
 func (s *SellerApplicationService) RevokeAPIKey(ctx context.Context, cmd RevokeAPIKeyCommand) error {
-	seller, err := s.sellerRepo.FindByID(ctx, cmd.SellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), cmd.SellerID)
 	if err != nil {
 		return fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -378,7 +400,7 @@ func (s *SellerApplicationService) RevokeAPIKey(ctx context.Context, cmd RevokeA
 		return errors.ErrValidation(err.Error())
 	}
 
-	if err := s.sellerRepo.Save(ctx, seller); err != nil {
+	if err := s.sellerRepo.Save(s.withTenantOnlyContext(ctx), seller); err != nil {
 		return fmt.Errorf("failed to save seller: %w", err)
 	}
 
@@ -389,7 +411,7 @@ func (s *SellerApplicationService) RevokeAPIKey(ctx context.Context, cmd RevokeA
 
 // GetAPIKeys returns all API keys for a seller
 func (s *SellerApplicationService) GetAPIKeys(ctx context.Context, sellerID string) ([]APIKeyDTO, error) {
-	seller, err := s.sellerRepo.FindByID(ctx, sellerID)
+	seller, err := s.sellerRepo.FindByID(s.withTenantOnlyContext(ctx), sellerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get seller: %w", err)
 	}
@@ -414,7 +436,7 @@ func (s *SellerApplicationService) SearchSellers(ctx context.Context, query Sear
 		pagination.PageSize = 20
 	}
 
-	sellers, err := s.sellerRepo.Search(ctx, query.Query, pagination)
+	sellers, err := s.sellerRepo.Search(s.withTenantOnlyContext(ctx), query.Query, pagination)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search sellers: %w", err)
 	}

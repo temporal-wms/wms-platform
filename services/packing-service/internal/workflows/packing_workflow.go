@@ -11,6 +11,10 @@ import (
 // PackingWorkflowInput represents the input for the packing workflow
 type PackingWorkflowInput struct {
 	OrderID string `json:"orderId"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // PackingWorkflowResult represents the result of the packing workflow
@@ -30,10 +34,26 @@ func PackingWorkflow(ctx workflow.Context, input map[string]interface{}) (*Packi
 	// Extract input
 	orderID, _ := input["orderId"].(string)
 
+	// Extract tenant context
+	tenantID, _ := input["tenantId"].(string)
+	facilityID, _ := input["facilityId"].(string)
+	warehouseID, _ := input["warehouseId"].(string)
+
 	logger.Info("Starting packing workflow", "orderId", orderID)
 
 	result := &PackingWorkflowResult{
 		Success: false,
+	}
+
+	// Set tenant context for activities
+	if tenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", tenantID)
+	}
+	if facilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", facilityID)
+	}
+	if warehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", warehouseID)
 	}
 
 	// Activity options

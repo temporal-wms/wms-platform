@@ -1,0 +1,605 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/application/inventory_service.go:1:1
+package application
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/wms-platform/shared/pkg/cloudevents"
+	"github.com/wms-platform/shared/pkg/errors"
+	"github.com/wms-platform/shared/pkg/kafka"
+	"github.com/wms-platform/shared/pkg/logging"
+
+	"github.com/wms-platform/inventory-service/internal/domain"
+	"github.com/wms-platform/inventory-service/internal/infrastructure/projections"
+)
+
+// InventoryApplicationService handles inventory-related use cases
+type InventoryApplicationService struct {
+	repo         domain.InventoryRepository
+	producer     *kafka.InstrumentedProducer
+	eventFactory *cloudevents.EventFactory
+	projector    *projections.InventoryProjector // CQRS projector for read model
+	logger       *logging.Logger
+}
+
+// NewInventoryApplicationService creates a new InventoryApplicationService
+func NewInventoryApplicationService(
+	repo domain.InventoryRepository,
+	producer *kafka.InstrumentedProducer,
+	eventFactory *cloudevents.EventFactory,
+	projector *projections.InventoryProjector,
+	logger *logging.Logger,
+) *InventoryApplicationService {goCover_2976003b2855__19[0] = 1 ; goCover_2976003b2855__19[1] = goCover_2976003b2855_P ; goCover_2976003b2855__19[2] = 19 ; goCover_2976003b2855__19[3] = 1;
+	return &InventoryApplicationService{
+		repo:         repo,
+		producer:     producer,
+		eventFactory: eventFactory,
+		projector:    projector,
+		logger:       logger,
+	}
+}
+
+// CreateItem creates a new inventory item
+func (s *InventoryApplicationService) CreateItem(ctx context.Context, cmd CreateItemCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__20[0] = 3 ; goCover_2976003b2855__20[1] = goCover_2976003b2855_P ; goCover_2976003b2855__20[2] = 20 ; goCover_2976003b2855__20[3] = 1;
+	item := domain.NewInventoryItem(cmd.SKU, cmd.ProductName, cmd.ReorderPoint, cmd.ReorderQuantity)
+
+	// Capture events before save
+	events := item.GetDomainEvents()
+
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__20[5] = 1;
+		s.logger.Error("Failed to create item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to create item: %w", err)
+	}
+
+	// Update CQRS projections
+	goCover_2976003b2855__20[4] = 1;s.updateProjections(ctx, cmd.SKU, events)
+
+	s.logger.Info("Created inventory item", "sku", cmd.SKU)
+	return ToInventoryItemDTO(item), nil
+}
+
+// GetItem retrieves an inventory item by SKU
+func (s *InventoryApplicationService) GetItem(ctx context.Context, query GetItemQuery) (*InventoryItemDTO, error) {goCover_2976003b2855__21[0] = 5 ; goCover_2976003b2855__21[1] = goCover_2976003b2855_P ; goCover_2976003b2855__21[2] = 21 ; goCover_2976003b2855__21[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, query.SKU)
+	if err != nil {goCover_2976003b2855__21[6] = 1;
+		s.logger.Error("Failed to get item", "sku", query.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__21[4] = 1;if item == nil {goCover_2976003b2855__21[7] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	goCover_2976003b2855__21[5] = 1;return ToInventoryItemDTO(item), nil
+}
+
+// ReceiveStock receives stock into a location
+func (s *InventoryApplicationService) ReceiveStock(ctx context.Context, cmd ReceiveStockCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__22[0] = 9 ; goCover_2976003b2855__22[1] = goCover_2976003b2855_P ; goCover_2976003b2855__22[2] = 22 ; goCover_2976003b2855__22[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__22[8] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__22[4] = 1;if item == nil {goCover_2976003b2855__22[9] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Receive stock (domain logic)
+	goCover_2976003b2855__22[5] = 1;if err := item.ReceiveStock(cmd.LocationID, cmd.Zone, cmd.Quantity, cmd.ReferenceID, cmd.CreatedBy); err != nil {goCover_2976003b2855__22[10] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	goCover_2976003b2855__22[6] = 1;events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__22[11] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	goCover_2976003b2855__22[7] = 1;s.updateProjections(ctx, cmd.SKU, events)
+
+	// Events are saved to outbox by repository in transaction
+
+	s.logger.Info("Received stock", "sku", cmd.SKU, "quantity", cmd.Quantity, "location", cmd.LocationID)
+	return ToInventoryItemDTO(item), nil
+}
+
+// Reserve reserves stock for an order
+func (s *InventoryApplicationService) Reserve(ctx context.Context, cmd ReserveCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__23[0] = 11 ; goCover_2976003b2855__23[1] = goCover_2976003b2855_P ; goCover_2976003b2855__23[2] = 23 ; goCover_2976003b2855__23[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__23[9] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__23[4] = 1;if item == nil {goCover_2976003b2855__23[10] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Reserve stock (domain logic)
+	goCover_2976003b2855__23[5] = 1;if err := item.Reserve(cmd.OrderID, cmd.LocationID, cmd.Quantity); err != nil {goCover_2976003b2855__23[11] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Note: Reserve doesn't generate domain events, but we still need to update projections
+	// Call projector directly for reservation updates
+	goCover_2976003b2855__23[6] = 1;if s.projector != nil {goCover_2976003b2855__23[12] = 1;
+		_ = s.projector.OnInventoryReserved(ctx, cmd.SKU, cmd.OrderID)
+	}
+
+	// Save the updated item
+	goCover_2976003b2855__23[7] = 1;if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__23[13] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	goCover_2976003b2855__23[8] = 1;s.logger.Info("Reserved stock", "sku", cmd.SKU, "orderId", cmd.OrderID, "quantity", cmd.Quantity)
+	return ToInventoryItemDTO(item), nil
+}
+
+// Pick picks stock (reduces quantity)
+func (s *InventoryApplicationService) Pick(ctx context.Context, cmd PickCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__24[0] = 11 ; goCover_2976003b2855__24[1] = goCover_2976003b2855_P ; goCover_2976003b2855__24[2] = 24 ; goCover_2976003b2855__24[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__24[9] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__24[4] = 1;if item == nil {goCover_2976003b2855__24[10] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Pick stock (domain logic)
+	goCover_2976003b2855__24[5] = 1;if err := item.Pick(cmd.OrderID, cmd.LocationID, cmd.Quantity, cmd.CreatedBy); err != nil {goCover_2976003b2855__24[11] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	goCover_2976003b2855__24[6] = 1;events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__24[12] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections (including pick-specific updates)
+	goCover_2976003b2855__24[7] = 1;s.updateProjections(ctx, cmd.SKU, events)
+	if s.projector != nil {goCover_2976003b2855__24[13] = 1;
+		_ = s.projector.OnInventoryPicked(ctx, cmd.SKU)
+	}
+
+	// Events are saved to outbox by repository in transaction
+
+	goCover_2976003b2855__24[8] = 1;s.logger.Info("Picked stock", "sku", cmd.SKU, "orderId", cmd.OrderID, "quantity", cmd.Quantity)
+	return ToInventoryItemDTO(item), nil
+}
+
+// ReleaseReservation releases a reservation
+func (s *InventoryApplicationService) ReleaseReservation(ctx context.Context, cmd ReleaseReservationCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__25[0] = 11 ; goCover_2976003b2855__25[1] = goCover_2976003b2855_P ; goCover_2976003b2855__25[2] = 25 ; goCover_2976003b2855__25[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__25[9] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__25[4] = 1;if item == nil {goCover_2976003b2855__25[10] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Release reservation (domain logic)
+	goCover_2976003b2855__25[5] = 1;if err := item.ReleaseReservation(cmd.OrderID); err != nil {goCover_2976003b2855__25[11] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Save the updated item
+	goCover_2976003b2855__25[6] = 1;if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__25[12] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update projections for reservation release
+	goCover_2976003b2855__25[7] = 1;if s.projector != nil {goCover_2976003b2855__25[13] = 1;
+		_ = s.projector.OnInventoryReserved(ctx, cmd.SKU, cmd.OrderID)
+	}
+
+	goCover_2976003b2855__25[8] = 1;s.logger.Info("Released reservation", "sku", cmd.SKU, "orderId", cmd.OrderID)
+	return ToInventoryItemDTO(item), nil
+}
+
+// ReleaseByOrder releases all reservations for an order across all SKUs
+func (s *InventoryApplicationService) ReleaseByOrder(ctx context.Context, cmd ReleaseByOrderCommand) (int, error) {goCover_2976003b2855__26[0] = 11 ; goCover_2976003b2855__26[1] = goCover_2976003b2855_P ; goCover_2976003b2855__26[2] = 26 ; goCover_2976003b2855__26[3] = 1;
+	// Find all inventory items with reservations for this order
+	items, err := s.repo.FindByOrderID(ctx, cmd.OrderID)
+	if err != nil {goCover_2976003b2855__26[6] = 1;
+		s.logger.Error("Failed to find items by order", "orderId", cmd.OrderID, "error", err)
+		return 0, fmt.Errorf("failed to find items by order: %w", err)
+	}
+
+	goCover_2976003b2855__26[4] = 1;releasedCount := 0
+	for _, item := range items {goCover_2976003b2855__26[7] = 1;
+		// Release reservation for this order
+		if err := item.ReleaseReservation(cmd.OrderID); err != nil {goCover_2976003b2855__26[11] = 1;
+			s.logger.Warn("Failed to release reservation", "sku", item.SKU, "orderId", cmd.OrderID, "error", err)
+			continue // Continue with other items
+		}
+
+		// Save the updated item
+		goCover_2976003b2855__26[8] = 1;if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__26[12] = 1;
+			s.logger.Error("Failed to save item after release", "sku", item.SKU, "error", err)
+			continue
+		}
+
+		// Update projections
+		goCover_2976003b2855__26[9] = 1;if s.projector != nil {goCover_2976003b2855__26[13] = 1;
+			_ = s.projector.OnInventoryReserved(ctx, item.SKU, cmd.OrderID)
+		}
+
+		goCover_2976003b2855__26[10] = 1;releasedCount++
+	}
+
+	goCover_2976003b2855__26[5] = 1;s.logger.Info("Released reservations by order", "orderId", cmd.OrderID, "releasedCount", releasedCount)
+	return releasedCount, nil
+}
+
+// Adjust adjusts inventory quantity
+func (s *InventoryApplicationService) Adjust(ctx context.Context, cmd AdjustCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__27[0] = 9 ; goCover_2976003b2855__27[1] = goCover_2976003b2855_P ; goCover_2976003b2855__27[2] = 27 ; goCover_2976003b2855__27[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__27[8] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__27[4] = 1;if item == nil {goCover_2976003b2855__27[9] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Adjust inventory (domain logic)
+	goCover_2976003b2855__27[5] = 1;if err := item.Adjust(cmd.LocationID, cmd.NewQuantity, cmd.Reason, cmd.CreatedBy); err != nil {goCover_2976003b2855__27[10] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	goCover_2976003b2855__27[6] = 1;events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__27[11] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	goCover_2976003b2855__27[7] = 1;s.updateProjections(ctx, cmd.SKU, events)
+
+	// Events are saved to outbox by repository in transaction
+
+	// Log business event: inventory adjusted
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.adjusted",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "adjusted",
+		RelatedIDs: map[string]string{
+			"locationId":  cmd.LocationID,
+			"newQuantity": fmt.Sprintf("%d", cmd.NewQuantity),
+			"reason":      cmd.Reason,
+		},
+	})
+
+	return ToInventoryItemDTO(item), nil
+}
+
+// GetByLocation retrieves items by location
+func (s *InventoryApplicationService) GetByLocation(ctx context.Context, query GetByLocationQuery) ([]InventoryListDTO, error) {goCover_2976003b2855__28[0] = 3 ; goCover_2976003b2855__28[1] = goCover_2976003b2855_P ; goCover_2976003b2855__28[2] = 28 ; goCover_2976003b2855__28[3] = 1;
+	items, err := s.repo.FindByLocation(ctx, query.LocationID)
+	if err != nil {goCover_2976003b2855__28[5] = 1;
+		s.logger.Error("Failed to get items by location", "locationId", query.LocationID, "error", err)
+		return nil, fmt.Errorf("failed to get items by location: %w", err)
+	}
+
+	goCover_2976003b2855__28[4] = 1;return ToInventoryListDTOs(items), nil
+}
+
+// GetByZone retrieves items by zone
+func (s *InventoryApplicationService) GetByZone(ctx context.Context, query GetByZoneQuery) ([]InventoryListDTO, error) {goCover_2976003b2855__29[0] = 3 ; goCover_2976003b2855__29[1] = goCover_2976003b2855_P ; goCover_2976003b2855__29[2] = 29 ; goCover_2976003b2855__29[3] = 1;
+	items, err := s.repo.FindByZone(ctx, query.Zone)
+	if err != nil {goCover_2976003b2855__29[5] = 1;
+		s.logger.Error("Failed to get items by zone", "zone", query.Zone, "error", err)
+		return nil, fmt.Errorf("failed to get items by zone: %w", err)
+	}
+
+	goCover_2976003b2855__29[4] = 1;return ToInventoryListDTOs(items), nil
+}
+
+// GetLowStock retrieves low stock items
+func (s *InventoryApplicationService) GetLowStock(ctx context.Context) ([]InventoryListDTO, error) {goCover_2976003b2855__30[0] = 3 ; goCover_2976003b2855__30[1] = goCover_2976003b2855_P ; goCover_2976003b2855__30[2] = 30 ; goCover_2976003b2855__30[3] = 1;
+	items, err := s.repo.FindLowStock(ctx)
+	if err != nil {goCover_2976003b2855__30[5] = 1;
+		s.logger.Error("Failed to get low stock items", "error", err)
+		return nil, fmt.Errorf("failed to get low stock items: %w", err)
+	}
+
+	goCover_2976003b2855__30[4] = 1;return ToInventoryListDTOs(items), nil
+}
+
+// ListInventory lists inventory with pagination
+func (s *InventoryApplicationService) ListInventory(ctx context.Context, query ListInventoryQuery) ([]InventoryListDTO, error) {goCover_2976003b2855__31[0] = 3 ; goCover_2976003b2855__31[1] = goCover_2976003b2855_P ; goCover_2976003b2855__31[2] = 31 ; goCover_2976003b2855__31[3] = 1;
+	items, err := s.repo.FindAll(ctx, query.Limit, query.Offset)
+	if err != nil {goCover_2976003b2855__31[5] = 1;
+		s.logger.Error("Failed to list inventory", "error", err)
+		return nil, fmt.Errorf("failed to list inventory: %w", err)
+	}
+
+	goCover_2976003b2855__31[4] = 1;return ToInventoryListDTOs(items), nil
+}
+
+// Stage converts a soft reservation to hard allocation (physical staging)
+func (s *InventoryApplicationService) Stage(ctx context.Context, cmd StageCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__32[0] = 9 ; goCover_2976003b2855__32[1] = goCover_2976003b2855_P ; goCover_2976003b2855__32[2] = 32 ; goCover_2976003b2855__32[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__32[8] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__32[4] = 1;if item == nil {goCover_2976003b2855__32[9] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Stage inventory (domain logic - converts soft to hard allocation)
+	goCover_2976003b2855__32[5] = 1;if err := item.Stage(cmd.ReservationID, cmd.StagingLocationID, cmd.StagedBy); err != nil {goCover_2976003b2855__32[10] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	goCover_2976003b2855__32[6] = 1;events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__32[11] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	goCover_2976003b2855__32[7] = 1;s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.staged",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "staged",
+		RelatedIDs: map[string]string{
+			"reservationId":     cmd.ReservationID,
+			"stagingLocationId": cmd.StagingLocationID,
+			"stagedBy":          cmd.StagedBy,
+		},
+	})
+
+	s.logger.Info("Staged inventory", "sku", cmd.SKU, "reservationId", cmd.ReservationID, "stagingLocation", cmd.StagingLocationID)
+	return ToInventoryItemDTO(item), nil
+}
+
+// Pack marks a hard allocation as packed
+func (s *InventoryApplicationService) Pack(ctx context.Context, cmd PackCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__33[0] = 9 ; goCover_2976003b2855__33[1] = goCover_2976003b2855_P ; goCover_2976003b2855__33[2] = 33 ; goCover_2976003b2855__33[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__33[8] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__33[4] = 1;if item == nil {goCover_2976003b2855__33[9] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Pack inventory (domain logic)
+	goCover_2976003b2855__33[5] = 1;if err := item.Pack(cmd.AllocationID, cmd.PackedBy); err != nil {goCover_2976003b2855__33[10] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	goCover_2976003b2855__33[6] = 1;events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__33[11] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	goCover_2976003b2855__33[7] = 1;s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.packed",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "packed",
+		RelatedIDs: map[string]string{
+			"allocationId": cmd.AllocationID,
+			"packedBy":     cmd.PackedBy,
+		},
+	})
+
+	s.logger.Info("Packed inventory", "sku", cmd.SKU, "allocationId", cmd.AllocationID)
+	return ToInventoryItemDTO(item), nil
+}
+
+// Ship ships a packed allocation (removes inventory from system)
+func (s *InventoryApplicationService) Ship(ctx context.Context, cmd ShipCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__34[0] = 9 ; goCover_2976003b2855__34[1] = goCover_2976003b2855_P ; goCover_2976003b2855__34[2] = 34 ; goCover_2976003b2855__34[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__34[8] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__34[4] = 1;if item == nil {goCover_2976003b2855__34[9] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Ship inventory (domain logic - removes from system)
+	goCover_2976003b2855__34[5] = 1;if err := item.Ship(cmd.AllocationID); err != nil {goCover_2976003b2855__34[10] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	goCover_2976003b2855__34[6] = 1;events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__34[11] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	goCover_2976003b2855__34[7] = 1;s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.shipped",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "shipped",
+		RelatedIDs: map[string]string{
+			"allocationId": cmd.AllocationID,
+		},
+	})
+
+	s.logger.Info("Shipped inventory", "sku", cmd.SKU, "allocationId", cmd.AllocationID)
+	return ToInventoryItemDTO(item), nil
+}
+
+// ReturnToShelf returns hard allocated inventory back to shelf
+func (s *InventoryApplicationService) ReturnToShelf(ctx context.Context, cmd ReturnToShelfCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__35[0] = 9 ; goCover_2976003b2855__35[1] = goCover_2976003b2855_P ; goCover_2976003b2855__35[2] = 35 ; goCover_2976003b2855__35[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__35[8] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__35[4] = 1;if item == nil {goCover_2976003b2855__35[9] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Return to shelf (domain logic - moves from hard allocation back to available)
+	goCover_2976003b2855__35[5] = 1;if err := item.ReturnToShelf(cmd.AllocationID, cmd.ReturnedBy, cmd.Reason); err != nil {goCover_2976003b2855__35[10] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	goCover_2976003b2855__35[6] = 1;events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__35[11] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	goCover_2976003b2855__35[7] = 1;s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.returned_to_shelf",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "returned_to_shelf",
+		RelatedIDs: map[string]string{
+			"allocationId": cmd.AllocationID,
+			"returnedBy":   cmd.ReturnedBy,
+			"reason":       cmd.Reason,
+		},
+	})
+
+	s.logger.Info("Returned inventory to shelf", "sku", cmd.SKU, "allocationId", cmd.AllocationID, "reason", cmd.Reason)
+	return ToInventoryItemDTO(item), nil
+}
+
+// RecordShortage records a confirmed stock shortage discovered during picking
+func (s *InventoryApplicationService) RecordShortage(ctx context.Context, cmd RecordShortageCommand) (*InventoryItemDTO, error) {goCover_2976003b2855__36[0] = 9 ; goCover_2976003b2855__36[1] = goCover_2976003b2855_P ; goCover_2976003b2855__36[2] = 36 ; goCover_2976003b2855__36[3] = 1;
+	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
+	if err != nil {goCover_2976003b2855__36[8] = 1;
+		s.logger.Error("Failed to get item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	goCover_2976003b2855__36[4] = 1;if item == nil {goCover_2976003b2855__36[9] = 1;
+		return nil, errors.ErrNotFound("item")
+	}
+
+	// Record shortage (domain logic - adjusts inventory and emits events)
+	goCover_2976003b2855__36[5] = 1;if err := item.RecordShortage(cmd.LocationID, cmd.OrderID, cmd.ExpectedQty, cmd.ActualQty, cmd.Reason, cmd.ReportedBy); err != nil {goCover_2976003b2855__36[10] = 1;
+		return nil, errors.ErrValidation(err.Error())
+	}
+
+	// Capture events before save
+	goCover_2976003b2855__36[6] = 1;events := item.GetDomainEvents()
+
+	// Save the updated item
+	if err := s.repo.Save(ctx, item); err != nil {goCover_2976003b2855__36[11] = 1;
+		s.logger.Error("Failed to save item", "sku", cmd.SKU, "error", err)
+		return nil, fmt.Errorf("failed to save item: %w", err)
+	}
+
+	// Update CQRS projections
+	goCover_2976003b2855__36[7] = 1;s.updateProjections(ctx, cmd.SKU, events)
+
+	// Log business event
+	s.logger.LogBusinessEvent(ctx, logging.BusinessEvent{
+		EventType:  "inventory.shortage_recorded",
+		EntityType: "inventory",
+		EntityID:   cmd.SKU,
+		Action:     "shortage_recorded",
+		RelatedIDs: map[string]string{
+			"locationId":  cmd.LocationID,
+			"orderId":     cmd.OrderID,
+			"expectedQty": fmt.Sprintf("%d", cmd.ExpectedQty),
+			"actualQty":   fmt.Sprintf("%d", cmd.ActualQty),
+			"shortageQty": fmt.Sprintf("%d", cmd.ExpectedQty-cmd.ActualQty),
+			"reason":      cmd.Reason,
+			"reportedBy":  cmd.ReportedBy,
+		},
+	})
+
+	s.logger.Info("Recorded stock shortage",
+		"sku", cmd.SKU,
+		"locationId", cmd.LocationID,
+		"orderId", cmd.OrderID,
+		"shortageQty", cmd.ExpectedQty-cmd.ActualQty,
+		"reason", cmd.Reason,
+	)
+	return ToInventoryItemDTO(item), nil
+}
+
+// updateProjections updates the CQRS read model based on domain events
+// Call this after successfully saving an inventory item to keep projections in sync
+func (s *InventoryApplicationService) updateProjections(ctx context.Context, sku string, events []domain.DomainEvent) {goCover_2976003b2855__37[0] = 11 ; goCover_2976003b2855__37[1] = goCover_2976003b2855_P ; goCover_2976003b2855__37[2] = 37 ; goCover_2976003b2855__37[3] = 1;
+	if s.projector == nil {goCover_2976003b2855__37[5] = 1;
+		return // Projector not configured (e.g., in tests)
+	}
+
+	goCover_2976003b2855__37[4] = 1;for _, event := range events {goCover_2976003b2855__37[6] = 1;
+		var err error
+		switch e := event.(type) {
+		case *domain.InventoryReceivedEvent:goCover_2976003b2855__37[8] = 1;
+			err = s.projector.OnInventoryReceived(ctx, e)
+		case *domain.InventoryAdjustedEvent:goCover_2976003b2855__37[9] = 1;
+			err = s.projector.OnInventoryAdjusted(ctx, e)
+		case *domain.LowStockAlertEvent:goCover_2976003b2855__37[10] = 1;
+			err = s.projector.OnLowStockAlert(ctx, e)
+		case *domain.StockShortageEvent:goCover_2976003b2855__37[11] = 1;
+			err = s.projector.OnStockShortage(ctx, e)
+		case *domain.InventoryDiscrepancyEvent:goCover_2976003b2855__37[12] = 1;
+			err = s.projector.OnInventoryDiscrepancy(ctx, e)
+		}
+
+		goCover_2976003b2855__37[7] = 1;if err != nil {goCover_2976003b2855__37[13] = 1;
+			// Log error but don't fail the operation - projection updates are eventually consistent
+			s.logger.Error("Failed to update projection", "eventType", fmt.Sprintf("%T", event), "error", err)
+		}
+	}
+}

@@ -42,6 +42,9 @@ const (
 type PackTask struct {
 	ID               primitive.ObjectID `bson:"_id,omitempty"`
 	TaskID           string             `bson:"taskId"`
+	TenantID         string             `bson:"tenantId"`
+	FacilityID       string             `bson:"facilityId"`
+	WarehouseID      string             `bson:"warehouseId"`
 	OrderID          string             `bson:"orderId"`
 	ConsolidationID  string             `bson:"consolidationId,omitempty"`
 	WaveID           string             `bson:"waveId"`

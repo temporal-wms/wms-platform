@@ -1,0 +1,264 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/cmd/migrate/main.go:1:1
+package main; import _ "runtime/coverage"
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/wms-platform/inventory-service/internal/domain"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+// Migration tool to extract transactions, reservations, and allocations
+// from inventory documents into separate collections
+
+var (
+	mongoURI       = flag.String("mongo-uri", "mongodb://localhost:27017", "MongoDB connection URI")
+	dbName         = flag.String("db", "temporal_war", "Database name")
+	dryRun         = flag.Bool("dry-run", true, "Dry run mode (no actual writes)")
+	batchSize      = flag.Int("batch-size", 100, "Batch size for processing")
+	removeArrays   = flag.Bool("remove-arrays", false, "Remove arrays from inventory documents after migration")
+)
+
+type InventoryDocument struct {
+	SKU             string                       `bson:"sku"`
+	TenantID        string                       `bson:"tenantId"`
+	FacilityID      string                       `bson:"facilityId"`
+	WarehouseID     string                       `bson:"warehouseId"`
+	SellerID        string                       `bson:"sellerId,omitempty"`
+	Reservations    []domain.Reservation         `bson:"reservations,omitempty"`
+	HardAllocations []domain.HardAllocation      `bson:"hardAllocations,omitempty"`
+	Transactions    []domain.InventoryTransaction `bson:"transactions,omitempty"`
+}
+
+func main() {goCover_d16967a663d1__0[0] = 7 ; goCover_d16967a663d1__0[1] = goCover_d16967a663d1_P ; goCover_d16967a663d1__0[2] = 0 ; goCover_d16967a663d1__0[3] = 1;
+	flag.Parse()
+
+	log.Printf("Starting inventory migration...")
+	log.Printf("MongoDB URI: %s", *mongoURI)
+	log.Printf("Database: %s", *dbName)
+	log.Printf("Dry Run: %v", *dryRun)
+	log.Printf("Batch Size: %d", *batchSize)
+	log.Printf("Remove Arrays: %v", *removeArrays)
+
+	// Connect to MongoDB
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(*mongoURI))
+	if err != nil {goCover_d16967a663d1__0[7] = 1;
+		log.Fatalf("Failed to connect to MongoDB: %v", err)
+	}
+	goCover_d16967a663d1__0[4] = 1;defer client.Disconnect(context.Background())
+
+	// Ping to verify connection
+	if err := client.Ping(ctx, nil); err != nil {goCover_d16967a663d1__0[8] = 1;
+		log.Fatalf("Failed to ping MongoDB: %v", err)
+	}
+	goCover_d16967a663d1__0[5] = 1;log.Println("Connected to MongoDB successfully")
+
+	db := client.Database(*dbName)
+
+	// Run migration
+	if err := migrateInventory(context.Background(), db); err != nil {goCover_d16967a663d1__0[9] = 1;
+		log.Fatalf("Migration failed: %v", err)
+	}
+
+	goCover_d16967a663d1__0[6] = 1;log.Println("Migration completed successfully!")
+}
+
+func migrateInventory(ctx context.Context, db *mongo.Database) error {goCover_d16967a663d1__1[0] = 35 ; goCover_d16967a663d1__1[1] = goCover_d16967a663d1_P ; goCover_d16967a663d1__1[2] = 1 ; goCover_d16967a663d1__1[3] = 1;
+	inventoryColl := db.Collection("inventory")
+	transactionsColl := db.Collection("inventory_transactions")
+	reservationsColl := db.Collection("inventory_reservations")
+	allocationsColl := db.Collection("inventory_allocations")
+
+	var (
+		totalDocs          int64
+		totalTransactions  int64
+		totalReservations  int64
+		totalAllocations   int64
+		docsWithTransactions int64
+		docsWithReservations int64
+		docsWithAllocations  int64
+	)
+
+	// Count total documents
+	count, err := inventoryColl.CountDocuments(ctx, bson.M{})
+	if err != nil {goCover_d16967a663d1__1[9] = 1;
+		return fmt.Errorf("failed to count documents: %w", err)
+	}
+	goCover_d16967a663d1__1[4] = 1;log.Printf("Found %d inventory documents to process", count)
+
+	// Process in batches
+	opts := options.Find().SetBatchSize(int32(*batchSize))
+	cursor, err := inventoryColl.Find(ctx, bson.M{}, opts)
+	if err != nil {goCover_d16967a663d1__1[10] = 1;
+		return fmt.Errorf("failed to query inventory: %w", err)
+	}
+	goCover_d16967a663d1__1[5] = 1;defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {goCover_d16967a663d1__1[11] = 1;
+		var doc InventoryDocument
+		if err := cursor.Decode(&doc); err != nil {goCover_d16967a663d1__1[17] = 1;
+			log.Printf("WARNING: Failed to decode document: %v", err)
+			continue
+		}
+
+		goCover_d16967a663d1__1[12] = 1;totalDocs++
+
+		// Migrate transactions
+		if len(doc.Transactions) > 0 {goCover_d16967a663d1__1[18] = 1;
+			docsWithTransactions++
+			for _, txn := range doc.Transactions {goCover_d16967a663d1__1[19] = 1;
+				totalTransactions++
+
+				txnAgg := &domain.InventoryTransactionAggregate{
+					TransactionID: txn.TransactionID,
+					SKU:           doc.SKU,
+					TenantID:      doc.TenantID,
+					FacilityID:    doc.FacilityID,
+					WarehouseID:   doc.WarehouseID,
+					SellerID:      doc.SellerID,
+					Type:          txn.Type,
+					Quantity:      txn.Quantity,
+					LocationID:    txn.LocationID,
+					ReferenceID:   txn.ReferenceID,
+					Reason:        txn.Reason,
+					CreatedAt:     txn.CreatedAt,
+					CreatedBy:     txn.CreatedBy,
+				}
+
+				if !*dryRun {goCover_d16967a663d1__1[20] = 1;
+					if _, err := transactionsColl.InsertOne(ctx, txnAgg); err != nil {goCover_d16967a663d1__1[21] = 1;
+						log.Printf("WARNING: Failed to insert transaction %s: %v", txn.TransactionID, err)
+					}
+				}
+			}
+		}
+
+		// Migrate reservations
+		goCover_d16967a663d1__1[13] = 1;if len(doc.Reservations) > 0 {goCover_d16967a663d1__1[22] = 1;
+			docsWithReservations++
+			for _, res := range doc.Reservations {goCover_d16967a663d1__1[23] = 1;
+				totalReservations++
+
+				resAgg := &domain.InventoryReservationAggregate{
+					ReservationID: res.ReservationID,
+					SKU:           doc.SKU,
+					TenantID:      doc.TenantID,
+					FacilityID:    doc.FacilityID,
+					WarehouseID:   doc.WarehouseID,
+					SellerID:      doc.SellerID,
+					OrderID:       res.OrderID,
+					Quantity:      res.Quantity,
+					LocationID:    res.LocationID,
+					Status:        domain.ReservationStatus(res.Status),
+					UnitIDs:       res.UnitIDs,
+					CreatedAt:     res.CreatedAt,
+					ExpiresAt:     res.ExpiresAt,
+					UpdatedAt:     res.CreatedAt, // Use created time if no update time
+				}
+
+				if !*dryRun {goCover_d16967a663d1__1[24] = 1;
+					if _, err := reservationsColl.InsertOne(ctx, resAgg); err != nil {goCover_d16967a663d1__1[25] = 1;
+						log.Printf("WARNING: Failed to insert reservation %s: %v", res.ReservationID, err)
+					}
+				}
+			}
+		}
+
+		// Migrate hard allocations
+		goCover_d16967a663d1__1[14] = 1;if len(doc.HardAllocations) > 0 {goCover_d16967a663d1__1[26] = 1;
+			docsWithAllocations++
+			for _, alloc := range doc.HardAllocations {goCover_d16967a663d1__1[27] = 1;
+				totalAllocations++
+
+				allocAgg := &domain.InventoryAllocationAggregate{
+					AllocationID:      alloc.AllocationID,
+					SKU:               doc.SKU,
+					TenantID:          doc.TenantID,
+					FacilityID:        doc.FacilityID,
+					WarehouseID:       doc.WarehouseID,
+					SellerID:          doc.SellerID,
+					ReservationID:     alloc.ReservationID,
+					OrderID:           alloc.OrderID,
+					Quantity:          alloc.Quantity,
+					SourceLocationID:  alloc.SourceLocationID,
+					StagingLocationID: alloc.StagingLocationID,
+					Status:            domain.AllocationStatus(alloc.Status),
+					UnitIDs:           alloc.UnitIDs,
+					StagedBy:          alloc.StagedBy,
+					PackedBy:          alloc.PackedBy,
+					ShippedBy:         "", // Not in original schema
+					CreatedAt:         alloc.CreatedAt,
+					PackedAt:          alloc.PackedAt,
+					ShippedAt:         alloc.ShippedAt,
+					UpdatedAt:         alloc.CreatedAt, // Use created time if no update time
+				}
+
+				if !*dryRun {goCover_d16967a663d1__1[28] = 1;
+					if _, err := allocationsColl.InsertOne(ctx, allocAgg); err != nil {goCover_d16967a663d1__1[29] = 1;
+						log.Printf("WARNING: Failed to insert allocation %s: %v", alloc.AllocationID, err)
+					}
+				}
+			}
+		}
+
+		// Remove arrays from inventory document if requested
+		goCover_d16967a663d1__1[15] = 1;if *removeArrays && !*dryRun {goCover_d16967a663d1__1[30] = 1;
+			filter := bson.M{"sku": doc.SKU}
+			update := bson.M{
+				"$unset": bson.M{
+					"transactions":    "",
+					"reservations":    "",
+					"hardAllocations": "",
+				},
+			}
+			if _, err := inventoryColl.UpdateOne(ctx, filter, update); err != nil {goCover_d16967a663d1__1[31] = 1;
+				log.Printf("WARNING: Failed to remove arrays from SKU %s: %v", doc.SKU, err)
+			}
+		}
+
+		// Progress logging every 100 docs
+		goCover_d16967a663d1__1[16] = 1;if totalDocs%100 == 0 {goCover_d16967a663d1__1[32] = 1;
+			log.Printf("Processed %d/%d documents...", totalDocs, count)
+		}
+	}
+
+	goCover_d16967a663d1__1[6] = 1;if err := cursor.Err(); err != nil {goCover_d16967a663d1__1[33] = 1;
+		return fmt.Errorf("cursor error: %w", err)
+	}
+
+	// Print summary
+	goCover_d16967a663d1__1[7] = 1;fmt.Println("\n=== Migration Summary ===")
+	fmt.Printf("Total Documents Processed: %d\n", totalDocs)
+	fmt.Printf("\nTransactions:\n")
+	fmt.Printf("  Documents with transactions: %d\n", docsWithTransactions)
+	fmt.Printf("  Total transactions migrated: %d\n", totalTransactions)
+	fmt.Printf("\nReservations:\n")
+	fmt.Printf("  Documents with reservations: %d\n", docsWithReservations)
+	fmt.Printf("  Total reservations migrated: %d\n", totalReservations)
+	fmt.Printf("\nAllocations:\n")
+	fmt.Printf("  Documents with allocations: %d\n", docsWithAllocations)
+	fmt.Printf("  Total allocations migrated: %d\n", totalAllocations)
+
+	if *dryRun {goCover_d16967a663d1__1[34] = 1;
+		fmt.Println("\n⚠️  DRY RUN MODE - No actual changes were made")
+		fmt.Println("Run with -dry-run=false to perform actual migration")
+	} else{ goCover_d16967a663d1__1[35] = 1;{
+		fmt.Println("\n✅ Migration completed successfully!")
+		if *removeArrays {goCover_d16967a663d1__1[36] = 1;
+			fmt.Println("   Arrays removed from inventory documents")
+		} else{ goCover_d16967a663d1__1[37] = 1;{
+			fmt.Println("   Arrays retained in inventory documents (backward compatibility)")
+		}}
+	}}
+
+	goCover_d16967a663d1__1[8] = 1;return nil
+}

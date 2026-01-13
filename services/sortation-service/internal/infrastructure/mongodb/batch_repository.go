@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"fmt"
 	"time"
@@ -20,6 +21,7 @@ type SortationBatchRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewSortationBatchRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *SortationBatchRepository {
@@ -132,7 +134,10 @@ func (r *SortationBatchRepository) Save(ctx context.Context, batch *domain.Sorta
 
 func (r *SortationBatchRepository) FindByID(ctx context.Context, batchID string) (*domain.SortationBatch, error) {
 	var batch domain.SortationBatch
-	err := r.collection.FindOne(ctx, bson.M{"batchId": batchID}).Decode(&batch)
+	filter := bson.M{"batchId": batchID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&batch)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -220,7 +225,10 @@ func (r *SortationBatchRepository) FindAll(ctx context.Context, limit int) ([]*d
 }
 
 func (r *SortationBatchRepository) Delete(ctx context.Context, batchID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"batchId": batchID})
+	filter := bson.M{"batchId": batchID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

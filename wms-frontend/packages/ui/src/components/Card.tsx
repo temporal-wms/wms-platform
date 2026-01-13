@@ -4,7 +4,9 @@ export interface CardProps {
   children: React.ReactNode;
   className?: string;
   padding?: 'none' | 'sm' | 'md' | 'lg';
-  shadow?: 'none' | 'sm' | 'md' | 'lg';
+  shadow?: 'none' | 'sm' | 'md' | 'lg' | 'elevated';
+  hover?: boolean;
+  onClick?: () => void;
 }
 
 const paddingStyles = {
@@ -16,9 +18,10 @@ const paddingStyles = {
 
 const shadowStyles = {
   none: '',
-  sm: 'shadow-sm',
-  md: 'shadow',
+  sm: 'shadow-card',
+  md: 'shadow-soft',
   lg: 'shadow-lg',
+  elevated: 'shadow-elevated',
 };
 
 export function Card({
@@ -26,15 +29,26 @@ export function Card({
   className = '',
   padding = 'md',
   shadow = 'sm',
+  hover = false,
+  onClick,
 }: CardProps) {
+  const isClickable = !!onClick;
+
   return (
     <div
       className={`
-        bg-white rounded-lg border border-gray-200
+        bg-white rounded-xl border border-gray-100
+        transition-all duration-200 ease-out
         ${paddingStyles[padding]}
         ${shadowStyles[shadow]}
+        ${hover || isClickable ? 'hover:shadow-card-hover hover:-translate-y-0.5' : ''}
+        ${isClickable ? 'cursor-pointer' : ''}
         ${className}
       `}
+      onClick={onClick}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onKeyDown={isClickable ? (e) => e.key === 'Enter' && onClick() : undefined}
     >
       {children}
     </div>
@@ -76,7 +90,7 @@ export interface CardFooterProps {
 
 export function CardFooter({ children, className = '' }: CardFooterProps) {
   return (
-    <div className={`mt-4 pt-4 border-t border-gray-200 ${className}`}>
+    <div className={`mt-4 pt-4 border-t border-gray-100 ${className}`}>
       {children}
     </div>
   );

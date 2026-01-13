@@ -8,6 +8,7 @@ import (
 	"github.com/wms-platform/shared/pkg/errors"
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/tenant"
 
 	"github.com/wms-platform/consolidation-service/internal/domain"
 )
@@ -46,6 +47,12 @@ func (s *ConsolidationApplicationService) CreateConsolidation(ctx context.Contex
 	if err != nil {
 		return nil, errors.ErrValidation(err.Error())
 	}
+
+	// Extract tenant context and set on unit
+	tc := tenant.FromContextOptional(ctx)
+	unit.TenantID = tc.TenantID
+	unit.FacilityID = tc.FacilityID
+	unit.WarehouseID = tc.WarehouseID
 
 	if err := s.repo.Save(ctx, unit); err != nil {
 		s.logger.WithError(err).Error("Failed to create consolidation", "consolidationId", cmd.ConsolidationID)

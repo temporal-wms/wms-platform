@@ -152,6 +152,9 @@ type ItemConstraints struct {
 type PutawayTask struct {
 	ID               primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	TaskID           string             `bson:"taskId" json:"taskId"`
+	TenantID    string             `bson:"tenantId" json:"tenantId"`
+	FacilityID  string             `bson:"facilityId" json:"facilityId"`
+	WarehouseID string             `bson:"warehouseId" json:"warehouseId"`
 	ShipmentID       string             `bson:"shipmentId,omitempty" json:"shipmentId,omitempty"`
 	SKU              string             `bson:"sku" json:"sku"`
 	ProductName      string             `bson:"productName" json:"productName"`

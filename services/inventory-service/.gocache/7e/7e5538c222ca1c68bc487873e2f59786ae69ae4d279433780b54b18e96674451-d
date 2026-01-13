@@ -1,0 +1,5 @@
+covervars.go
+inventory_list_projection.cover.go
+inventory_list_repository.cover.go
+inventory_projector.cover.go
+./inventory_projector_test.go

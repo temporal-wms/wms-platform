@@ -37,6 +37,8 @@ export function createSeller(sellerData) {
   const url = `${BASE_URLS.sellers}${ENDPOINTS.sellers.create}`;
   const payload = JSON.stringify({
     tenantId: sellerData.tenantId || SELLER_CONFIG.defaultTenantId,
+    facilityId: sellerData.facilityId,
+    warehouseId: sellerData.warehouseId,
     companyName: sellerData.companyName,
     contactName: sellerData.contactName,
     contactEmail: sellerData.contactEmail,

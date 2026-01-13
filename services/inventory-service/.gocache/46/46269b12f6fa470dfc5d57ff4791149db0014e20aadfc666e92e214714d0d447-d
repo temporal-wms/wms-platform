@@ -1,0 +1,441 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/application/inventory_coordinator.go:1:1
+package application
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/wms-platform/inventory-service/internal/domain"
+	"github.com/wms-platform/inventory-service/internal/infrastructure/mongodb"
+)
+
+// InventoryCoordinator coordinates operations across inventory aggregate and related collections
+// This facade pattern simplifies complex operations that span multiple repositories
+type InventoryCoordinator struct {
+	inventoryRepo    *mongodb.InventoryRepository
+	transactionRepo  *mongodb.InventoryTransactionRepository
+	reservationRepo  *mongodb.InventoryReservationRepository
+	allocationRepo   *mongodb.InventoryAllocationRepository
+}
+
+func NewInventoryCoordinator(
+	inventoryRepo *mongodb.InventoryRepository,
+	transactionRepo *mongodb.InventoryTransactionRepository,
+	reservationRepo *mongodb.InventoryReservationRepository,
+	allocationRepo *mongodb.InventoryAllocationRepository,
+) *InventoryCoordinator {goCover_2976003b2855__0[0] = 1 ; goCover_2976003b2855__0[1] = goCover_2976003b2855_P ; goCover_2976003b2855__0[2] = 0 ; goCover_2976003b2855__0[3] = 1;
+	return &InventoryCoordinator{
+		inventoryRepo:   inventoryRepo,
+		transactionRepo: transactionRepo,
+		reservationRepo: reservationRepo,
+		allocationRepo:  allocationRepo,
+	}
+}
+
+// ReceiveInventory receives stock and records the transaction
+func (c *InventoryCoordinator) ReceiveInventory(
+	ctx context.Context,
+	sku string,
+	locationID string,
+	zone string,
+	quantity int,
+	referenceID string,
+	receivedBy string,
+) error {goCover_2976003b2855__1[0] = 11 ; goCover_2976003b2855__1[1] = goCover_2976003b2855_P ; goCover_2976003b2855__1[2] = 1 ; goCover_2976003b2855__1[3] = 1;
+	// Get inventory item
+	item, err := c.inventoryRepo.FindBySKU(ctx, sku)
+	if err != nil {goCover_2976003b2855__1[9] = 1;
+		return fmt.Errorf("failed to find inventory: %w", err)
+	}
+	goCover_2976003b2855__1[4] = 1;if item == nil {goCover_2976003b2855__1[10] = 1;
+		return fmt.Errorf("inventory item not found: %s", sku)
+	}
+
+	// Update inventory aggregate
+	goCover_2976003b2855__1[5] = 1;if err := item.ReceiveStock(locationID, zone, quantity, referenceID, receivedBy); err != nil {goCover_2976003b2855__1[11] = 1;
+		return fmt.Errorf("failed to receive stock: %w", err)
+	}
+
+	// Save inventory (includes domain events)
+	goCover_2976003b2855__1[6] = 1;if err := c.inventoryRepo.Save(ctx, item); err != nil {goCover_2976003b2855__1[12] = 1;
+		return fmt.Errorf("failed to save inventory: %w", err)
+	}
+
+	// Record transaction in separate collection
+	goCover_2976003b2855__1[7] = 1;transaction := domain.NewInventoryTransaction(
+		generateTransactionID(),
+		sku,
+		"receive",
+		quantity,
+		locationID,
+		referenceID,
+		"",
+		receivedBy,
+		&domain.TransactionTenantInfo{
+			TenantID:    item.TenantID,
+			FacilityID:  item.FacilityID,
+			WarehouseID: item.WarehouseID,
+			SellerID:    item.SellerID,
+		},
+	)
+
+	if err := c.transactionRepo.Save(ctx, transaction); err != nil {goCover_2976003b2855__1[13] = 1;
+		// Log error but don't fail - transaction is in event stream
+		// Consider compensating transaction or retry logic here
+		return fmt.Errorf("failed to save transaction: %w", err)
+	}
+
+	goCover_2976003b2855__1[8] = 1;return nil
+}
+
+// ReserveInventory creates a reservation and updates inventory counters
+func (c *InventoryCoordinator) ReserveInventory(
+	ctx context.Context,
+	sku string,
+	orderID string,
+	locationID string,
+	quantity int,
+	unitIDs []string,
+	createdBy string,
+) (*domain.InventoryReservationAggregate, error) {goCover_2976003b2855__2[0] = 15 ; goCover_2976003b2855__2[1] = goCover_2976003b2855_P ; goCover_2976003b2855__2[2] = 2 ; goCover_2976003b2855__2[3] = 1;
+	// Get inventory item (use refactored version in production)
+	item, err := c.inventoryRepo.FindBySKU(ctx, sku)
+	if err != nil {goCover_2976003b2855__2[11] = 1;
+		return nil, fmt.Errorf("failed to find inventory: %w", err)
+	}
+	goCover_2976003b2855__2[4] = 1;if item == nil {goCover_2976003b2855__2[12] = 1;
+		return nil, fmt.Errorf("inventory item not found: %s", sku)
+	}
+
+	// Check availability
+	goCover_2976003b2855__2[5] = 1;location := item.GetLocationStock(locationID)
+	if location == nil {goCover_2976003b2855__2[13] = 1;
+		return nil, domain.ErrLocationNotFound
+	}
+	goCover_2976003b2855__2[6] = 1;if location.Available < quantity {goCover_2976003b2855__2[14] = 1;
+		return nil, domain.ErrInsufficientStock
+	}
+
+	// Update inventory counters
+	goCover_2976003b2855__2[7] = 1;if err := item.Reserve(orderID, locationID, quantity); err != nil {goCover_2976003b2855__2[15] = 1;
+		return nil, fmt.Errorf("failed to reserve inventory: %w", err)
+	}
+
+	// Create reservation record
+	goCover_2976003b2855__2[8] = 1;reservation := domain.NewInventoryReservation(
+		generateReservationID(),
+		sku,
+		orderID,
+		locationID,
+		quantity,
+		unitIDs,
+		createdBy,
+		&domain.ReservationTenantInfo{
+			TenantID:    item.TenantID,
+			FacilityID:  item.FacilityID,
+			WarehouseID: item.WarehouseID,
+			SellerID:    item.SellerID,
+		},
+	)
+
+	// Save both in transaction-like manner
+	// In production, use MongoDB transactions for atomicity
+	if err := c.inventoryRepo.Save(ctx, item); err != nil {goCover_2976003b2855__2[16] = 1;
+		return nil, fmt.Errorf("failed to save inventory: %w", err)
+	}
+
+	goCover_2976003b2855__2[9] = 1;if err := c.reservationRepo.Save(ctx, reservation); err != nil {goCover_2976003b2855__2[17] = 1;
+		// Compensate by releasing reservation in inventory
+		_ = item.ReleaseReservation(orderID)
+		_ = c.inventoryRepo.Save(ctx, item)
+		return nil, fmt.Errorf("failed to save reservation: %w", err)
+	}
+
+	goCover_2976003b2855__2[10] = 1;return reservation, nil
+}
+
+// StageInventory creates a hard allocation and updates inventory/reservation
+func (c *InventoryCoordinator) StageInventory(
+	ctx context.Context,
+	reservationID string,
+	stagingLocationID string,
+	stagedBy string,
+) (*domain.InventoryAllocationAggregate, error) {goCover_2976003b2855__3[0] = 19 ; goCover_2976003b2855__3[1] = goCover_2976003b2855_P ; goCover_2976003b2855__3[2] = 3 ; goCover_2976003b2855__3[3] = 1;
+	// Get reservation
+	reservation, err := c.reservationRepo.FindByID(ctx, reservationID)
+	if err != nil {goCover_2976003b2855__3[13] = 1;
+		return nil, fmt.Errorf("failed to find reservation: %w", err)
+	}
+	goCover_2976003b2855__3[4] = 1;if reservation == nil {goCover_2976003b2855__3[14] = 1;
+		return nil, domain.ErrReservationNotFound
+	}
+
+	// Validate reservation status
+	goCover_2976003b2855__3[5] = 1;if reservation.Status != domain.ReservationStatusActive {goCover_2976003b2855__3[15] = 1;
+		return nil, domain.ErrReservationNotActive
+	}
+
+	// Get inventory item
+	goCover_2976003b2855__3[6] = 1;item, err := c.inventoryRepo.FindBySKU(ctx, reservation.SKU)
+	if err != nil {goCover_2976003b2855__3[16] = 1;
+		return nil, fmt.Errorf("failed to find inventory: %w", err)
+	}
+
+	// Update inventory (move from reserved to hard allocated)
+	goCover_2976003b2855__3[7] = 1;if err := item.Stage(reservationID, stagingLocationID, stagedBy); err != nil {goCover_2976003b2855__3[17] = 1;
+		return nil, fmt.Errorf("failed to stage inventory: %w", err)
+	}
+
+	// Update reservation status
+	goCover_2976003b2855__3[8] = 1;if err := reservation.MarkStaged(stagedBy); err != nil {goCover_2976003b2855__3[18] = 1;
+		return nil, fmt.Errorf("failed to mark reservation as staged: %w", err)
+	}
+
+	// Create allocation record
+	goCover_2976003b2855__3[9] = 1;allocation := domain.NewInventoryAllocation(
+		generateAllocationID(),
+		reservation.SKU,
+		reservationID,
+		reservation.OrderID,
+		reservation.Quantity,
+		reservation.LocationID,
+		stagingLocationID,
+		reservation.UnitIDs,
+		stagedBy,
+		&domain.AllocationTenantInfo{
+			TenantID:    item.TenantID,
+			FacilityID:  item.FacilityID,
+			WarehouseID: item.WarehouseID,
+			SellerID:    item.SellerID,
+		},
+	)
+
+	// Save all changes
+	if err := c.inventoryRepo.Save(ctx, item); err != nil {goCover_2976003b2855__3[19] = 1;
+		return nil, fmt.Errorf("failed to save inventory: %w", err)
+	}
+
+	goCover_2976003b2855__3[10] = 1;if err := c.reservationRepo.Save(ctx, reservation); err != nil {goCover_2976003b2855__3[20] = 1;
+		return nil, fmt.Errorf("failed to save reservation: %w", err)
+	}
+
+	goCover_2976003b2855__3[11] = 1;if err := c.allocationRepo.Save(ctx, allocation); err != nil {goCover_2976003b2855__3[21] = 1;
+		return nil, fmt.Errorf("failed to save allocation: %w", err)
+	}
+
+	goCover_2976003b2855__3[12] = 1;return allocation, nil
+}
+
+// PackAllocation marks an allocation as packed
+func (c *InventoryCoordinator) PackAllocation(
+	ctx context.Context,
+	allocationID string,
+	packedBy string,
+) error {goCover_2976003b2855__4[0] = 7 ; goCover_2976003b2855__4[1] = goCover_2976003b2855_P ; goCover_2976003b2855__4[2] = 4 ; goCover_2976003b2855__4[3] = 1;
+	allocation, err := c.allocationRepo.FindByID(ctx, allocationID)
+	if err != nil {goCover_2976003b2855__4[7] = 1;
+		return fmt.Errorf("failed to find allocation: %w", err)
+	}
+	goCover_2976003b2855__4[4] = 1;if allocation == nil {goCover_2976003b2855__4[8] = 1;
+		return domain.ErrAllocationNotFound
+	}
+
+	goCover_2976003b2855__4[5] = 1;if err := allocation.MarkPacked(packedBy); err != nil {goCover_2976003b2855__4[9] = 1;
+		return fmt.Errorf("failed to mark as packed: %w", err)
+	}
+
+	goCover_2976003b2855__4[6] = 1;return c.allocationRepo.Save(ctx, allocation)
+}
+
+// ShipAllocation ships allocated inventory (removes from warehouse)
+func (c *InventoryCoordinator) ShipAllocation(
+	ctx context.Context,
+	allocationID string,
+	shippedBy string,
+) error {goCover_2976003b2855__5[0] = 21 ; goCover_2976003b2855__5[1] = goCover_2976003b2855_P ; goCover_2976003b2855__5[2] = 5 ; goCover_2976003b2855__5[3] = 1;
+	// Get allocation
+	allocation, err := c.allocationRepo.FindByID(ctx, allocationID)
+	if err != nil {goCover_2976003b2855__5[14] = 1;
+		return fmt.Errorf("failed to find allocation: %w", err)
+	}
+	goCover_2976003b2855__5[4] = 1;if allocation == nil {goCover_2976003b2855__5[15] = 1;
+		return domain.ErrAllocationNotFound
+	}
+
+	// Get reservation
+	goCover_2976003b2855__5[5] = 1;reservation, err := c.reservationRepo.FindByID(ctx, allocation.ReservationID)
+	if err != nil {goCover_2976003b2855__5[16] = 1;
+		return fmt.Errorf("failed to find reservation: %w", err)
+	}
+
+	// Get inventory
+	goCover_2976003b2855__5[6] = 1;item, err := c.inventoryRepo.FindBySKU(ctx, allocation.SKU)
+	if err != nil {goCover_2976003b2855__5[17] = 1;
+		return fmt.Errorf("failed to find inventory: %w", err)
+	}
+
+	// Ship from inventory (removes quantity)
+	goCover_2976003b2855__5[7] = 1;if err := item.Ship(allocationID); err != nil {goCover_2976003b2855__5[18] = 1;
+		return fmt.Errorf("failed to ship inventory: %w", err)
+	}
+
+	// Update allocation status
+	goCover_2976003b2855__5[8] = 1;if err := allocation.MarkShipped(shippedBy); err != nil {goCover_2976003b2855__5[19] = 1;
+		return fmt.Errorf("failed to mark as shipped: %w", err)
+	}
+
+	// Update reservation status
+	goCover_2976003b2855__5[9] = 1;if reservation != nil {goCover_2976003b2855__5[20] = 1;
+		_ = reservation.MarkFulfilled(shippedBy)
+		_ = c.reservationRepo.Save(ctx, reservation)
+	}
+
+	// Record transaction
+	goCover_2976003b2855__5[10] = 1;transaction := domain.NewInventoryTransaction(
+		generateTransactionID(),
+		allocation.SKU,
+		"ship",
+		-allocation.Quantity,
+		allocation.SourceLocationID,
+		allocation.OrderID,
+		"",
+		shippedBy,
+		&domain.TransactionTenantInfo{
+			TenantID:    allocation.TenantID,
+			FacilityID:  allocation.FacilityID,
+			WarehouseID: allocation.WarehouseID,
+			SellerID:    allocation.SellerID,
+		},
+	)
+
+	// Save all
+	if err := c.inventoryRepo.Save(ctx, item); err != nil {goCover_2976003b2855__5[21] = 1;
+		return fmt.Errorf("failed to save inventory: %w", err)
+	}
+
+	goCover_2976003b2855__5[11] = 1;if err := c.allocationRepo.Save(ctx, allocation); err != nil {goCover_2976003b2855__5[22] = 1;
+		return fmt.Errorf("failed to save allocation: %w", err)
+	}
+
+	goCover_2976003b2855__5[12] = 1;if err := c.transactionRepo.Save(ctx, transaction); err != nil {goCover_2976003b2855__5[23] = 1;
+		// Log but don't fail
+		return fmt.Errorf("failed to save transaction: %w", err)
+	}
+
+	goCover_2976003b2855__5[13] = 1;return nil
+}
+
+// CancelReservation cancels a reservation and releases inventory
+func (c *InventoryCoordinator) CancelReservation(
+	ctx context.Context,
+	reservationID string,
+	cancelledBy string,
+	reason string,
+) error {goCover_2976003b2855__6[0] = 15 ; goCover_2976003b2855__6[1] = goCover_2976003b2855_P ; goCover_2976003b2855__6[2] = 6 ; goCover_2976003b2855__6[3] = 1;
+	// Get reservation
+	reservation, err := c.reservationRepo.FindByID(ctx, reservationID)
+	if err != nil {goCover_2976003b2855__6[11] = 1;
+		return fmt.Errorf("failed to find reservation: %w", err)
+	}
+	goCover_2976003b2855__6[4] = 1;if reservation == nil {goCover_2976003b2855__6[12] = 1;
+		return domain.ErrReservationNotFound
+	}
+
+	// Get inventory
+	goCover_2976003b2855__6[5] = 1;item, err := c.inventoryRepo.FindBySKU(ctx, reservation.SKU)
+	if err != nil {goCover_2976003b2855__6[13] = 1;
+		return fmt.Errorf("failed to find inventory: %w", err)
+	}
+
+	// Release reservation in inventory
+	goCover_2976003b2855__6[6] = 1;if err := item.ReleaseReservation(reservation.OrderID); err != nil {goCover_2976003b2855__6[14] = 1;
+		return fmt.Errorf("failed to release reservation: %w", err)
+	}
+
+	// Cancel reservation
+	goCover_2976003b2855__6[7] = 1;if err := reservation.Cancel(cancelledBy, reason); err != nil {goCover_2976003b2855__6[15] = 1;
+		return fmt.Errorf("failed to cancel reservation: %w", err)
+	}
+
+	// Save both
+	goCover_2976003b2855__6[8] = 1;if err := c.inventoryRepo.Save(ctx, item); err != nil {goCover_2976003b2855__6[16] = 1;
+		return fmt.Errorf("failed to save inventory: %w", err)
+	}
+
+	goCover_2976003b2855__6[9] = 1;if err := c.reservationRepo.Save(ctx, reservation); err != nil {goCover_2976003b2855__6[17] = 1;
+		return fmt.Errorf("failed to save reservation: %w", err)
+	}
+
+	goCover_2976003b2855__6[10] = 1;return nil
+}
+
+// GetInventoryWithDetails returns inventory with recent transactions and active reservations
+func (c *InventoryCoordinator) GetInventoryWithDetails(
+	ctx context.Context,
+	sku string,
+	includeTransactions bool,
+	includeReservations bool,
+	includeAllocations bool,
+) (*InventoryDetails, error) {goCover_2976003b2855__7[0] = 17 ; goCover_2976003b2855__7[1] = goCover_2976003b2855_P ; goCover_2976003b2855__7[2] = 7 ; goCover_2976003b2855__7[3] = 1;
+	// Get main inventory
+	item, err := c.inventoryRepo.FindBySKU(ctx, sku)
+	if err != nil {goCover_2976003b2855__7[9] = 1;
+		return nil, fmt.Errorf("failed to find inventory: %w", err)
+	}
+	goCover_2976003b2855__7[4] = 1;if item == nil {goCover_2976003b2855__7[10] = 1;
+		return nil, fmt.Errorf("inventory not found: %s", sku)
+	}
+
+	goCover_2976003b2855__7[5] = 1;details := &InventoryDetails{
+		Inventory: item,
+	}
+
+	// Optionally fetch related data
+	if includeTransactions {goCover_2976003b2855__7[11] = 1;
+		txns, err := c.transactionRepo.FindBySKU(ctx, sku, 100) // Last 100 transactions
+		if err != nil {goCover_2976003b2855__7[13] = 1;
+			return nil, fmt.Errorf("failed to fetch transactions: %w", err)
+		}
+		goCover_2976003b2855__7[12] = 1;details.RecentTransactions = txns
+	}
+
+	goCover_2976003b2855__7[6] = 1;if includeReservations {goCover_2976003b2855__7[14] = 1;
+		res, err := c.reservationRepo.FindBySKU(ctx, sku, domain.ReservationStatusActive)
+		if err != nil {goCover_2976003b2855__7[16] = 1;
+			return nil, fmt.Errorf("failed to fetch reservations: %w", err)
+		}
+		goCover_2976003b2855__7[15] = 1;details.ActiveReservations = res
+	}
+
+	goCover_2976003b2855__7[7] = 1;if includeAllocations {goCover_2976003b2855__7[17] = 1;
+		allocs, err := c.allocationRepo.FindBySKU(ctx, sku, "")
+		if err != nil {goCover_2976003b2855__7[19] = 1;
+			return nil, fmt.Errorf("failed to fetch allocations: %w", err)
+		}
+		goCover_2976003b2855__7[18] = 1;details.ActiveAllocations = allocs
+	}
+
+	goCover_2976003b2855__7[8] = 1;return details, nil
+}
+
+// InventoryDetails aggregates inventory with related data
+type InventoryDetails struct {
+	Inventory           *domain.InventoryItem
+	RecentTransactions  []*domain.InventoryTransactionAggregate
+	ActiveReservations  []*domain.InventoryReservationAggregate
+	ActiveAllocations   []*domain.InventoryAllocationAggregate
+}
+
+// Helper ID generators
+func generateTransactionID() string {goCover_2976003b2855__8[0] = 1 ; goCover_2976003b2855__8[1] = goCover_2976003b2855_P ; goCover_2976003b2855__8[2] = 8 ; goCover_2976003b2855__8[3] = 1;
+	return fmt.Sprintf("TXN-%d", time.Now().UnixNano())
+}
+
+func generateReservationID() string {goCover_2976003b2855__9[0] = 1 ; goCover_2976003b2855__9[1] = goCover_2976003b2855_P ; goCover_2976003b2855__9[2] = 9 ; goCover_2976003b2855__9[3] = 1;
+	return fmt.Sprintf("RES-%d", time.Now().UnixNano())
+}
+
+func generateAllocationID() string {goCover_2976003b2855__10[0] = 1 ; goCover_2976003b2855__10[1] = goCover_2976003b2855_P ; goCover_2976003b2855__10[2] = 10 ; goCover_2976003b2855__10[3] = 1;
+	return fmt.Sprintf("ALLOC-%d", time.Now().UnixNano())
+}

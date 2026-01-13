@@ -1,0 +1,86 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/infrastructure/projections/inventory_list_projection.go:1:1
+package projections
+
+import "time"
+
+// InventoryListProjection is the denormalized read model for inventory list queries
+// This enables fast, optimized queries without loading the full aggregate
+type InventoryListProjection struct {
+	// Core fields
+	SKU         string `bson:"_id"` // Use SKU as the primary key for projections
+	ProductName string `bson:"productName"`
+
+	// Quantity tracking
+	TotalQuantity     int `bson:"totalQuantity"`
+	ReservedQuantity  int `bson:"reservedQuantity"`
+	AvailableQuantity int `bson:"availableQuantity"`
+
+	// Reorder management
+	ReorderPoint    int  `bson:"reorderPoint"`
+	ReorderQuantity int  `bson:"reorderQuantity"`
+	IsLowStock      bool `bson:"isLowStock"` // Computed: availableQuantity <= reorderPoint
+	IsOutOfStock    bool `bson:"isOutOfStock"` // Computed: availableQuantity == 0
+
+	// Location summary (denormalized for quick access)
+	LocationCount      int      `bson:"locationCount"` // Number of locations with stock
+	PrimaryLocation    string   `bson:"primaryLocation,omitempty"` // Location with most stock
+	AvailableLocations []string `bson:"availableLocations"` // List of location IDs with available stock
+
+	// Reservation summary
+	ActiveReservations int      `bson:"activeReservations"` // Count of active reservations
+	ReservedOrders     []string `bson:"reservedOrders"`     // Order IDs with active reservations
+
+	// Last activity tracking
+	LastReceived   *time.Time `bson:"lastReceived,omitempty"`
+	LastPicked     *time.Time `bson:"lastPicked,omitempty"`
+	LastAdjusted   *time.Time `bson:"lastAdjusted,omitempty"`
+	LastCycleCount *time.Time `bson:"lastCycleCount,omitempty"`
+
+	// Shortage and discrepancy tracking
+	LastShortage        *time.Time `bson:"lastShortage,omitempty"`
+	LastDiscrepancy     *time.Time `bson:"lastDiscrepancy,omitempty"`
+	LastDiscrepancyType string     `bson:"lastDiscrepancyType,omitempty"` // shortage, overage
+
+	// Timestamps
+	CreatedAt time.Time `bson:"createdAt"`
+	UpdatedAt time.Time `bson:"updatedAt"`
+}
+
+// InventoryListFilter defines query filters for inventory projections
+type InventoryListFilter struct {
+	SKU         *string
+	ProductName *string // Partial match
+	SearchTerm  string  // Search across SKU and ProductName
+
+	// Quantity filters
+	IsLowStock      *bool
+	IsOutOfStock    *bool
+	MinQuantity     *int
+	MaxQuantity     *int
+	HasReservations *bool
+
+	// Location filters
+	LocationID *string // Has stock at this location
+	Zone       *string
+
+	// Date range filters
+	ReceivedAfter  *time.Time
+	ReceivedBefore *time.Time
+}
+
+// Pagination defines pagination parameters
+type Pagination struct {
+	Limit     int
+	Offset    int
+	SortBy    string // Field to sort by
+	SortOrder string // "asc" or "desc"
+}
+
+// PagedResult represents a paginated result set
+type PagedResult[T any] struct {
+	Items   []T
+	Total   int64
+	Limit   int
+	Offset  int
+	HasMore bool
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
 	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"github.com/wms-platform/waving-service/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -21,6 +22,7 @@ type WaveRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewWaveRepository creates a new WaveRepository
@@ -33,6 +35,7 @@ func NewWaveRepository(db *mongo.Database, eventFactory *cloudevents.EventFactor
 		db:           db,
 		outboxRepo:   outboxRepo,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 	repo.ensureIndexes(context.Background())
 
@@ -157,9 +160,10 @@ func (r *WaveRepository) Save(ctx context.Context, wave *domain.Wave) error {
 
 // FindByID retrieves a wave by its ID
 func (r *WaveRepository) FindByID(ctx context.Context, waveID string) (*domain.Wave, error) {
-	var wave domain.Wave
 	filter := bson.M{"waveId": waveID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 
+	var wave domain.Wave
 	err := r.collection.FindOne(ctx, filter).Decode(&wave)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -174,6 +178,7 @@ func (r *WaveRepository) FindByID(ctx context.Context, waveID string) (*domain.W
 // FindByStatus retrieves waves by status
 func (r *WaveRepository) FindByStatus(ctx context.Context, status domain.WaveStatus) ([]*domain.Wave, error) {
 	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	opts := options.Find().SetSort(bson.D{{Key: "scheduledStart", Value: 1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
@@ -193,6 +198,7 @@ func (r *WaveRepository) FindByStatus(ctx context.Context, status domain.WaveSta
 // FindByType retrieves waves by type
 func (r *WaveRepository) FindByType(ctx context.Context, waveType domain.WaveType) ([]*domain.Wave, error) {
 	filter := bson.M{"waveType": waveType}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
@@ -212,6 +218,7 @@ func (r *WaveRepository) FindByType(ctx context.Context, waveType domain.WaveTyp
 // FindByZone retrieves waves by warehouse zone
 func (r *WaveRepository) FindByZone(ctx context.Context, zone string) ([]*domain.Wave, error) {
 	filter := bson.M{"zone": zone}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	opts := options.Find().SetSort(bson.D{{Key: "scheduledStart", Value: 1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
@@ -234,6 +241,7 @@ func (r *WaveRepository) FindScheduledBefore(ctx context.Context, before time.Ti
 		"status":         domain.WaveStatusScheduled,
 		"scheduledStart": bson.M{"$lte": before},
 	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	opts := options.Find().SetSort(bson.D{{Key: "scheduledStart", Value: 1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
@@ -257,6 +265,7 @@ func (r *WaveRepository) FindReadyForRelease(ctx context.Context) ([]*domain.Wav
 		"status": domain.WaveStatusScheduled,
 		"scheduledStart": bson.M{"$lte": now},
 	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	opts := options.Find().SetSort(bson.D{{Key: "priority", Value: 1}, {Key: "scheduledStart", Value: 1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
@@ -276,6 +285,7 @@ func (r *WaveRepository) FindReadyForRelease(ctx context.Context) ([]*domain.Wav
 // FindByOrderID retrieves the wave containing a specific order
 func (r *WaveRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Wave, error) {
 	filter := bson.M{"orders.orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 
 	var wave domain.Wave
 	err := r.collection.FindOne(ctx, filter).Decode(&wave)
@@ -296,6 +306,7 @@ func (r *WaveRepository) FindActive(ctx context.Context) ([]*domain.Wave, error)
 			"$nin": []domain.WaveStatus{domain.WaveStatusCompleted, domain.WaveStatusCancelled},
 		},
 	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	opts := options.Find().SetSort(bson.D{{Key: "priority", Value: 1}, {Key: "scheduledStart", Value: 1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
@@ -320,6 +331,7 @@ func (r *WaveRepository) FindByDateRange(ctx context.Context, start, end time.Ti
 			"$lte": end,
 		},
 	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
@@ -339,6 +351,7 @@ func (r *WaveRepository) FindByDateRange(ctx context.Context, start, end time.Ti
 // Delete removes a wave
 func (r *WaveRepository) Delete(ctx context.Context, waveID string) error {
 	filter := bson.M{"waveId": waveID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
@@ -346,6 +359,7 @@ func (r *WaveRepository) Delete(ctx context.Context, waveID string) error {
 // Count returns the total number of waves matching a status
 func (r *WaveRepository) Count(ctx context.Context, status domain.WaveStatus) (int64, error) {
 	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 	return r.collection.CountDocuments(ctx, filter)
 }
 

@@ -20,6 +20,7 @@ import (
 type AmazonAdapter struct {
 	httpClient *http.Client
 	baseURL    string
+	authURL    string
 }
 
 // NewAmazonAdapter creates a new Amazon adapter
@@ -27,6 +28,7 @@ func NewAmazonAdapter() *AmazonAdapter {
 	return &AmazonAdapter{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		baseURL:    "https://sellingpartnerapi-na.amazon.com", // NA endpoint
+		authURL:    "https://api.amazon.com/auth/o2/token",
 	}
 }
 
@@ -74,7 +76,7 @@ func (a *AmazonAdapter) getAccessToken(ctx context.Context, creds domain.Channel
 	data.Set("client_id", creds.ClientID)
 	data.Set("client_secret", creds.ClientSecret)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.amazon.com/auth/o2/token", strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", a.authURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return "", err
 	}

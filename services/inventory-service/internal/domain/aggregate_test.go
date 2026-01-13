@@ -259,7 +259,7 @@ func TestInventoryAdjust(t *testing.T) {
 		name       string
 		setupItem  func() *InventoryItem
 		locationID string
-		quantity   int
+		newQuantity int
 		reason     string
 		expectError error
 	}{
@@ -271,7 +271,7 @@ func TestInventoryAdjust(t *testing.T) {
 				return item
 			},
 			locationID: "LOC-A1",
-			quantity:   5,
+			newQuantity: 105,
 			reason:     "Cycle count correction",
 			expectError: nil,
 		},
@@ -283,7 +283,7 @@ func TestInventoryAdjust(t *testing.T) {
 				return item
 			},
 			locationID: "LOC-A1",
-			quantity:   -10,
+			newQuantity: 90,
 			reason:     "Damaged goods",
 			expectError: nil,
 		},
@@ -292,15 +292,14 @@ func TestInventoryAdjust(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			item := tt.setupItem()
-			initialTotal := item.TotalQuantity
-			err := item.Adjust(tt.locationID, tt.quantity, tt.reason, "user1")
+			err := item.Adjust(tt.locationID, tt.newQuantity, tt.reason, "user1")
 
 			if tt.expectError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectError, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, initialTotal+tt.quantity, item.TotalQuantity)
+				assert.Equal(t, tt.newQuantity, item.TotalQuantity)
 			}
 		})
 	}

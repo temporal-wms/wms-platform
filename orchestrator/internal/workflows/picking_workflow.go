@@ -16,6 +16,10 @@ type PickingWorkflowInput struct {
 	// Unit-level tracking fields
 	UnitIDs []string `json:"unitIds,omitempty"` // Specific units to pick
 	PathID  string   `json:"pathId,omitempty"`  // Process path ID for consistency
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // OrchestratedPickingWorkflow coordinates the picking process for an order with
@@ -30,6 +34,22 @@ func OrchestratedPickingWorkflow(ctx workflow.Context, input map[string]interfac
 
 	orderID, _ := input["orderId"].(string)
 	waveID, _ := input["waveId"].(string)
+
+	// Extract tenant context
+	tenantID, _ := input["tenantId"].(string)
+	facilityID, _ := input["facilityId"].(string)
+	warehouseID, _ := input["warehouseId"].(string)
+
+	// Set tenant context for activities
+	if tenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", tenantID)
+	}
+	if facilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", facilityID)
+	}
+	if warehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", warehouseID)
+	}
 
 	// Extract unit-level tracking fields (now always enabled)
 	var unitIDs []string
@@ -137,157 +157,113 @@ func OrchestratedPickingWorkflow(ctx workflow.Context, input map[string]interfac
 	result.PickedItems = pickedItems
 	result.Success = true
 
-	// Step 4: Confirm inventory pick (decrement stock)
-	if len(pickedItems) > 0 {
-		logger.Info("Confirming inventory pick", "orderId", orderID, "itemCount", len(pickedItems))
+	// Step 4: Stage inventory (convert soft reservation to hard allocation)
+	// This creates a physical claim on the inventory that cannot be released without return-to-shelf
+	// NOTE: Staging must happen BEFORE inventory pick to preserve active reservations
+	logger.Info("Staging inventory (hard allocation)", "orderId", orderID, "itemCount", len(pickedItems))
 
-		// Convert picked items to inventory pick format
-		inventoryPickItems := make([]map[string]interface{}, len(pickedItems))
-		for i, item := range pickedItems {
-			inventoryPickItems[i] = map[string]interface{}{
-				"sku":        item.SKU,
-				"quantity":   item.Quantity,
-				"locationId": item.LocationID,
-			}
-		}
+	// Declare variables before any goto statements
+	var stageResult map[string]interface{}
+	var stagingLocationID string
+	var getReservationItems []map[string]interface{}
+	var reservationResult map[string]interface{}
+	var reservations map[string]interface{}
+	var stageItems []map[string]interface{}
 
-		err = workflow.ExecuteActivity(ctx, "ConfirmInventoryPick", map[string]interface{}{
-			"orderId":     orderID,
-			"pickedItems": inventoryPickItems,
-		}).Get(ctx, nil)
-		if err != nil {
-			// Log but don't fail the workflow - inventory can be reconciled later
-			logger.Warn("Failed to confirm inventory pick, continuing workflow",
-				"orderId", orderID,
-				"error", err,
-			)
-		} else {
-			logger.Info("Inventory pick confirmed successfully", "orderId", orderID)
-		}
+	// Get the first tote ID for staging location (items should be in same tote)
+	stagingLocationID = "STAGING-DEFAULT"
+	if len(pickedItems) > 0 && pickedItems[0].ToteID != "" {
+		stagingLocationID = pickedItems[0].ToteID
+	}
 
-		// Step 5: Stage inventory (convert soft reservation to hard allocation)
-		// This creates a physical claim on the inventory that cannot be released without return-to-shelf
-		logger.Info("Staging inventory (hard allocation)", "orderId", orderID, "itemCount", len(pickedItems))
-
-		// Get the first tote ID for staging location (items should be in same tote)
-		stagingLocationID := "STAGING-DEFAULT"
-		if len(pickedItems) > 0 && pickedItems[0].ToteID != "" {
-			stagingLocationID = pickedItems[0].ToteID
-		}
-
-		// Build stage inventory items - each picked item needs its reservation staged
-		stageItems := make([]map[string]interface{}, len(pickedItems))
-		for i, item := range pickedItems {
-			// ReservationID is typically orderID-sku format from the reservation system
-			stageItems[i] = map[string]interface{}{
-				"sku":           item.SKU,
-				"reservationId": fmt.Sprintf("%s-%s", orderID, item.SKU),
-			}
-		}
-
-		var stageResult map[string]interface{}
-		err = workflow.ExecuteActivity(ctx, "StageInventory", map[string]interface{}{
-			"orderId":           orderID,
-			"stagingLocationId": stagingLocationID,
-			"stagedBy":          workerID,
-			"items":             stageItems,
-		}).Get(ctx, &stageResult)
-		if err != nil {
-			// Log but don't fail - staging can be reconciled later
-			logger.Warn("Failed to stage inventory, continuing workflow",
-				"orderId", orderID,
-				"error", err,
-			)
-		} else {
-			// Store allocation IDs for downstream workflows (packing, shipping)
-			if allocationIDs, ok := stageResult["allocationIds"].([]interface{}); ok {
-				result.AllocationIDs = make([]string, len(allocationIDs))
-				for i, id := range allocationIDs {
-					if strID, ok := id.(string); ok {
-						result.AllocationIDs[i] = strID
-					}
-				}
-			}
-			logger.Info("Inventory staged successfully (hard allocation created)",
-				"orderId", orderID,
-				"allocationCount", len(result.AllocationIDs),
-			)
+	// First, get reservation IDs for the order's items
+	getReservationItems = make([]map[string]interface{}, len(pickedItems))
+	for i, item := range pickedItems {
+		getReservationItems[i] = map[string]interface{}{
+			"sku": item.SKU,
 		}
 	}
 
-	// Step 6: Unit-level pick confirmation (always enabled)
-	if len(unitIDs) > 0 {
-		logger.Info("Confirming unit-level picks", "orderId", orderID, "unitCount", len(unitIDs))
-
-		var pickedUnitIDs []string
-		var failedUnitIDs []string
-		var exceptionIDs []string
-
-		// Get the first tote ID from picked items
-		toteID := "TOTE-DEFAULT"
-		if len(pickedItems) > 0 && pickedItems[0].ToteID != "" {
-			toteID = pickedItems[0].ToteID
-		}
-
-		// Get a station ID (could come from route or task)
-		stationID := "PICK-STATION-DEFAULT"
-
-		for _, unitID := range unitIDs {
-			// Attempt to confirm pick for each unit
-			err := workflow.ExecuteActivity(ctx, "ConfirmUnitPick", map[string]interface{}{
-				"unitId":    unitID,
-				"toteId":    toteID,
-				"pickerId":  workerID,
-				"stationId": stationID,
-			}).Get(ctx, nil)
-
-			if err != nil {
-				logger.Warn("Failed to confirm unit pick, creating exception",
-					"orderId", orderID,
-					"unitId", unitID,
-					"error", err,
-				)
-				failedUnitIDs = append(failedUnitIDs, unitID)
-
-				// Create exception for failed unit
-				var exceptionResult map[string]interface{}
-				exErr := workflow.ExecuteActivity(ctx, "CreateUnitException", map[string]interface{}{
-					"unitId":        unitID,
-					"exceptionType": "picking_failure",
-					"stage":         "picking",
-					"description":   fmt.Sprintf("Failed to confirm pick: %v", err),
-					"stationId":     stationID,
-					"reportedBy":    workerID,
-				}).Get(ctx, &exceptionResult)
-				if exErr == nil {
-					if exID, ok := exceptionResult["exceptionId"].(string); ok {
-						exceptionIDs = append(exceptionIDs, exID)
-					}
-				}
-			} else {
-				pickedUnitIDs = append(pickedUnitIDs, unitID)
-			}
-		}
-
-		result.PickedUnitIDs = pickedUnitIDs
-		result.FailedUnitIDs = failedUnitIDs
-		result.ExceptionIDs = exceptionIDs
-
-		logger.Info("Unit-level pick confirmation completed",
+	err = workflow.ExecuteActivity(ctx, "GetReservationIDs", map[string]interface{}{
+		"orderId": orderID,
+		"items":   getReservationItems,
+	}).Get(ctx, &reservationResult)
+	if err != nil {
+		logger.Warn("Failed to get reservation IDs, continuing workflow",
 			"orderId", orderID,
-			"pickedUnits", len(pickedUnitIDs),
-			"failedUnits", len(failedUnitIDs),
+			"error", err,
 		)
+		// Skip staging if we can't get reservation IDs
+		goto skipStaging
+	}
 
-		// If all units failed, consider the pick failed
-		if len(pickedUnitIDs) == 0 && len(failedUnitIDs) > 0 {
-			result.Success = false
-			return result, fmt.Errorf("all units failed picking for order %s", orderID)
+	// Extract reservations map (SKU -> ReservationID)
+	if resMap, ok := reservationResult["reservations"].(map[string]interface{}); ok {
+		reservations = resMap
+	} else {
+		logger.Warn("No reservations found in response, skipping staging", "orderId", orderID)
+		goto skipStaging
+	}
+
+	// Build stage inventory items with actual reservation IDs
+	stageItems = make([]map[string]interface{}, 0, len(pickedItems))
+	for _, item := range pickedItems {
+		if resID, ok := reservations[item.SKU].(string); ok {
+			stageItems = append(stageItems, map[string]interface{}{
+				"sku":           item.SKU,
+				"reservationId": resID,
+			})
+		} else {
+			logger.Warn("No reservation ID found for SKU, skipping staging",
+				"orderId", orderID,
+				"sku", item.SKU)
 		}
 	}
 
-	// Suppress unused variable warning for pathID (will be used in future enhancements)
+	if len(stageItems) == 0 {
+		logger.Warn("No items to stage (no reservation IDs found), skipping staging", "orderId", orderID)
+		goto skipStaging
+	}
+
+	err = workflow.ExecuteActivity(ctx, "StageInventory", map[string]interface{}{
+		"orderId":           orderID,
+		"stagingLocationId": stagingLocationID,
+		"stagedBy":          workerID,
+		"items":             stageItems,
+	}).Get(ctx, &stageResult)
+	if err != nil {
+		// Log but don't fail - staging can be reconciled later
+		logger.Warn("Failed to stage inventory, continuing workflow",
+			"orderId", orderID,
+			"error", err,
+		)
+	} else {
+		// Store allocation IDs for downstream workflows (packing, shipping)
+		if allocationIDs, ok := stageResult["allocationIds"].([]interface{}); ok {
+			result.AllocationIDs = make([]string, len(allocationIDs))
+			for i, id := range allocationIDs {
+				if strID, ok := id.(string); ok {
+					result.AllocationIDs[i] = strID
+				}
+			}
+		}
+		logger.Info("Inventory staged successfully (hard allocation created)",
+			"orderId", orderID,
+			"allocationCount", len(result.AllocationIDs),
+		)
+	}
+
+skipStaging:
+	// Continue with workflow even if staging was skipped
+
+	// Note: Unit-level pick confirmation is handled during physical picking (Step 3).
+	// Units are marked as picked when workers scan them into totes, so no additional
+	// confirmation is needed here. This prevents duplicate pick attempts that would
+	// fail with "cannot pick unit in status picked" errors.
+
+	// Suppress unused variable warnings (will be used in future enhancements)
 	_ = pathID
+	_ = unitIDs
 
 	logger.Info("Picking completed successfully",
 		"orderId", orderID,

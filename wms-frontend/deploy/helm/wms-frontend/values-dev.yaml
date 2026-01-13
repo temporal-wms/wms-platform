@@ -1,0 +1,47 @@
+# Development configuration overrides
+global:
+  environment: development
+
+# Shell app configuration
+shell:
+  replicaCount: 1
+  service:
+    type: NodePort
+    nodePort: 30180
+
+# Microfrontends configuration
+microfrontends:
+  orders:
+    replicaCount: 1
+  waves:
+    replicaCount: 1
+  inventory:
+    replicaCount: 1
+  picking:
+    replicaCount: 1
+  packing:
+    replicaCount: 1
+  shipping:
+    replicaCount: 1
+  labor:
+    replicaCount: 1
+  dashboard:
+    replicaCount: 1
+  receiving:
+    replicaCount: 1
+  stow:
+    replicaCount: 1
+  routing:
+    replicaCount: 1
+  walling:
+    replicaCount: 1
+  consolidation:
+    replicaCount: 1
+  sortation:
+    replicaCount: 1
+  facility:
+    replicaCount: 1
+
+# Ingress configuration - disabled for local dev
+ingress:
+  enabled: false

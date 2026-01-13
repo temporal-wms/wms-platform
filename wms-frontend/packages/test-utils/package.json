@@ -1,0 +1,19 @@
+{
+  "name": "@wms/test-utils",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mocks": "./src/mocks/index.ts"
+  },
+  "dependencies": {
+    "@testing-library/react": "^14.2.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@tanstack/react-query": "^5.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "vitest": "^2.1.0"
+  }
+}

@@ -114,7 +114,7 @@ export const GIFTWRAP_CONFIG = {
 export const SELLER_CONFIG = {
   simulationDelayMs: parseInt(__ENV.SELLER_DELAY_MS || '300'),
   defaultBillingCycle: __ENV.DEFAULT_BILLING_CYCLE || 'monthly',
-  defaultTenantId: __ENV.DEFAULT_TENANT_ID || 'TENANT-DEFAULT',
+  defaultTenantId: __ENV.DEFAULT_TENANT_ID || 'DEFAULT_TENANT',
 };
 
 // Billing simulator configuration
@@ -151,6 +151,11 @@ export const ORDER_CONFIG = {
   // Force specific order types for testing
   forceOrderType: __ENV.FORCE_ORDER_TYPE || null,        // 'single', 'multi', or null
   forceRequirement: __ENV.FORCE_REQUIREMENT || null,     // 'hazmat', 'fragile', 'oversized', 'heavy', 'high_value', or null
+
+  // Multi-tenancy configuration
+  defaultTenantId: __ENV.DEFAULT_TENANT_ID || 'DEFAULT_TENANT',
+  defaultFacilityId: __ENV.DEFAULT_FACILITY_ID || 'DEFAULT_FACILITY',
+  defaultWarehouseId: __ENV.DEFAULT_WAREHOUSE_ID || 'DEFAULT_WAREHOUSE',
 
   // Available requirements (for reference)
   validRequirements: ['hazmat', 'fragile', 'oversized', 'heavy', 'high_value'],

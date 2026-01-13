@@ -1,37 +1,37 @@
 {
-  "timestamp": "2026-01-06T20:21:53.558Z",
+  "timestamp": "2026-01-09T21:15:01.726Z",
   "simulator": "complete-e2e-simulator",
   "metrics": {
-    "orders_started": 150,
-    "orders_completed": 0,
-    "orders_failed": 150,
-    "success_rate": 0,
-    "avg_total_duration_ms": 0.41333333333333333,
-    "p95_total_duration_ms": 1,
+    "orders_started": 5,
+    "orders_completed": 2,
+    "orders_failed": 0,
+    "success_rate": 1,
+    "avg_total_duration_ms": 196729,
+    "p95_total_duration_ms": 196732.6,
     "stages": {
-      "receiving": 0,
-      "stow": 0,
-      "order": 0,
-      "wave": 0,
-      "wes": 0,
-      "pick": 0,
-      "consolidate": 0,
-      "pack": 0,
-      "ship": 0
+      "receiving": 5,
+      "stow": 5,
+      "order": 5,
+      "wave": 5,
+      "wes": 5,
+      "pick": 5,
+      "consolidate": 3,
+      "pack": 2,
+      "ship": 2
     },
     "stage_durations": {
-      "receiving_avg_ms": 0,
-      "stow_avg_ms": 0,
-      "pick_avg_ms": 0,
-      "pack_avg_ms": 0,
-      "ship_avg_ms": 0
+      "receiving_avg_ms": 2561.6,
+      "stow_avg_ms": 3084.6,
+      "pick_avg_ms": 3882.4,
+      "pack_avg_ms": 61099.5,
+      "ship_avg_ms": 60564.5
     },
     "tracking": {
-      "snapshots_captured": 0,
-      "state_changes": 0,
+      "snapshots_captured": 57,
+      "state_changes": 22,
       "signals_tracked": 0,
-      "workflow_query_avg_ms": 0,
-      "entity_query_avg_ms": 0
+      "workflow_query_avg_ms": 1.3653846153846154,
+      "entity_query_avg_ms": 18.03846153846154
     }
   },
   "configuration": {

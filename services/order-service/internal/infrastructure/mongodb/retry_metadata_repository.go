@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 // RetryMetadataRepository implements the retry metadata repository using MongoDB
 type RetryMetadataRepository struct {
 	collection *mongo.Collection
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewRetryMetadataRepository creates a new RetryMetadataRepository
@@ -46,6 +48,7 @@ func NewRetryMetadataRepository(db *mongo.Database) *RetryMetadataRepository {
 
 	return &RetryMetadataRepository{
 		collection: collection,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 }
 

@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"fmt"
 	"time"
@@ -20,6 +21,7 @@ type PutawayTaskRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewPutawayTaskRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *PutawayTaskRepository {
@@ -224,7 +226,10 @@ func (r *PutawayTaskRepository) UpdateStatus(ctx context.Context, taskID string,
 }
 
 func (r *PutawayTaskRepository) Delete(ctx context.Context, taskID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"taskId": taskID})
+	filter := bson.M{"taskId": taskID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

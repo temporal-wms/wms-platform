@@ -10,6 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
 	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,6 +21,7 @@ type InventoryRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewInventoryRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *InventoryRepository {
@@ -31,6 +33,7 @@ func NewInventoryRepository(db *mongo.Database, eventFactory *cloudevents.EventF
 		db:           db,
 		outboxRepo:   outboxRepo,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 	repo.ensureIndexes(context.Background())
 
@@ -126,8 +129,11 @@ func (r *InventoryRepository) Save(ctx context.Context, item *domain.InventoryIt
 }
 
 func (r *InventoryRepository) FindBySKU(ctx context.Context, sku string) (*domain.InventoryItem, error) {
+	filter := bson.M{"sku": sku}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var item domain.InventoryItem
-	err := r.collection.FindOne(ctx, bson.M{"sku": sku}).Decode(&item)
+	err := r.collection.FindOne(ctx, filter).Decode(&item)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -135,7 +141,10 @@ func (r *InventoryRepository) FindBySKU(ctx context.Context, sku string) (*domai
 }
 
 func (r *InventoryRepository) FindByLocation(ctx context.Context, locationID string) ([]*domain.InventoryItem, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"locations.locationId": locationID})
+	filter := bson.M{"locations.locationId": locationID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +155,10 @@ func (r *InventoryRepository) FindByLocation(ctx context.Context, locationID str
 }
 
 func (r *InventoryRepository) FindByZone(ctx context.Context, zone string) ([]*domain.InventoryItem, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"locations.zone": zone})
+	filter := bson.M{"locations.zone": zone}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +169,10 @@ func (r *InventoryRepository) FindByZone(ctx context.Context, zone string) ([]*d
 }
 
 func (r *InventoryRepository) FindByOrderID(ctx context.Context, orderID string) ([]*domain.InventoryItem, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"reservations.orderId": orderID})
+	filter := bson.M{"reservations.orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -168,9 +183,12 @@ func (r *InventoryRepository) FindByOrderID(ctx context.Context, orderID string)
 }
 
 func (r *InventoryRepository) FindLowStock(ctx context.Context) ([]*domain.InventoryItem, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{
+	filter := bson.M{
 		"$expr": bson.M{"$lte": []string{"$availableQuantity", "$reorderPoint"}},
-	})
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +199,11 @@ func (r *InventoryRepository) FindLowStock(ctx context.Context) ([]*domain.Inven
 }
 
 func (r *InventoryRepository) FindAll(ctx context.Context, limit, offset int) ([]*domain.InventoryItem, error) {
+	filter := bson.M{}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	opts := options.Find().SetLimit(int64(limit)).SetSkip(int64(offset))
-	cursor, err := r.collection.Find(ctx, bson.M{}, opts)
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +214,10 @@ func (r *InventoryRepository) FindAll(ctx context.Context, limit, offset int) ([
 }
 
 func (r *InventoryRepository) Delete(ctx context.Context, sku string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"sku": sku})
+	filter := bson.M{"sku": sku}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

@@ -53,6 +53,60 @@ type InventoryItem struct {
 	Bin               string `json:"bin"`
 }
 
+// InventoryItemDetailed represents a detailed inventory item with reservations
+type InventoryItemDetailed struct {
+	SKU                   string               `json:"sku"`
+	ProductName           string               `json:"productName"`
+	Locations             []StockLocationDTO   `json:"locations"`
+	TotalQuantity         int                  `json:"totalQuantity"`
+	ReservedQuantity      int                  `json:"reservedQuantity"`
+	HardAllocatedQuantity int                  `json:"hardAllocatedQuantity"`
+	AvailableQuantity     int                  `json:"availableQuantity"`
+	ReorderPoint          int                  `json:"reorderPoint"`
+	ReorderQuantity       int                  `json:"reorderQuantity"`
+	Reservations          []ReservationDTO     `json:"reservations,omitempty"`
+	HardAllocations       []HardAllocationDTO  `json:"hardAllocations,omitempty"`
+	LastCycleCount        *time.Time           `json:"lastCycleCount,omitempty"`
+	CreatedAt             time.Time            `json:"createdAt"`
+	UpdatedAt             time.Time            `json:"updatedAt"`
+}
+
+// StockLocationDTO represents stock at a specific location
+type StockLocationDTO struct {
+	LocationID    string `json:"locationId"`
+	Zone          string `json:"zone"`
+	Aisle         string `json:"aisle"`
+	Rack          int    `json:"rack"`
+	Level         int    `json:"level"`
+	Quantity      int    `json:"quantity"`
+	Reserved      int    `json:"reserved"`
+	HardAllocated int    `json:"hardAllocated"`
+	Available     int    `json:"available"`
+}
+
+// ReservationDTO represents a stock reservation
+type ReservationDTO struct {
+	ReservationID string    `json:"reservationId"`
+	OrderID       string    `json:"orderId"`
+	Quantity      int       `json:"quantity"`
+	LocationID    string    `json:"locationId"`
+	Status        string    `json:"status"`
+	CreatedAt     time.Time `json:"createdAt"`
+	ExpiresAt     time.Time `json:"expiresAt"`
+}
+
+// HardAllocationDTO represents a hard allocation (physically staged inventory)
+type HardAllocationDTO struct {
+	AllocationID      string    `json:"allocationId"`
+	ReservationID     string    `json:"reservationId"`
+	OrderID           string    `json:"orderId"`
+	Quantity          int       `json:"quantity"`
+	StagingLocationID string    `json:"stagingLocationId"`
+	Status            string    `json:"status"`
+	StagedBy          string    `json:"stagedBy"`
+	CreatedAt         time.Time `json:"createdAt"`
+}
+
 // ReserveInventoryRequest represents a request to reserve inventory
 type ReserveInventoryRequest struct {
 	OrderID string              `json:"orderId"`
@@ -496,4 +550,228 @@ type ColdChainDetails struct {
 	MaxTempCelsius  float64 `json:"maxTempCelsius"`
 	RequiresDryIce  bool    `json:"requiresDryIce"`
 	RequiresGelPack bool    `json:"requiresGelPack"`
+}
+
+// Station Capacity Management Types
+
+// ReserveStationCapacityRequest represents a request to reserve station capacity
+type ReserveStationCapacityRequest struct {
+	StationID     string `json:"stationId"`
+	OrderID       string `json:"orderId"`
+	RequiredSlots int    `json:"requiredSlots"`
+	ReservationID string `json:"reservationId"`
+}
+
+// ReserveStationCapacityResponse represents the response from reserving station capacity
+type ReserveStationCapacityResponse struct {
+	ReservationID     string `json:"reservationId"`
+	StationID         string `json:"stationId"`
+	ReservedSlots     int    `json:"reservedSlots"`
+	RemainingCapacity int    `json:"remainingCapacity"`
+}
+
+// ReleaseStationCapacityRequest represents a request to release station capacity
+type ReleaseStationCapacityRequest struct {
+	StationID     string `json:"stationId"`
+	OrderID       string `json:"orderId"`
+	ReservationID string `json:"reservationId"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+// Labor Service Types
+
+// Worker represents a warehouse worker
+type Worker struct {
+	WorkerID        string   `json:"workerId"`
+	Name            string   `json:"name"`
+	Skills          []string `json:"skills"`
+	Certifications  []string `json:"certifications"`
+	CurrentTask     string   `json:"currentTask,omitempty"`
+	Zone            string   `json:"zone"`
+	Status          string   `json:"status"` // available, on_task, on_break, off_duty
+	CurrentShift    string   `json:"currentShift,omitempty"`
+	AssignedStation string   `json:"assignedStation,omitempty"`
+}
+
+// FindCertifiedWorkersRequest represents a request to find certified workers
+type FindCertifiedWorkersRequest struct {
+	RequiredSkills []string `json:"requiredSkills"`
+	Zone           string   `json:"zone,omitempty"`
+	ShiftTime      string   `json:"shiftTime,omitempty"`
+	MinCount       int      `json:"minCount"`
+}
+
+// AssignWorkerRequest represents a request to assign a worker
+type AssignWorkerRequest struct {
+	OrderID        string   `json:"orderId"`
+	StationID      string   `json:"stationId"`
+	RequiredSkills []string `json:"requiredSkills"`
+	Zone           string   `json:"zone,omitempty"`
+	Priority       string   `json:"priority,omitempty"`
+}
+
+// GetAvailableWorkersRequest represents a request to get available workers
+type GetAvailableWorkersRequest struct {
+	Zone           string   `json:"zone,omitempty"`
+	RequiredSkills []string `json:"requiredSkills,omitempty"`
+	ShiftTime      string   `json:"shiftTime,omitempty"`
+}
+
+// Equipment Availability and Management Types
+
+// Equipment represents warehouse equipment
+type Equipment struct {
+	EquipmentID   string `json:"equipmentId"`
+	EquipmentType string `json:"equipmentType"` // cold_storage, forklift, hazmat_kit, etc.
+	Name          string `json:"name"`
+	Zone          string `json:"zone"`
+	Status        string `json:"status"` // available, in_use, maintenance, reserved
+	StationID     string `json:"stationId,omitempty"`
+	AssignedTo    string `json:"assignedTo,omitempty"` // Order or task ID
+}
+
+// CheckEquipmentAvailabilityRequest represents a request to check equipment availability
+type CheckEquipmentAvailabilityRequest struct {
+	EquipmentTypes []string `json:"equipmentTypes"`
+	Zone           string   `json:"zone,omitempty"`
+	RequiredCount  int      `json:"requiredCount"`
+}
+
+// CheckEquipmentAvailabilityResponse represents the response from checking equipment availability
+type CheckEquipmentAvailabilityResponse struct {
+	AvailableEquipment map[string]int `json:"availableEquipment"` // Type -> count
+}
+
+// ReserveEquipmentRequest represents a request to reserve equipment
+type ReserveEquipmentRequest struct {
+	EquipmentType string `json:"equipmentType"`
+	OrderID       string `json:"orderId"`
+	Quantity      int    `json:"quantity"`
+	Zone          string `json:"zone,omitempty"`
+	ReservationID string `json:"reservationId"`
+}
+
+// ReserveEquipmentResponse represents the response from reserving equipment
+type ReserveEquipmentResponse struct {
+	ReservationID        string   `json:"reservationId"`
+	EquipmentType        string   `json:"equipmentType"`
+	ReservedEquipmentIDs []string `json:"reservedEquipmentIds"`
+}
+
+// ReleaseEquipmentRequest represents a request to release equipment
+type ReleaseEquipmentRequest struct {
+	ReservationID string `json:"reservationId"`
+	EquipmentType string `json:"equipmentType"`
+	OrderID       string `json:"orderId"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+// GetEquipmentByTypeRequest represents a request to get equipment by type
+type GetEquipmentByTypeRequest struct {
+	EquipmentType string `json:"equipmentType"`
+	Zone          string `json:"zone,omitempty"`
+	Status        string `json:"status,omitempty"`
+}
+
+// Routing Optimizer Types
+
+// OptimizeRoutingRequest represents a request for optimized routing
+type OptimizeRoutingRequest struct {
+	OrderID            string    `json:"orderId"`
+	Priority           string    `json:"priority"`
+	Requirements       []string  `json:"requirements"`
+	SpecialHandling    []string  `json:"specialHandling"`
+	ItemCount          int       `json:"itemCount"`
+	TotalWeight        float64   `json:"totalWeight"`
+	PromisedDeliveryAt time.Time `json:"promisedDeliveryAt"`
+	RequiredSkills     []string  `json:"requiredSkills"`
+	RequiredEquipment  []string  `json:"requiredEquipment"`
+	Zone               string    `json:"zone,omitempty"`
+	StationType        string    `json:"stationType"`
+}
+
+// OptimizeRoutingResponse represents the optimized routing decision
+type OptimizeRoutingResponse struct {
+	SelectedStationID string                     `json:"selectedStationId"`
+	Score             float64                    `json:"score"`
+	Reasoning         map[string]float64         `json:"reasoning"`
+	AlternateStations []AlternateStationResponse `json:"alternateStations"`
+	Confidence        float64                    `json:"confidence"`
+	DecisionTime      time.Time                  `json:"decisionTime"`
+}
+
+// AlternateStationResponse represents an alternate station option
+type AlternateStationResponse struct {
+	StationID string  `json:"stationId"`
+	Score     float64 `json:"score"`
+	Rank      int     `json:"rank"`
+}
+
+// GetRoutingMetricsRequest represents a request for routing metrics
+type GetRoutingMetricsRequest struct {
+	FacilityID string `json:"facilityId,omitempty"`
+	Zone       string `json:"zone,omitempty"`
+	TimeWindow string `json:"timeWindow,omitempty"`
+}
+
+// GetRoutingMetricsResponse represents routing metrics
+type GetRoutingMetricsResponse struct {
+	TotalRoutingDecisions   int                `json:"totalRoutingDecisions"`
+	AverageDecisionTimeMs   int64              `json:"averageDecisionTimeMs"`
+	AverageConfidence       float64            `json:"averageConfidence"`
+	StationUtilization      map[string]float64 `json:"stationUtilization"`
+	CapacityConstrainedRate float64            `json:"capacityConstrainedRate"`
+	RouteChanges            int                `json:"routeChanges"`
+	RebalancingRecommended  bool               `json:"rebalancingRecommended"`
+	LastUpdated             time.Time          `json:"lastUpdated"`
+}
+
+// RerouteOrderRequest represents a request to reroute an order
+type RerouteOrderRequest struct {
+	OrderID      string   `json:"orderId"`
+	CurrentPath  string   `json:"currentPath"`
+	Reason       string   `json:"reason"`
+	Requirements []string `json:"requirements"`
+	Priority     string   `json:"priority"`
+	ForceReroute bool     `json:"forceReroute"`
+}
+
+// RerouteOrderResponse represents the rerouting decision
+type RerouteOrderResponse struct {
+	NewStationID string    `json:"newStationId"`
+	Score        float64   `json:"score"`
+	Confidence   float64   `json:"confidence"`
+	RerouteTime  time.Time `json:"rerouteTime"`
+}
+
+// EscalateProcessPathRequest represents a request to escalate a process path
+type EscalateProcessPathRequest struct {
+	PathID      string `json:"pathId"`
+	ToTier      string `json:"toTier"`
+	Trigger     string `json:"trigger"`
+	Reason      string `json:"reason"`
+	EscalatedBy string `json:"escalatedBy,omitempty"`
+}
+
+// EscalateProcessPathResponse represents the escalation result
+type EscalateProcessPathResponse struct {
+	PathID           string    `json:"pathId"`
+	NewTier          string    `json:"newTier"`
+	EscalatedAt      time.Time `json:"escalatedAt"`
+	FallbackStations []string  `json:"fallbackStations,omitempty"`
+}
+
+// DowngradeProcessPathRequest represents a request to downgrade a process path
+type DowngradeProcessPathRequest struct {
+	PathID       string `json:"pathId"`
+	ToTier       string `json:"toTier"`
+	Reason       string `json:"reason"`
+	DowngradedBy string `json:"downgradedBy,omitempty"`
+}
+
+// DowngradeProcessPathResponse represents the downgrade result
+type DowngradeProcessPathResponse struct {
+	PathID       string    `json:"pathId"`
+	NewTier      string    `json:"newTier"`
+	DowngradedAt time.Time `json:"downgradedAt"`
 }

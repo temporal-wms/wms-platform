@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"fmt"
 	"time"
@@ -20,6 +21,7 @@ type InboundShipmentRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewInboundShipmentRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *InboundShipmentRepository {
@@ -137,7 +139,10 @@ func (r *InboundShipmentRepository) Save(ctx context.Context, shipment *domain.I
 
 func (r *InboundShipmentRepository) FindByID(ctx context.Context, shipmentID string) (*domain.InboundShipment, error) {
 	var shipment domain.InboundShipment
-	err := r.collection.FindOne(ctx, bson.M{"shipmentId": shipmentID}).Decode(&shipment)
+	filter := bson.M{"shipmentId": shipmentID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&shipment)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -146,7 +151,10 @@ func (r *InboundShipmentRepository) FindByID(ctx context.Context, shipmentID str
 
 func (r *InboundShipmentRepository) FindByASNID(ctx context.Context, asnID string) (*domain.InboundShipment, error) {
 	var shipment domain.InboundShipment
-	err := r.collection.FindOne(ctx, bson.M{"asn.asnId": asnID}).Decode(&shipment)
+	filter := bson.M{"asn.asnId": asnID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&shipment)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -169,7 +177,10 @@ func (r *InboundShipmentRepository) FindBySupplierID(ctx context.Context, suppli
 }
 
 func (r *InboundShipmentRepository) FindByPurchaseOrderID(ctx context.Context, poID string) ([]*domain.InboundShipment, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"purchaseOrderId": poID})
+	filter := bson.M{"purchaseOrderId": poID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +356,10 @@ func (r *InboundShipmentRepository) FindAll(ctx context.Context, limit int) ([]*
 }
 
 func (r *InboundShipmentRepository) Delete(ctx context.Context, shipmentID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"shipmentId": shipmentID})
+	filter := bson.M{"shipmentId": shipmentID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

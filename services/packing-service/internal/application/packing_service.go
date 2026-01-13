@@ -8,6 +8,7 @@ import (
 	"github.com/wms-platform/shared/pkg/errors"
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
+	"github.com/wms-platform/shared/pkg/tenant"
 
 	"github.com/wms-platform/packing-service/internal/domain"
 )
@@ -41,6 +42,12 @@ func (s *PackingApplicationService) CreatePackTask(ctx context.Context, cmd Crea
 	if err != nil {
 		return nil, errors.ErrValidation(err.Error())
 	}
+
+	// Extract tenant context and set on task
+	tc := tenant.FromContextOptional(ctx)
+	task.TenantID = tc.TenantID
+	task.FacilityID = tc.FacilityID
+	task.WarehouseID = tc.WarehouseID
 
 	if err := s.repo.Save(ctx, task); err != nil {
 		s.logger.WithError(err).Error("Failed to create pack task", "taskId", cmd.TaskID)

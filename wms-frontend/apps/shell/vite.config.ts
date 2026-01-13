@@ -2,37 +2,27 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import federation from '@originjs/vite-plugin-federation';
 import path from 'path';
+import { getEnabledRemotes } from './src/remotes/manifest';
 
 // For K8s deployment, use relative paths (nginx proxy)
 // For local dev, use localhost URLs
 const isK8s = process.env.VITE_K8S_DEPLOY === 'true';
+const enabledRemotes = getEnabledRemotes(process.env.VITE_ENABLED_REMOTES);
 
-const remoteUrls = {
-  orders: isK8s ? '/remotes/orders' : (process.env.VITE_ORDERS_URL || 'http://localhost:3001'),
-  waves: isK8s ? '/remotes/waves' : (process.env.VITE_WAVES_URL || 'http://localhost:3002'),
-  inventory: isK8s ? '/remotes/inventory' : (process.env.VITE_INVENTORY_URL || 'http://localhost:3003'),
-  picking: isK8s ? '/remotes/picking' : (process.env.VITE_PICKING_URL || 'http://localhost:3004'),
-  packing: isK8s ? '/remotes/packing' : (process.env.VITE_PACKING_URL || 'http://localhost:3005'),
-  shipping: isK8s ? '/remotes/shipping' : (process.env.VITE_SHIPPING_URL || 'http://localhost:3006'),
-  labor: isK8s ? '/remotes/labor' : (process.env.VITE_LABOR_URL || 'http://localhost:3007'),
-  dashboard: isK8s ? '/remotes/dashboard' : (process.env.VITE_DASHBOARD_URL || 'http://localhost:3008'),
-};
+const remotesConfig = enabledRemotes.reduce<Record<string, string>>((acc, remote) => {
+  const envKey = `VITE_${remote.name.toUpperCase()}_URL`;
+  const overrideUrl = process.env[envKey];
+  const baseUrl = isK8s ? remote.k8sProxyPath : overrideUrl || `http://localhost:${remote.devPort}`;
+  acc[remote.name] = `${baseUrl}/assets/remoteEntry.js`;
+  return acc;
+}, {});
 
 export default defineConfig({
   plugins: [
     react(),
-    federation({
-      name: 'shell',
-      remotes: {
-        orders: `${remoteUrls.orders}/assets/remoteEntry.js`,
-        waves: `${remoteUrls.waves}/assets/remoteEntry.js`,
-        inventory: `${remoteUrls.inventory}/assets/remoteEntry.js`,
-        picking: `${remoteUrls.picking}/assets/remoteEntry.js`,
-        packing: `${remoteUrls.packing}/assets/remoteEntry.js`,
-        shipping: `${remoteUrls.shipping}/assets/remoteEntry.js`,
-        labor: `${remoteUrls.labor}/assets/remoteEntry.js`,
-        dashboard: `${remoteUrls.dashboard}/assets/remoteEntry.js`,
-      },
+      federation({
+        name: 'shell',
+        remotes: remotesConfig,
       shared: {
         react: { singleton: true, requiredVersion: '^18.0.0' },
         'react-dom': { singleton: true, requiredVersion: '^18.0.0' },

@@ -1,0 +1,28 @@
+{{- if .Values.shell.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms-shell
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "wms-frontend.app.labels" (dict "appName" "shell") | nindent 4 }}
+spec:
+  type: {{ .Values.shell.service.type }}
+  {{- if and (eq .Values.shell.service.type "NodePort") .Values.shell.service.nodePort }}
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+      nodePort: {{ .Values.shell.service.nodePort }}
+  {{- else }}
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  {{- end }}
+  selector:
+    app.kubernetes.io/name: wms-shell
+    app.kubernetes.io/instance: shell
+{{- end }}

@@ -1,30 +1,38 @@
+# syntax=docker/dockerfile:1
 # Multi-stage build for WMS Frontend Microfrontends
 # Build stage
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy all files (needed for nx workspace detection)
-COPY . .
+# Build argument to specify which app to build
+ARG APP_NAME=shell
+
+# Copy dependency files for better layer caching
+COPY package.json package-lock.json tsconfig.base.json ./
 
 # Install dependencies
 RUN npm ci
 
-# Build argument to specify which app to build
-ARG APP_NAME=shell
+# Copy source files
+COPY packages ./packages
+COPY apps ./apps
 
-# Build the specific app using npx nx directly with the @wms scope
-RUN npx nx run @wms/${APP_NAME}:build
+# Build directly without NX to avoid project graph issues in Docker
+WORKDIR /app/apps/${APP_NAME}
+RUN npm run build
 
 # Production stage
 FROM nginx:alpine AS production
+
+# Build argument to specify which app
+ARG APP_NAME=shell
 
 # Copy nginx configuration
 COPY deploy/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
 
 # Copy built assets
-ARG APP_NAME=shell
 COPY --from=builder /app/apps/${APP_NAME}/dist /usr/share/nginx/html
 
 # Expose port

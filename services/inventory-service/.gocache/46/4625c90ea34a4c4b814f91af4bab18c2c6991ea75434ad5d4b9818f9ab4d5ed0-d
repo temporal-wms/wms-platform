@@ -1,0 +1,3 @@
+./inventory_list_projection.go
+./inventory_list_repository.go
+./inventory_projector.go

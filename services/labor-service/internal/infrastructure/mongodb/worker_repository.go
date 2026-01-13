@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"fmt"
 	"time"
@@ -20,6 +21,7 @@ type WorkerRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewWorkerRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *WorkerRepository {
@@ -134,7 +136,10 @@ func (r *WorkerRepository) Save(ctx context.Context, worker *domain.Worker) erro
 
 func (r *WorkerRepository) FindByID(ctx context.Context, workerID string) (*domain.Worker, error) {
 	var worker domain.Worker
-	err := r.collection.FindOne(ctx, bson.M{"workerId": workerID}).Decode(&worker)
+	filter := bson.M{"workerId": workerID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&worker)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -143,7 +148,10 @@ func (r *WorkerRepository) FindByID(ctx context.Context, workerID string) (*doma
 
 func (r *WorkerRepository) FindByEmployeeID(ctx context.Context, employeeID string) (*domain.Worker, error) {
 	var worker domain.Worker
-	err := r.collection.FindOne(ctx, bson.M{"employeeId": employeeID}).Decode(&worker)
+	filter := bson.M{"employeeId": employeeID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&worker)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -151,7 +159,10 @@ func (r *WorkerRepository) FindByEmployeeID(ctx context.Context, employeeID stri
 }
 
 func (r *WorkerRepository) FindByStatus(ctx context.Context, status domain.WorkerStatus) ([]*domain.Worker, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status})
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +173,10 @@ func (r *WorkerRepository) FindByStatus(ctx context.Context, status domain.Worke
 }
 
 func (r *WorkerRepository) FindByZone(ctx context.Context, zone string) ([]*domain.Worker, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"currentZone": zone})
+	filter := bson.M{"currentZone": zone}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +217,10 @@ func (r *WorkerRepository) FindAll(ctx context.Context, limit, offset int) ([]*d
 }
 
 func (r *WorkerRepository) Delete(ctx context.Context, workerID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"workerId": workerID})
+	filter := bson.M{"workerId": workerID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

@@ -81,8 +81,8 @@ func TestWESExecutionWorkflow_PickPackPath(t *testing.T) {
 
 	// Register workflows
 	env.RegisterWorkflow(workflows.WESExecutionWorkflow)
-	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: "PickingWorkflow"})
-	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: "PackingWorkflow"})
+	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: workflows.PickingWorkflowName})
+	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: workflows.PackingWorkflowName})
 
 	// Register activities
 	env.RegisterActivity(ResolveExecutionPlan)
@@ -127,8 +127,18 @@ func TestWESExecutionWorkflow_PickPackPath(t *testing.T) {
 	env.OnActivity(CompleteStage, mock.Anything).Return(nil)
 
 	// Mock child workflows
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
-	env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.PickingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{
+		"success": true,
+		"pickedItems": []interface{}{
+			map[string]interface{}{
+				"sku":        "SKU-001",
+				"quantity":   float64(2),
+				"locationId": "A1",
+				"toteId":     "TOTE-9",
+			},
+		},
+	}, nil)
+	env.OnWorkflow(workflows.PackingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
 
 	// Prepare input
 	input := workflows.WESExecutionInput{
@@ -162,6 +172,9 @@ func TestWESExecutionWorkflow_PickPackPath(t *testing.T) {
 	assert.NotNil(t, result.PackingResult)
 	assert.True(t, result.PickResult.Success)
 	assert.True(t, result.PackingResult.Success)
+	require.Len(t, result.PickResult.PickedItems, 1)
+	assert.Equal(t, "SKU-001", result.PickResult.PickedItems[0].SKU)
+	assert.Equal(t, "A1", result.PickResult.PickedItems[0].LocationID)
 }
 
 // TestWESExecutionWorkflow_PickWallPackPath tests the pick-wall-pack path (3-stage flow with walling)
@@ -171,8 +184,8 @@ func TestWESExecutionWorkflow_PickWallPackPath(t *testing.T) {
 
 	// Register workflows
 	env.RegisterWorkflow(workflows.WESExecutionWorkflow)
-	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: "PickingWorkflow"})
-	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: "PackingWorkflow"})
+	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: workflows.PickingWorkflowName})
+	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: workflows.PackingWorkflowName})
 
 	// Register activities
 	env.RegisterActivity(ResolveExecutionPlan)
@@ -220,8 +233,8 @@ func TestWESExecutionWorkflow_PickWallPackPath(t *testing.T) {
 	env.OnActivity(ExecuteWallingTask, mock.Anything).Return(nil)
 
 	// Mock child workflows
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
-	env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.PickingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.PackingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
 
 	// For walling stage, we need to send a signal to complete
 	env.RegisterDelayedCallback(func() {
@@ -260,6 +273,70 @@ func TestWESExecutionWorkflow_PickWallPackPath(t *testing.T) {
 	assert.NotNil(t, result.PickResult)
 	assert.NotNil(t, result.WallingResult)
 	assert.NotNil(t, result.PackingResult)
+}
+
+// TestWESExecutionWorkflow_WallingTimeout ensures walling stage timeout propagates as failure
+func TestWESExecutionWorkflow_WallingTimeout(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestWorkflowEnvironment()
+
+	env.RegisterWorkflow(workflows.WESExecutionWorkflow)
+	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: workflows.PickingWorkflowName})
+	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: workflows.PackingWorkflowName})
+
+	env.RegisterActivity(ResolveExecutionPlan)
+	env.RegisterActivity(CreateTaskRoute)
+	env.RegisterActivity(AssignWorkerToStage)
+	env.RegisterActivity(StartStage)
+	env.RegisterActivity(CompleteStage)
+	env.RegisterActivity(FailStage)
+	env.RegisterActivity(ExecuteWallingTask)
+
+	env.OnActivity(ResolveExecutionPlan, mock.Anything).Return(&workflows.ExecutionPlan{
+		TemplateID: "tpl-pick-wall-pack",
+		PathType:   "pick_wall_pack",
+		Stages: []workflows.StageDefinition{
+			{Order: 1, StageType: "picking", TaskType: "picking", Required: true, TimeoutMins: 5},
+			{Order: 2, StageType: "walling", TaskType: "walling", Required: true, TimeoutMins: 5, Config: workflows.StageConfig{RequiresPutWall: true}},
+		},
+	}, nil)
+
+	env.OnActivity(CreateTaskRoute, mock.Anything).Return(&workflows.TaskRoute{
+		RouteID:  "ROUTE-TIMEOUT",
+		OrderID:  "ORD-TIMEOUT",
+		WaveID:   "WAVE-002",
+		PathType: "pick_wall_pack",
+		Status:   "pending",
+	}, nil)
+
+	env.OnActivity(AssignWorkerToStage, mock.Anything).Return(func(input map[string]interface{}) (*workflows.WorkerAssignment, error) {
+		stageType, _ := input["stageType"].(string)
+		return &workflows.WorkerAssignment{
+			WorkerID:  "WORKER-" + stageType,
+			TaskID:    "TASK-" + stageType,
+			StageType: stageType,
+		}, nil
+	})
+	env.OnActivity(StartStage, mock.Anything).Return(nil)
+	env.OnActivity(CompleteStage, mock.Anything).Return(nil)
+	env.OnActivity(FailStage, mock.Anything).Return(nil)
+	env.OnActivity(ExecuteWallingTask, mock.Anything).Return(nil)
+
+	env.OnWorkflow(workflows.PickingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.PackingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+
+	input := workflows.WESExecutionInput{
+		OrderID: "ORD-TIMEOUT",
+		WaveID:  "WAVE-002",
+		Items:   []workflows.ItemInfo{{SKU: "SKU-001", Quantity: 1}},
+	}
+
+	env.ExecuteWorkflow(workflows.WESExecutionWorkflow, input)
+
+	require.True(t, env.IsWorkflowCompleted())
+	workflowErr := env.GetWorkflowError()
+	require.Error(t, workflowErr)
+	assert.Contains(t, workflowErr.Error(), "walling timeout")
 }
 
 // TestWESExecutionWorkflow_ResolveExecutionPlanFailed tests failure when execution plan resolution fails
@@ -328,7 +405,7 @@ func TestWESExecutionWorkflow_PickingFailed(t *testing.T) {
 	env := testSuite.NewTestWorkflowEnvironment()
 
 	env.RegisterWorkflow(workflows.WESExecutionWorkflow)
-	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: "PickingWorkflow"})
+	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: workflows.PickingWorkflowName})
 	env.RegisterActivity(ResolveExecutionPlan)
 	env.RegisterActivity(CreateTaskRoute)
 	env.RegisterActivity(AssignWorkerToStage)
@@ -364,7 +441,7 @@ func TestWESExecutionWorkflow_PickingFailed(t *testing.T) {
 	env.OnActivity(FailStage, mock.Anything).Return(nil)
 
 	// Mock picking workflow to fail
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(nil, errors.New("no items at location"))
+	env.OnWorkflow(workflows.PickingWorkflowName, mock.Anything, mock.Anything).Return(nil, errors.New("no items at location"))
 
 	input := workflows.WESExecutionInput{
 		OrderID: "ORD-FAIL-003",
@@ -381,15 +458,65 @@ func TestWESExecutionWorkflow_PickingFailed(t *testing.T) {
 	assert.Contains(t, workflowErr.Error(), "no items at location")
 }
 
+// TestWESExecutionWorkflow_UnknownStageType ensures unexpected stage type surfaces an error
+func TestWESExecutionWorkflow_UnknownStageType(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestWorkflowEnvironment()
+
+	env.RegisterWorkflow(workflows.WESExecutionWorkflow)
+	env.RegisterActivity(ResolveExecutionPlan)
+	env.RegisterActivity(CreateTaskRoute)
+	env.RegisterActivity(AssignWorkerToStage)
+	env.RegisterActivity(StartStage)
+	env.RegisterActivity(FailStage)
+
+	env.OnActivity(ResolveExecutionPlan, mock.Anything).Return(&workflows.ExecutionPlan{
+		TemplateID: "tpl-custom",
+		PathType:   "custom",
+		Stages: []workflows.StageDefinition{
+			{Order: 1, StageType: "cycle-count", TaskType: "cycle", Required: true, TimeoutMins: 5},
+		},
+	}, nil)
+
+	env.OnActivity(CreateTaskRoute, mock.Anything).Return(&workflows.TaskRoute{
+		RouteID:  "ROUTE-UNKNOWN",
+		OrderID:  "ORD-UNKNOWN",
+		WaveID:   "WAVE-UNKNOWN",
+		PathType: "custom",
+		Status:   "pending",
+	}, nil)
+
+	env.OnActivity(AssignWorkerToStage, mock.Anything).Return(&workflows.WorkerAssignment{
+		WorkerID:  "WORKER-UNKNOWN",
+		TaskID:    "TASK-UNKNOWN",
+		StageType: "cycle-count",
+	}, nil)
+	env.OnActivity(StartStage, mock.Anything).Return(nil)
+	env.OnActivity(FailStage, mock.Anything).Return(nil)
+
+	input := workflows.WESExecutionInput{
+		OrderID: "ORD-UNKNOWN",
+		WaveID:  "WAVE-UNKNOWN",
+		Items:   []workflows.ItemInfo{{SKU: "SKU-001", Quantity: 1}},
+	}
+
+	env.ExecuteWorkflow(workflows.WESExecutionWorkflow, input)
+
+	require.True(t, env.IsWorkflowCompleted())
+	err := env.GetWorkflowError()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown stage type")
+}
+
 // TestWESExecutionWorkflow_MultiZoneOrder tests multi-zone order using pick_consolidate_pack path
 func TestWESExecutionWorkflow_MultiZoneOrder(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 
 	env.RegisterWorkflow(workflows.WESExecutionWorkflow)
-	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: "PickingWorkflow"})
-	env.RegisterWorkflowWithOptions(MockConsolidationWorkflow, workflow.RegisterOptions{Name: "ConsolidationWorkflow"})
-	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: "PackingWorkflow"})
+	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: workflows.PickingWorkflowName})
+	env.RegisterWorkflowWithOptions(MockConsolidationWorkflow, workflow.RegisterOptions{Name: workflows.ConsolidationWorkflowName})
+	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: workflows.PackingWorkflowName})
 
 	env.RegisterActivity(ResolveExecutionPlan)
 	env.RegisterActivity(CreateTaskRoute)
@@ -429,9 +556,9 @@ func TestWESExecutionWorkflow_MultiZoneOrder(t *testing.T) {
 	env.OnActivity(StartStage, mock.Anything).Return(nil)
 	env.OnActivity(CompleteStage, mock.Anything).Return(nil)
 
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
-	env.OnWorkflow("ConsolidationWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
-	env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.PickingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.ConsolidationWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.PackingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
 
 	input := workflows.WESExecutionInput{
 		OrderID: "ORD-MZ-001",
@@ -458,14 +585,81 @@ func TestWESExecutionWorkflow_MultiZoneOrder(t *testing.T) {
 	assert.Equal(t, 3, result.StagesCompleted)
 }
 
+// TestWESExecutionWorkflow_ConsolidationWithoutPicking covers fallback when picking result is missing
+func TestWESExecutionWorkflow_ConsolidationWithoutPicking(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestWorkflowEnvironment()
+
+	var consolidationPickedItems int
+
+	env.RegisterWorkflow(workflows.WESExecutionWorkflow)
+	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: workflows.PackingWorkflowName})
+	env.RegisterWorkflowWithOptions(func(ctx workflow.Context, input map[string]interface{}) (map[string]interface{}, error) {
+		if items, ok := input["pickedItems"].([]interface{}); ok {
+			consolidationPickedItems = len(items)
+		}
+		return map[string]interface{}{"success": true}, nil
+	}, workflow.RegisterOptions{Name: workflows.ConsolidationWorkflowName})
+
+	env.RegisterActivity(ResolveExecutionPlan)
+	env.RegisterActivity(CreateTaskRoute)
+	env.RegisterActivity(AssignWorkerToStage)
+	env.RegisterActivity(StartStage)
+	env.RegisterActivity(CompleteStage)
+	env.RegisterActivity(FailStage)
+
+	env.OnActivity(ResolveExecutionPlan, mock.Anything).Return(&workflows.ExecutionPlan{
+		TemplateID: "tpl-consolidation-only",
+		PathType:   "consolidation_first",
+		Stages: []workflows.StageDefinition{
+			{Order: 1, StageType: "consolidation", TaskType: "consolidation", Required: true, TimeoutMins: 10},
+			{Order: 2, StageType: "packing", TaskType: "packing", Required: true, TimeoutMins: 10},
+		},
+	}, nil)
+	env.OnActivity(CreateTaskRoute, mock.Anything).Return(&workflows.TaskRoute{
+		RouteID:  "ROUTE-CONS",
+		OrderID:  "ORD-CONS",
+		WaveID:   "WAVE-CONS",
+		PathType: "consolidation_first",
+		Status:   "pending",
+	}, nil)
+	env.OnActivity(AssignWorkerToStage, mock.Anything).Return(func(input map[string]interface{}) (*workflows.WorkerAssignment, error) {
+		stageType, _ := input["stageType"].(string)
+		return &workflows.WorkerAssignment{
+			WorkerID:  "WORKER-" + stageType,
+			TaskID:    "TASK-" + stageType,
+			StageType: stageType,
+		}, nil
+	})
+	env.OnActivity(StartStage, mock.Anything).Return(nil)
+	env.OnActivity(CompleteStage, mock.Anything).Return(nil)
+
+	env.OnWorkflow(workflows.PackingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+
+	input := workflows.WESExecutionInput{
+		OrderID: "ORD-CONS",
+		WaveID:  "WAVE-CONS",
+		Items: []workflows.ItemInfo{
+			{SKU: "SKU-A", Quantity: 2, LocationID: "A"},
+			{SKU: "SKU-B", Quantity: 1, LocationID: "B"},
+		},
+	}
+
+	env.ExecuteWorkflow(workflows.WESExecutionWorkflow, input)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, 2, consolidationPickedItems, "fallback should forward original items")
+}
+
 // TestWESExecutionWorkflow_WithSpecialHandling tests order with special handling requirements
 func TestWESExecutionWorkflow_WithSpecialHandling(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 
 	env.RegisterWorkflow(workflows.WESExecutionWorkflow)
-	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: "PickingWorkflow"})
-	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: "PackingWorkflow"})
+	env.RegisterWorkflowWithOptions(MockPickingWorkflow, workflow.RegisterOptions{Name: workflows.PickingWorkflowName})
+	env.RegisterWorkflowWithOptions(MockPackingWorkflow, workflow.RegisterOptions{Name: workflows.PackingWorkflowName})
 
 	env.RegisterActivity(ResolveExecutionPlan)
 	env.RegisterActivity(CreateTaskRoute)
@@ -505,8 +699,8 @@ func TestWESExecutionWorkflow_WithSpecialHandling(t *testing.T) {
 	env.OnActivity(StartStage, mock.Anything).Return(nil)
 	env.OnActivity(CompleteStage, mock.Anything).Return(nil)
 
-	env.OnWorkflow("PickingWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
-	env.OnWorkflow("PackingWorkflow", mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.PickingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
+	env.OnWorkflow(workflows.PackingWorkflowName, mock.Anything, mock.Anything).Return(map[string]interface{}{"success": true}, nil)
 
 	input := workflows.WESExecutionInput{
 		OrderID: "ORD-SPECIAL",

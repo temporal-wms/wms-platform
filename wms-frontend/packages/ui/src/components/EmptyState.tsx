@@ -14,9 +14,15 @@ export interface EmptyStateProps {
 }
 
 const defaultIcons = {
-  default: <Package className="h-12 w-12" />,
-  search: <Search className="h-12 w-12" />,
-  error: <AlertCircle className="h-12 w-12" />,
+  default: <Package className="h-8 w-8" />,
+  search: <Search className="h-8 w-8" />,
+  error: <AlertCircle className="h-8 w-8" />,
+};
+
+const iconContainerStyles = {
+  default: 'bg-primary-100 text-primary-500',
+  search: 'bg-primary-100 text-primary-500',
+  error: 'bg-error-100 text-error-500',
 };
 
 export function EmptyState({
@@ -29,14 +35,16 @@ export function EmptyState({
   const displayIcon = icon || defaultIcons[variant];
 
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-      <div className="p-4 bg-gray-100 rounded-full text-gray-400 mb-4">
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center animate-fade-in">
+      <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-5 ${iconContainerStyles[variant]}`}>
         {displayIcon}
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-1">{title}</h3>
-      {description && <p className="text-sm text-gray-500 mb-4 max-w-sm">{description}</p>}
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+      {description && (
+        <p className="text-sm text-gray-500 mb-6 max-w-md leading-relaxed">{description}</p>
+      )}
       {action && (
-        <Button onClick={action.onClick}>
+        <Button onClick={action.onClick} size="md">
           {action.label}
         </Button>
       )}

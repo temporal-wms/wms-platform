@@ -10,6 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
 	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,6 +21,7 @@ type ConsolidationRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewConsolidationRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *ConsolidationRepository {
@@ -31,6 +33,7 @@ func NewConsolidationRepository(db *mongo.Database, eventFactory *cloudevents.Ev
 		db:           db,
 		outboxRepo:   outboxRepo,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 	repo.ensureIndexes(context.Background())
 
@@ -127,8 +130,11 @@ func (r *ConsolidationRepository) Save(ctx context.Context, unit *domain.Consoli
 }
 
 func (r *ConsolidationRepository) FindByID(ctx context.Context, consolidationID string) (*domain.ConsolidationUnit, error) {
+	filter := bson.M{"consolidationId": consolidationID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var unit domain.ConsolidationUnit
-	err := r.collection.FindOne(ctx, bson.M{"consolidationId": consolidationID}).Decode(&unit)
+	err := r.collection.FindOne(ctx, filter).Decode(&unit)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -136,8 +142,11 @@ func (r *ConsolidationRepository) FindByID(ctx context.Context, consolidationID 
 }
 
 func (r *ConsolidationRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.ConsolidationUnit, error) {
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var unit domain.ConsolidationUnit
-	err := r.collection.FindOne(ctx, bson.M{"orderId": orderID}).Decode(&unit)
+	err := r.collection.FindOne(ctx, filter).Decode(&unit)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -145,7 +154,10 @@ func (r *ConsolidationRepository) FindByOrderID(ctx context.Context, orderID str
 }
 
 func (r *ConsolidationRepository) FindByWaveID(ctx context.Context, waveID string) ([]*domain.ConsolidationUnit, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"waveId": waveID})
+	filter := bson.M{"waveId": waveID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +168,10 @@ func (r *ConsolidationRepository) FindByWaveID(ctx context.Context, waveID strin
 }
 
 func (r *ConsolidationRepository) FindByStatus(ctx context.Context, status domain.ConsolidationStatus) ([]*domain.ConsolidationUnit, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status})
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +182,10 @@ func (r *ConsolidationRepository) FindByStatus(ctx context.Context, status domai
 }
 
 func (r *ConsolidationRepository) FindByStation(ctx context.Context, station string) ([]*domain.ConsolidationUnit, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"station": station})
+	filter := bson.M{"station": station}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -178,8 +196,11 @@ func (r *ConsolidationRepository) FindByStation(ctx context.Context, station str
 }
 
 func (r *ConsolidationRepository) FindPending(ctx context.Context, limit int) ([]*domain.ConsolidationUnit, error) {
+	filter := bson.M{"status": domain.ConsolidationStatusPending}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	opts := options.Find().SetLimit(int64(limit))
-	cursor, err := r.collection.Find(ctx, bson.M{"status": domain.ConsolidationStatusPending}, opts)
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +211,10 @@ func (r *ConsolidationRepository) FindPending(ctx context.Context, limit int) ([
 }
 
 func (r *ConsolidationRepository) Delete(ctx context.Context, consolidationID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"consolidationId": consolidationID})
+	filter := bson.M{"consolidationId": consolidationID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

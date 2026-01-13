@@ -1,0 +1,924 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/domain/aggregate.go:1:1
+package domain
+
+import (
+	"errors"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+// Errors
+var (
+	ErrInsufficientStock           = errors.New("insufficient stock")
+	ErrInvalidQuantity             = errors.New("invalid quantity")
+	ErrReservationNotFound         = errors.New("reservation not found")
+	ErrAllocationNotFound          = errors.New("hard allocation not found")
+	ErrAlreadyHardAllocated        = errors.New("reservation already hard allocated")
+	ErrCannotReleaseHardAllocation = errors.New("cannot release hard allocation without physical return")
+	ErrInvalidAllocationStatus     = errors.New("invalid allocation status")
+	ErrLocationNotFound            = errors.New("location not found")
+	ErrNoShortageToRecord          = errors.New("actual quantity >= expected quantity, no shortage")
+)
+
+// VelocityClass represents the pick frequency classification (ABC analysis)
+type VelocityClass string
+
+const (
+	VelocityA VelocityClass = "A" // High velocity (>50 picks/week)
+	VelocityB VelocityClass = "B" // Medium velocity (10-50 picks/week)
+	VelocityC VelocityClass = "C" // Low velocity (<10 picks/week)
+)
+
+// IsValid checks if the velocity class is valid
+func (v VelocityClass) IsValid() bool {goCover_4dfb824e56d3__0[0] = 3 ; goCover_4dfb824e56d3__0[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__0[2] = 0 ; goCover_4dfb824e56d3__0[3] = 1;
+	switch v {
+	case VelocityA, VelocityB, VelocityC:goCover_4dfb824e56d3__0[4] = 1;
+		return true
+	default:goCover_4dfb824e56d3__0[5] = 1;
+		return false
+	}
+}
+
+// StorageStrategy represents the storage placement strategy
+type StorageStrategy string
+
+const (
+	StorageChaotic  StorageStrategy = "chaotic"  // Random placement (Amazon-style)
+	StorageDirected StorageStrategy = "directed" // System-assigned locations
+	StorageVelocity StorageStrategy = "velocity" // Placement based on pick frequency
+)
+
+// IsValid checks if the storage strategy is valid
+func (s StorageStrategy) IsValid() bool {goCover_4dfb824e56d3__1[0] = 3 ; goCover_4dfb824e56d3__1[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__1[2] = 1 ; goCover_4dfb824e56d3__1[3] = 1;
+	switch s {
+	case StorageChaotic, StorageDirected, StorageVelocity:goCover_4dfb824e56d3__1[4] = 1;
+		return true
+	default:goCover_4dfb824e56d3__1[5] = 1;
+		return false
+	}
+}
+
+// VelocityThresholds for ABC classification
+const (
+	VelocityAThreshold = 50 // >50 picks per week = A class
+	VelocityBThreshold = 10 // 10-50 picks per week = B class
+	// <10 picks per week = C class
+)
+
+// InventoryItem is the aggregate root for the Inventory bounded context
+type InventoryItem struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
+	SKU         string             `bson:"sku"`
+	ProductName string             `bson:"productName"`
+
+	// Multi-tenant fields for 3PL/FBA-style operations
+	TenantID    string `bson:"tenantId" json:"tenantId"`       // 3PL operator identifier
+	FacilityID  string `bson:"facilityId" json:"facilityId"`   // Physical facility/warehouse complex
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"` // Specific warehouse within facility
+	SellerID    string `bson:"sellerId,omitempty" json:"sellerId,omitempty"` // Merchant/seller who owns this inventory
+
+	Locations []StockLocation `bson:"locations"`
+	TotalQuantity         int                    `bson:"totalQuantity"`
+	ReservedQuantity      int                    `bson:"reservedQuantity"`
+	HardAllocatedQuantity int                    `bson:"hardAllocatedQuantity"`
+	AvailableQuantity     int                    `bson:"availableQuantity"`
+	ReorderPoint          int                    `bson:"reorderPoint"`
+	ReorderQuantity       int                    `bson:"reorderQuantity"`
+	Reservations          []Reservation          `bson:"reservations"`
+	HardAllocations       []HardAllocation       `bson:"hardAllocations"`
+	Transactions          []InventoryTransaction `bson:"transactions,omitempty"`
+	LastCycleCount        *time.Time             `bson:"lastCycleCount,omitempty"`
+	// Velocity and storage fields (Amazon-style optimization)
+	VelocityClass   VelocityClass   `bson:"velocityClass" json:"velocityClass"`
+	StorageStrategy StorageStrategy `bson:"storageStrategy" json:"storageStrategy"`
+	PickFrequency   int             `bson:"pickFrequency" json:"pickFrequency"`     // picks per week
+	LastStowedAt    *time.Time      `bson:"lastStowedAt,omitempty" json:"lastStowedAt,omitempty"`
+	LastPickedAt    *time.Time      `bson:"lastPickedAt,omitempty" json:"lastPickedAt,omitempty"`
+	CreatedAt       time.Time       `bson:"createdAt"`
+	UpdatedAt       time.Time       `bson:"updatedAt"`
+	DomainEvents    []DomainEvent   `bson:"-"`
+}
+
+// StockLocation represents inventory at a specific location
+type StockLocation struct {
+	LocationID    string `bson:"locationId"`
+	Zone          string `bson:"zone"`
+	Aisle         string `bson:"aisle"`
+	Rack          int    `bson:"rack"`
+	Level         int    `bson:"level"`
+	Quantity      int    `bson:"quantity"`
+	Reserved      int    `bson:"reserved"`
+	HardAllocated int    `bson:"hardAllocated"`
+	Available     int    `bson:"available"`
+}
+
+// Reservation represents a stock reservation for an order
+type Reservation struct {
+	ReservationID string    `bson:"reservationId"`
+	OrderID       string    `bson:"orderId"`
+	Quantity      int       `bson:"quantity"`
+	LocationID    string    `bson:"locationId"`
+	Status        string    `bson:"status"` // active, staged, fulfilled, cancelled
+	UnitIDs       []string  `bson:"unitIds,omitempty"` // Specific units reserved for unit-level tracking
+	CreatedAt     time.Time `bson:"createdAt"`
+	ExpiresAt     time.Time `bson:"expiresAt"`
+}
+
+// HardAllocation represents physically staged/locked inventory
+// Created when a picker physically moves items to a staging area
+type HardAllocation struct {
+	AllocationID      string     `bson:"allocationId"`
+	ReservationID     string     `bson:"reservationId"`
+	OrderID           string     `bson:"orderId"`
+	Quantity          int        `bson:"quantity"`
+	SourceLocationID  string     `bson:"sourceLocationId"`
+	StagingLocationID string     `bson:"stagingLocationId"`
+	Status            string     `bson:"status"` // staged, packed, shipped, returned
+	UnitIDs           []string   `bson:"unitIds,omitempty"` // Specific units allocated for unit-level tracking
+	StagedBy          string     `bson:"stagedBy"`
+	PackedBy          string     `bson:"packedBy,omitempty"`
+	CreatedAt         time.Time  `bson:"createdAt"`
+	PackedAt          *time.Time `bson:"packedAt,omitempty"`
+	ShippedAt         *time.Time `bson:"shippedAt,omitempty"`
+}
+
+// InventoryTransaction represents an inventory change
+type InventoryTransaction struct {
+	TransactionID string    `bson:"transactionId"`
+	Type          string    `bson:"type"` // receive, pick, adjust, transfer
+	Quantity      int       `bson:"quantity"`
+	LocationID    string    `bson:"locationId"`
+	ReferenceID   string    `bson:"referenceId"` // Order ID, PO ID, etc.
+	Reason        string    `bson:"reason,omitempty"`
+	CreatedAt     time.Time `bson:"createdAt"`
+	CreatedBy     string    `bson:"createdBy"`
+}
+
+// InventoryTenantInfo holds multi-tenant identification for inventory
+type InventoryTenantInfo struct {
+	TenantID    string
+	FacilityID  string
+	WarehouseID string
+	SellerID    string
+}
+
+// NewInventoryItem creates a new InventoryItem aggregate (backward compatible, uses default tenant)
+func NewInventoryItem(sku, productName string, reorderPoint, reorderQty int) *InventoryItem {goCover_4dfb824e56d3__2[0] = 1 ; goCover_4dfb824e56d3__2[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__2[2] = 2 ; goCover_4dfb824e56d3__2[3] = 1;
+	return NewInventoryItemWithTenant(sku, productName, reorderPoint, reorderQty, nil)
+}
+
+// NewInventoryItemWithTenant creates a new InventoryItem aggregate with tenant context
+func NewInventoryItemWithTenant(sku, productName string, reorderPoint, reorderQty int, tenant *InventoryTenantInfo) *InventoryItem {goCover_4dfb824e56d3__3[0] = 4 ; goCover_4dfb824e56d3__3[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__3[2] = 3 ; goCover_4dfb824e56d3__3[3] = 1;
+	now := time.Now()
+	item := &InventoryItem{
+		SKU:                   sku,
+		ProductName:           productName,
+		Locations:             make([]StockLocation, 0),
+		TotalQuantity:         0,
+		ReservedQuantity:      0,
+		HardAllocatedQuantity: 0,
+		AvailableQuantity:     0,
+		ReorderPoint:          reorderPoint,
+		ReorderQuantity:       reorderQty,
+		Reservations:          make([]Reservation, 0),
+		HardAllocations:       make([]HardAllocation, 0),
+		Transactions:          make([]InventoryTransaction, 0),
+		CreatedAt:             now,
+		UpdatedAt:             now,
+		DomainEvents:          make([]DomainEvent, 0),
+	}
+
+	// Set tenant information
+	if tenant != nil {goCover_4dfb824e56d3__3[5] = 1;
+		item.TenantID = tenant.TenantID
+		item.FacilityID = tenant.FacilityID
+		item.WarehouseID = tenant.WarehouseID
+		item.SellerID = tenant.SellerID
+	} else{ goCover_4dfb824e56d3__3[6] = 1;{
+		// Default tenant for backward compatibility
+		item.TenantID = "DEFAULT_TENANT"
+		item.FacilityID = "DEFAULT_FACILITY"
+		item.WarehouseID = "DEFAULT_WAREHOUSE"
+	}}
+
+	goCover_4dfb824e56d3__3[4] = 1;return item
+}
+
+// ReceiveStock adds stock to a location
+func (i *InventoryItem) ReceiveStock(locationID, zone string, quantity int, referenceID, createdBy string) error {goCover_4dfb824e56d3__4[0] = 8 ; goCover_4dfb824e56d3__4[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__4[2] = 4 ; goCover_4dfb824e56d3__4[3] = 1;
+	if quantity <= 0 {goCover_4dfb824e56d3__4[7] = 1;
+		return ErrInvalidQuantity
+	}
+
+	// Find or create location
+	goCover_4dfb824e56d3__4[4] = 1;found := false
+	for idx := range i.Locations {goCover_4dfb824e56d3__4[8] = 1;
+		if i.Locations[idx].LocationID == locationID {goCover_4dfb824e56d3__4[9] = 1;
+			i.Locations[idx].Quantity += quantity
+			i.Locations[idx].Available += quantity
+			found = true
+			break
+		}
+	}
+
+	goCover_4dfb824e56d3__4[5] = 1;if !found {goCover_4dfb824e56d3__4[10] = 1;
+		i.Locations = append(i.Locations, StockLocation{
+			LocationID: locationID,
+			Zone:       zone,
+			Quantity:   quantity,
+			Available:  quantity,
+		})
+	}
+
+	goCover_4dfb824e56d3__4[6] = 1;i.TotalQuantity += quantity
+	i.AvailableQuantity += quantity
+	i.UpdatedAt = time.Now()
+
+	// Record transaction
+	i.Transactions = append(i.Transactions, InventoryTransaction{
+		TransactionID: generateTransactionID(),
+		Type:          "receive",
+		Quantity:      quantity,
+		LocationID:    locationID,
+		ReferenceID:   referenceID,
+		CreatedAt:     time.Now(),
+		CreatedBy:     createdBy,
+	})
+
+	i.AddDomainEvent(&InventoryReceivedEvent{
+		SKU:        i.SKU,
+		Quantity:   quantity,
+		LocationID: locationID,
+		ReceivedAt: time.Now(),
+	})
+
+	return nil
+}
+
+// Reserve reserves stock for an order
+func (i *InventoryItem) Reserve(orderID, locationID string, quantity int) error {goCover_4dfb824e56d3__5[0] = 1 ; goCover_4dfb824e56d3__5[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__5[2] = 5 ; goCover_4dfb824e56d3__5[3] = 1;
+	return i.ReserveWithUnits(orderID, locationID, quantity, nil)
+}
+
+// ReserveWithUnits reserves stock for an order with specific unit IDs
+func (i *InventoryItem) ReserveWithUnits(orderID, locationID string, quantity int, unitIDs []string) error {goCover_4dfb824e56d3__6[0] = 10 ; goCover_4dfb824e56d3__6[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__6[2] = 6 ; goCover_4dfb824e56d3__6[3] = 1;
+	if quantity <= 0 {goCover_4dfb824e56d3__6[7] = 1;
+		return ErrInvalidQuantity
+	}
+
+	// Check availability at location
+	goCover_4dfb824e56d3__6[4] = 1;foundLocation := false
+	for idx := range i.Locations {goCover_4dfb824e56d3__6[8] = 1;
+		if i.Locations[idx].LocationID == locationID {goCover_4dfb824e56d3__6[9] = 1;
+			foundLocation = true
+			if i.Locations[idx].Available < quantity {goCover_4dfb824e56d3__6[11] = 1;
+				return ErrInsufficientStock
+			}
+
+			goCover_4dfb824e56d3__6[10] = 1;i.Locations[idx].Reserved += quantity
+			i.Locations[idx].Available -= quantity
+			break
+		}
+	}
+	goCover_4dfb824e56d3__6[5] = 1;if !foundLocation {goCover_4dfb824e56d3__6[12] = 1;
+		return ErrLocationNotFound
+	}
+
+	goCover_4dfb824e56d3__6[6] = 1;i.ReservedQuantity += quantity
+	i.AvailableQuantity -= quantity
+
+	reservation := Reservation{
+		ReservationID: generateReservationID(),
+		OrderID:       orderID,
+		Quantity:      quantity,
+		LocationID:    locationID,
+		Status:        "active",
+		UnitIDs:       unitIDs,
+		CreatedAt:     time.Now(),
+		ExpiresAt:     time.Now().Add(24 * time.Hour),
+	}
+	i.Reservations = append(i.Reservations, reservation)
+	i.UpdatedAt = time.Now()
+
+	i.AddDomainEvent(&InventoryReservedEvent{
+		SKU:         i.SKU,
+		OrderID:     orderID,
+		LocationID:  locationID,
+		Quantity:    quantity,
+		ReservedAt:  time.Now(),
+	})
+
+	return nil
+}
+
+// Pick picks stock (fulfills reservation)
+func (i *InventoryItem) Pick(orderID, locationID string, quantity int, createdBy string) error {goCover_4dfb824e56d3__7[0] = 20 ; goCover_4dfb824e56d3__7[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__7[2] = 7 ; goCover_4dfb824e56d3__7[3] = 1;
+	if quantity <= 0 {goCover_4dfb824e56d3__7[12] = 1;
+		return ErrInvalidQuantity
+	}
+
+	// Find and update reservation
+	goCover_4dfb824e56d3__7[4] = 1;reservationIdx := -1
+	for idx := range i.Reservations {goCover_4dfb824e56d3__7[13] = 1;
+		if i.Reservations[idx].OrderID == orderID && i.Reservations[idx].LocationID == locationID {goCover_4dfb824e56d3__7[14] = 1;
+			reservationIdx = idx
+			break
+		}
+	}
+	goCover_4dfb824e56d3__7[5] = 1;if reservationIdx == -1 {goCover_4dfb824e56d3__7[15] = 1;
+		return ErrReservationNotFound
+	}
+	goCover_4dfb824e56d3__7[6] = 1;if i.Reservations[reservationIdx].Quantity < quantity {goCover_4dfb824e56d3__7[16] = 1;
+		return ErrInsufficientStock
+	}
+
+	// Update location quantities
+	goCover_4dfb824e56d3__7[7] = 1;locationIdx := -1
+	for idx := range i.Locations {goCover_4dfb824e56d3__7[17] = 1;
+		if i.Locations[idx].LocationID == locationID {goCover_4dfb824e56d3__7[18] = 1;
+			locationIdx = idx
+			break
+		}
+	}
+	goCover_4dfb824e56d3__7[8] = 1;if locationIdx == -1 {goCover_4dfb824e56d3__7[19] = 1;
+		return ErrLocationNotFound
+	}
+
+	goCover_4dfb824e56d3__7[9] = 1;if i.Reservations[reservationIdx].Quantity == quantity {goCover_4dfb824e56d3__7[20] = 1;
+		i.Reservations[reservationIdx].Status = "fulfilled"
+	} else{ goCover_4dfb824e56d3__7[21] = 1;{
+		i.Reservations[reservationIdx].Quantity -= quantity
+	}}
+
+	goCover_4dfb824e56d3__7[10] = 1;i.Locations[locationIdx].Quantity -= quantity
+	i.Locations[locationIdx].Reserved -= quantity
+
+	i.TotalQuantity -= quantity
+	i.ReservedQuantity -= quantity
+	i.UpdatedAt = time.Now()
+
+	// Record transaction
+	i.Transactions = append(i.Transactions, InventoryTransaction{
+		TransactionID: generateTransactionID(),
+		Type:          "pick",
+		Quantity:      -quantity,
+		LocationID:    locationID,
+		ReferenceID:   orderID,
+		CreatedAt:     time.Now(),
+		CreatedBy:     createdBy,
+	})
+
+	// Check if we need to trigger reorder
+	if i.AvailableQuantity <= i.ReorderPoint {goCover_4dfb824e56d3__7[22] = 1;
+		i.AddDomainEvent(&LowStockAlertEvent{
+			SKU:             i.SKU,
+			CurrentQuantity: i.AvailableQuantity,
+			ReorderPoint:    i.ReorderPoint,
+			AlertedAt:       time.Now(),
+		})
+	}
+
+	goCover_4dfb824e56d3__7[11] = 1;return nil
+}
+
+// ReleaseReservation releases a reservation
+func (i *InventoryItem) ReleaseReservation(orderID string) error {goCover_4dfb824e56d3__8[0] = 7 ; goCover_4dfb824e56d3__8[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__8[2] = 8 ; goCover_4dfb824e56d3__8[3] = 1;
+	for idx := range i.Reservations {goCover_4dfb824e56d3__8[5] = 1;
+		if i.Reservations[idx].OrderID == orderID && i.Reservations[idx].Status == "active" {goCover_4dfb824e56d3__8[6] = 1;
+			reservation := &i.Reservations[idx]
+			reservation.Status = "cancelled"
+
+			// Return stock to available
+			for locIdx := range i.Locations {goCover_4dfb824e56d3__8[8] = 1;
+				if i.Locations[locIdx].LocationID == reservation.LocationID {goCover_4dfb824e56d3__8[9] = 1;
+					i.Locations[locIdx].Reserved -= reservation.Quantity
+					i.Locations[locIdx].Available += reservation.Quantity
+					break
+				}
+			}
+
+			goCover_4dfb824e56d3__8[7] = 1;i.ReservedQuantity -= reservation.Quantity
+			i.AvailableQuantity += reservation.Quantity
+			i.UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	goCover_4dfb824e56d3__8[4] = 1;return ErrReservationNotFound
+}
+
+// Adjust adjusts stock quantity (for cycle counts, corrections)
+func (i *InventoryItem) Adjust(locationID string, newQuantity int, reason, createdBy string) error {goCover_4dfb824e56d3__9[0] = 4 ; goCover_4dfb824e56d3__9[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__9[2] = 9 ; goCover_4dfb824e56d3__9[3] = 1;
+	for idx := range i.Locations {goCover_4dfb824e56d3__9[5] = 1;
+		if i.Locations[idx].LocationID == locationID {goCover_4dfb824e56d3__9[6] = 1;
+			oldQty := i.Locations[idx].Quantity
+			diff := newQuantity - oldQty
+
+			i.Locations[idx].Quantity = newQuantity
+			i.Locations[idx].Available = newQuantity - i.Locations[idx].Reserved
+			i.TotalQuantity += diff
+			i.AvailableQuantity += diff
+
+			// Record transaction
+			i.Transactions = append(i.Transactions, InventoryTransaction{
+				TransactionID: generateTransactionID(),
+				Type:          "adjust",
+				Quantity:      diff,
+				LocationID:    locationID,
+				Reason:        reason,
+				CreatedAt:     time.Now(),
+				CreatedBy:     createdBy,
+			})
+
+			i.AddDomainEvent(&InventoryAdjustedEvent{
+				SKU:         i.SKU,
+				LocationID:  locationID,
+				OldQuantity: oldQty,
+				NewQuantity: newQuantity,
+				Reason:      reason,
+				AdjustedAt:  time.Now(),
+			})
+
+			i.UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	goCover_4dfb824e56d3__9[4] = 1;return errors.New("location not found")
+}
+
+// RecordCycleCount records a cycle count
+func (i *InventoryItem) RecordCycleCount() {goCover_4dfb824e56d3__10[0] = 1 ; goCover_4dfb824e56d3__10[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__10[2] = 10 ; goCover_4dfb824e56d3__10[3] = 1;
+	now := time.Now()
+	i.LastCycleCount = &now
+	i.UpdatedAt = now
+}
+
+// GetLocationStock returns stock at a specific location
+func (i *InventoryItem) GetLocationStock(locationID string) *StockLocation {goCover_4dfb824e56d3__11[0] = 4 ; goCover_4dfb824e56d3__11[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__11[2] = 11 ; goCover_4dfb824e56d3__11[3] = 1;
+	for _, loc := range i.Locations {goCover_4dfb824e56d3__11[5] = 1;
+		if loc.LocationID == locationID {goCover_4dfb824e56d3__11[6] = 1;
+			return &loc
+		}
+	}
+	goCover_4dfb824e56d3__11[4] = 1;return nil
+}
+
+// GetAvailableLocations returns locations with available stock
+func (i *InventoryItem) GetAvailableLocations() []StockLocation {goCover_4dfb824e56d3__12[0] = 4 ; goCover_4dfb824e56d3__12[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__12[2] = 12 ; goCover_4dfb824e56d3__12[3] = 1;
+	available := make([]StockLocation, 0)
+	for _, loc := range i.Locations {goCover_4dfb824e56d3__12[5] = 1;
+		if loc.Available > 0 {goCover_4dfb824e56d3__12[6] = 1;
+			available = append(available, loc)
+		}
+	}
+	goCover_4dfb824e56d3__12[4] = 1;return available
+}
+
+// UpdatePickFrequency updates the pick frequency and recalculates velocity class
+func (i *InventoryItem) UpdatePickFrequency(picksPerWeek int) {goCover_4dfb824e56d3__13[0] = 1 ; goCover_4dfb824e56d3__13[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__13[2] = 13 ; goCover_4dfb824e56d3__13[3] = 1;
+	i.PickFrequency = picksPerWeek
+	i.VelocityClass = i.CalculateVelocityClass()
+	now := time.Now()
+	i.LastPickedAt = &now
+	i.UpdatedAt = now
+}
+
+// CalculateVelocityClass determines the velocity class based on pick frequency
+func (i *InventoryItem) CalculateVelocityClass() VelocityClass {goCover_4dfb824e56d3__14[0] = 5 ; goCover_4dfb824e56d3__14[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__14[2] = 14 ; goCover_4dfb824e56d3__14[3] = 1;
+	if i.PickFrequency > VelocityAThreshold {goCover_4dfb824e56d3__14[5] = 1;
+		return VelocityA
+	} else{ goCover_4dfb824e56d3__14[6] = 1;if i.PickFrequency >= VelocityBThreshold {goCover_4dfb824e56d3__14[7] = 1;
+		return VelocityB
+	}}
+	goCover_4dfb824e56d3__14[4] = 1;return VelocityC
+}
+
+// IncrementPickFrequency increments the pick counter and updates velocity
+func (i *InventoryItem) IncrementPickFrequency() {goCover_4dfb824e56d3__15[0] = 2 ; goCover_4dfb824e56d3__15[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__15[2] = 15 ; goCover_4dfb824e56d3__15[3] = 1;
+	i.PickFrequency++
+	oldClass := i.VelocityClass
+	i.VelocityClass = i.CalculateVelocityClass()
+	now := time.Now()
+	i.LastPickedAt = &now
+	i.UpdatedAt = now
+
+	// Emit event if velocity class changed
+	if oldClass != i.VelocityClass {goCover_4dfb824e56d3__15[4] = 1;
+		i.AddDomainEvent(&VelocityClassChangedEvent{
+			SKU:           i.SKU,
+			OldClass:      string(oldClass),
+			NewClass:      string(i.VelocityClass),
+			PickFrequency: i.PickFrequency,
+			ChangedAt:     now,
+		})
+	}
+}
+
+// SetStorageStrategy sets the storage strategy for this item
+func (i *InventoryItem) SetStorageStrategy(strategy StorageStrategy) {goCover_4dfb824e56d3__16[0] = 2 ; goCover_4dfb824e56d3__16[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__16[2] = 16 ; goCover_4dfb824e56d3__16[3] = 1;
+	if strategy.IsValid() {goCover_4dfb824e56d3__16[4] = 1;
+		i.StorageStrategy = strategy
+		i.UpdatedAt = time.Now()
+	}
+}
+
+// RecordStow records when an item was stowed
+func (i *InventoryItem) RecordStow() {goCover_4dfb824e56d3__17[0] = 1 ; goCover_4dfb824e56d3__17[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__17[2] = 17 ; goCover_4dfb824e56d3__17[3] = 1;
+	now := time.Now()
+	i.LastStowedAt = &now
+	i.UpdatedAt = now
+}
+
+// IsHighVelocity returns true if item is class A (high velocity)
+func (i *InventoryItem) IsHighVelocity() bool {goCover_4dfb824e56d3__18[0] = 1 ; goCover_4dfb824e56d3__18[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__18[2] = 18 ; goCover_4dfb824e56d3__18[3] = 1;
+	return i.VelocityClass == VelocityA
+}
+
+// IsMediumVelocity returns true if item is class B (medium velocity)
+func (i *InventoryItem) IsMediumVelocity() bool {goCover_4dfb824e56d3__19[0] = 1 ; goCover_4dfb824e56d3__19[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__19[2] = 19 ; goCover_4dfb824e56d3__19[3] = 1;
+	return i.VelocityClass == VelocityB
+}
+
+// IsLowVelocity returns true if item is class C (low velocity)
+func (i *InventoryItem) IsLowVelocity() bool {goCover_4dfb824e56d3__20[0] = 1 ; goCover_4dfb824e56d3__20[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__20[2] = 20 ; goCover_4dfb824e56d3__20[3] = 1;
+	return i.VelocityClass == VelocityC
+}
+
+// AddDomainEvent adds a domain event
+func (i *InventoryItem) AddDomainEvent(event DomainEvent) {goCover_4dfb824e56d3__21[0] = 1 ; goCover_4dfb824e56d3__21[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__21[2] = 21 ; goCover_4dfb824e56d3__21[3] = 1;
+	i.DomainEvents = append(i.DomainEvents, event)
+}
+
+// ClearDomainEvents clears all domain events
+func (i *InventoryItem) ClearDomainEvents() {goCover_4dfb824e56d3__22[0] = 1 ; goCover_4dfb824e56d3__22[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__22[2] = 22 ; goCover_4dfb824e56d3__22[3] = 1;
+	i.DomainEvents = make([]DomainEvent, 0)
+}
+
+// GetDomainEvents returns all domain events
+func (i *InventoryItem) GetDomainEvents() []DomainEvent {goCover_4dfb824e56d3__23[0] = 1 ; goCover_4dfb824e56d3__23[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__23[2] = 23 ; goCover_4dfb824e56d3__23[3] = 1;
+	return i.DomainEvents
+}
+
+func generateTransactionID() string {goCover_4dfb824e56d3__24[0] = 1 ; goCover_4dfb824e56d3__24[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__24[2] = 24 ; goCover_4dfb824e56d3__24[3] = 1;
+	return "TXN-" + time.Now().Format("20060102150405")
+}
+
+func generateReservationID() string {goCover_4dfb824e56d3__25[0] = 1 ; goCover_4dfb824e56d3__25[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__25[2] = 25 ; goCover_4dfb824e56d3__25[3] = 1;
+	return "RES-" + time.Now().Format("20060102150405")
+}
+
+func generateAllocationID() string {goCover_4dfb824e56d3__26[0] = 1 ; goCover_4dfb824e56d3__26[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__26[2] = 26 ; goCover_4dfb824e56d3__26[3] = 1;
+	return "ALLOC-" + time.Now().Format("20060102150405.000")
+}
+
+// Stage converts a soft reservation to a hard allocation (physical staging)
+// This is called when picker physically moves items to staging area
+func (i *InventoryItem) Stage(reservationID, stagingLocationID, stagedBy string) error {goCover_4dfb824e56d3__27[0] = 12 ; goCover_4dfb824e56d3__27[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__27[2] = 27 ; goCover_4dfb824e56d3__27[3] = 1;
+	// Find the active reservation
+	var reservation *Reservation
+	var reservationIdx int
+	for idx := range i.Reservations {goCover_4dfb824e56d3__27[8] = 1;
+		if i.Reservations[idx].ReservationID == reservationID && i.Reservations[idx].Status == "active" {goCover_4dfb824e56d3__27[9] = 1;
+			reservation = &i.Reservations[idx]
+			reservationIdx = idx
+			break
+		}
+	}
+
+	goCover_4dfb824e56d3__27[4] = 1;if reservation == nil {goCover_4dfb824e56d3__27[10] = 1;
+		return ErrReservationNotFound
+	}
+
+	// Check if already hard allocated
+	goCover_4dfb824e56d3__27[5] = 1;for _, alloc := range i.HardAllocations {goCover_4dfb824e56d3__27[11] = 1;
+		if alloc.ReservationID == reservationID && alloc.Status != "returned" {goCover_4dfb824e56d3__27[12] = 1;
+			return ErrAlreadyHardAllocated
+		}
+	}
+
+	// Update reservation status to "staged"
+	goCover_4dfb824e56d3__27[6] = 1;i.Reservations[reservationIdx].Status = "staged"
+
+	// Move quantity from Reserved to HardAllocated at location level
+	for idx := range i.Locations {goCover_4dfb824e56d3__27[13] = 1;
+		if i.Locations[idx].LocationID == reservation.LocationID {goCover_4dfb824e56d3__27[14] = 1;
+			i.Locations[idx].Reserved -= reservation.Quantity
+			i.Locations[idx].HardAllocated += reservation.Quantity
+			break
+		}
+	}
+
+	// Update aggregate counters
+	goCover_4dfb824e56d3__27[7] = 1;i.ReservedQuantity -= reservation.Quantity
+	i.HardAllocatedQuantity += reservation.Quantity
+
+	// Create hard allocation (copy unit IDs from reservation for unit-level tracking)
+	allocation := HardAllocation{
+		AllocationID:      generateAllocationID(),
+		ReservationID:     reservationID,
+		OrderID:           reservation.OrderID,
+		Quantity:          reservation.Quantity,
+		SourceLocationID:  reservation.LocationID,
+		StagingLocationID: stagingLocationID,
+		Status:            "staged",
+		UnitIDs:           reservation.UnitIDs,
+		StagedBy:          stagedBy,
+		CreatedAt:         time.Now(),
+	}
+	i.HardAllocations = append(i.HardAllocations, allocation)
+	i.UpdatedAt = time.Now()
+
+	// Emit domain event
+	i.AddDomainEvent(&InventoryStagedEvent{
+		SKU:               i.SKU,
+		AllocationID:      allocation.AllocationID,
+		OrderID:           reservation.OrderID,
+		Quantity:          reservation.Quantity,
+		SourceLocationID:  reservation.LocationID,
+		StagingLocationID: stagingLocationID,
+		StagedBy:          stagedBy,
+		StagedAt:          time.Now(),
+	})
+
+	return nil
+}
+
+// Pack marks a hard allocation as packed (ready for shipping)
+func (i *InventoryItem) Pack(allocationID, packedBy string) error {goCover_4dfb824e56d3__28[0] = 6 ; goCover_4dfb824e56d3__28[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__28[2] = 28 ; goCover_4dfb824e56d3__28[3] = 1;
+	for idx := range i.HardAllocations {goCover_4dfb824e56d3__28[5] = 1;
+		if i.HardAllocations[idx].AllocationID == allocationID {goCover_4dfb824e56d3__28[6] = 1;
+			if i.HardAllocations[idx].Status != "staged" {goCover_4dfb824e56d3__28[8] = 1;
+				return ErrInvalidAllocationStatus
+			}
+			goCover_4dfb824e56d3__28[7] = 1;now := time.Now()
+			i.HardAllocations[idx].Status = "packed"
+			i.HardAllocations[idx].PackedBy = packedBy
+			i.HardAllocations[idx].PackedAt = &now
+			i.UpdatedAt = time.Now()
+
+			i.AddDomainEvent(&InventoryPackedEvent{
+				SKU:          i.SKU,
+				AllocationID: allocationID,
+				OrderID:      i.HardAllocations[idx].OrderID,
+				PackedBy:     packedBy,
+				PackedAt:     now,
+			})
+			return nil
+		}
+	}
+	goCover_4dfb824e56d3__28[4] = 1;return ErrAllocationNotFound
+}
+
+// Ship marks a hard allocation as shipped and removes inventory
+func (i *InventoryItem) Ship(allocationID string) error {goCover_4dfb824e56d3__29[0] = 14 ; goCover_4dfb824e56d3__29[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__29[2] = 29 ; goCover_4dfb824e56d3__29[3] = 1;
+	for idx := range i.HardAllocations {goCover_4dfb824e56d3__29[5] = 1;
+		if i.HardAllocations[idx].AllocationID == allocationID {goCover_4dfb824e56d3__29[6] = 1;
+			if i.HardAllocations[idx].Status != "packed" {goCover_4dfb824e56d3__29[11] = 1;
+				return ErrInvalidAllocationStatus
+			}
+			goCover_4dfb824e56d3__29[7] = 1;allocation := &i.HardAllocations[idx]
+			now := time.Now()
+			allocation.Status = "shipped"
+			allocation.ShippedAt = &now
+
+			// Reduce total quantity (inventory leaves warehouse)
+			i.TotalQuantity -= allocation.Quantity
+			i.HardAllocatedQuantity -= allocation.Quantity
+
+			// Update source location
+			for locIdx := range i.Locations {goCover_4dfb824e56d3__29[12] = 1;
+				if i.Locations[locIdx].LocationID == allocation.SourceLocationID {goCover_4dfb824e56d3__29[13] = 1;
+					i.Locations[locIdx].Quantity -= allocation.Quantity
+					i.Locations[locIdx].HardAllocated -= allocation.Quantity
+					break
+				}
+			}
+
+			// Mark associated reservation as fulfilled
+			goCover_4dfb824e56d3__29[8] = 1;for resIdx := range i.Reservations {goCover_4dfb824e56d3__29[14] = 1;
+				if i.Reservations[resIdx].ReservationID == allocation.ReservationID {goCover_4dfb824e56d3__29[15] = 1;
+					i.Reservations[resIdx].Status = "fulfilled"
+					break
+				}
+			}
+
+			goCover_4dfb824e56d3__29[9] = 1;i.UpdatedAt = time.Now()
+
+			// Record transaction
+			i.Transactions = append(i.Transactions, InventoryTransaction{
+				TransactionID: generateTransactionID(),
+				Type:          "ship",
+				Quantity:      -allocation.Quantity,
+				LocationID:    allocation.SourceLocationID,
+				ReferenceID:   allocation.OrderID,
+				CreatedAt:     time.Now(),
+				CreatedBy:     "system",
+			})
+
+			i.AddDomainEvent(&InventoryShippedEvent{
+				SKU:          i.SKU,
+				AllocationID: allocationID,
+				OrderID:      allocation.OrderID,
+				Quantity:     allocation.Quantity,
+				ShippedAt:    now,
+			})
+
+			// Check for low stock
+			if i.AvailableQuantity <= i.ReorderPoint {goCover_4dfb824e56d3__29[16] = 1;
+				i.AddDomainEvent(&LowStockAlertEvent{
+					SKU:             i.SKU,
+					CurrentQuantity: i.AvailableQuantity,
+					ReorderPoint:    i.ReorderPoint,
+					AlertedAt:       time.Now(),
+				})
+			}
+
+			goCover_4dfb824e56d3__29[10] = 1;return nil
+		}
+	}
+	goCover_4dfb824e56d3__29[4] = 1;return ErrAllocationNotFound
+}
+
+// ReturnToShelf returns a hard allocated item back to shelf
+// This is required to release hard allocations (physical return needed)
+func (i *InventoryItem) ReturnToShelf(allocationID, returnedBy, reason string) error {goCover_4dfb824e56d3__30[0] = 12 ; goCover_4dfb824e56d3__30[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__30[2] = 30 ; goCover_4dfb824e56d3__30[3] = 1;
+	for idx := range i.HardAllocations {goCover_4dfb824e56d3__30[5] = 1;
+		if i.HardAllocations[idx].AllocationID == allocationID {goCover_4dfb824e56d3__30[6] = 1;
+			allocation := &i.HardAllocations[idx]
+
+			if allocation.Status == "shipped" {goCover_4dfb824e56d3__30[10] = 1;
+				return errors.New("cannot return shipped inventory")
+			}
+
+			// Move quantity back from HardAllocated to Available
+			goCover_4dfb824e56d3__30[7] = 1;for locIdx := range i.Locations {goCover_4dfb824e56d3__30[11] = 1;
+				if i.Locations[locIdx].LocationID == allocation.SourceLocationID {goCover_4dfb824e56d3__30[12] = 1;
+					i.Locations[locIdx].HardAllocated -= allocation.Quantity
+					i.Locations[locIdx].Available += allocation.Quantity
+					break
+				}
+			}
+
+			// Update aggregate counters
+			goCover_4dfb824e56d3__30[8] = 1;i.HardAllocatedQuantity -= allocation.Quantity
+			i.AvailableQuantity += allocation.Quantity
+
+			// Mark allocation as returned
+			allocation.Status = "returned"
+
+			// Cancel the associated reservation
+			for resIdx := range i.Reservations {goCover_4dfb824e56d3__30[13] = 1;
+				if i.Reservations[resIdx].ReservationID == allocation.ReservationID {goCover_4dfb824e56d3__30[14] = 1;
+					i.Reservations[resIdx].Status = "cancelled"
+					break
+				}
+			}
+
+			goCover_4dfb824e56d3__30[9] = 1;i.UpdatedAt = time.Now()
+
+			// Record transaction
+			i.Transactions = append(i.Transactions, InventoryTransaction{
+				TransactionID: generateTransactionID(),
+				Type:          "return_to_shelf",
+				Quantity:      allocation.Quantity,
+				LocationID:    allocation.SourceLocationID,
+				ReferenceID:   allocation.OrderID,
+				Reason:        reason,
+				CreatedAt:     time.Now(),
+				CreatedBy:     returnedBy,
+			})
+
+			i.AddDomainEvent(&InventoryReturnedToShelfEvent{
+				SKU:              i.SKU,
+				AllocationID:     allocationID,
+				OrderID:          allocation.OrderID,
+				Quantity:         allocation.Quantity,
+				SourceLocationID: allocation.SourceLocationID,
+				ReturnedBy:       returnedBy,
+				Reason:           reason,
+				ReturnedAt:       time.Now(),
+			})
+
+			return nil
+		}
+	}
+	goCover_4dfb824e56d3__30[4] = 1;return ErrAllocationNotFound
+}
+
+// GetHardAllocation returns a hard allocation by ID
+func (i *InventoryItem) GetHardAllocation(allocationID string) *HardAllocation {goCover_4dfb824e56d3__31[0] = 4 ; goCover_4dfb824e56d3__31[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__31[2] = 31 ; goCover_4dfb824e56d3__31[3] = 1;
+	for _, alloc := range i.HardAllocations {goCover_4dfb824e56d3__31[5] = 1;
+		if alloc.AllocationID == allocationID {goCover_4dfb824e56d3__31[6] = 1;
+			return &alloc
+		}
+	}
+	goCover_4dfb824e56d3__31[4] = 1;return nil
+}
+
+// GetActiveHardAllocations returns all non-shipped/returned allocations
+func (i *InventoryItem) GetActiveHardAllocations() []HardAllocation {goCover_4dfb824e56d3__32[0] = 4 ; goCover_4dfb824e56d3__32[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__32[2] = 32 ; goCover_4dfb824e56d3__32[3] = 1;
+	active := make([]HardAllocation, 0)
+	for _, alloc := range i.HardAllocations {goCover_4dfb824e56d3__32[5] = 1;
+		if alloc.Status == "staged" || alloc.Status == "packed" {goCover_4dfb824e56d3__32[6] = 1;
+			active = append(active, alloc)
+		}
+	}
+	goCover_4dfb824e56d3__32[4] = 1;return active
+}
+
+// RecordShortage records a confirmed stock shortage discovered during picking
+// This adjusts inventory to match reality and emits events for audit/compensation
+func (i *InventoryItem) RecordShortage(locationID, orderID string, expectedQty, actualQty int, reason, reportedBy string) error {goCover_4dfb824e56d3__33[0] = 14 ; goCover_4dfb824e56d3__33[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__33[2] = 33 ; goCover_4dfb824e56d3__33[3] = 1;
+	// Find the location
+	var loc *StockLocation
+	var locIdx int
+	for idx := range i.Locations {goCover_4dfb824e56d3__33[10] = 1;
+		if i.Locations[idx].LocationID == locationID {goCover_4dfb824e56d3__33[11] = 1;
+			loc = &i.Locations[idx]
+			locIdx = idx
+			break
+		}
+	}
+
+	goCover_4dfb824e56d3__33[4] = 1;if loc == nil {goCover_4dfb824e56d3__33[12] = 1;
+		return ErrLocationNotFound
+	}
+
+	goCover_4dfb824e56d3__33[5] = 1;shortageQty := expectedQty - actualQty
+	if shortageQty <= 0 {goCover_4dfb824e56d3__33[13] = 1;
+		return ErrNoShortageToRecord
+	}
+
+	// Record what the system thought was there
+	goCover_4dfb824e56d3__33[6] = 1;systemQuantity := loc.Quantity
+
+	// Adjust the location quantity to match reality
+	// We reduce total by shortage amount (the missing inventory)
+	i.Locations[locIdx].Quantity -= shortageQty
+	i.Locations[locIdx].Available -= shortageQty
+	if i.Locations[locIdx].Available < 0 {goCover_4dfb824e56d3__33[14] = 1;
+		// If we had reserved more than actually exists, adjust reserved too
+		overReserved := -i.Locations[locIdx].Available
+		i.Locations[locIdx].Reserved -= overReserved
+		i.Locations[locIdx].Available = 0
+		i.ReservedQuantity -= overReserved
+	}
+
+	// Update aggregate totals
+	goCover_4dfb824e56d3__33[7] = 1;i.TotalQuantity -= shortageQty
+	i.AvailableQuantity -= shortageQty
+	if i.AvailableQuantity < 0 {goCover_4dfb824e56d3__33[15] = 1;
+		i.AvailableQuantity = 0
+	}
+
+	goCover_4dfb824e56d3__33[8] = 1;i.UpdatedAt = time.Now()
+
+	// Record transaction for audit trail
+	i.Transactions = append(i.Transactions, InventoryTransaction{
+		TransactionID: generateTransactionID(),
+		Type:          "shortage",
+		Quantity:      -shortageQty,
+		LocationID:    locationID,
+		ReferenceID:   orderID,
+		Reason:        reason,
+		CreatedAt:     time.Now(),
+		CreatedBy:     reportedBy,
+	})
+
+	// Emit stock shortage event
+	i.AddDomainEvent(&StockShortageEvent{
+		SKU:              i.SKU,
+		LocationID:       locationID,
+		OrderID:          orderID,
+		ExpectedQuantity: expectedQty,
+		ActualQuantity:   actualQty,
+		ShortageQuantity: shortageQty,
+		ReportedBy:       reportedBy,
+		Reason:           reason,
+		OccurredAt_:      time.Now(),
+	})
+
+	// Emit discrepancy event for audit/reporting
+	i.AddDomainEvent(&InventoryDiscrepancyEvent{
+		SKU:             i.SKU,
+		LocationID:      locationID,
+		SystemQuantity:  systemQuantity,
+		ActualQuantity:  actualQty,
+		DiscrepancyType: "shortage",
+		Source:          "picking",
+		ReferenceID:     orderID,
+		DetectedAt:      time.Now(),
+	})
+
+	// Check if we need to trigger low stock alert
+	if i.AvailableQuantity <= i.ReorderPoint {goCover_4dfb824e56d3__33[16] = 1;
+		i.AddDomainEvent(&LowStockAlertEvent{
+			SKU:             i.SKU,
+			CurrentQuantity: i.AvailableQuantity,
+			ReorderPoint:    i.ReorderPoint,
+			AlertedAt:       time.Now(),
+		})
+	}
+
+	goCover_4dfb824e56d3__33[9] = 1;return nil
+}

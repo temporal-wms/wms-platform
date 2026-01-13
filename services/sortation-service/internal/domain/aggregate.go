@@ -104,6 +104,9 @@ func (c *Chute) IsAvailable() bool {
 type SortationBatch struct {
 	ID               primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	BatchID          string             `bson:"batchId" json:"batchId"`
+	TenantID    string `bson:"tenantId" json:"tenantId"`
+	FacilityID  string `bson:"facilityId" json:"facilityId"`
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"`
 	SortationCenter  string             `bson:"sortationCenter" json:"sortationCenter"`
 	DestinationGroup string             `bson:"destinationGroup" json:"destinationGroup"` // zip prefix or region
 	CarrierID        string             `bson:"carrierId" json:"carrierId"`

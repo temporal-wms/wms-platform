@@ -1,0 +1,258 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/infrastructure/projections/inventory_list_repository.go:1:1
+package projections
+
+import (
+	"context"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+// InventoryListProjectionRepository manages the inventory list read model
+type InventoryListProjectionRepository interface {
+	// Upsert creates or updates an inventory projection
+	Upsert(ctx context.Context, projection *InventoryListProjection) error
+
+	// FindBySKU retrieves a projection by SKU
+	FindBySKU(ctx context.Context, sku string) (*InventoryListProjection, error)
+
+	// FindWithFilter retrieves projections matching filter criteria with pagination
+	FindWithFilter(ctx context.Context, filter InventoryListFilter, page Pagination) (*PagedResult[InventoryListProjection], error)
+
+	// UpdateFields updates specific fields of a projection
+	UpdateFields(ctx context.Context, sku string, updates map[string]interface{}) error
+
+	// Delete removes a projection
+	Delete(ctx context.Context, sku string) error
+
+	// Count returns the total count matching filter
+	Count(ctx context.Context, filter InventoryListFilter) (int64, error)
+}
+
+// MongoInventoryListProjectionRepository is the MongoDB implementation
+type MongoInventoryListProjectionRepository struct {
+	collection *mongo.Collection
+}
+
+// NewMongoInventoryListProjectionRepository creates a new repository
+func NewMongoInventoryListProjectionRepository(db *mongo.Database) *MongoInventoryListProjectionRepository {goCover_4e4e15989919__0[0] = 1 ; goCover_4e4e15989919__0[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__0[2] = 0 ; goCover_4e4e15989919__0[3] = 1;
+	collection := db.Collection("inventory_list_projections")
+	repo := &MongoInventoryListProjectionRepository{
+		collection: collection,
+	}
+	repo.ensureIndexes(context.Background())
+	return repo
+}
+
+// ensureIndexes creates necessary indexes for efficient queries
+func (r *MongoInventoryListProjectionRepository) ensureIndexes(ctx context.Context) {goCover_4e4e15989919__1[0] = 1 ; goCover_4e4e15989919__1[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__1[2] = 1 ; goCover_4e4e15989919__1[3] = 1;
+	indexes := []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "sku", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys: bson.D{{Key: "productName", Value: 1}},
+		},
+		{
+			Keys: bson.D{{Key: "isLowStock", Value: 1}, {Key: "availableQuantity", Value: 1}},
+		},
+		{
+			Keys: bson.D{{Key: "isOutOfStock", Value: 1}},
+		},
+		{
+			Keys: bson.D{{Key: "availableLocations", Value: 1}},
+		},
+		{
+			Keys: bson.D{{Key: "lastReceived", Value: -1}},
+		},
+		{
+			Keys: bson.D{{Key: "lastPicked", Value: -1}},
+		},
+		{
+			Keys: bson.D{{Key: "availableQuantity", Value: 1}},
+		},
+	}
+
+	r.collection.Indexes().CreateMany(ctx, indexes)
+}
+
+// Upsert creates or updates an inventory projection
+func (r *MongoInventoryListProjectionRepository) Upsert(ctx context.Context, projection *InventoryListProjection) error {goCover_4e4e15989919__2[0] = 1 ; goCover_4e4e15989919__2[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__2[2] = 2 ; goCover_4e4e15989919__2[3] = 1;
+	projection.UpdatedAt = time.Now()
+
+	filter := bson.M{"_id": projection.SKU}
+	update := bson.M{"$set": projection}
+	opts := options.Update().SetUpsert(true)
+
+	_, err := r.collection.UpdateOne(ctx, filter, update, opts)
+	return err
+}
+
+// FindBySKU retrieves a projection by SKU
+func (r *MongoInventoryListProjectionRepository) FindBySKU(ctx context.Context, sku string) (*InventoryListProjection, error) {goCover_4e4e15989919__3[0] = 5 ; goCover_4e4e15989919__3[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__3[2] = 3 ; goCover_4e4e15989919__3[3] = 1;
+	var projection InventoryListProjection
+	filter := bson.M{"_id": sku}
+
+	err := r.collection.FindOne(ctx, filter).Decode(&projection)
+	if err != nil {goCover_4e4e15989919__3[5] = 1;
+		if err == mongo.ErrNoDocuments {goCover_4e4e15989919__3[7] = 1;
+			return nil, nil
+		}
+		goCover_4e4e15989919__3[6] = 1;return nil, err
+	}
+
+	goCover_4e4e15989919__3[4] = 1;return &projection, nil
+}
+
+// FindWithFilter retrieves projections matching filter criteria with pagination
+func (r *MongoInventoryListProjectionRepository) FindWithFilter(ctx context.Context, filter InventoryListFilter, page Pagination) (*PagedResult[InventoryListProjection], error) {goCover_4e4e15989919__4[0] = 15 ; goCover_4e4e15989919__4[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__4[2] = 4 ; goCover_4e4e15989919__4[3] = 1;
+	// Build filter query
+	query := r.buildFilterQuery(filter)
+
+	// Get total count
+	total, err := r.collection.CountDocuments(ctx, query)
+	if err != nil {goCover_4e4e15989919__4[11] = 1;
+		return nil, err
+	}
+
+	// Build find options with pagination and sorting
+	goCover_4e4e15989919__4[4] = 1;opts := options.Find()
+
+	// Set limit and offset
+	if page.Limit > 0 {goCover_4e4e15989919__4[12] = 1;
+		opts.SetLimit(int64(page.Limit))
+	}
+	goCover_4e4e15989919__4[5] = 1;if page.Offset > 0 {goCover_4e4e15989919__4[13] = 1;
+		opts.SetSkip(int64(page.Offset))
+	}
+
+	// Set sort order
+	goCover_4e4e15989919__4[6] = 1;sortField := page.SortBy
+	if sortField == "" {goCover_4e4e15989919__4[14] = 1;
+		sortField = "updatedAt" // Default sort
+	}
+	goCover_4e4e15989919__4[7] = 1;sortOrder := -1 // Default descending
+	if page.SortOrder == "asc" {goCover_4e4e15989919__4[15] = 1;
+		sortOrder = 1
+	}
+	goCover_4e4e15989919__4[8] = 1;opts.SetSort(bson.D{{Key: sortField, Value: sortOrder}})
+
+	// Execute query
+	cursor, err := r.collection.Find(ctx, query, opts)
+	if err != nil {goCover_4e4e15989919__4[16] = 1;
+		return nil, err
+	}
+	goCover_4e4e15989919__4[9] = 1;defer cursor.Close(ctx)
+
+	// Decode results
+	var projections []InventoryListProjection
+	if err := cursor.All(ctx, &projections); err != nil {goCover_4e4e15989919__4[17] = 1;
+		return nil, err
+	}
+
+	// Build paginated result
+	goCover_4e4e15989919__4[10] = 1;result := &PagedResult[InventoryListProjection]{
+		Items:   projections,
+		Total:   total,
+		Limit:   page.Limit,
+		Offset:  page.Offset,
+		HasMore: int64(page.Offset+len(projections)) < total,
+	}
+
+	return result, nil
+}
+
+// buildFilterQuery builds MongoDB filter from InventoryListFilter
+func (r *MongoInventoryListProjectionRepository) buildFilterQuery(filter InventoryListFilter) bson.M {goCover_4e4e15989919__5[0] = 29 ; goCover_4e4e15989919__5[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__5[2] = 5 ; goCover_4e4e15989919__5[3] = 1;
+	query := bson.M{}
+
+	if filter.SKU != nil {goCover_4e4e15989919__5[14] = 1;
+		query["_id"] = *filter.SKU
+	}
+
+	goCover_4e4e15989919__5[4] = 1;if filter.ProductName != nil {goCover_4e4e15989919__5[15] = 1;
+		query["productName"] = bson.M{"$regex": *filter.ProductName, "$options": "i"}
+	}
+
+	goCover_4e4e15989919__5[5] = 1;if filter.IsLowStock != nil {goCover_4e4e15989919__5[16] = 1;
+		query["isLowStock"] = *filter.IsLowStock
+	}
+
+	goCover_4e4e15989919__5[6] = 1;if filter.IsOutOfStock != nil {goCover_4e4e15989919__5[17] = 1;
+		query["isOutOfStock"] = *filter.IsOutOfStock
+	}
+
+	goCover_4e4e15989919__5[7] = 1;if filter.HasReservations != nil {goCover_4e4e15989919__5[18] = 1;
+		if *filter.HasReservations {goCover_4e4e15989919__5[19] = 1;
+			query["activeReservations"] = bson.M{"$gt": 0}
+		} else{ goCover_4e4e15989919__5[20] = 1;{
+			query["activeReservations"] = 0
+		}}
+	}
+
+	goCover_4e4e15989919__5[8] = 1;if filter.MinQuantity != nil {goCover_4e4e15989919__5[21] = 1;
+		query["availableQuantity"] = bson.M{"$gte": *filter.MinQuantity}
+	}
+
+	goCover_4e4e15989919__5[9] = 1;if filter.MaxQuantity != nil {goCover_4e4e15989919__5[22] = 1;
+		if query["availableQuantity"] != nil {goCover_4e4e15989919__5[23] = 1;
+			query["availableQuantity"].(bson.M)["$lte"] = *filter.MaxQuantity
+		} else{ goCover_4e4e15989919__5[24] = 1;{
+			query["availableQuantity"] = bson.M{"$lte": *filter.MaxQuantity}
+		}}
+	}
+
+	goCover_4e4e15989919__5[10] = 1;if filter.LocationID != nil {goCover_4e4e15989919__5[25] = 1;
+		query["availableLocations"] = *filter.LocationID
+	}
+
+	// Date range filters
+	goCover_4e4e15989919__5[11] = 1;if filter.ReceivedAfter != nil || filter.ReceivedBefore != nil {goCover_4e4e15989919__5[26] = 1;
+		dateQuery := bson.M{}
+		if filter.ReceivedAfter != nil {goCover_4e4e15989919__5[29] = 1;
+			dateQuery["$gte"] = *filter.ReceivedAfter
+		}
+		goCover_4e4e15989919__5[27] = 1;if filter.ReceivedBefore != nil {goCover_4e4e15989919__5[30] = 1;
+			dateQuery["$lte"] = *filter.ReceivedBefore
+		}
+		goCover_4e4e15989919__5[28] = 1;query["lastReceived"] = dateQuery
+	}
+
+	// Text search (search across multiple fields)
+	goCover_4e4e15989919__5[12] = 1;if filter.SearchTerm != "" {goCover_4e4e15989919__5[31] = 1;
+		query["$or"] = []bson.M{
+			{"_id": bson.M{"$regex": filter.SearchTerm, "$options": "i"}},
+			{"productName": bson.M{"$regex": filter.SearchTerm, "$options": "i"}},
+		}
+	}
+
+	goCover_4e4e15989919__5[13] = 1;return query
+}
+
+// UpdateFields updates specific fields of a projection
+func (r *MongoInventoryListProjectionRepository) UpdateFields(ctx context.Context, sku string, updates map[string]interface{}) error {goCover_4e4e15989919__6[0] = 1 ; goCover_4e4e15989919__6[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__6[2] = 6 ; goCover_4e4e15989919__6[3] = 1;
+	// Add updatedAt timestamp
+	updates["updatedAt"] = time.Now()
+
+	filter := bson.M{"_id": sku}
+	update := bson.M{"$set": updates}
+
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+// Delete removes a projection
+func (r *MongoInventoryListProjectionRepository) Delete(ctx context.Context, sku string) error {goCover_4e4e15989919__7[0] = 1 ; goCover_4e4e15989919__7[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__7[2] = 7 ; goCover_4e4e15989919__7[3] = 1;
+	filter := bson.M{"_id": sku}
+	_, err := r.collection.DeleteOne(ctx, filter)
+	return err
+}
+
+// Count returns the total count matching filter
+func (r *MongoInventoryListProjectionRepository) Count(ctx context.Context, filter InventoryListFilter) (int64, error) {goCover_4e4e15989919__8[0] = 1 ; goCover_4e4e15989919__8[1] = goCover_4e4e15989919_P ; goCover_4e4e15989919__8[2] = 8 ; goCover_4e4e15989919__8[3] = 1;
+	query := r.buildFilterQuery(filter)
+	return r.collection.CountDocuments(ctx, query)
+}

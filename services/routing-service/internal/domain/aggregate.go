@@ -84,6 +84,9 @@ type ZoneGroup struct {
 type PickRoute struct {
 	ID                primitive.ObjectID `bson:"_id,omitempty"`
 	RouteID           string             `bson:"routeId"`
+	TenantID          string             `bson:"tenantId"`
+	FacilityID        string             `bson:"facilityId"`
+	WarehouseID       string             `bson:"warehouseId"`
 	OrderID           string             `bson:"orderId"`
 	WaveID            string             `bson:"waveId"`
 	PickerID          string             `bson:"pickerId,omitempty"`

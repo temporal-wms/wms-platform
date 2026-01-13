@@ -10,6 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
 	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -21,6 +22,7 @@ type RouteRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewRouteRepository creates a new RouteRepository
@@ -33,6 +35,7 @@ func NewRouteRepository(db *mongo.Database, eventFactory *cloudevents.EventFacto
 		db:           db,
 		outboxRepo:   outboxRepo,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 	repo.ensureIndexes(context.Background())
 
@@ -158,9 +161,10 @@ func (r *RouteRepository) Save(ctx context.Context, route *domain.PickRoute) err
 
 // FindByID retrieves a route by its ID
 func (r *RouteRepository) FindByID(ctx context.Context, routeID string) (*domain.PickRoute, error) {
-	var route domain.PickRoute
 	filter := bson.M{"routeId": routeID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 
+	var route domain.PickRoute
 	err := r.collection.FindOne(ctx, filter).Decode(&route)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -273,6 +277,7 @@ func (r *RouteRepository) FindActiveByPicker(ctx context.Context, pickerID strin
 		"pickerId": pickerID,
 		"status":   domain.RouteStatusInProgress,
 	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 
 	var route domain.PickRoute
 	err := r.collection.FindOne(ctx, filter).Decode(&route)
@@ -294,6 +299,7 @@ func (r *RouteRepository) FindPendingRoutes(ctx context.Context, zone string, li
 	if zone != "" {
 		filter["zone"] = zone
 	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
 
 	opts := options.Find().
 		SetSort(bson.D{{Key: "createdAt", Value: 1}}).
@@ -316,6 +322,8 @@ func (r *RouteRepository) FindPendingRoutes(ctx context.Context, zone string, li
 // Delete removes a route
 func (r *RouteRepository) Delete(ctx context.Context, routeID string) error {
 	filter := bson.M{"routeId": routeID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
@@ -323,6 +331,8 @@ func (r *RouteRepository) Delete(ctx context.Context, routeID string) error {
 // CountByStatus counts routes by status
 func (r *RouteRepository) CountByStatus(ctx context.Context, status domain.RouteStatus) (int64, error) {
 	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	return r.collection.CountDocuments(ctx, filter)
 }
 

@@ -55,23 +55,23 @@ export function Table<T>({
   };
 
   return (
-    <div className={`overflow-x-auto ${className}`}>
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
+    <div className={`overflow-x-auto rounded-xl border border-gray-100 ${className}`}>
+      <table className="min-w-full">
+        <thead>
+          <tr className="bg-gray-50/80 border-b border-gray-100">
             {columns.map((column) => (
               <th
                 key={column.key}
                 scope="col"
                 style={{ width: column.width }}
                 className={`
-                  px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider
+                  px-4 py-3.5 text-xs font-semibold text-gray-600 uppercase tracking-wider
                   ${alignStyles[column.align || 'left']}
-                  ${column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''}
+                  ${column.sortable ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}
                 `}
                 onClick={() => column.sortable && onSort?.(column.key)}
               >
-                <div className="flex items-center gap-1">
+                <div className={`flex items-center gap-1.5 ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : ''}`}>
                   {column.header}
                   {renderSortIcon(column)}
                 </div>
@@ -79,28 +79,30 @@ export function Table<T>({
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="bg-white">
           {loading ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-8 text-center">
-                <div className="flex items-center justify-center gap-2 text-gray-500">
-                  <div className="h-5 w-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
-                  Loading...
+              <td colSpan={columns.length} className="px-4 py-12 text-center">
+                <div className="flex flex-col items-center justify-center gap-3 text-gray-500">
+                  <div className="h-6 w-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">Loading data...</span>
                 </div>
               </td>
             </tr>
           ) : data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-500">
+              <td colSpan={columns.length} className="px-4 py-12 text-center text-gray-500">
                 {emptyMessage}
               </td>
             </tr>
           ) : (
-            data.map((item) => (
+            data.map((item, index) => (
               <tr
                 key={keyExtractor(item)}
                 className={`
-                  ${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}
+                  border-b border-gray-50 last:border-b-0
+                  ${onRowClick ? 'cursor-pointer' : ''}
+                  hover:bg-primary-50/50
                   transition-colors duration-150
                 `}
                 onClick={() => onRowClick?.(item)}
@@ -109,7 +111,7 @@ export function Table<T>({
                   <td
                     key={column.key}
                     className={`
-                      px-4 py-3 text-sm text-gray-900
+                      px-4 py-4 text-sm text-gray-700
                       ${alignStyles[column.align || 'left']}
                     `}
                   >
@@ -149,18 +151,18 @@ export function Pagination({
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200">
+    <div className="flex items-center justify-between px-4 py-3 bg-gray-50/50 border-t border-gray-100 rounded-b-xl">
       <div className="flex items-center gap-4">
-        <span className="text-sm text-gray-700">
-          Showing <span className="font-medium">{startItem}</span> to{' '}
-          <span className="font-medium">{endItem}</span> of{' '}
-          <span className="font-medium">{totalItems}</span> results
+        <span className="text-sm text-gray-600">
+          Showing <span className="font-medium text-gray-900">{startItem}</span> to{' '}
+          <span className="font-medium text-gray-900">{endItem}</span> of{' '}
+          <span className="font-medium text-gray-900">{totalItems}</span> results
         </span>
         {onPageSizeChange && (
           <select
             value={pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="text-sm border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+            className="text-sm border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
           >
             {pageSizeOptions.map((size) => (
               <option key={size} value={size}>
@@ -174,17 +176,56 @@ export function Pagination({
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          className="
+            px-3 py-1.5 text-sm font-medium
+            border border-gray-200 rounded-lg bg-white
+            disabled:opacity-50 disabled:cursor-not-allowed
+            hover:bg-gray-50 hover:border-gray-300
+            transition-colors duration-150
+          "
         >
           Previous
         </button>
-        <span className="text-sm text-gray-700">
-          Page {currentPage} of {totalPages}
-        </span>
+        <div className="flex items-center gap-1">
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pageNum: number;
+            if (totalPages <= 5) {
+              pageNum = i + 1;
+            } else if (currentPage <= 3) {
+              pageNum = i + 1;
+            } else if (currentPage >= totalPages - 2) {
+              pageNum = totalPages - 4 + i;
+            } else {
+              pageNum = currentPage - 2 + i;
+            }
+            return (
+              <button
+                key={pageNum}
+                onClick={() => onPageChange(pageNum)}
+                className={`
+                  w-8 h-8 text-sm font-medium rounded-lg
+                  transition-colors duration-150
+                  ${pageNum === currentPage
+                    ? 'bg-primary-600 text-white'
+                    : 'hover:bg-gray-100 text-gray-600'
+                  }
+                `}
+              >
+                {pageNum}
+              </button>
+            );
+          })}
+        </div>
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          className="
+            px-3 py-1.5 text-sm font-medium
+            border border-gray-200 rounded-lg bg-white
+            disabled:opacity-50 disabled:cursor-not-allowed
+            hover:bg-gray-50 hover:border-gray-300
+            transition-colors duration-150
+          "
         >
           Next
         </button>

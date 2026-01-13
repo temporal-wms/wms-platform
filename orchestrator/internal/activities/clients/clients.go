@@ -200,6 +200,17 @@ func (c *ServiceClients) ReleaseInventoryReservation(ctx context.Context, orderI
 }
 
 // PickInventory decrements inventory for picked items
+// GetInventoryItem retrieves detailed inventory information including reservations
+func (c *ServiceClients) GetInventoryItem(ctx context.Context, sku string) (*InventoryItemDetailed, error) {
+	url := fmt.Sprintf("%s/api/v1/inventory/%s", c.config.InventoryServiceURL, sku)
+	var item InventoryItemDetailed
+	err := c.doRequest(ctx, http.MethodGet, url, nil, &item)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 func (c *ServiceClients) PickInventory(ctx context.Context, sku string, req *PickInventoryRequest) error {
 	url := fmt.Sprintf("%s/api/v1/inventory/%s/pick", c.config.InventoryServiceURL, sku)
 	return c.doRequest(ctx, http.MethodPost, url, req, nil)
@@ -608,6 +619,126 @@ func (c *ServiceClients) GetStationsByZone(ctx context.Context, zone string) ([]
 	return result, nil
 }
 
+// Station Capacity Management methods
+
+// ReserveStationCapacity reserves capacity on a station
+func (c *ServiceClients) ReserveStationCapacity(ctx context.Context, req *ReserveStationCapacityRequest) (*ReserveStationCapacityResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/stations/%s/capacity/reserve", c.config.FacilityServiceURL, req.StationID)
+	var result ReserveStationCapacityResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ReleaseStationCapacity releases previously reserved capacity
+func (c *ServiceClients) ReleaseStationCapacity(ctx context.Context, req *ReleaseStationCapacityRequest) error {
+	url := fmt.Sprintf("%s/api/v1/stations/%s/capacity/release", c.config.FacilityServiceURL, req.StationID)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// Labor Service methods
+
+// FindCertifiedWorkers finds workers with required certifications
+func (c *ServiceClients) FindCertifiedWorkers(ctx context.Context, req *FindCertifiedWorkersRequest) ([]Worker, error) {
+	url := fmt.Sprintf("%s/api/v1/workers/certified", c.config.LaborServiceURL)
+	var result []Worker
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// AssignWorker assigns a worker to a task
+func (c *ServiceClients) AssignWorker(ctx context.Context, req *AssignWorkerRequest) (*Worker, error) {
+	url := fmt.Sprintf("%s/api/v1/workers/assign", c.config.LaborServiceURL)
+	var result Worker
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetAvailableWorkers retrieves available workers
+func (c *ServiceClients) GetAvailableWorkers(ctx context.Context, req *GetAvailableWorkersRequest) ([]Worker, error) {
+	url := fmt.Sprintf("%s/api/v1/workers/available", c.config.LaborServiceURL)
+	var result []Worker
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Equipment Management methods
+
+// CheckEquipmentAvailability checks if equipment is available
+func (c *ServiceClients) CheckEquipmentAvailability(ctx context.Context, req *CheckEquipmentAvailabilityRequest) (*CheckEquipmentAvailabilityResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/equipment/availability", c.config.FacilityServiceURL)
+	var result CheckEquipmentAvailabilityResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ReserveEquipment reserves equipment for an order
+func (c *ServiceClients) ReserveEquipment(ctx context.Context, req *ReserveEquipmentRequest) (*ReserveEquipmentResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/equipment/reserve", c.config.FacilityServiceURL)
+	var result ReserveEquipmentResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ReleaseEquipment releases previously reserved equipment
+func (c *ServiceClients) ReleaseEquipment(ctx context.Context, req *ReleaseEquipmentRequest) error {
+	url := fmt.Sprintf("%s/api/v1/equipment/release", c.config.FacilityServiceURL)
+	return c.doRequest(ctx, http.MethodPost, url, req, nil)
+}
+
+// GetEquipmentByType retrieves equipment by type
+func (c *ServiceClients) GetEquipmentByType(ctx context.Context, req *GetEquipmentByTypeRequest) ([]Equipment, error) {
+	url := fmt.Sprintf("%s/api/v1/equipment/type/%s", c.config.FacilityServiceURL, req.EquipmentType)
+	var result []Equipment
+	if err := c.doRequest(ctx, http.MethodGet, url, nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Routing Optimizer methods
+
+// OptimizeRouting gets optimized routing decision from process-path-service
+func (c *ServiceClients) OptimizeRouting(ctx context.Context, req *OptimizeRoutingRequest) (*OptimizeRoutingResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/routing/optimize", c.config.ProcessPathServiceURL)
+	var result OptimizeRoutingResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetRoutingMetrics retrieves routing metrics
+func (c *ServiceClients) GetRoutingMetrics(ctx context.Context, req *GetRoutingMetricsRequest) (*GetRoutingMetricsResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/routing/metrics", c.config.ProcessPathServiceURL)
+	var result GetRoutingMetricsResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RerouteOrder requests order rerouting
+func (c *ServiceClients) RerouteOrder(ctx context.Context, req *RerouteOrderRequest) (*RerouteOrderResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/routing/reroute", c.config.ProcessPathServiceURL)
+	var result RerouteOrderResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetStationsByType retrieves stations by type
 func (c *ServiceClients) GetStationsByType(ctx context.Context, stationType string) ([]Station, error) {
 	url := fmt.Sprintf("%s/api/v1/stations/type/%s", c.config.FacilityServiceURL, stationType)
@@ -702,6 +833,12 @@ func (c *ServiceClients) ReserveUnits(ctx context.Context, orderID, pathID strin
 		return nil, err
 	}
 	return &result, nil
+}
+
+// ReleaseUnits releases all unit reservations for an order (compensation)
+func (c *ServiceClients) ReleaseUnits(ctx context.Context, orderID string) error {
+	url := fmt.Sprintf("%s/api/v1/units/release/%s", c.config.UnitServiceURL, orderID)
+	return c.doRequest(ctx, http.MethodPost, url, nil, nil)
 }
 
 // UnitForOrder holds information about a unit for an order
@@ -914,6 +1051,26 @@ func (c *ServiceClients) AssignStationToProcessPath(ctx context.Context, pathID,
 	req := map[string]string{"stationId": stationID}
 	var result ProcessPath
 	if err := c.doRequest(ctx, http.MethodPut, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// EscalateProcessPath escalates a process path to a worse tier
+func (c *ServiceClients) EscalateProcessPath(ctx context.Context, req *EscalateProcessPathRequest) (*EscalateProcessPathResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths/%s/escalate", c.config.ProcessPathServiceURL, req.PathID)
+	var result EscalateProcessPathResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DowngradeProcessPath downgrades (improves) a process path to a better tier
+func (c *ServiceClients) DowngradeProcessPath(ctx context.Context, req *DowngradeProcessPathRequest) (*DowngradeProcessPathResponse, error) {
+	url := fmt.Sprintf("%s/api/v1/process-paths/%s/downgrade", c.config.ProcessPathServiceURL, req.PathID)
+	var result DowngradeProcessPathResponse
+	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

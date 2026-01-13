@@ -1,0 +1,12 @@
+{
+  "name": "@wms/routing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3011",
+    "build": "tsc && vite build",
+    "preview": "vite preview --port 3011",
+    "test": "vitest"
+  }
+}

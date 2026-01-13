@@ -67,6 +67,11 @@ type WavePlanningConfig struct {
 	CarrierFilter   []string        `json:"carrierFilter,omitempty"`
 	PriorityFilter  []string        `json:"priorityFilter,omitempty"`
 	CutoffTime      time.Time       `json:"cutoffTime"`
+	// Process Path Filters
+	RequiredProcessPaths  []string `json:"requiredProcessPaths,omitempty"`  // Specific process path requirements to include
+	ExcludedProcessPaths  []string `json:"excludedProcessPaths,omitempty"`  // Process path requirements to exclude
+	SpecialHandlingFilter []string `json:"specialHandlingFilter,omitempty"` // Filter by special handling types
+	GroupByProcessPath    bool     `json:"groupByProcessPath"`              // Whether to group orders by process path compatibility
 }
 
 // EventPublisher defines the interface for publishing domain events
@@ -89,11 +94,15 @@ type OrderService interface {
 
 // OrderFilter defines criteria for filtering orders
 type OrderFilter struct {
-	Priority      []string  `json:"priority,omitempty"`
-	Zone          []string  `json:"zone,omitempty"`
-	Carrier       []string  `json:"carrier,omitempty"`
-	MinItems      int       `json:"minItems,omitempty"`
-	MaxItems      int       `json:"maxItems,omitempty"`
-	CutoffBefore  time.Time `json:"cutoffBefore,omitempty"`
-	Limit         int       `json:"limit,omitempty"`
+	Priority                []string  `json:"priority,omitempty"`
+	Zone                    []string  `json:"zone,omitempty"`
+	Carrier                 []string  `json:"carrier,omitempty"`
+	MinItems                int       `json:"minItems,omitempty"`
+	MaxItems                int       `json:"maxItems,omitempty"`
+	CutoffBefore            time.Time `json:"cutoffBefore,omitempty"`
+	Limit                   int       `json:"limit,omitempty"`
+	// Process Path Filters
+	ProcessPathRequirements []string `json:"processPathRequirements,omitempty"` // Filter by process path requirements
+	SpecialHandling         []string `json:"specialHandling,omitempty"`         // Filter by special handling types
+	ExcludeProcessPaths     []string `json:"excludeProcessPaths,omitempty"`     // Exclude orders with these process paths
 }

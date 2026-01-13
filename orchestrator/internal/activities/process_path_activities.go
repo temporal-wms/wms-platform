@@ -158,3 +158,117 @@ func (a *ProcessPathActivities) GetStationsByZone(ctx context.Context, zone stri
 
 	return stations, nil
 }
+
+// Station Capacity Management Activities
+
+// ReserveStationCapacityInput represents input for reserving station capacity
+type ReserveStationCapacityInput struct {
+	StationID      string `json:"stationId"`
+	OrderID        string `json:"orderId"`
+	RequiredSlots  int    `json:"requiredSlots"`  // Number of concurrent task slots needed
+	ReservationID  string `json:"reservationId"`  // Unique reservation identifier
+}
+
+// ReserveStationCapacityResult represents the result of reserving station capacity
+type ReserveStationCapacityResult struct {
+	ReservationID      string `json:"reservationId"`
+	StationID          string `json:"stationId"`
+	ReservedSlots      int    `json:"reservedSlots"`
+	RemainingCapacity  int    `json:"remainingCapacity"`
+	Success            bool   `json:"success"`
+}
+
+// ReserveStationCapacity reserves capacity on a station for an order
+func (a *ProcessPathActivities) ReserveStationCapacity(ctx context.Context, input ReserveStationCapacityInput) (*ReserveStationCapacityResult, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Reserving station capacity",
+		"stationId", input.StationID,
+		"orderId", input.OrderID,
+		"requiredSlots", input.RequiredSlots,
+		"reservationId", input.ReservationID,
+	)
+
+	// Call facility service to reserve capacity
+	req := &clients.ReserveStationCapacityRequest{
+		StationID:     input.StationID,
+		OrderID:       input.OrderID,
+		RequiredSlots: input.RequiredSlots,
+		ReservationID: input.ReservationID,
+	}
+
+	reservation, err := a.clients.ReserveStationCapacity(ctx, req)
+	if err != nil {
+		logger.Error("Failed to reserve station capacity",
+			"stationId", input.StationID,
+			"orderId", input.OrderID,
+			"error", err,
+		)
+		return &ReserveStationCapacityResult{
+			ReservationID: input.ReservationID,
+			StationID:     input.StationID,
+			Success:       false,
+		}, fmt.Errorf("failed to reserve station capacity: %w", err)
+	}
+
+	logger.Info("Station capacity reserved",
+		"stationId", input.StationID,
+		"orderId", input.OrderID,
+		"reservationId", reservation.ReservationID,
+		"reservedSlots", reservation.ReservedSlots,
+		"remainingCapacity", reservation.RemainingCapacity,
+	)
+
+	return &ReserveStationCapacityResult{
+		ReservationID:     reservation.ReservationID,
+		StationID:         reservation.StationID,
+		ReservedSlots:     reservation.ReservedSlots,
+		RemainingCapacity: reservation.RemainingCapacity,
+		Success:           true,
+	}, nil
+}
+
+// ReleaseStationCapacityInput represents input for releasing station capacity
+type ReleaseStationCapacityInput struct {
+	StationID     string `json:"stationId"`
+	OrderID       string `json:"orderId"`
+	ReservationID string `json:"reservationId"`
+	Reason        string `json:"reason,omitempty"` // Why capacity is being released
+}
+
+// ReleaseStationCapacity releases previously reserved station capacity
+func (a *ProcessPathActivities) ReleaseStationCapacity(ctx context.Context, input ReleaseStationCapacityInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Releasing station capacity",
+		"stationId", input.StationID,
+		"orderId", input.OrderID,
+		"reservationId", input.ReservationID,
+		"reason", input.Reason,
+	)
+
+	// Call facility service to release capacity
+	req := &clients.ReleaseStationCapacityRequest{
+		StationID:     input.StationID,
+		OrderID:       input.OrderID,
+		ReservationID: input.ReservationID,
+		Reason:        input.Reason,
+	}
+
+	err := a.clients.ReleaseStationCapacity(ctx, req)
+	if err != nil {
+		logger.Error("Failed to release station capacity",
+			"stationId", input.StationID,
+			"orderId", input.OrderID,
+			"reservationId", input.ReservationID,
+			"error", err,
+		)
+		return fmt.Errorf("failed to release station capacity: %w", err)
+	}
+
+	logger.Info("Station capacity released",
+		"stationId", input.StationID,
+		"orderId", input.OrderID,
+		"reservationId", input.ReservationID,
+	)
+
+	return nil
+}

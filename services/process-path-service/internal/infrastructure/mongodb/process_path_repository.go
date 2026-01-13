@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"fmt"
 	"time"
@@ -17,6 +18,7 @@ const collectionName = "process_paths"
 // ProcessPathRepository implements domain.ProcessPathRepository for MongoDB
 type ProcessPathRepository struct {
 	collection *mongo.Collection
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewProcessPathRepository creates a new MongoDB process path repository
@@ -42,6 +44,7 @@ func NewProcessPathRepository(db *mongo.Database) *ProcessPathRepository {
 
 	return &ProcessPathRepository{
 		collection: collection,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 }
 
@@ -57,7 +60,10 @@ func (r *ProcessPathRepository) Save(ctx context.Context, processPath *domain.Pr
 // FindByID retrieves a process path by its MongoDB _id
 func (r *ProcessPathRepository) FindByID(ctx context.Context, id string) (*domain.ProcessPath, error) {
 	var processPath domain.ProcessPath
-	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&processPath)
+	filter := bson.M{"_id": id}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&processPath)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, fmt.Errorf("process path not found with id: %s", id)
@@ -70,7 +76,10 @@ func (r *ProcessPathRepository) FindByID(ctx context.Context, id string) (*domai
 // FindByPathID retrieves a process path by pathId
 func (r *ProcessPathRepository) FindByPathID(ctx context.Context, pathID string) (*domain.ProcessPath, error) {
 	var processPath domain.ProcessPath
-	err := r.collection.FindOne(ctx, bson.M{"pathId": pathID}).Decode(&processPath)
+	filter := bson.M{"pathId": pathID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&processPath)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, fmt.Errorf("process path not found with pathId: %s", pathID)
@@ -83,7 +92,10 @@ func (r *ProcessPathRepository) FindByPathID(ctx context.Context, pathID string)
 // FindByOrderID retrieves a process path by order ID
 func (r *ProcessPathRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.ProcessPath, error) {
 	var processPath domain.ProcessPath
-	err := r.collection.FindOne(ctx, bson.M{"orderId": orderID}).Decode(&processPath)
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&processPath)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, fmt.Errorf("process path not found for order: %s", orderID)

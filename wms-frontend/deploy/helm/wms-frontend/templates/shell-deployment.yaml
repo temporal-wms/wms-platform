@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms-shell
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "wms-frontend.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.shell.replicaCount }}
+  selector:
+    {{- include "wms-frontend.app.selectorLabels" (dict "appName" "shell") | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wms-frontend.app.labels" (dict "appName" "shell") | nindent 8 }}
+    spec:
+      containers:
+        - name: shell
+          image: {{ .Values.global.imageRegistry }}/{{ .Values.shell.image.repository }}:{{ .Values.shell.image.tag }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          {{- if .Values.configMap.enabled }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.configMap.name }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.shell.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: {{ .Values.shell.healthCheck.liveness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.shell.healthCheck.liveness.periodSeconds | default 30 }}
+            timeoutSeconds: {{ .Values.shell.healthCheck.liveness.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.shell.healthCheck.liveness.failureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: {{ .Values.shell.healthCheck.readiness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.shell.healthCheck.readiness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.shell.healthCheck.readiness.timeoutSeconds | default 3 }}
+            failureThreshold: {{ .Values.shell.healthCheck.readiness.failureThreshold | default 3 }}

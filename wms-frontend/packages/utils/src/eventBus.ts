@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { WMSEvent } from '@wms/types';
 
 type EventHandler = (event: WMSEvent) => void;
@@ -56,16 +57,16 @@ class EventBus {
 export const eventBus = new EventBus();
 
 // React hook for event bus
-export function useEventBus(
-  eventType: WMSEvent['type'] | null,
-  handler: EventHandler
-): void {
-  if (typeof window === 'undefined') return;
+export function useEventBus(eventType: WMSEvent['type'] | null, handler: EventHandler): void {
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
 
-  const unsubscribe = eventType
-    ? eventBus.filter(eventType, handler)
-    : eventBus.on(handler);
+    const unsubscribe = eventType ? eventBus.filter(eventType, handler) : eventBus.on(handler);
 
-  // Note: This should be wrapped in useEffect in the consuming component
-  return unsubscribe as unknown as void;
+    return () => {
+      unsubscribe();
+    };
+  }, [eventType, handler]);
 }

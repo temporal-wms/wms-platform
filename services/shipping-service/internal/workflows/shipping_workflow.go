@@ -14,6 +14,10 @@ type ShippingWorkflowInput struct {
 	PackageID      string `json:"packageId"`
 	TrackingNumber string `json:"trackingNumber"`
 	Carrier        string `json:"carrier"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // ShippingWorkflowResult represents the result of the shipping workflow
@@ -36,11 +40,27 @@ func ShippingWorkflow(ctx workflow.Context, input map[string]interface{}) (*Ship
 	trackingNumber, _ := input["trackingNumber"].(string)
 	carrier, _ := input["carrier"].(string)
 
+	// Extract tenant context
+	tenantID, _ := input["tenantId"].(string)
+	facilityID, _ := input["facilityId"].(string)
+	warehouseID, _ := input["warehouseId"].(string)
+
 	logger.Info("Starting shipping workflow", "orderId", orderID, "packageId", packageID)
 
 	result := &ShippingWorkflowResult{
 		TrackingNumber: trackingNumber,
 		Success:        false,
+	}
+
+	// Set tenant context for activities
+	if tenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", tenantID)
+	}
+	if facilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", facilityID)
+	}
+	if warehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", warehouseID)
 	}
 
 	// Activity options

@@ -30,6 +30,9 @@ const (
 type Shipment struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty"`
 	ShipmentID      string             `bson:"shipmentId"`
+	TenantID        string             `bson:"tenantId"`
+	FacilityID      string             `bson:"facilityId"`
+	WarehouseID     string             `bson:"warehouseId"`
 	OrderID         string             `bson:"orderId"`
 	PackageID       string             `bson:"packageId"`
 	WaveID          string             `bson:"waveId"`
@@ -271,6 +274,9 @@ type ManifestPackage struct {
 type OutboundManifest struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	ManifestID      string             `bson:"manifestId" json:"manifestId"`
+	TenantID        string             `bson:"tenantId" json:"tenantId"`
+	FacilityID      string             `bson:"facilityId" json:"facilityId"`
+	WarehouseID     string             `bson:"warehouseId" json:"warehouseId"`
 	CarrierID       string             `bson:"carrierId" json:"carrierId"`
 	CarrierName     string             `bson:"carrierName" json:"carrierName"`
 	ServiceType     string             `bson:"serviceType" json:"serviceType"`

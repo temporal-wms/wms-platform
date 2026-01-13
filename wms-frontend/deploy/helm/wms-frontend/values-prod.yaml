@@ -1,0 +1,60 @@
+# Production configuration overrides
+global:
+  environment: production
+
+# Ingress configuration
+ingress:
+  enabled: true
+  hosts:
+    - host: wms.example.com
+      paths:
+        # Shell - catch-all
+        - path: /(.*)
+          pathType: Prefix
+          service: shell
+        # Microfrontends - for direct access
+        - path: /mf/orders/(.*)
+          pathType: Prefix
+          service: orders
+        - path: /mf/waves/(.*)
+          pathType: Prefix
+          service: waves
+        - path: /mf/inventory/(.*)
+          pathType: Prefix
+          service: inventory
+        - path: /mf/picking/(.*)
+          pathType: Prefix
+          service: picking
+        - path: /mf/packing/(.*)
+          pathType: Prefix
+          service: packing
+        - path: /mf/shipping/(.*)
+          pathType: Prefix
+          service: shipping
+        - path: /mf/labor/(.*)
+          pathType: Prefix
+          service: labor
+        - path: /mf/dashboard/(.*)
+          pathType: Prefix
+          service: dashboard
+        - path: /mf/receiving/(.*)
+          pathType: Prefix
+          service: receiving
+        - path: /mf/stow/(.*)
+          pathType: Prefix
+          service: stow
+        - path: /mf/routing/(.*)
+          pathType: Prefix
+          service: routing
+        - path: /mf/walling/(.*)
+          pathType: Prefix
+          service: walling
+        - path: /mf/consolidation/(.*)
+          pathType: Prefix
+          service: consolidation
+        - path: /mf/sortation/(.*)
+          pathType: Prefix
+          service: sortation
+        - path: /mf/facility/(.*)
+          pathType: Prefix
+          service: facility

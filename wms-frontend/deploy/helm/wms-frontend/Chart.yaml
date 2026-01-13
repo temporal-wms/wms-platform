@@ -1,0 +1,14 @@
+apiVersion: v2
+name: wms-frontend
+description: WMS Frontend Microfrontends - Shell and 15 microfrontends
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - wms
+  - frontend
+  - microfrontends
+maintainers:
+  - name: WMS Platform Team
+icon: https://helm.sh/img/apps-icon.svg
+kubeVersion: ">= 1.23.0"

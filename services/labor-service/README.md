@@ -103,6 +103,15 @@ go run cmd/api/main.go
 go test ./...
 ```
 
+### Unit coverage (90% target)
+
+Unit coverage is measured with the `unit` build tag and excludes integration/contract packages.
+
+```bash
+go test -tags=unit ./internal/application ./internal/domain ./cmd/api -coverprofile=coverage.unit.out
+go tool cover -func=coverage.unit.out
+```
+
 ## Related Services
 
 - **picking-service**: Assigns pickers

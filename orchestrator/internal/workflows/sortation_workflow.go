@@ -18,6 +18,10 @@ type SortationWorkflowInput struct {
 	Destination      string  `json:"destination"` // zip code or region
 	Weight           float64 `json:"weight"`
 	SortationCenter  string  `json:"sortationCenter,omitempty"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // SortationWorkflowResult represents the result of the sortation workflow

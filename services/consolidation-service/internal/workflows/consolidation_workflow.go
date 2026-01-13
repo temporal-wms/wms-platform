@@ -12,6 +12,10 @@ import (
 type ConsolidationWorkflowInput struct {
 	OrderID     string       `json:"orderId"`
 	PickedItems []PickedItem `json:"pickedItems"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // PickedItem represents a picked item from the picking workflow
@@ -39,10 +43,26 @@ func ConsolidationWorkflow(ctx workflow.Context, input map[string]interface{}) (
 	orderID, _ := input["orderId"].(string)
 	pickedItemsRaw, _ := input["pickedItems"].([]interface{})
 
+	// Extract tenant context
+	tenantID, _ := input["tenantId"].(string)
+	facilityID, _ := input["facilityId"].(string)
+	warehouseID, _ := input["warehouseId"].(string)
+
 	logger.Info("Starting consolidation workflow", "orderId", orderID, "itemCount", len(pickedItemsRaw))
 
 	result := &ConsolidationWorkflowResult{
 		Success: false,
+	}
+
+	// Set tenant context for activities
+	if tenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", tenantID)
+	}
+	if facilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", facilityID)
+	}
+	if warehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", warehouseID)
 	}
 
 	// Activity options

@@ -64,12 +64,13 @@ export function Modal({
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in"
       onClick={handleOverlayClick}
     >
       <div
         className={`
-          bg-white rounded-lg shadow-xl w-full animate-fade-in
+          bg-white rounded-2xl shadow-elevated w-full
+          animate-scale-in
           ${sizeStyles[size]}
         `}
         role="dialog"
@@ -78,7 +79,7 @@ export function Modal({
       >
         {/* Header */}
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             {title && (
               <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
                 {title}
@@ -87,7 +88,7 @@ export function Modal({
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="p-1 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                 aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
@@ -97,13 +98,13 @@ export function Modal({
         )}
 
         {/* Content */}
-        <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+        <div className="px-6 py-5 max-h-[calc(100vh-200px)] overflow-y-auto">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
+          <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50/80 border-t border-gray-100 rounded-b-2xl">
             {footer}
           </div>
         )}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/wms-platform/services/unit-service/internal/domain"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -13,7 +14,8 @@ import (
 
 // UnitRepository implements domain.UnitRepository using MongoDB
 type UnitRepository struct {
-	collection *mongo.Collection
+	collection   *mongo.Collection
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewUnitRepository creates a new MongoDB unit repository
@@ -51,7 +53,10 @@ func NewUnitRepository(db *mongo.Database) *UnitRepository {
 
 	collection.Indexes().CreateMany(ctx, indexes)
 
-	return &UnitRepository{collection: collection}
+	return &UnitRepository{
+		collection:   collection,
+		tenantHelper: tenant.NewRepositoryHelper(false),
+	}
 }
 
 // Save persists a unit
@@ -72,8 +77,11 @@ func (r *UnitRepository) FindByID(ctx context.Context, id string) (*domain.Unit,
 		return nil, err
 	}
 
+	filter := bson.M{"_id": objectID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var unit domain.Unit
-	err = r.collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&unit)
+	err = r.collection.FindOne(ctx, filter).Decode(&unit)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +90,11 @@ func (r *UnitRepository) FindByID(ctx context.Context, id string) (*domain.Unit,
 
 // FindByUnitID retrieves a unit by its UUID
 func (r *UnitRepository) FindByUnitID(ctx context.Context, unitID string) (*domain.Unit, error) {
+	filter := bson.M{"unitId": unitID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var unit domain.Unit
-	err := r.collection.FindOne(ctx, bson.M{"unitId": unitID}).Decode(&unit)
+	err := r.collection.FindOne(ctx, filter).Decode(&unit)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +103,10 @@ func (r *UnitRepository) FindByUnitID(ctx context.Context, unitID string) (*doma
 
 // FindByOrderID retrieves all units for an order
 func (r *UnitRepository) FindByOrderID(ctx context.Context, orderID string) ([]*domain.Unit, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"orderId": orderID})
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +121,10 @@ func (r *UnitRepository) FindByOrderID(ctx context.Context, orderID string) ([]*
 
 // FindBySKU retrieves all units for a SKU
 func (r *UnitRepository) FindBySKU(ctx context.Context, sku string) ([]*domain.Unit, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"sku": sku})
+	filter := bson.M{"sku": sku}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +139,10 @@ func (r *UnitRepository) FindBySKU(ctx context.Context, sku string) ([]*domain.U
 
 // FindByShipmentID retrieves all units from an inbound shipment
 func (r *UnitRepository) FindByShipmentID(ctx context.Context, shipmentID string) ([]*domain.Unit, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"shipmentId": shipmentID})
+	filter := bson.M{"shipmentId": shipmentID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +157,10 @@ func (r *UnitRepository) FindByShipmentID(ctx context.Context, shipmentID string
 
 // FindByStatus retrieves all units with a specific status
 func (r *UnitRepository) FindByStatus(ctx context.Context, status domain.UnitStatus) ([]*domain.Unit, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status})
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -156,10 +179,13 @@ func (r *UnitRepository) FindAvailableBySKU(ctx context.Context, sku string, lim
 		SetSort(bson.D{{Key: "receivedAt", Value: 1}}). // FIFO
 		SetLimit(int64(limit))
 
-	cursor, err := r.collection.Find(ctx, bson.M{
+	filter := bson.M{
 		"sku":    sku,
 		"status": domain.UnitStatusReceived,
-	}, opts)
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -175,13 +201,19 @@ func (r *UnitRepository) FindAvailableBySKU(ctx context.Context, sku string, lim
 // Update updates a unit
 func (r *UnitRepository) Update(ctx context.Context, unit *domain.Unit) error {
 	unit.UpdatedAt = time.Now()
-	_, err := r.collection.ReplaceOne(ctx, bson.M{"unitId": unit.UnitID}, unit)
+	filter := bson.M{"unitId": unit.UnitID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.ReplaceOne(ctx, filter, unit)
 	return err
 }
 
 // Delete removes a unit
 func (r *UnitRepository) Delete(ctx context.Context, unitID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"unitId": unitID})
+	filter := bson.M{"unitId": unitID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 

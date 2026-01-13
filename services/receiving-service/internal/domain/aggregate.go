@@ -137,6 +137,9 @@ type Supplier struct {
 type InboundShipment struct {
 	ID               primitive.ObjectID    `bson:"_id,omitempty" json:"id"`
 	ShipmentID       string                `bson:"shipmentId" json:"shipmentId"`
+	TenantID    string `bson:"tenantId" json:"tenantId"`
+	FacilityID  string `bson:"facilityId" json:"facilityId"`
+	WarehouseID string `bson:"warehouseId" json:"warehouseId"`
 	ASN              AdvanceShippingNotice `bson:"asn" json:"asn"`
 	PurchaseOrderID  string                `bson:"purchaseOrderId,omitempty" json:"purchaseOrderId,omitempty"`
 	Supplier         Supplier              `bson:"supplier" json:"supplier"`

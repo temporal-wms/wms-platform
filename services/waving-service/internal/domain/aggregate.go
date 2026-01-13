@@ -20,10 +20,16 @@ var (
 type WaveType string
 
 const (
-	WaveTypeDigital   WaveType = "digital"   // B2C, e-commerce orders
-	WaveTypeWholesale WaveType = "wholesale" // B2B, bulk orders
-	WaveTypePriority  WaveType = "priority"  // Same-day, next-day orders
-	WaveTypeMixed     WaveType = "mixed"     // Combined wave types
+	WaveTypeDigital       WaveType = "digital"        // B2C, e-commerce orders
+	WaveTypeWholesale     WaveType = "wholesale"      // B2B, bulk orders
+	WaveTypePriority      WaveType = "priority"       // Same-day, next-day orders
+	WaveTypeMixed         WaveType = "mixed"          // Combined wave types
+	WaveTypeHazmat        WaveType = "hazmat"         // Hazardous materials only
+	WaveTypeColdChain     WaveType = "cold_chain"     // Temperature-controlled only
+	WaveTypeHighValue     WaveType = "high_value"     // High-value orders only
+	WaveTypeFragile       WaveType = "fragile"        // Fragile items only
+	WaveTypeSpecialized   WaveType = "specialized"    // Multiple special handling types
+	WaveTypeStandard      WaveType = "standard"       // Standard orders (no special handling)
 )
 
 // WaveStatus represents the status of a wave
@@ -51,6 +57,9 @@ const (
 type Wave struct {
 	ID                primitive.ObjectID `bson:"_id,omitempty"`
 	WaveID            string             `bson:"waveId"`
+	TenantID          string             `bson:"tenantId"`
+	FacilityID        string             `bson:"facilityId"`
+	WarehouseID       string             `bson:"warehouseId"`
 	WaveType          WaveType           `bson:"waveType"`
 	Status            WaveStatus         `bson:"status"`
 	FulfillmentMode   FulfillmentMode    `bson:"fulfillmentMode"`
@@ -64,6 +73,12 @@ type Wave struct {
 	EstimatedDuration time.Duration      `bson:"estimatedDuration"`
 	Priority          int                `bson:"priority"` // 1 = highest
 	Zone              string             `bson:"zone"`     // Warehouse zone
+	// Process Path Integration
+	RequiredCapabilities []string `bson:"requiredCapabilities,omitempty"` // Station capabilities needed
+	SpecialHandlingTypes []string `bson:"specialHandlingTypes,omitempty"` // Special handling required (hazmat, cold_chain, etc.)
+	StationRequirements  []string `bson:"stationRequirements,omitempty"`  // Required station types
+	TargetStationIDs     []string `bson:"targetStationIds,omitempty"`     // Pre-assigned stations for orders
+	RequiresCertifiedLabor bool     `bson:"requiresCertifiedLabor"`         // Wave requires certified workers
 	CreatedAt         time.Time          `bson:"createdAt"`
 	UpdatedAt         time.Time          `bson:"updatedAt"`
 	ReleasedAt        *time.Time         `bson:"releasedAt,omitempty"`
@@ -83,6 +98,12 @@ type WaveOrder struct {
 	Zone               string    `bson:"zone"`
 	Status             string    `bson:"status"` // pending, picking, completed
 	AddedAt            time.Time `bson:"addedAt"`
+	// Process Path Integration
+	ProcessPathID         string   `bson:"processPathId,omitempty"`         // Reference to process path
+	ProcessPathRequirements []string `bson:"processPathRequirements,omitempty"` // Process requirements (hazmat, cold_chain, etc.)
+	SpecialHandling       []string `bson:"specialHandling,omitempty"`       // Special handling procedures
+	TargetStationID       string   `bson:"targetStationId,omitempty"`       // Assigned station
+	RequiresCertification bool     `bson:"requiresCertification"`           // Order requires certified worker
 }
 
 // WaveConfiguration holds the wave planning parameters
@@ -112,24 +133,41 @@ type LaborAllocation struct {
 
 // NewWave creates a new Wave aggregate
 func NewWave(waveID string, waveType WaveType, mode FulfillmentMode, config WaveConfiguration) (*Wave, error) {
-	if waveType != WaveTypeDigital && waveType != WaveTypeWholesale &&
-		waveType != WaveTypePriority && waveType != WaveTypeMixed {
+	validTypes := map[WaveType]bool{
+		WaveTypeDigital:     true,
+		WaveTypeWholesale:   true,
+		WaveTypePriority:    true,
+		WaveTypeMixed:       true,
+		WaveTypeHazmat:      true,
+		WaveTypeColdChain:   true,
+		WaveTypeHighValue:   true,
+		WaveTypeFragile:     true,
+		WaveTypeSpecialized: true,
+		WaveTypeStandard:    true,
+	}
+
+	if !validTypes[waveType] {
 		return nil, ErrInvalidWaveType
 	}
 
 	now := time.Now()
 	wave := &Wave{
-		WaveID:          waveID,
-		WaveType:        waveType,
-		Status:          WaveStatusPlanning,
-		FulfillmentMode: mode,
-		Orders:          make([]WaveOrder, 0),
-		Configuration:   config,
-		LaborAllocation: LaborAllocation{},
-		Priority:        5, // Default medium priority
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		DomainEvents:    make([]DomainEvent, 0),
+		WaveID:                 waveID,
+		WaveType:               waveType,
+		Status:                 WaveStatusPlanning,
+		FulfillmentMode:        mode,
+		Orders:                 make([]WaveOrder, 0),
+		Configuration:          config,
+		LaborAllocation:        LaborAllocation{},
+		Priority:               5, // Default medium priority
+		RequiredCapabilities:   make([]string, 0),
+		SpecialHandlingTypes:   make([]string, 0),
+		StationRequirements:    make([]string, 0),
+		TargetStationIDs:       make([]string, 0),
+		RequiresCertifiedLabor: false,
+		CreatedAt:              now,
+		UpdatedAt:              now,
+		DomainEvents:           make([]DomainEvent, 0),
 	}
 
 	wave.AddDomainEvent(&WaveCreatedEvent{
@@ -422,4 +460,124 @@ func (w *Wave) ClearDomainEvents() {
 // GetDomainEvents returns all domain events
 func (w *Wave) GetDomainEvents() []DomainEvent {
 	return w.DomainEvents
+}
+
+// Process Path Management Methods
+
+// AddSpecialHandlingType adds a special handling type to the wave
+func (w *Wave) AddSpecialHandlingType(handlingType string) {
+	// Check if already exists
+	for _, existing := range w.SpecialHandlingTypes {
+		if existing == handlingType {
+			return
+		}
+	}
+	w.SpecialHandlingTypes = append(w.SpecialHandlingTypes, handlingType)
+	w.UpdatedAt = time.Now()
+}
+
+// AddRequiredCapability adds a required capability to the wave
+func (w *Wave) AddRequiredCapability(capability string) {
+	// Check if already exists
+	for _, existing := range w.RequiredCapabilities {
+		if existing == capability {
+			return
+		}
+	}
+	w.RequiredCapabilities = append(w.RequiredCapabilities, capability)
+	w.UpdatedAt = time.Now()
+}
+
+// AddStationRequirement adds a station requirement to the wave
+func (w *Wave) AddStationRequirement(stationType string) {
+	// Check if already exists
+	for _, existing := range w.StationRequirements {
+		if existing == stationType {
+			return
+		}
+	}
+	w.StationRequirements = append(w.StationRequirements, stationType)
+	w.UpdatedAt = time.Now()
+}
+
+// SetRequiresCertifiedLabor sets whether the wave requires certified labor
+func (w *Wave) SetRequiresCertifiedLabor(required bool) {
+	w.RequiresCertifiedLabor = required
+	w.UpdatedAt = time.Now()
+}
+
+// IsCompatibleWithOrder checks if an order is compatible with this wave's process path requirements
+func (w *Wave) IsCompatibleWithOrder(order WaveOrder) bool {
+	// Standard waves can accept any order
+	if w.WaveType == WaveTypeStandard && len(order.ProcessPathRequirements) == 0 {
+		return true
+	}
+
+	// Specialized waves must match requirements
+	if w.WaveType == WaveTypeHazmat {
+		return hasRequirement(order.ProcessPathRequirements, "hazmat")
+	}
+	if w.WaveType == WaveTypeColdChain {
+		return hasRequirement(order.ProcessPathRequirements, "cold_chain")
+	}
+	if w.WaveType == WaveTypeHighValue {
+		return hasRequirement(order.ProcessPathRequirements, "high_value")
+	}
+	if w.WaveType == WaveTypeFragile {
+		return hasRequirement(order.ProcessPathRequirements, "fragile")
+	}
+
+	// Mixed and specialized waves accept multiple types
+	if w.WaveType == WaveTypeSpecialized || w.WaveType == WaveTypeMixed {
+		return true
+	}
+
+	// Digital, wholesale, priority waves filter by business type, not process path
+	return true
+}
+
+// HasSpecialHandling checks if the wave requires a specific special handling type
+func (w *Wave) HasSpecialHandling(handlingType string) bool {
+	for _, h := range w.SpecialHandlingTypes {
+		if h == handlingType {
+			return true
+		}
+	}
+	return false
+}
+
+// HasRequiredCapability checks if the wave requires a specific capability
+func (w *Wave) HasRequiredCapability(capability string) bool {
+	for _, c := range w.RequiredCapabilities {
+		if c == capability {
+			return true
+		}
+	}
+	return false
+}
+
+// GetUniqueStations returns all unique target station IDs
+func (w *Wave) GetUniqueStations() []string {
+	stationMap := make(map[string]bool)
+	for _, order := range w.Orders {
+		if order.TargetStationID != "" {
+			stationMap[order.TargetStationID] = true
+		}
+	}
+
+	stations := make([]string, 0, len(stationMap))
+	for station := range stationMap {
+		stations = append(stations, station)
+	}
+	return stations
+}
+
+// Helper function to check if a requirement exists in a list
+func hasRequirement(requirements []string, requirement string) bool {
+	for _, r := range requirements {
+		if r == requirement {
+			return true
+		}
+	}
+	return false
 }

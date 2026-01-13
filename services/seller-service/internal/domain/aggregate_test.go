@@ -539,13 +539,6 @@ func TestSellerDomainEvents(t *testing.T) {
 	assert.Len(t, events, 0)
 }
 
-// BenchmarkNewSeller benchmarks seller creation
-func BenchmarkNewSeller(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		NewSeller("TNT-001", "Acme Corp", "John", "john@acme.com", BillingCycleMonthly)
-	}
-}
-
 // BenchmarkGenerateAPIKey benchmarks API key generation
 func BenchmarkGenerateAPIKey(b *testing.B) {
 	seller, _ := NewSeller("TNT-001", "Acme Corp", "John", "john@acme.com", BillingCycleMonthly)
@@ -555,4 +548,53 @@ func BenchmarkGenerateAPIKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		seller.GenerateAPIKey("Test", []string{"orders:read"}, nil)
 	}
+}
+
+func TestSellerUpdateFeeSchedule(t *testing.T) {
+	seller, _ := NewSeller("TNT-001", "Acme Corp", "John", "john@acme.com", BillingCycleMonthly)
+	seller.Status = SellerStatusActive
+
+	newSchedule := &FeeSchedule{
+		StorageFeePerCubicFtPerDay: 0.10,
+		PickFeePerUnit:             0.50,
+		PackFeePerOrder:            2.00,
+		ReceivingFeePerUnit:        0.25,
+		ShippingMarkupPercent:      7.0,
+		ReturnProcessingFee:        4.00,
+		GiftWrapFee:                5.00,
+		HazmatHandlingFee:          10.00,
+		OversizedItemFee:           20.00,
+		ColdChainFeePerUnit:        2.50,
+		FragileHandlingFee:         3.00,
+		VolumeDiscounts: []VolumeDiscount{
+			{
+				MinUnits:        100,
+				MaxUnits:        500,
+				DiscountPercent: 10.0,
+			},
+		},
+		EffectiveFrom: time.Now().UTC(),
+	}
+
+	seller.UpdateFeeSchedule(newSchedule)
+
+	assert.NotNil(t, seller.FeeSchedule)
+	assert.Equal(t, newSchedule.StorageFeePerCubicFtPerDay, seller.FeeSchedule.StorageFeePerCubicFtPerDay)
+	assert.Equal(t, newSchedule.PickFeePerUnit, seller.FeeSchedule.PickFeePerUnit)
+	assert.Equal(t, newSchedule.ShippingMarkupPercent, seller.FeeSchedule.ShippingMarkupPercent)
+	assert.Len(t, seller.FeeSchedule.VolumeDiscounts, 1)
+}
+
+func TestSellerUpdateChannelLastSync(t *testing.T) {
+	seller, _ := NewSeller("TNT-001", "Acme Corp", "John", "john@acme.com", BillingCycleMonthly)
+	seller.Status = SellerStatusActive
+	seller.AddChannelIntegration("shopify", "My Store", "", nil, ChannelSyncSettings{})
+
+	channelID := seller.Integrations[0].ChannelID
+	assert.Nil(t, seller.Integrations[0].LastSyncAt)
+
+	seller.UpdateChannelLastSync(channelID)
+
+	assert.NotNil(t, seller.Integrations[0].LastSyncAt)
+	assert.Equal(t, channelID, seller.Integrations[0].ChannelID)
 }

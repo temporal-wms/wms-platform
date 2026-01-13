@@ -42,8 +42,8 @@ The WMS Platform exposes APIs through two primary mechanisms: REST APIs (OpenAPI
 | Service | Port | REST API | Event API | Description |
 |---------|------|----------|-----------|-------------|
 | Inventory Service | 8008 | [OpenAPI](./specs/openapi/inventory-service.yaml) | [AsyncAPI](./specs/asyncapi/inventory-service.yaml) | Stock management |
-| Receiving Service | 8011 | [OpenAPI](./specs/openapi/receiving-service.yaml) | [AsyncAPI](./specs/asyncapi/receiving-service.yaml) | Inbound shipment processing |
-| Stow Service | 8012 | [OpenAPI](./specs/openapi/stow-service.yaml) | [AsyncAPI](./specs/asyncapi/stow-service.yaml) | Putaway task management |
+| Receiving Service | 8010 | [OpenAPI](./specs/openapi/receiving-service.yaml) | [AsyncAPI](./specs/asyncapi/receiving-service.yaml) | Inbound shipment processing |
+| Stow Service | 8011 | [OpenAPI](./specs/openapi/stow-service.yaml) | [AsyncAPI](./specs/asyncapi/stow-service.yaml) | Putaway task management |
 
 ### Infrastructure & Support
 
@@ -51,7 +51,7 @@ The WMS Platform exposes APIs through two primary mechanisms: REST APIs (OpenAPI
 |---------|------|----------|-----------|-------------|
 | Labor Service | 8009 | [OpenAPI](./specs/openapi/labor-service.yaml) | [AsyncAPI](./specs/asyncapi/labor-service.yaml) | Workforce management |
 | Facility Service | 8010 | [OpenAPI](./specs/openapi/facility-service.yaml) | [AsyncAPI](./specs/asyncapi/facility-service.yaml) | Station and zone configuration |
-| Sortation Service | 8013 | [OpenAPI](./specs/openapi/sortation-service.yaml) | [AsyncAPI](./specs/asyncapi/sortation-service.yaml) | Package sortation |
+| Sortation Service | 8012 | [OpenAPI](./specs/openapi/sortation-service.yaml) | [AsyncAPI](./specs/asyncapi/sortation-service.yaml) | Package sortation |
 
 ## Process Paths
 

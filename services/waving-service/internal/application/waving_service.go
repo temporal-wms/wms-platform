@@ -10,6 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/logging"
 	"github.com/wms-platform/shared/pkg/temporal"
+	"github.com/wms-platform/shared/pkg/tenant"
 
 	"github.com/wms-platform/waving-service/internal/domain"
 	"github.com/wms-platform/waving-service/internal/infrastructure/clients"
@@ -57,6 +58,12 @@ func (s *WavingApplicationService) CreateWave(ctx context.Context, cmd CreateWav
 	if err != nil {
 		return nil, errors.ErrValidation(err.Error())
 	}
+
+	// Extract tenant context and set on wave
+	tc := tenant.FromContextOptional(ctx)
+	wave.TenantID = tc.TenantID
+	wave.FacilityID = tc.FacilityID
+	wave.WarehouseID = tc.WarehouseID
 
 	if cmd.Zone != "" {
 		wave.SetZone(cmd.Zone)

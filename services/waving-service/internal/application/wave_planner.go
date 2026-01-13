@@ -27,12 +27,15 @@ func NewWavePlanner(waveRepo domain.WaveRepository, orderService domain.OrderSer
 func (p *WavePlanner) PlanWave(ctx context.Context, config domain.WavePlanningConfig) (*domain.Wave, error) {
 	// Get orders ready for waving based on filter
 	filter := domain.OrderFilter{
-		Priority:     config.PriorityFilter,
-		Zone:         []string{config.Zone},
-		Carrier:      config.CarrierFilter,
-		MaxItems:     config.MaxItems,
-		CutoffBefore: config.CutoffTime,
-		Limit:        config.MaxOrders * 2, // Get more than needed for optimization
+		Priority:                config.PriorityFilter,
+		Zone:                    []string{config.Zone},
+		Carrier:                 config.CarrierFilter,
+		MaxItems:                config.MaxItems,
+		CutoffBefore:            config.CutoffTime,
+		Limit:                   config.MaxOrders * 2, // Get more than needed for optimization
+		ProcessPathRequirements: config.RequiredProcessPaths,
+		SpecialHandling:         config.SpecialHandlingFilter,
+		ExcludeProcessPaths:     config.ExcludedProcessPaths,
 	}
 
 	orders, err := p.orderService.GetOrdersReadyForWaving(ctx, filter)
@@ -42,6 +45,14 @@ func (p *WavePlanner) PlanWave(ctx context.Context, config domain.WavePlanningCo
 
 	if len(orders) == 0 {
 		return nil, fmt.Errorf("no orders available for waving")
+	}
+
+	// If grouping by process path, filter orders for compatibility
+	if config.GroupByProcessPath {
+		orders = filterOrdersByProcessPathCompatibility(orders, config.WaveType, config.RequiredProcessPaths)
+		if len(orders) == 0 {
+			return nil, fmt.Errorf("no compatible orders available after process path filtering")
+		}
 	}
 
 	// Generate wave ID
@@ -101,7 +112,10 @@ func (p *WavePlanner) PlanWave(ctx context.Context, config domain.WavePlanningCo
 		return nil, fmt.Errorf("could not add any orders to wave")
 	}
 
-	// Calculate labor requirements
+	// Populate process path capabilities and requirements from orders
+	populateWaveProcessPathCapabilities(wave)
+
+	// Calculate labor requirements (now considers certifications)
 	laborAllocation := calculateLaborRequirements(wave)
 	wave.AllocateLabor(laborAllocation)
 
@@ -301,4 +315,140 @@ func calculateWavePriority(wave *domain.Wave) int {
 		return 2
 	}
 	return 3 // Standard priority
+}
+
+// Process Path Helper Functions
+
+// filterOrdersByProcessPathCompatibility filters orders based on wave type and process path requirements
+func filterOrdersByProcessPathCompatibility(orders []domain.WaveOrder, waveType domain.WaveType, requiredPaths []string) []domain.WaveOrder {
+	var compatible []domain.WaveOrder
+
+	for _, order := range orders {
+		if isOrderCompatibleWithWaveType(order, waveType, requiredPaths) {
+			compatible = append(compatible, order)
+		}
+	}
+
+	return compatible
+}
+
+// isOrderCompatibleWithWaveType checks if an order is compatible with a specific wave type
+func isOrderCompatibleWithWaveType(order domain.WaveOrder, waveType domain.WaveType, requiredPaths []string) bool {
+	// If specific requirements are specified, check if order matches
+	if len(requiredPaths) > 0 {
+		for _, required := range requiredPaths {
+			if !hasProcessPathRequirement(order.ProcessPathRequirements, required) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Check compatibility based on wave type
+	switch waveType {
+	case domain.WaveTypeHazmat:
+		return hasProcessPathRequirement(order.ProcessPathRequirements, "hazmat")
+	case domain.WaveTypeColdChain:
+		return hasProcessPathRequirement(order.ProcessPathRequirements, "cold_chain")
+	case domain.WaveTypeHighValue:
+		return hasProcessPathRequirement(order.ProcessPathRequirements, "high_value")
+	case domain.WaveTypeFragile:
+		return hasProcessPathRequirement(order.ProcessPathRequirements, "fragile")
+	case domain.WaveTypeStandard:
+		// Standard waves should not have special handling requirements
+		return !hasAnySpecialHandlingRequirements(order.ProcessPathRequirements)
+	case domain.WaveTypeSpecialized, domain.WaveTypeMixed:
+		// These wave types accept any orders
+		return true
+	default:
+		// Digital, wholesale, priority waves accept all (filtered by business type elsewhere)
+		return true
+	}
+}
+
+// hasProcessPathRequirement checks if a requirement exists in the list
+func hasProcessPathRequirement(requirements []string, requirement string) bool {
+	for _, r := range requirements {
+		if r == requirement {
+			return true
+		}
+	}
+	return false
+}
+
+// hasAnySpecialHandlingRequirements checks if order has any special handling requirements
+func hasAnySpecialHandlingRequirements(requirements []string) bool {
+	specialHandlingTypes := []string{"hazmat", "cold_chain", "high_value", "fragile", "oversized", "gift_wrap"}
+	for _, req := range requirements {
+		for _, special := range specialHandlingTypes {
+			if req == special {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// populateWaveProcessPathCapabilities populates wave capabilities and requirements from orders
+func populateWaveProcessPathCapabilities(wave *domain.Wave) {
+	requiresCertification := false
+	capabilitiesMap := make(map[string]bool)
+	handlingTypesMap := make(map[string]bool)
+	stationTypesMap := make(map[string]bool)
+
+	for _, order := range wave.Orders {
+		// Track certification requirements
+		if order.RequiresCertification {
+			requiresCertification = true
+		}
+
+		// Collect all unique process path requirements
+		for _, req := range order.ProcessPathRequirements {
+			// Map requirements to capabilities
+			switch req {
+			case "hazmat":
+				capabilitiesMap["hazmat_handling"] = true
+				handlingTypesMap["hazmat_compliance"] = true
+				stationTypesMap["hazmat_certified"] = true
+			case "cold_chain":
+				capabilitiesMap["temperature_control"] = true
+				handlingTypesMap["cold_chain_packaging"] = true
+				stationTypesMap["cold_storage"] = true
+			case "high_value":
+				capabilitiesMap["high_value_verification"] = true
+				handlingTypesMap["high_value_verification"] = true
+				stationTypesMap["secure_station"] = true
+			case "fragile":
+				capabilitiesMap["fragile_handling"] = true
+				handlingTypesMap["fragile_packing"] = true
+				stationTypesMap["packing_station"] = true
+			case "oversized":
+				capabilitiesMap["heavy_lifting"] = true
+				handlingTypesMap["oversized_handling"] = true
+				stationTypesMap["oversized_station"] = true
+			case "gift_wrap":
+				capabilitiesMap["gift_wrapping"] = true
+				handlingTypesMap["gift_wrap"] = true
+				stationTypesMap["gift_wrap_station"] = true
+			}
+		}
+
+		// Collect special handling types
+		for _, handling := range order.SpecialHandling {
+			handlingTypesMap[handling] = true
+		}
+	}
+
+	// Convert maps to slices
+	for capability := range capabilitiesMap {
+		wave.AddRequiredCapability(capability)
+	}
+	for handling := range handlingTypesMap {
+		wave.AddSpecialHandlingType(handling)
+	}
+	for stationType := range stationTypesMap {
+		wave.AddStationRequirement(stationType)
+	}
+
+	wave.SetRequiresCertifiedLabor(requiresCertification)
 }

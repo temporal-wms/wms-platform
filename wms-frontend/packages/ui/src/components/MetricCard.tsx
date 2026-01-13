@@ -11,21 +11,36 @@ export interface MetricCardProps {
     label?: string;
   };
   icon?: React.ReactNode;
-  variant?: 'default' | 'success' | 'warning' | 'error';
+  variant?: 'default' | 'success' | 'warning' | 'error' | 'hero';
   className?: string;
 }
 
 const variantStyles = {
-  default: 'border-gray-200',
-  success: 'border-l-4 border-l-success-500 border-y-gray-200 border-r-gray-200',
-  warning: 'border-l-4 border-l-warning-500 border-y-gray-200 border-r-gray-200',
-  error: 'border-l-4 border-l-error-500 border-y-gray-200 border-r-gray-200',
+  default: 'bg-white border border-gray-100',
+  success: 'bg-white border-l-4 border-l-success-500 border-y border-r border-y-gray-100 border-r-gray-100',
+  warning: 'bg-white border-l-4 border-l-warning-500 border-y border-r border-y-gray-100 border-r-gray-100',
+  error: 'bg-white border-l-4 border-l-error-500 border-y border-r border-y-gray-100 border-r-gray-100',
+  hero: 'bg-gradient-to-br from-primary-500 to-primary-600 text-white border-0',
+};
+
+const iconContainerStyles = {
+  default: 'bg-primary-100 text-primary-600',
+  success: 'bg-success-100 text-success-600',
+  warning: 'bg-warning-100 text-warning-600',
+  error: 'bg-error-100 text-error-600',
+  hero: 'bg-white/20 text-white',
 };
 
 const trendColors = {
   up: 'text-success-600',
   down: 'text-error-600',
   neutral: 'text-gray-500',
+};
+
+const trendColorsHero = {
+  up: 'text-success-200',
+  down: 'text-error-200',
+  neutral: 'text-white/70',
 };
 
 const TrendIcon = ({ direction }: { direction: 'up' | 'down' | 'neutral' }) => {
@@ -49,29 +64,43 @@ export function MetricCard({
   variant = 'default',
   className = '',
 }: MetricCardProps) {
+  const isHero = variant === 'hero';
+  const trendStyle = isHero ? trendColorsHero : trendColors;
+
   return (
     <div
       className={`
-        bg-white rounded-lg border shadow-sm p-4
+        rounded-xl shadow-card p-5
+        transition-all duration-200 hover:shadow-card-hover
         ${variantStyles[variant]}
         ${className}
       `}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
-          {subtitle && <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>}
+          <p className={`text-sm font-medium ${isHero ? 'text-primary-100' : 'text-gray-500'}`}>
+            {title}
+          </p>
+          <p className={`mt-2 text-3xl font-bold ${isHero ? 'text-white' : 'text-gray-900'}`}>
+            {value}
+          </p>
+          {subtitle && (
+            <p className={`mt-1 text-sm ${isHero ? 'text-primary-100' : 'text-gray-500'}`}>
+              {subtitle}
+            </p>
+          )}
           {trend && (
-            <div className={`mt-2 flex items-center gap-1 text-sm ${trendColors[trend.direction]}`}>
+            <div className={`mt-3 flex items-center gap-1.5 text-sm font-medium ${trendStyle[trend.direction]}`}>
               <TrendIcon direction={trend.direction} />
               <span>{trend.value}%</span>
-              {trend.label && <span className="text-gray-500">{trend.label}</span>}
+              {trend.label && (
+                <span className={isHero ? 'text-primary-200' : 'text-gray-400'}>{trend.label}</span>
+              )}
             </div>
           )}
         </div>
         {icon && (
-          <div className="p-2 bg-gray-50 rounded-lg text-gray-500">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${iconContainerStyles[variant]}`}>
             {icon}
           </div>
         )}

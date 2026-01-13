@@ -2,12 +2,21 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 import { config } from '@wms/config';
 import type { ApiError } from '@wms/types';
 
-class HttpClient {
+const normalizeBaseUrl = (baseUrl?: string): string | undefined => {
+  if (!baseUrl) {
+    return '/';
+  }
+
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  return `${trimmed}/`;
+};
+
+export class HttpClient {
   private client: AxiosInstance;
 
   constructor(baseURL?: string) {
     this.client = axios.create({
-      baseURL: baseURL || config.api.baseUrl,
+      baseURL: normalizeBaseUrl(baseURL ?? config.api.baseUrl),
       timeout: config.api.timeout,
       headers: {
         'Content-Type': 'application/json',
@@ -75,6 +84,11 @@ class HttpClient {
     const response = await this.client.delete<T>(url, config);
     return response.data;
   }
+
+  // Exposed for testing/advanced scenarios
+  get axiosInstance(): AxiosInstance {
+    return this.client;
+  }
 }
 
 // Default HTTP client using API gateway
@@ -84,3 +98,5 @@ export const httpClient = new HttpClient();
 export const createServiceClient = (serviceName: keyof typeof config.services): HttpClient => {
   return new HttpClient(config.services[serviceName]);
 };
+
+export { normalizeBaseUrl };

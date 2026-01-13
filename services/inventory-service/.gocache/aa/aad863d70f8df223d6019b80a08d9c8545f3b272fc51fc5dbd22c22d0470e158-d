@@ -1,0 +1,103 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/application/mappers.go:1:1
+package application
+
+import "github.com/wms-platform/inventory-service/internal/domain"
+
+// ToInventoryItemDTO converts a domain InventoryItem to InventoryItemDTO
+func ToInventoryItemDTO(item *domain.InventoryItem) *InventoryItemDTO {goCover_2976003b2855__38[0] = 9 ; goCover_2976003b2855__38[1] = goCover_2976003b2855_P ; goCover_2976003b2855__38[2] = 38 ; goCover_2976003b2855__38[3] = 1;
+	if item == nil {goCover_2976003b2855__38[8] = 1;
+		return nil
+	}
+
+	goCover_2976003b2855__38[4] = 1;locations := make([]StockLocationDTO, 0, len(item.Locations))
+	for _, loc := range item.Locations {goCover_2976003b2855__38[9] = 1;
+		locations = append(locations, StockLocationDTO{
+			LocationID:    loc.LocationID,
+			Zone:          loc.Zone,
+			Aisle:         loc.Aisle,
+			Rack:          loc.Rack,
+			Level:         loc.Level,
+			Quantity:      loc.Quantity,
+			Reserved:      loc.Reserved,
+			HardAllocated: loc.HardAllocated,
+			Available:     loc.Available,
+		})
+	}
+
+	goCover_2976003b2855__38[5] = 1;reservations := make([]ReservationDTO, 0, len(item.Reservations))
+	for _, res := range item.Reservations {goCover_2976003b2855__38[10] = 1;
+		reservations = append(reservations, ReservationDTO{
+			ReservationID: res.ReservationID,
+			OrderID:       res.OrderID,
+			Quantity:      res.Quantity,
+			LocationID:    res.LocationID,
+			Status:        res.Status,
+			CreatedAt:     res.CreatedAt,
+			ExpiresAt:     res.ExpiresAt,
+		})
+	}
+
+	goCover_2976003b2855__38[6] = 1;hardAllocations := make([]HardAllocationDTO, 0, len(item.HardAllocations))
+	for _, alloc := range item.HardAllocations {goCover_2976003b2855__38[11] = 1;
+		hardAllocations = append(hardAllocations, HardAllocationDTO{
+			AllocationID:      alloc.AllocationID,
+			ReservationID:     alloc.ReservationID,
+			OrderID:           alloc.OrderID,
+			Quantity:          alloc.Quantity,
+			SourceLocationID:  alloc.SourceLocationID,
+			StagingLocationID: alloc.StagingLocationID,
+			Status:            alloc.Status,
+			StagedBy:          alloc.StagedBy,
+			PackedBy:          alloc.PackedBy,
+			CreatedAt:         alloc.CreatedAt,
+			PackedAt:          alloc.PackedAt,
+			ShippedAt:         alloc.ShippedAt,
+		})
+	}
+
+	goCover_2976003b2855__38[7] = 1;return &InventoryItemDTO{
+		SKU:                   item.SKU,
+		ProductName:           item.ProductName,
+		Locations:             locations,
+		TotalQuantity:         item.TotalQuantity,
+		ReservedQuantity:      item.ReservedQuantity,
+		HardAllocatedQuantity: item.HardAllocatedQuantity,
+		AvailableQuantity:     item.AvailableQuantity,
+		ReorderPoint:          item.ReorderPoint,
+		ReorderQuantity:       item.ReorderQuantity,
+		Reservations:          reservations,
+		HardAllocations:       hardAllocations,
+		LastCycleCount:        item.LastCycleCount,
+		CreatedAt:             item.CreatedAt,
+		UpdatedAt:             item.UpdatedAt,
+	}
+}
+
+// ToInventoryListDTO converts a domain InventoryItem to InventoryListDTO (simplified)
+func ToInventoryListDTO(item *domain.InventoryItem) *InventoryListDTO {goCover_2976003b2855__39[0] = 3 ; goCover_2976003b2855__39[1] = goCover_2976003b2855_P ; goCover_2976003b2855__39[2] = 39 ; goCover_2976003b2855__39[3] = 1;
+	if item == nil {goCover_2976003b2855__39[5] = 1;
+		return nil
+	}
+
+	goCover_2976003b2855__39[4] = 1;return &InventoryListDTO{
+		SKU:               item.SKU,
+		ProductName:       item.ProductName,
+		TotalQuantity:     item.TotalQuantity,
+		ReservedQuantity:  item.ReservedQuantity,
+		AvailableQuantity: item.AvailableQuantity,
+		ReorderPoint:      item.ReorderPoint,
+		LocationCount:     len(item.Locations),
+		UpdatedAt:         item.UpdatedAt,
+	}
+}
+
+// ToInventoryListDTOs converts a slice of domain InventoryItems to InventoryListDTOs
+func ToInventoryListDTOs(items []*domain.InventoryItem) []InventoryListDTO {goCover_2976003b2855__40[0] = 4 ; goCover_2976003b2855__40[1] = goCover_2976003b2855_P ; goCover_2976003b2855__40[2] = 40 ; goCover_2976003b2855__40[3] = 1;
+	dtos := make([]InventoryListDTO, 0, len(items))
+	for _, item := range items {goCover_2976003b2855__40[5] = 1;
+		if dto := ToInventoryListDTO(item); dto != nil {goCover_2976003b2855__40[6] = 1;
+			dtos = append(dtos, *dto)
+		}
+	}
+	goCover_2976003b2855__40[4] = 1;return dtos
+}

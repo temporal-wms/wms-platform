@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"fmt"
 	"time"
@@ -21,6 +22,7 @@ type StageTemplateRepository struct {
 	db           *mongo.Database
 	collection   *mongo.Collection
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 	outboxRepo   *outboxMongo.OutboxRepository
 }
 
@@ -54,6 +56,7 @@ func NewStageTemplateRepository(db *mongo.Database, eventFactory *cloudevents.Ev
 		db:           db,
 		collection:   collection,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 		outboxRepo:   outboxMongo.NewOutboxRepository(db),
 	}
 }
@@ -148,7 +151,10 @@ func (r *StageTemplateRepository) FindByID(ctx context.Context, id string) (*dom
 // FindByTemplateID finds a template by its template ID
 func (r *StageTemplateRepository) FindByTemplateID(ctx context.Context, templateID string) (*domain.StageTemplate, error) {
 	var template domain.StageTemplate
-	err := r.collection.FindOne(ctx, bson.M{"templateId": templateID}).Decode(&template)
+	filter := bson.M{"templateId": templateID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&template)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -161,7 +167,10 @@ func (r *StageTemplateRepository) FindByTemplateID(ctx context.Context, template
 
 // FindByPathType finds templates by path type
 func (r *StageTemplateRepository) FindByPathType(ctx context.Context, pathType domain.ProcessPathType) ([]*domain.StageTemplate, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"pathType": pathType})
+	filter := bson.M{"pathType": pathType}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find stage templates: %w", err)
 	}
@@ -177,7 +186,10 @@ func (r *StageTemplateRepository) FindByPathType(ctx context.Context, pathType d
 
 // FindActive finds all active templates
 func (r *StageTemplateRepository) FindActive(ctx context.Context) ([]*domain.StageTemplate, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"active": true})
+	filter := bson.M{"active": true}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find active stage templates: %w", err)
 	}
@@ -194,7 +206,10 @@ func (r *StageTemplateRepository) FindActive(ctx context.Context) ([]*domain.Sta
 // FindDefault finds the default template
 func (r *StageTemplateRepository) FindDefault(ctx context.Context) (*domain.StageTemplate, error) {
 	var template domain.StageTemplate
-	err := r.collection.FindOne(ctx, bson.M{"isDefault": true, "active": true}).Decode(&template)
+	filter := bson.M{"isDefault": true, "active": true}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	err := r.collection.FindOne(ctx, filter).Decode(&template)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}

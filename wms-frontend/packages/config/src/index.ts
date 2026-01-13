@@ -17,6 +17,11 @@ export const config = {
     shipping: import.meta.env.VITE_SHIPPING_SERVICE_URL || '/api/shipping',
     inventory: import.meta.env.VITE_INVENTORY_SERVICE_URL || '/api/inventory',
     labor: import.meta.env.VITE_LABOR_SERVICE_URL || '/api/labor',
+    receiving: import.meta.env.VITE_RECEIVING_SERVICE_URL || '/api/receiving',
+    stow: import.meta.env.VITE_STOW_SERVICE_URL || '/api/stow',
+    sortation: import.meta.env.VITE_SORTATION_SERVICE_URL || '/api/sortation',
+    walling: import.meta.env.VITE_WALLING_SERVICE_URL || '/api/walling',
+    facility: import.meta.env.VITE_FACILITY_SERVICE_URL || '/api/facility',
   },
 
   // WebSocket Configuration

@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 type StorageLocationRepository struct {
 	collection *mongo.Collection
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewStorageLocationRepository(db *mongo.Database) *StorageLocationRepository {
@@ -117,7 +119,10 @@ func (r *StorageLocationRepository) FindByID(ctx context.Context, locationID str
 }
 
 func (r *StorageLocationRepository) FindByZone(ctx context.Context, zone string) ([]domain.StorageLocation, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"zone": zone})
+	filter := bson.M{"zone": zone}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +142,10 @@ func (r *StorageLocationRepository) UpdateCapacity(ctx context.Context, location
 			"updatedAt": time.Now(),
 		},
 	}
-	_, err := r.collection.UpdateOne(ctx, bson.M{"locationId": locationID}, update)
+	filter := bson.M{"locationId": locationID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.UpdateOne(ctx, filter, update)
 	return err
 }
 

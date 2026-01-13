@@ -1,0 +1,167 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/domain/events.go:1:1
+package domain
+
+import "time"
+
+// DomainEvent is the interface for all domain events
+type DomainEvent interface {
+	EventType() string
+	OccurredAt() time.Time
+}
+
+// InventoryReceivedEvent is published when inventory is received
+type InventoryReceivedEvent struct {
+	SKU        string    `json:"sku"`
+	Quantity   int       `json:"quantity"`
+	LocationID string    `json:"locationId"`
+	ReceivedAt time.Time `json:"receivedAt"`
+}
+
+func (e *InventoryReceivedEvent) EventType() string    {goCover_4dfb824e56d3__34[0] = 1 ; goCover_4dfb824e56d3__34[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__34[2] = 34 ; goCover_4dfb824e56d3__34[3] = 1; return "wms.inventory.received" }
+func (e *InventoryReceivedEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__35[0] = 1 ; goCover_4dfb824e56d3__35[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__35[2] = 35 ; goCover_4dfb824e56d3__35[3] = 1; return e.ReceivedAt }
+
+// InventoryReservedEvent is published when inventory is reserved for an order
+type InventoryReservedEvent struct {
+	SKU        string    `json:"sku"`
+	OrderID    string    `json:"orderId"`
+	LocationID string    `json:"locationId"`
+	Quantity   int       `json:"quantity"`
+	ReservedAt time.Time `json:"reservedAt"`
+}
+
+func (e *InventoryReservedEvent) EventType() string    {goCover_4dfb824e56d3__36[0] = 1 ; goCover_4dfb824e56d3__36[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__36[2] = 36 ; goCover_4dfb824e56d3__36[3] = 1; return "wms.inventory.reserved" }
+func (e *InventoryReservedEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__37[0] = 1 ; goCover_4dfb824e56d3__37[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__37[2] = 37 ; goCover_4dfb824e56d3__37[3] = 1; return e.ReservedAt }
+
+// InventoryAdjustedEvent is published when inventory is adjusted
+type InventoryAdjustedEvent struct {
+	SKU         string    `json:"sku"`
+	LocationID  string    `json:"locationId"`
+	OldQuantity int       `json:"oldQuantity"`
+	NewQuantity int       `json:"newQuantity"`
+	Reason      string    `json:"reason"`
+	AdjustedAt  time.Time `json:"adjustedAt"`
+}
+
+func (e *InventoryAdjustedEvent) EventType() string    {goCover_4dfb824e56d3__38[0] = 1 ; goCover_4dfb824e56d3__38[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__38[2] = 38 ; goCover_4dfb824e56d3__38[3] = 1; return "wms.inventory.adjusted" }
+func (e *InventoryAdjustedEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__39[0] = 1 ; goCover_4dfb824e56d3__39[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__39[2] = 39 ; goCover_4dfb824e56d3__39[3] = 1; return e.AdjustedAt }
+
+// LowStockAlertEvent is published when stock falls below reorder point
+type LowStockAlertEvent struct {
+	SKU             string    `json:"sku"`
+	CurrentQuantity int       `json:"currentQuantity"`
+	ReorderPoint    int       `json:"reorderPoint"`
+	AlertedAt       time.Time `json:"alertedAt"`
+}
+
+func (e *LowStockAlertEvent) EventType() string     {goCover_4dfb824e56d3__40[0] = 1 ; goCover_4dfb824e56d3__40[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__40[2] = 40 ; goCover_4dfb824e56d3__40[3] = 1; return "wms.inventory.low-stock-alert" }
+func (e *LowStockAlertEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__41[0] = 1 ; goCover_4dfb824e56d3__41[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__41[2] = 41 ; goCover_4dfb824e56d3__41[3] = 1; return e.AlertedAt }
+
+// InventoryStagedEvent is published when inventory is physically staged
+type InventoryStagedEvent struct {
+	SKU               string    `json:"sku"`
+	AllocationID      string    `json:"allocationId"`
+	OrderID           string    `json:"orderId"`
+	Quantity          int       `json:"quantity"`
+	SourceLocationID  string    `json:"sourceLocationId"`
+	StagingLocationID string    `json:"stagingLocationId"`
+	StagedBy          string    `json:"stagedBy"`
+	StagedAt          time.Time `json:"stagedAt"`
+}
+
+func (e *InventoryStagedEvent) EventType() string     {goCover_4dfb824e56d3__42[0] = 1 ; goCover_4dfb824e56d3__42[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__42[2] = 42 ; goCover_4dfb824e56d3__42[3] = 1; return "wms.inventory.staged" }
+func (e *InventoryStagedEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__43[0] = 1 ; goCover_4dfb824e56d3__43[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__43[2] = 43 ; goCover_4dfb824e56d3__43[3] = 1; return e.StagedAt }
+
+// InventoryPackedEvent is published when staged inventory is packed
+type InventoryPackedEvent struct {
+	SKU          string    `json:"sku"`
+	AllocationID string    `json:"allocationId"`
+	OrderID      string    `json:"orderId"`
+	PackedBy     string    `json:"packedBy"`
+	PackedAt     time.Time `json:"packedAt"`
+}
+
+func (e *InventoryPackedEvent) EventType() string     {goCover_4dfb824e56d3__44[0] = 1 ; goCover_4dfb824e56d3__44[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__44[2] = 44 ; goCover_4dfb824e56d3__44[3] = 1; return "wms.inventory.packed" }
+func (e *InventoryPackedEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__45[0] = 1 ; goCover_4dfb824e56d3__45[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__45[2] = 45 ; goCover_4dfb824e56d3__45[3] = 1; return e.PackedAt }
+
+// InventoryShippedEvent is published when inventory is shipped
+type InventoryShippedEvent struct {
+	SKU          string    `json:"sku"`
+	AllocationID string    `json:"allocationId"`
+	OrderID      string    `json:"orderId"`
+	Quantity     int       `json:"quantity"`
+	ShippedAt    time.Time `json:"shippedAt"`
+}
+
+func (e *InventoryShippedEvent) EventType() string     {goCover_4dfb824e56d3__46[0] = 1 ; goCover_4dfb824e56d3__46[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__46[2] = 46 ; goCover_4dfb824e56d3__46[3] = 1; return "wms.inventory.shipped" }
+func (e *InventoryShippedEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__47[0] = 1 ; goCover_4dfb824e56d3__47[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__47[2] = 47 ; goCover_4dfb824e56d3__47[3] = 1; return e.ShippedAt }
+
+// InventoryReturnedToShelfEvent is published when hard allocated inventory is returned
+type InventoryReturnedToShelfEvent struct {
+	SKU              string    `json:"sku"`
+	AllocationID     string    `json:"allocationId"`
+	OrderID          string    `json:"orderId"`
+	Quantity         int       `json:"quantity"`
+	SourceLocationID string    `json:"sourceLocationId"`
+	ReturnedBy       string    `json:"returnedBy"`
+	Reason           string    `json:"reason"`
+	ReturnedAt       time.Time `json:"returnedAt"`
+}
+
+func (e *InventoryReturnedToShelfEvent) EventType() string     {goCover_4dfb824e56d3__48[0] = 1 ; goCover_4dfb824e56d3__48[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__48[2] = 48 ; goCover_4dfb824e56d3__48[3] = 1; return "wms.inventory.returned-to-shelf" }
+func (e *InventoryReturnedToShelfEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__49[0] = 1 ; goCover_4dfb824e56d3__49[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__49[2] = 49 ; goCover_4dfb824e56d3__49[3] = 1; return e.ReturnedAt }
+
+// StockShortageEvent is published when a confirmed shortage is discovered during picking
+type StockShortageEvent struct {
+	SKU              string    `json:"sku"`
+	LocationID       string    `json:"locationId"`
+	OrderID          string    `json:"orderId"`
+	ExpectedQuantity int       `json:"expectedQuantity"`
+	ActualQuantity   int       `json:"actualQuantity"`
+	ShortageQuantity int       `json:"shortageQuantity"`
+	ReportedBy       string    `json:"reportedBy"`
+	Reason           string    `json:"reason"` // not_found, damaged, quantity_mismatch
+	OccurredAt_      time.Time `json:"occurredAt"`
+}
+
+func (e *StockShortageEvent) EventType() string     {goCover_4dfb824e56d3__50[0] = 1 ; goCover_4dfb824e56d3__50[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__50[2] = 50 ; goCover_4dfb824e56d3__50[3] = 1; return "wms.inventory.stock-shortage" }
+func (e *StockShortageEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__51[0] = 1 ; goCover_4dfb824e56d3__51[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__51[2] = 51 ; goCover_4dfb824e56d3__51[3] = 1; return e.OccurredAt_ }
+
+// InventoryDiscrepancyEvent is published for audit trail when actual != expected
+type InventoryDiscrepancyEvent struct {
+	SKU             string    `json:"sku"`
+	LocationID      string    `json:"locationId"`
+	SystemQuantity  int       `json:"systemQuantity"`
+	ActualQuantity  int       `json:"actualQuantity"`
+	DiscrepancyType string    `json:"discrepancyType"` // shortage, overage
+	Source          string    `json:"source"`          // picking, cycle_count, receiving
+	ReferenceID     string    `json:"referenceId"`     // orderId, countId, etc.
+	DetectedAt      time.Time `json:"detectedAt"`
+}
+
+func (e *InventoryDiscrepancyEvent) EventType() string     {goCover_4dfb824e56d3__52[0] = 1 ; goCover_4dfb824e56d3__52[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__52[2] = 52 ; goCover_4dfb824e56d3__52[3] = 1; return "wms.inventory.discrepancy" }
+func (e *InventoryDiscrepancyEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__53[0] = 1 ; goCover_4dfb824e56d3__53[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__53[2] = 53 ; goCover_4dfb824e56d3__53[3] = 1; return e.DetectedAt }
+
+// BackorderCreatedEvent is published when a backorder is created for shortage items
+type BackorderCreatedEvent struct {
+	BackorderID     string    `json:"backorderId"`
+	OriginalOrderID string    `json:"originalOrderId"`
+	SKU             string    `json:"sku"`
+	Quantity        int       `json:"quantity"`
+	Priority        int       `json:"priority"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+func (e *BackorderCreatedEvent) EventType() string     {goCover_4dfb824e56d3__54[0] = 1 ; goCover_4dfb824e56d3__54[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__54[2] = 54 ; goCover_4dfb824e56d3__54[3] = 1; return "wms.inventory.backorder-created" }
+func (e *BackorderCreatedEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__55[0] = 1 ; goCover_4dfb824e56d3__55[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__55[2] = 55 ; goCover_4dfb824e56d3__55[3] = 1; return e.CreatedAt }
+
+// VelocityClassChangedEvent is published when an item's velocity class changes
+type VelocityClassChangedEvent struct {
+	SKU           string    `json:"sku"`
+	OldClass      string    `json:"oldClass"`      // A, B, or C
+	NewClass      string    `json:"newClass"`      // A, B, or C
+	PickFrequency int       `json:"pickFrequency"` // picks per week
+	ChangedAt     time.Time `json:"changedAt"`
+}
+
+func (e *VelocityClassChangedEvent) EventType() string     {goCover_4dfb824e56d3__56[0] = 1 ; goCover_4dfb824e56d3__56[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__56[2] = 56 ; goCover_4dfb824e56d3__56[3] = 1; return "wms.inventory.velocity-class-changed" }
+func (e *VelocityClassChangedEvent) OccurredAt() time.Time {goCover_4dfb824e56d3__57[0] = 1 ; goCover_4dfb824e56d3__57[1] = goCover_4dfb824e56d3_P ; goCover_4dfb824e56d3__57[2] = 57 ; goCover_4dfb824e56d3__57[3] = 1; return e.ChangedAt }

@@ -223,6 +223,16 @@ func (r *OutboxRepository) EnsureIndexes(ctx context.Context) error {
 			},
 			Options: options.Index().SetName("idx_createdAt"),
 		},
+		{
+			// TTL index to auto-delete published events after 7 days (604800 seconds)
+			// Only affects documents with publishedAt field set (unpublished events are preserved)
+			Keys: bson.D{
+				{Key: "publishedAt", Value: 1},
+			},
+			Options: options.Index().
+				SetName("idx_publishedAt_ttl").
+				SetExpireAfterSeconds(604800), // 7 days
+		},
 	}
 
 	_, err := r.collection.Indexes().CreateMany(ctx, indexes)

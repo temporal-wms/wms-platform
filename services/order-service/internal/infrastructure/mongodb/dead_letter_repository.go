@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"github.com/wms-platform/shared/pkg/tenant"
 	"context"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 // DeadLetterRepository implements the dead letter queue repository using MongoDB
 type DeadLetterRepository struct {
 	collection *mongo.Collection
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewDeadLetterRepository creates a new DeadLetterRepository
@@ -52,6 +54,7 @@ func NewDeadLetterRepository(db *mongo.Database) *DeadLetterRepository {
 
 	return &DeadLetterRepository{
 		collection: collection,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 }
 

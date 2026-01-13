@@ -1,0 +1,217 @@
+//line /Users/claudioed/development/github/temporal-war/wms-platform/services/inventory-service/internal/infrastructure/mongodb/inventory_reservation_repository.go:1:1
+package mongodb
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/wms-platform/inventory-service/internal/domain"
+	"github.com/wms-platform/shared/pkg/tenant"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+type InventoryReservationRepository struct {
+	collection   *mongo.Collection
+	db           *mongo.Database
+	tenantHelper *tenant.RepositoryHelper
+}
+
+func NewInventoryReservationRepository(db *mongo.Database) *InventoryReservationRepository {goCover_dfe2877813fc__22[0] = 1 ; goCover_dfe2877813fc__22[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__22[2] = 22 ; goCover_dfe2877813fc__22[3] = 1;
+	collection := db.Collection("inventory_reservations")
+
+	repo := &InventoryReservationRepository{
+		collection:   collection,
+		db:           db,
+		tenantHelper: tenant.NewRepositoryHelper(false),
+	}
+	repo.ensureIndexes(context.Background())
+
+	return repo
+}
+
+func (r *InventoryReservationRepository) ensureIndexes(ctx context.Context) {goCover_dfe2877813fc__23[0] = 1 ; goCover_dfe2877813fc__23[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__23[2] = 23 ; goCover_dfe2877813fc__23[3] = 1;
+	indexes := []mongo.IndexModel{
+		// Unique constraint on reservationId
+		{
+			Keys:    bson.D{{Key: "reservationId", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		// Primary lookup by SKU + status + tenant
+		{Keys: bson.D{
+			{Key: "tenantId", Value: 1},
+			{Key: "facilityId", Value: 1},
+			{Key: "sku", Value: 1},
+			{Key: "status", Value: 1},
+		}},
+		// Lookup by order ID
+		{Keys: bson.D{
+			{Key: "tenantId", Value: 1},
+			{Key: "facilityId", Value: 1},
+			{Key: "orderId", Value: 1},
+		}},
+		// Lookup by location
+		{Keys: bson.D{
+			{Key: "tenantId", Value: 1},
+			{Key: "facilityId", Value: 1},
+			{Key: "locationId", Value: 1},
+			{Key: "status", Value: 1},
+		}},
+		// Expiration index for active reservations
+		{Keys: bson.D{
+			{Key: "status", Value: 1},
+			{Key: "expiresAt", Value: 1},
+		}},
+		// TTL index for old fulfilled/cancelled reservations (archive after 30 days)
+		{
+			Keys: bson.D{{Key: "updatedAt", Value: 1}},
+			Options: options.Index().
+				SetName("idx_updatedAt_ttl").
+				SetPartialFilterExpression(bson.M{
+					"status": bson.M{"$in": []string{"fulfilled", "cancelled", "expired"}},
+				}).
+				SetExpireAfterSeconds(2592000), // 30 days
+		},
+	}
+	r.collection.Indexes().CreateMany(ctx, indexes)
+}
+
+func (r *InventoryReservationRepository) Save(ctx context.Context, reservation *domain.InventoryReservationAggregate) error {goCover_dfe2877813fc__24[0] = 3 ; goCover_dfe2877813fc__24[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__24[2] = 24 ; goCover_dfe2877813fc__24[3] = 1;
+	opts := options.Update().SetUpsert(true)
+	filter := bson.M{"reservationId": reservation.ReservationID}
+	update := bson.M{"$set": reservation}
+
+	_, err := r.collection.UpdateOne(ctx, filter, update, opts)
+	if err != nil {goCover_dfe2877813fc__24[5] = 1;
+		return fmt.Errorf("failed to save reservation: %w", err)
+	}
+	goCover_dfe2877813fc__24[4] = 1;return nil
+}
+
+func (r *InventoryReservationRepository) FindByID(ctx context.Context, reservationID string) (*domain.InventoryReservationAggregate, error) {goCover_dfe2877813fc__25[0] = 3 ; goCover_dfe2877813fc__25[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__25[2] = 25 ; goCover_dfe2877813fc__25[3] = 1;
+	filter := bson.M{"reservationId": reservationID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	var reservation domain.InventoryReservationAggregate
+	err := r.collection.FindOne(ctx, filter).Decode(&reservation)
+	if err == mongo.ErrNoDocuments {goCover_dfe2877813fc__25[5] = 1;
+		return nil, nil
+	}
+	goCover_dfe2877813fc__25[4] = 1;return &reservation, err
+}
+
+func (r *InventoryReservationRepository) FindBySKU(ctx context.Context, sku string, status domain.ReservationStatus) ([]*domain.InventoryReservationAggregate, error) {goCover_dfe2877813fc__26[0] = 5 ; goCover_dfe2877813fc__26[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__26[2] = 26 ; goCover_dfe2877813fc__26[3] = 1;
+	filter := bson.M{"sku": sku}
+	if status != "" {goCover_dfe2877813fc__26[6] = 1;
+		filter["status"] = status
+	}
+	goCover_dfe2877813fc__26[4] = 1;filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__26[7] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__26[5] = 1;defer cursor.Close(ctx)
+
+	var reservations []*domain.InventoryReservationAggregate
+	err = cursor.All(ctx, &reservations)
+	return reservations, err
+}
+
+func (r *InventoryReservationRepository) FindByOrderID(ctx context.Context, orderID string) ([]*domain.InventoryReservationAggregate, error) {goCover_dfe2877813fc__27[0] = 3 ; goCover_dfe2877813fc__27[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__27[2] = 27 ; goCover_dfe2877813fc__27[3] = 1;
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__27[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__27[4] = 1;defer cursor.Close(ctx)
+
+	var reservations []*domain.InventoryReservationAggregate
+	err = cursor.All(ctx, &reservations)
+	return reservations, err
+}
+
+func (r *InventoryReservationRepository) FindByLocation(ctx context.Context, locationID string, status domain.ReservationStatus) ([]*domain.InventoryReservationAggregate, error) {goCover_dfe2877813fc__28[0] = 5 ; goCover_dfe2877813fc__28[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__28[2] = 28 ; goCover_dfe2877813fc__28[3] = 1;
+	filter := bson.M{"locationId": locationID}
+	if status != "" {goCover_dfe2877813fc__28[6] = 1;
+		filter["status"] = status
+	}
+	goCover_dfe2877813fc__28[4] = 1;filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__28[7] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__28[5] = 1;defer cursor.Close(ctx)
+
+	var reservations []*domain.InventoryReservationAggregate
+	err = cursor.All(ctx, &reservations)
+	return reservations, err
+}
+
+// FindExpired finds all active reservations that have expired
+func (r *InventoryReservationRepository) FindExpired(ctx context.Context, limit int) ([]*domain.InventoryReservationAggregate, error) {goCover_dfe2877813fc__29[0] = 3 ; goCover_dfe2877813fc__29[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__29[2] = 29 ; goCover_dfe2877813fc__29[3] = 1;
+	filter := bson.M{
+		"status":    domain.ReservationStatusActive,
+		"expiresAt": bson.M{"$lt": time.Now()},
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "expiresAt", Value: 1}}).
+		SetLimit(int64(limit))
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {goCover_dfe2877813fc__29[5] = 1;
+		return nil, err
+	}
+	goCover_dfe2877813fc__29[4] = 1;defer cursor.Close(ctx)
+
+	var reservations []*domain.InventoryReservationAggregate
+	err = cursor.All(ctx, &reservations)
+	return reservations, err
+}
+
+// GetActiveReservationCountBySKU returns the count of active reservations for a SKU
+func (r *InventoryReservationRepository) GetActiveReservationCountBySKU(ctx context.Context, sku string) (int64, error) {goCover_dfe2877813fc__30[0] = 3 ; goCover_dfe2877813fc__30[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__30[2] = 30 ; goCover_dfe2877813fc__30[3] = 1;
+	filter := bson.M{
+		"sku":    sku,
+		"status": domain.ReservationStatusActive,
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {goCover_dfe2877813fc__30[5] = 1;
+		return 0, fmt.Errorf("failed to count reservations: %w", err)
+	}
+
+	goCover_dfe2877813fc__30[4] = 1;return count, nil
+}
+
+// UpdateStatus updates the status of a reservation (bulk operation)
+func (r *InventoryReservationRepository) UpdateStatus(ctx context.Context, reservationID string, newStatus domain.ReservationStatus) error {goCover_dfe2877813fc__31[0] = 5 ; goCover_dfe2877813fc__31[1] = goCover_dfe2877813fc_P ; goCover_dfe2877813fc__31[2] = 31 ; goCover_dfe2877813fc__31[3] = 1;
+	filter := bson.M{"reservationId": reservationID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":    newStatus,
+			"updatedAt": time.Now(),
+		},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {goCover_dfe2877813fc__31[6] = 1;
+		return fmt.Errorf("failed to update reservation status: %w", err)
+	}
+
+	goCover_dfe2877813fc__31[4] = 1;if result.MatchedCount == 0 {goCover_dfe2877813fc__31[7] = 1;
+		return domain.ErrReservationNotFound
+	}
+
+	goCover_dfe2877813fc__31[5] = 1;return nil
+}

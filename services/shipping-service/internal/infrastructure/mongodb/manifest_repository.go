@@ -9,6 +9,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
 	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"github.com/wms-platform/shipping-service/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -21,6 +22,7 @@ type ManifestRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 // NewManifestRepository creates a new ManifestRepository
@@ -33,6 +35,7 @@ func NewManifestRepository(db *mongo.Database, eventFactory *cloudevents.EventFa
 		db:           db,
 		outboxRepo:   outboxRepo,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 	repo.ensureIndexes(context.Background())
 	return repo
@@ -134,8 +137,11 @@ func (r *ManifestRepository) Save(ctx context.Context, manifest *domain.Outbound
 
 // FindByID finds a manifest by its ID
 func (r *ManifestRepository) FindByID(ctx context.Context, manifestID string) (*domain.OutboundManifest, error) {
+	filter := bson.M{"manifestId": manifestID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var manifest domain.OutboundManifest
-	err := r.collection.FindOne(ctx, bson.M{"manifestId": manifestID}).Decode(&manifest)
+	err := r.collection.FindOne(ctx, filter).Decode(&manifest)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -147,7 +153,10 @@ func (r *ManifestRepository) FindByID(ctx context.Context, manifestID string) (*
 
 // FindByCarrierID finds all manifests for a carrier
 func (r *ManifestRepository) FindByCarrierID(ctx context.Context, carrierID string) ([]*domain.OutboundManifest, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"carrierId": carrierID})
+	filter := bson.M{"carrierId": carrierID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find manifests: %w", err)
 	}
@@ -162,7 +171,10 @@ func (r *ManifestRepository) FindByCarrierID(ctx context.Context, carrierID stri
 
 // FindByStatus finds all manifests with a specific status
 func (r *ManifestRepository) FindByStatus(ctx context.Context, status domain.ManifestStatus) ([]*domain.OutboundManifest, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status})
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find manifests: %w", err)
 	}
@@ -177,11 +189,14 @@ func (r *ManifestRepository) FindByStatus(ctx context.Context, status domain.Man
 
 // FindOpenByCarrier finds open manifests for a specific carrier
 func (r *ManifestRepository) FindOpenByCarrier(ctx context.Context, carrierID string) (*domain.OutboundManifest, error) {
-	var manifest domain.OutboundManifest
-	err := r.collection.FindOne(ctx, bson.M{
+	filter := bson.M{
 		"carrierId": carrierID,
 		"status":    domain.ManifestStatusOpen,
-	}).Decode(&manifest)
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	var manifest domain.OutboundManifest
+	err := r.collection.FindOne(ctx, filter).Decode(&manifest)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -193,7 +208,10 @@ func (r *ManifestRepository) FindOpenByCarrier(ctx context.Context, carrierID st
 
 // FindByDispatchDock finds manifests assigned to a dispatch dock
 func (r *ManifestRepository) FindByDispatchDock(ctx context.Context, dispatchDock string) ([]*domain.OutboundManifest, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"dispatchDock": dispatchDock})
+	filter := bson.M{"dispatchDock": dispatchDock}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find manifests: %w", err)
 	}
@@ -208,7 +226,10 @@ func (r *ManifestRepository) FindByDispatchDock(ctx context.Context, dispatchDoc
 
 // FindByTrailerID finds manifests assigned to a trailer
 func (r *ManifestRepository) FindByTrailerID(ctx context.Context, trailerID string) ([]*domain.OutboundManifest, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"trailerId": trailerID})
+	filter := bson.M{"trailerId": trailerID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find manifests: %w", err)
 	}
@@ -223,12 +244,15 @@ func (r *ManifestRepository) FindByTrailerID(ctx context.Context, trailerID stri
 
 // FindByDateRange finds manifests created within a date range
 func (r *ManifestRepository) FindByDateRange(ctx context.Context, start, end time.Time) ([]*domain.OutboundManifest, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{
+	filter := bson.M{
 		"createdAt": bson.M{
 			"$gte": start,
 			"$lte": end,
 		},
-	})
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find manifests: %w", err)
 	}
@@ -243,10 +267,13 @@ func (r *ManifestRepository) FindByDateRange(ctx context.Context, start, end tim
 
 // FindClosedByCarrier finds closed manifests for a carrier ready for dispatch
 func (r *ManifestRepository) FindClosedByCarrier(ctx context.Context, carrierID string) ([]*domain.OutboundManifest, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{
+	filter := bson.M{
 		"carrierId": carrierID,
 		"status":    domain.ManifestStatusClosed,
-	})
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find manifests: %w", err)
 	}
@@ -265,13 +292,16 @@ func (r *ManifestRepository) FindDispatchedToday(ctx context.Context) ([]*domain
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
-	cursor, err := r.collection.Find(ctx, bson.M{
+	filter := bson.M{
 		"status": domain.ManifestStatusDispatched,
 		"dispatchedAt": bson.M{
 			"$gte": startOfDay,
 			"$lt":  endOfDay,
 		},
-	})
+	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find manifests: %w", err)
 	}
@@ -286,12 +316,18 @@ func (r *ManifestRepository) FindDispatchedToday(ctx context.Context) ([]*domain
 
 // CountByStatus counts manifests by status
 func (r *ManifestRepository) CountByStatus(ctx context.Context, status domain.ManifestStatus) (int64, error) {
-	return r.collection.CountDocuments(ctx, bson.M{"status": status})
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	return r.collection.CountDocuments(ctx, filter)
 }
 
 // Delete deletes a manifest by ID
 func (r *ManifestRepository) Delete(ctx context.Context, manifestID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"manifestId": manifestID})
+	filter := bson.M{"manifestId": manifestID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to delete manifest: %w", err)
 	}

@@ -31,6 +31,10 @@ type WESExecutionInput struct {
 	ProcessPathID   string          `json:"processPathId,omitempty"`
 	SpecialHandling []string        `json:"specialHandling,omitempty"`
 	UnitIDs         []string        `json:"unitIds,omitempty"` // Unit IDs for unit-level tracking (always enabled)
+	// Tenant context for multi-tenant isolation
+	TenantID    string `json:"tenantId"`
+	FacilityID  string `json:"facilityId"`
+	WarehouseID string `json:"warehouseId"`
 }
 
 // ItemInfo represents an item in the order
@@ -123,11 +127,29 @@ type WorkerAssignment struct {
 // WESExecutionWorkflow is the main workflow that orchestrates order execution through stages
 func WESExecutionWorkflow(ctx workflow.Context, input WESExecutionInput) (*WESExecutionResult, error) {
 	logger := workflow.GetLogger(ctx)
-	logger.Info("Starting WES execution workflow", "orderId", input.OrderID, "waveId", input.WaveID)
+	logger.Info("Starting WES execution workflow",
+		"orderId", input.OrderID,
+		"waveId", input.WaveID,
+		"tenantId", input.TenantID,
+		"facilityId", input.FacilityID,
+		"warehouseId", input.WarehouseID,
+	)
 
 	result := &WESExecutionResult{
 		OrderID: input.OrderID,
 		Status:  "in_progress",
+	}
+
+	// Set tenant context for activities using workflow context values
+	// These values will be automatically propagated to activity contexts
+	if input.TenantID != "" {
+		ctx = workflow.WithValue(ctx, "tenantId", input.TenantID)
+	}
+	if input.FacilityID != "" {
+		ctx = workflow.WithValue(ctx, "facilityId", input.FacilityID)
+	}
+	if input.WarehouseID != "" {
+		ctx = workflow.WithValue(ctx, "warehouseId", input.WarehouseID)
 	}
 
 	// Activity options for WES activities
@@ -333,16 +355,19 @@ func executePickingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing picking stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
 
-	// Build picking input (with unit IDs for tracking)
+	// Build picking input (with unit IDs for tracking and tenant context)
 	pickingInput := map[string]interface{}{
-		"orderId":  input.OrderID,
-		"waveId":   input.WaveID,
-		"routeId":  routeID,
-		"taskId":   assignment.TaskID,
-		"pickerId": assignment.WorkerID,
-		"items":    input.Items,
-		"unitIds":  input.UnitIDs,         // Pass unit IDs for unit-level tracking
-		"pathId":   input.ProcessPathID,   // Pass process path ID
+		"orderId":     input.OrderID,
+		"waveId":      input.WaveID,
+		"routeId":     routeID,
+		"taskId":      assignment.TaskID,
+		"pickerId":    assignment.WorkerID,
+		"items":       input.Items,
+		"unitIds":     input.UnitIDs,        // Pass unit IDs for unit-level tracking
+		"pathId":      input.ProcessPathID,  // Pass process path ID
+		"tenantId":    input.TenantID,       // Pass tenant context
+		"facilityId":  input.FacilityID,     // Pass facility context
+		"warehouseId": input.WarehouseID,    // Pass warehouse context
 	}
 
 	// Configure child workflow options to route to picking-service worker
@@ -400,14 +425,17 @@ func executeWallingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing walling stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
 
-	// Build walling input
+	// Build walling input (with tenant context)
 	wallingInput := map[string]interface{}{
-		"orderId":   input.OrderID,
-		"waveId":    input.WaveID,
-		"routeId":   routeID,
-		"taskId":    assignment.TaskID,
-		"wallinerId": assignment.WorkerID,
+		"orderId":     input.OrderID,
+		"waveId":      input.WaveID,
+		"routeId":     routeID,
+		"taskId":      assignment.TaskID,
+		"wallinerId":  assignment.WorkerID,
 		"putWallZone": config.PutWallZone,
+		"tenantId":    input.TenantID,      // Pass tenant context
+		"facilityId":  input.FacilityID,    // Pass facility context
+		"warehouseId": input.WarehouseID,   // Pass warehouse context
 	}
 
 	// Execute walling activity (or child workflow if complex)
@@ -476,13 +504,16 @@ func executeConsolidationStage(ctx workflow.Context, input WESExecutionInput, ro
 		}
 	}
 
-	// Build consolidation input with PICKED ITEMS
+	// Build consolidation input with PICKED ITEMS and tenant context
 	consolidationInput := map[string]interface{}{
 		"orderId":     input.OrderID,
 		"waveId":      input.WaveID,
 		"routeId":     routeID,
 		"taskId":      assignment.TaskID,
 		"pickedItems": pickedItems,
+		"tenantId":    input.TenantID,      // Pass tenant context
+		"facilityId":  input.FacilityID,    // Pass facility context
+		"warehouseId": input.WarehouseID,   // Pass warehouse context
 	}
 
 	// Configure child workflow options to route to consolidation-service worker
@@ -515,17 +546,20 @@ func executePackingStage(ctx workflow.Context, input WESExecutionInput, routeID 
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing packing stage", "orderId", input.OrderID, "taskId", assignment.TaskID)
 
-	// Build packing input (with unit IDs for tracking)
+	// Build packing input (with unit IDs for tracking and tenant context)
 	packingInput := map[string]interface{}{
-		"orderId":    input.OrderID,
-		"waveId":     input.WaveID,
-		"routeId":    routeID,
-		"taskId":     assignment.TaskID,
-		"packerId":   assignment.WorkerID,
-		"sourceType": "tote",
-		"items":      input.Items,
-		"unitIds":    input.UnitIDs,        // Pass unit IDs for unit-level tracking
-		"pathId":     input.ProcessPathID,  // Pass process path ID
+		"orderId":     input.OrderID,
+		"waveId":      input.WaveID,
+		"routeId":     routeID,
+		"taskId":      assignment.TaskID,
+		"packerId":    assignment.WorkerID,
+		"sourceType":  "tote",
+		"items":       input.Items,
+		"unitIds":     input.UnitIDs,        // Pass unit IDs for unit-level tracking
+		"pathId":      input.ProcessPathID,  // Pass process path ID
+		"tenantId":    input.TenantID,       // Pass tenant context
+		"facilityId":  input.FacilityID,     // Pass facility context
+		"warehouseId": input.WarehouseID,    // Pass warehouse context
 	}
 
 	// Configure child workflow options to route to packing-service worker

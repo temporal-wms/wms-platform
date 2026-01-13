@@ -1,26 +1,67 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { MainLayout } from '@wms/ui';
+import { MainLayout, NavItem } from '@wms/ui';
+import {
+  LayoutDashboard,
+  Package,
+  Layers,
+  MapPin,
+  Box,
+  Truck,
+  Warehouse,
+  Users,
+  ArrowDownCircle,
+  MoveDown,
+  Route as RouteIcon,
+  Network,
+  Settings,
+  Merge,
+} from 'lucide-react';
 import { RemoteApp } from './components/RemoteApp';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LocalDashboard } from './pages/Dashboard';
+import { getEnabledRemotes, RemoteNavIcon } from './remotes/manifest';
+
+const enabledRemotes = getEnabledRemotes(import.meta.env.VITE_ENABLED_REMOTES);
+
+const navIconMap: Record<RemoteNavIcon, React.ReactNode> = {
+  dashboard: <LayoutDashboard className="h-5 w-5" />,
+  package: <Package className="h-5 w-5" />,
+  layers: <Layers className="h-5 w-5" />,
+  mapPin: <MapPin className="h-5 w-5" />,
+  box: <Box className="h-5 w-5" />,
+  truck: <Truck className="h-5 w-5" />,
+  warehouse: <Warehouse className="h-5 w-5" />,
+  users: <Users className="h-5 w-5" />,
+  arrowDown: <ArrowDownCircle className="h-5 w-5" />,
+  moveDown: <MoveDown className="h-5 w-5" />,
+  route: <RouteIcon className="h-5 w-5" />,
+  network: <Network className="h-5 w-5" />,
+  settings: <Settings className="h-5 w-5" />,
+  merge: <Merge className="h-5 w-5" />,
+};
+
+const navItems: NavItem[] = [
+  { label: 'Dashboard', path: '/', icon: navIconMap.dashboard },
+  ...enabledRemotes.map((remote) => ({
+    label: remote.displayName,
+    path: remote.basePath,
+    icon: navIconMap[remote.navIcon] || navIconMap.package,
+  })),
+];
 
 function App() {
   return (
-    <MainLayout>
+    <MainLayout navItems={navItems}>
       <ErrorBoundary>
         <Routes>
           {/* Dashboard - local component or remote */}
           <Route path="/" element={<LocalDashboard />} />
 
           {/* Remote Microfrontends */}
-          <Route path="/orders/*" element={<RemoteApp name="orders" />} />
-          <Route path="/waves/*" element={<RemoteApp name="waves" />} />
-          <Route path="/picking/*" element={<RemoteApp name="picking" />} />
-          <Route path="/packing/*" element={<RemoteApp name="packing" />} />
-          <Route path="/shipping/*" element={<RemoteApp name="shipping" />} />
-          <Route path="/inventory/*" element={<RemoteApp name="inventory" />} />
-          <Route path="/labor/*" element={<RemoteApp name="labor" />} />
+          {enabledRemotes.map((remote) => (
+            <Route key={remote.name} path={remote.routePath} element={<RemoteApp remote={remote} />} />
+          ))}
 
           {/* 404 */}
           <Route

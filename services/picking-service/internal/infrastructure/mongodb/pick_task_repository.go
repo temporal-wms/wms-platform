@@ -10,6 +10,7 @@ import (
 	"github.com/wms-platform/shared/pkg/kafka"
 	"github.com/wms-platform/shared/pkg/outbox"
 	outboxMongo "github.com/wms-platform/shared/pkg/outbox/mongodb"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,6 +21,7 @@ type PickTaskRepository struct {
 	db           *mongo.Database
 	outboxRepo   *outboxMongo.OutboxRepository
 	eventFactory *cloudevents.EventFactory
+	tenantHelper *tenant.RepositoryHelper
 }
 
 func NewPickTaskRepository(db *mongo.Database, eventFactory *cloudevents.EventFactory) *PickTaskRepository {
@@ -31,6 +33,7 @@ func NewPickTaskRepository(db *mongo.Database, eventFactory *cloudevents.EventFa
 		db:           db,
 		outboxRepo:   outboxRepo,
 		eventFactory: eventFactory,
+		tenantHelper: tenant.NewRepositoryHelper(false),
 	}
 	repo.ensureIndexes(context.Background())
 	return repo
@@ -132,8 +135,11 @@ func (r *PickTaskRepository) Save(ctx context.Context, task *domain.PickTask) er
 }
 
 func (r *PickTaskRepository) FindByID(ctx context.Context, taskID string) (*domain.PickTask, error) {
+	filter := bson.M{"taskId": taskID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	var task domain.PickTask
-	err := r.collection.FindOne(ctx, bson.M{"taskId": taskID}).Decode(&task)
+	err := r.collection.FindOne(ctx, filter).Decode(&task)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -141,7 +147,10 @@ func (r *PickTaskRepository) FindByID(ctx context.Context, taskID string) (*doma
 }
 
 func (r *PickTaskRepository) FindByOrderID(ctx context.Context, orderID string) ([]*domain.PickTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"orderId": orderID})
+	filter := bson.M{"orderId": orderID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +161,10 @@ func (r *PickTaskRepository) FindByOrderID(ctx context.Context, orderID string) 
 }
 
 func (r *PickTaskRepository) FindByWaveID(ctx context.Context, waveID string) ([]*domain.PickTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"waveId": waveID})
+	filter := bson.M{"waveId": waveID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +175,10 @@ func (r *PickTaskRepository) FindByWaveID(ctx context.Context, waveID string) ([
 }
 
 func (r *PickTaskRepository) FindByPickerID(ctx context.Context, pickerID string) ([]*domain.PickTask, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"pickerId": pickerID})
+	filter := bson.M{"pickerId": pickerID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -174,9 +189,12 @@ func (r *PickTaskRepository) FindByPickerID(ctx context.Context, pickerID string
 }
 
 func (r *PickTaskRepository) FindByStatus(ctx context.Context, status domain.PickTaskStatus) ([]*domain.PickTask, error) {
+	filter := bson.M{"status": status}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	// Sort by createdAt descending so newest tasks appear first
 	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
-	cursor, err := r.collection.Find(ctx, bson.M{"status": status}, opts)
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -187,8 +205,10 @@ func (r *PickTaskRepository) FindByStatus(ctx context.Context, status domain.Pic
 }
 
 func (r *PickTaskRepository) FindActiveByPicker(ctx context.Context, pickerID string) (*domain.PickTask, error) {
-	var task domain.PickTask
 	filter := bson.M{"pickerId": pickerID, "status": domain.PickTaskStatusInProgress}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	var task domain.PickTask
 	err := r.collection.FindOne(ctx, filter).Decode(&task)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
@@ -201,6 +221,8 @@ func (r *PickTaskRepository) FindPendingByZone(ctx context.Context, zone string,
 	if zone != "" {
 		filter["zone"] = zone
 	}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
 	opts := options.Find().SetLimit(int64(limit)).SetSort(bson.D{{Key: "priority", Value: 1}})
 	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
@@ -213,7 +235,10 @@ func (r *PickTaskRepository) FindPendingByZone(ctx context.Context, zone string,
 }
 
 func (r *PickTaskRepository) Delete(ctx context.Context, taskID string) error {
-	_, err := r.collection.DeleteOne(ctx, bson.M{"taskId": taskID})
+	filter := bson.M{"taskId": taskID}
+	filter = r.tenantHelper.WithTenantFilterOptional(ctx, filter)
+
+	_, err := r.collection.DeleteOne(ctx, filter)
 	return err
 }
 
