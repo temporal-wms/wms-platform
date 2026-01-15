@@ -5,9 +5,10 @@
 
 set -e
 
-# Get script directory
+# Get script directory and repo root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+ROOT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
+cd "$ROOT_DIR"
 
 # Configuration
 REGISTRY="${REGISTRY:-wms-platform}"
@@ -57,7 +58,7 @@ echo ""
 build_image() {
   local app=$1
   local image_name="${REGISTRY}/wms-${app}:${TAG}"
-  local dockerfile="apps/${app}/Dockerfile"
+  local dockerfile="${ROOT_DIR}/apps/${app}/Dockerfile"
 
   echo -e "${YELLOW}[${app}]${NC} Building ${image_name}..."
 
@@ -68,7 +69,7 @@ build_image() {
   fi
 
   # Build the image
-  docker build -t "${image_name}" -f "${dockerfile}" .
+  docker build -t "${image_name}" -f "${dockerfile}" "${ROOT_DIR}"
 
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}[${app}]${NC} ✓ Successfully built ${image_name}"

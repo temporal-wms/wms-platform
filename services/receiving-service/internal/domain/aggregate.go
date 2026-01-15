@@ -17,6 +17,9 @@ var (
 	ErrQuantityExceedsExpected  = errors.New("received quantity exceeds expected quantity")
 	ErrShipmentAlreadyCompleted = errors.New("shipment already completed")
 	ErrInvalidASN               = errors.New("invalid advance shipping notice")
+	ErrCartonNotFound           = errors.New("carton not found in shipment")
+	ErrCartonAlreadyReceived    = errors.New("carton already received")
+	ErrInsufficientPrepQuantity = errors.New("insufficient prep quantity for operation")
 )
 
 // ShipmentStatus represents the status of an inbound shipment
@@ -30,6 +33,35 @@ const (
 	ShipmentStatusCompleted  ShipmentStatus = "completed"
 	ShipmentStatusCancelled  ShipmentStatus = "cancelled"
 )
+
+// ReceiveMethod represents different receiving methods
+type ReceiveMethod string
+
+const (
+	ReceiveMethodASN  ReceiveMethod = "asn_batch"    // Scan carton, receive all via ASN
+	ReceiveMethodEach ReceiveMethod = "each_item"    // Scan each item individually
+	ReceiveMethodPrep ReceiveMethod = "prep_receive" // Items need repackaging
+)
+
+// ItemCondition represents the condition of received items
+type ItemCondition string
+
+const (
+	ConditionGood      ItemCondition = "good"
+	ConditionDamaged   ItemCondition = "damaged"
+	ConditionNeedsPrep ItemCondition = "needs_prep" // Requires repackaging
+	ConditionPrepped   ItemCondition = "prepped"    // After prep complete
+)
+
+// IsValid checks if the condition is valid
+func (c ItemCondition) IsValid() bool {
+	switch c {
+	case ConditionGood, ConditionDamaged, ConditionNeedsPrep, ConditionPrepped:
+		return true
+	default:
+		return false
+	}
+}
 
 // IsValid checks if the status is valid
 func (s ShipmentStatus) IsValid() bool {
@@ -66,6 +98,16 @@ func (s ShipmentStatus) CanTransitionTo(target ShipmentStatus) bool {
 	return false
 }
 
+// CartonInfo represents a carton/container in the shipment for batch ASN receiving
+type CartonInfo struct {
+	CartonID       string            `bson:"cartonId" json:"cartonId"`
+	SKUQuantities  map[string]int    `bson:"skuQuantities" json:"skuQuantities"` // SKU -> Quantity mapping
+	Received       bool              `bson:"received" json:"received"`
+	ReceivedAt     *time.Time        `bson:"receivedAt,omitempty" json:"receivedAt,omitempty"`
+	ReceivedBy     string            `bson:"receivedBy,omitempty" json:"receivedBy,omitempty"`
+	ToteID         string            `bson:"toteId,omitempty" json:"toteId,omitempty"`
+}
+
 // ExpectedItem represents an item expected in the shipment
 type ExpectedItem struct {
 	SKU              string  `bson:"sku" json:"sku"`
@@ -73,6 +115,7 @@ type ExpectedItem struct {
 	ExpectedQuantity int     `bson:"expectedQuantity" json:"expectedQuantity"`
 	ReceivedQuantity int     `bson:"receivedQuantity" json:"receivedQuantity"`
 	DamagedQuantity  int     `bson:"damagedQuantity" json:"damagedQuantity"`
+	PrepQuantity     int     `bson:"prepQuantity" json:"prepQuantity"`           // Items needing prep
 	UnitCost         float64 `bson:"unitCost" json:"unitCost"`
 	Weight           float64 `bson:"weight" json:"weight"`
 	IsHazmat         bool    `bson:"isHazmat" json:"isHazmat"`
@@ -81,12 +124,12 @@ type ExpectedItem struct {
 
 // RemainingQuantity returns the quantity still to be received
 func (e *ExpectedItem) RemainingQuantity() int {
-	return e.ExpectedQuantity - e.ReceivedQuantity - e.DamagedQuantity
+	return e.ExpectedQuantity - e.ReceivedQuantity - e.DamagedQuantity - e.PrepQuantity
 }
 
 // IsFullyReceived returns true if the item is fully received
 func (e *ExpectedItem) IsFullyReceived() bool {
-	return e.ReceivedQuantity+e.DamagedQuantity >= e.ExpectedQuantity
+	return e.ReceivedQuantity+e.DamagedQuantity+e.PrepQuantity >= e.ExpectedQuantity
 }
 
 // ReceiptRecord represents a single receipt action
@@ -143,6 +186,7 @@ type InboundShipment struct {
 	ASN              AdvanceShippingNotice `bson:"asn" json:"asn"`
 	PurchaseOrderID  string                `bson:"purchaseOrderId,omitempty" json:"purchaseOrderId,omitempty"`
 	Supplier         Supplier              `bson:"supplier" json:"supplier"`
+	Cartons          []CartonInfo          `bson:"cartons,omitempty" json:"cartons,omitempty"` // Carton-level info for batch ASN receiving
 	ExpectedItems    []ExpectedItem        `bson:"expectedItems" json:"expectedItems"`
 	ReceiptRecords   []ReceiptRecord       `bson:"receiptRecords" json:"receiptRecords"`
 	Discrepancies    []Discrepancy         `bson:"discrepancies" json:"discrepancies"`
@@ -295,6 +339,206 @@ func (s *InboundShipment) ReceiveItemWithUnits(sku string, quantity int, conditi
 		ReceivedBy: workerID,
 		ReceivedAt: now,
 		UnitIDs:    unitIDs,
+	})
+
+	return nil
+}
+
+// BatchReceiveByCarton receives all items in a carton at once (batch ASN receive)
+func (s *InboundShipment) BatchReceiveByCarton(cartonID, workerID, toteID string) error {
+	if s.Status != ShipmentStatusReceiving {
+		return ErrInvalidStatusTransition
+	}
+
+	// Find the carton
+	var carton *CartonInfo
+	for i := range s.Cartons {
+		if s.Cartons[i].CartonID == cartonID {
+			carton = &s.Cartons[i]
+			break
+		}
+	}
+
+	if carton == nil {
+		return ErrCartonNotFound
+	}
+
+	if carton.Received {
+		return ErrCartonAlreadyReceived
+	}
+
+	now := time.Now().UTC()
+
+	// Receive all items in the carton
+	for sku, quantity := range carton.SKUQuantities {
+		// Find and update the expected item
+		var expectedItem *ExpectedItem
+		for i := range s.ExpectedItems {
+			if s.ExpectedItems[i].SKU == sku {
+				expectedItem = &s.ExpectedItems[i]
+				break
+			}
+		}
+
+		if expectedItem == nil {
+			return ErrItemNotFound
+		}
+
+		// Update received quantity (assuming good condition for batch ASN)
+		expectedItem.ReceivedQuantity += quantity
+
+		// Create receipt record for each SKU in carton
+		receiptID := generateReceiptID()
+		s.ReceiptRecords = append(s.ReceiptRecords, ReceiptRecord{
+			ReceiptID:  receiptID,
+			SKU:        sku,
+			Quantity:   quantity,
+			ToteID:     toteID,
+			Condition:  string(ConditionGood), // Batch ASN assumes good condition
+			ReceivedBy: workerID,
+			ReceivedAt: now,
+			Notes:      "Batch received via carton: " + cartonID,
+		})
+
+		// Emit ItemReceivedEvent for each SKU
+		s.addDomainEvent(&ItemReceivedEvent{
+			ShipmentID: s.ShipmentID,
+			ReceiptID:  receiptID,
+			SKU:        sku,
+			Quantity:   quantity,
+			Condition:  string(ConditionGood),
+			ToteID:     toteID,
+			ReceivedBy: workerID,
+			ReceivedAt: now,
+		})
+	}
+
+	// Mark carton as received
+	carton.Received = true
+	carton.ReceivedAt = &now
+	carton.ReceivedBy = workerID
+	carton.ToteID = toteID
+
+	s.UpdatedAt = now
+
+	// Emit CartonReceivedEvent
+	s.addDomainEvent(&CartonReceivedEvent{
+		ShipmentID: s.ShipmentID,
+		CartonID:   cartonID,
+		ToteID:     toteID,
+		ReceivedBy: workerID,
+		ReceivedAt: now,
+		ItemCount:  len(carton.SKUQuantities),
+	})
+
+	return nil
+}
+
+// MarkItemForPrep marks an item as needing prep (repackaging)
+func (s *InboundShipment) MarkItemForPrep(sku string, quantity int, workerID, toteID, reason string) error {
+	if s.Status != ShipmentStatusReceiving {
+		return ErrInvalidStatusTransition
+	}
+
+	// Find the expected item
+	var expectedItem *ExpectedItem
+	for i := range s.ExpectedItems {
+		if s.ExpectedItems[i].SKU == sku {
+			expectedItem = &s.ExpectedItems[i]
+			break
+		}
+	}
+
+	if expectedItem == nil {
+		return ErrItemNotFound
+	}
+
+	now := time.Now().UTC()
+
+	// Update prep quantity
+	expectedItem.PrepQuantity += quantity
+
+	// Create receipt record with needs_prep condition
+	receiptID := generateReceiptID()
+	s.ReceiptRecords = append(s.ReceiptRecords, ReceiptRecord{
+		ReceiptID:  receiptID,
+		SKU:        sku,
+		Quantity:   quantity,
+		ToteID:     toteID,
+		Condition:  string(ConditionNeedsPrep),
+		ReceivedBy: workerID,
+		ReceivedAt: now,
+		Notes:      "Prep required: " + reason,
+	})
+
+	s.UpdatedAt = now
+
+	s.addDomainEvent(&ItemPrepRequiredEvent{
+		ShipmentID: s.ShipmentID,
+		ReceiptID:  receiptID,
+		SKU:        sku,
+		Quantity:   quantity,
+		ToteID:     toteID,
+		Reason:     reason,
+		ReceivedBy: workerID,
+		ReceivedAt: now,
+	})
+
+	return nil
+}
+
+// CompletePrepForItem marks prep as completed for an item
+func (s *InboundShipment) CompletePrepForItem(sku string, quantity int, workerID, toteID string) error {
+	if s.Status != ShipmentStatusReceiving {
+		return ErrInvalidStatusTransition
+	}
+
+	// Find the expected item
+	var expectedItem *ExpectedItem
+	for i := range s.ExpectedItems {
+		if s.ExpectedItems[i].SKU == sku {
+			expectedItem = &s.ExpectedItems[i]
+			break
+		}
+	}
+
+	if expectedItem == nil {
+		return ErrItemNotFound
+	}
+
+	if expectedItem.PrepQuantity < quantity {
+		return ErrInsufficientPrepQuantity
+	}
+
+	now := time.Now().UTC()
+
+	// Move from prep to received (good condition after prep)
+	expectedItem.PrepQuantity -= quantity
+	expectedItem.ReceivedQuantity += quantity
+
+	// Create receipt record with prepped condition
+	receiptID := generateReceiptID()
+	s.ReceiptRecords = append(s.ReceiptRecords, ReceiptRecord{
+		ReceiptID:  receiptID,
+		SKU:        sku,
+		Quantity:   quantity,
+		ToteID:     toteID,
+		Condition:  string(ConditionPrepped),
+		ReceivedBy: workerID,
+		ReceivedAt: now,
+		Notes:      "Prep completed",
+	})
+
+	s.UpdatedAt = now
+
+	s.addDomainEvent(&ItemPreppedEvent{
+		ShipmentID: s.ShipmentID,
+		ReceiptID:  receiptID,
+		SKU:        sku,
+		Quantity:   quantity,
+		ToteID:     toteID,
+		ReceivedBy: workerID,
+		ReceivedAt: now,
 	})
 
 	return nil

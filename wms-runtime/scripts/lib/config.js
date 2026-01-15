@@ -141,6 +141,15 @@ export const UNIT_CONFIG = {
   createUnitsOnReceive: __ENV.CREATE_UNITS_ON_RECEIVE === 'true',  // Default disabled
 };
 
+// Tenant context configuration (required headers for multi-tenant APIs)
+export const TENANT_CONFIG = {
+  tenantId: __ENV.TENANT_ID || __ENV.DEFAULT_TENANT_ID || 'test-tenant',
+  facilityId: __ENV.FACILITY_ID || __ENV.DEFAULT_FACILITY_ID || 'test-facility',
+  warehouseId: __ENV.WAREHOUSE_ID || __ENV.DEFAULT_WAREHOUSE_ID || 'test-warehouse',
+  sellerId: __ENV.SELLER_ID || '',
+  channelId: __ENV.CHANNEL_ID || 'web',
+};
+
 // Order generation configuration
 export const ORDER_CONFIG = {
   // Item count distribution (must sum to 1.0)
@@ -152,10 +161,10 @@ export const ORDER_CONFIG = {
   forceOrderType: __ENV.FORCE_ORDER_TYPE || null,        // 'single', 'multi', or null
   forceRequirement: __ENV.FORCE_REQUIREMENT || null,     // 'hazmat', 'fragile', 'oversized', 'heavy', 'high_value', or null
 
-  // Multi-tenancy configuration
-  defaultTenantId: __ENV.DEFAULT_TENANT_ID || 'DEFAULT_TENANT',
-  defaultFacilityId: __ENV.DEFAULT_FACILITY_ID || 'DEFAULT_FACILITY',
-  defaultWarehouseId: __ENV.DEFAULT_WAREHOUSE_ID || 'DEFAULT_WAREHOUSE',
+  // Multi-tenancy configuration (deprecated - use TENANT_CONFIG)
+  defaultTenantId: TENANT_CONFIG.tenantId,
+  defaultFacilityId: TENANT_CONFIG.facilityId,
+  defaultWarehouseId: TENANT_CONFIG.warehouseId,
 
   // Available requirements (for reference)
   validRequirements: ['hazmat', 'fragile', 'oversized', 'heavy', 'high_value'],
@@ -437,10 +446,37 @@ export const THRESHOLDS = {
   },
 };
 
+// Tenant HTTP headers for multi-tenant API requests
+export const TENANT_HEADERS = {
+  'X-WMS-Tenant-ID': TENANT_CONFIG.tenantId,
+  'X-WMS-Facility-ID': TENANT_CONFIG.facilityId,
+  'X-WMS-Warehouse-ID': TENANT_CONFIG.warehouseId,
+  'X-WMS-Seller-ID': TENANT_CONFIG.sellerId,
+  'X-WMS-Channel-ID': TENANT_CONFIG.channelId,
+};
+
 export const HTTP_PARAMS = {
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    // Include tenant headers for multi-tenant APIs
+    ...TENANT_HEADERS,
   },
   timeout: '30s',
 };
+
+// Helper function to get headers with optional overrides
+export function getHeaders(overrides = {}) {
+  return {
+    ...HTTP_PARAMS.headers,
+    ...overrides,
+  };
+}
+
+// Helper function to get tenant headers only
+export function getTenantHeaders(overrides = {}) {
+  return {
+    ...TENANT_HEADERS,
+    ...overrides,
+  };
+}

@@ -112,13 +112,24 @@ type WMSCloudEvent struct {
 	Data            interface{}            `json:"data"`
 	Extensions      map[string]interface{} `json:"-"`
 
-	// WMS-specific extensions
-	CorrelationID string `json:"wmscorrelationid,omitempty"`
+	// WMS-specific extensions (business context)
+	CorrelationID string `json:"wmscorrelationid,omitempty"` // Business correlation (NOT trace correlation)
 	WaveNumber    string `json:"wmswavenumber,omitempty"`
 	WorkflowID    string `json:"wmsworkflowid,omitempty"`
-	FacilityID    string `json:"wmsfacilityid,omitempty"`
-	WarehouseID   string `json:"wmswarehouseid,omitempty"`
-	OrderID       string `json:"wmsorderid,omitempty"`
+
+	// WMS tenant context extensions (required for multi-tenant operations)
+	TenantID    string `json:"wmstenantid,omitempty"`    // Tenant/3PL operator identifier
+	FacilityID  string `json:"wmsfacilityid,omitempty"`  // Physical facility identifier
+	WarehouseID string `json:"wmswarehouseid,omitempty"` // Warehouse within facility
+	SellerID    string `json:"wmssellerid,omitempty"`    // Seller/merchant identifier
+	ChannelID   string `json:"wmschannelid,omitempty"`   // Sales channel identifier
+
+	// Business reference extensions
+	OrderID string `json:"wmsorderid,omitempty"`
+
+	// W3C Distributed Tracing extensions (trace context propagation)
+	TraceParent string `json:"traceparent,omitempty"` // W3C Trace Context traceparent (version-traceId-spanId-flags)
+	TraceState  string `json:"tracestate,omitempty"`  // W3C Trace Context tracestate (vendor-specific)
 }
 
 // OrderReceivedData represents the data payload for OrderReceived event

@@ -108,11 +108,31 @@ func (r *ProcessPathRepository) FindByOrderID(ctx context.Context, orderID strin
 // Update updates an existing process path
 func (r *ProcessPathRepository) Update(ctx context.Context, processPath *domain.ProcessPath) error {
 	processPath.UpdatedAt = time.Now()
-	result, err := r.collection.ReplaceOne(
-		ctx,
-		bson.M{"pathId": processPath.PathID},
-		processPath,
-	)
+
+	// Use pathId for filtering (unique indexed field)
+	// Don't include _id in the update to avoid MongoDB immutable field error
+	filter := bson.M{"pathId": processPath.PathID}
+
+	// Prepare update document excluding _id field
+	update := bson.M{
+		"$set": bson.M{
+			"tenantId":              processPath.TenantID,
+			"facilityId":            processPath.FacilityID,
+			"warehouseId":           processPath.WarehouseID,
+			"orderId":               processPath.OrderID,
+			"requirements":          processPath.Requirements,
+			"consolidationRequired": processPath.ConsolidationRequired,
+			"giftWrapRequired":      processPath.GiftWrapRequired,
+			"specialHandling":       processPath.SpecialHandling,
+			"targetStationId":       processPath.TargetStationID,
+			"tier":                  processPath.Tier,
+			"escalationHistory":     processPath.EscalationHistory,
+			"fallbackStationIds":    processPath.FallbackStationIDs,
+			"updatedAt":             processPath.UpdatedAt,
+		},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update process path: %w", err)
 	}

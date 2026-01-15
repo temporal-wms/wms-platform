@@ -20,8 +20,10 @@ const (
 var (
 	ErrMissingTenantContext = errors.New("tenant context is required")
 	ErrUnauthorizedAccess   = errors.New("unauthorized access to tenant resource")
-	ErrMissingFacilityID    = errors.New("facility ID is required")
-	ErrMissingSellerID      = errors.New("seller ID is required for this operation")
+	ErrMissingTenantID      = errors.New("tenantId is required")
+	ErrMissingFacilityID    = errors.New("facilityId is required")
+	ErrMissingWarehouseID   = errors.New("warehouseId is required")
+	ErrMissingSellerID      = errors.New("sellerId is required for this operation")
 )
 
 // Context holds all tenant-related identifiers for multi-tenant operations.
@@ -205,6 +207,44 @@ func (tc *Context) HasSeller() bool {
 // HasFacility returns true if a facility ID is set
 func (tc *Context) HasFacility() bool {
 	return tc.FacilityID != ""
+}
+
+// HasWarehouse returns true if a warehouse ID is set
+func (tc *Context) HasWarehouse() bool {
+	return tc.WarehouseID != ""
+}
+
+// HasTenant returns true if a tenant ID is set
+func (tc *Context) HasTenant() bool {
+	return tc.TenantID != ""
+}
+
+// Validate checks that all required tenant context fields are present.
+// Required fields are: TenantID, FacilityID, WarehouseID
+// Returns an error if any required field is missing.
+func (tc *Context) Validate() error {
+	if tc.TenantID == "" {
+		return ErrMissingTenantID
+	}
+	if tc.FacilityID == "" {
+		return ErrMissingFacilityID
+	}
+	if tc.WarehouseID == "" {
+		return ErrMissingWarehouseID
+	}
+	return nil
+}
+
+// ValidateWithSeller validates required fields including seller ID.
+// Use this for operations that require seller context.
+func (tc *Context) ValidateWithSeller() error {
+	if err := tc.Validate(); err != nil {
+		return err
+	}
+	if tc.SellerID == "" {
+		return ErrMissingSellerID
+	}
+	return nil
 }
 
 // ValidateOwnership verifies that a resource belongs to this tenant context.

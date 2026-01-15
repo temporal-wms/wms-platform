@@ -433,17 +433,15 @@ export function simulateStowingTask(task) {
     quantity: task.quantity,
   });
 
-  const locationId = `LOC-RESERVE-${Math.floor(Math.random() * 100)}`;
-
   if (completedTask) {
-    // Update inventory (optional, may fail)
-    updateInventoryAfterStow(locationId, task.sku, task.quantity);
+    // Note: Inventory updates are handled internally by stow-service when task is completed
+    // No need to manually update inventory here
 
     return {
       taskId: taskId,
       sku: task.sku,
       quantity: task.quantity,
-      locationId: completedTask.targetLocationId || locationId,
+      locationId: completedTask.targetLocationId || 'LOC-DEFAULT-01',
       zone: STOW_CONFIG.defaultZone,
     };
   }
@@ -461,20 +459,15 @@ export function processStowTask(task) {
   const taskId = task.taskId || task.id;
   console.log(`Processing stow task ${taskId}`);
 
-  // Step 1: Simulate stowing
+  // Simulate stowing (includes completion)
   const stowResult = simulateStowingTask(task);
   if (!stowResult) {
     console.warn(`Failed to stow task ${taskId}`);
     return false;
   }
 
-  // Step 2: Complete the task
-  const completedTask = completeStowTask(taskId, {
-    locationId: stowResult.locationId,
-    quantity: stowResult.quantity,
-  });
-
-  return completedTask !== null;
+  // Task is already completed by simulateStowingTask()
+  return true;
 }
 
 /**

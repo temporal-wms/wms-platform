@@ -296,40 +296,7 @@ components:
 
   schemas:
     CloudEventHeaders:
-      type: object
-      description: CloudEvents 1.0 headers with WMS extensions
-      properties:
-        ce_specversion:
-          type: string
-          const: '1.0'
-        ce_type:
-          type: string
-          description: Event type (e.g., wms.picking.task-completed)
-        ce_source:
-          type: string
-          const: '/wms/picking-service'
-        ce_subject:
-          type: string
-          description: Task ID
-        ce_id:
-          type: string
-          format: uuid
-        ce_time:
-          type: string
-          format: date-time
-        ce_datacontenttype:
-          type: string
-          const: 'application/json'
-        ce_wmscorrelationid:
-          type: string
-          description: Correlation ID for distributed tracing
-        ce_wmswavenumber:
-          type: string
-          description: Wave number for wave-based processing
-        ce_wmsworkflowid:
-          type: string
-          description: Temporal workflow ID
-
+      $ref: '../../../shared/docs/asyncapi-cloudevents-schema.yaml#/CloudEventHeaders'
     PickTaskCreatedPayload:
       type: object
       properties:

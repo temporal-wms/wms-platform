@@ -1108,6 +1108,18 @@ services:
         value: "wes-execution-queue"
       - name: MONGODB_DATABASE
         value: "wes_db"
+      - name: LABOR_SERVICE_URL
+        value: "http://labor-service.wms-platform-dev.svc.cluster.local:8009"
+      - name: PICKING_SERVICE_URL
+        value: "http://picking-service.wms-platform-dev.svc.cluster.local:8004"
+      - name: WALLING_SERVICE_URL
+        value: "http://walling-service.wms-platform-dev.svc.cluster.local:8017"
+      - name: CONSOLIDATION_SERVICE_URL
+        value: "http://consolidation-service.wms-platform-dev.svc.cluster.local:8005"
+      - name: PACKING_SERVICE_URL
+        value: "http://packing-service.wms-platform-dev.svc.cluster.local:8006"
+      - name: PROCESS_PATH_SERVICE_URL
+        value: "http://process-path-service.wms-platform-dev.svc.cluster.local:8015"
 
     envFrom:
       - configMapRef:

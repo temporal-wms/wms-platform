@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/wms-platform/services/unit-service/internal/domain"
+	"github.com/wms-platform/shared/pkg/tenant"
 )
 
 // UnitService handles unit-related business operations
@@ -32,8 +33,17 @@ func NewUnitService(unitRepo domain.UnitRepository, exceptionRepo domain.UnitExc
 func (s *UnitService) CreateUnits(ctx context.Context, cmd CreateUnitsCommand) (*CreateUnitsResult, error) {
 	unitIDs := make([]string, 0, cmd.Quantity)
 
+	// Build tenant info from command or context
+	tenantCtx := tenant.FromContextOptional(ctx)
+	tenantInfo := &domain.UnitTenantInfo{
+		TenantID:    firstNonEmpty(cmd.TenantID, tenantCtx.TenantID),
+		FacilityID:  firstNonEmpty(cmd.FacilityID, tenantCtx.FacilityID),
+		WarehouseID: firstNonEmpty(cmd.WarehouseID, tenantCtx.WarehouseID),
+		SellerID:    firstNonEmpty(cmd.SellerID, tenantCtx.SellerID),
+	}
+
 	for i := 0; i < cmd.Quantity; i++ {
-		unit := domain.NewUnit(cmd.SKU, cmd.ShipmentID, cmd.LocationID, cmd.CreatedBy)
+		unit := domain.NewUnitWithTenant(cmd.SKU, cmd.ShipmentID, cmd.LocationID, cmd.CreatedBy, tenantInfo)
 
 		if err := s.unitRepo.Save(ctx, unit); err != nil {
 			return nil, fmt.Errorf("failed to save unit: %w", err)
@@ -294,4 +304,58 @@ func (s *UnitService) GetExceptionsForOrder(ctx context.Context, orderID string)
 // GetUnresolvedExceptions retrieves unresolved exceptions
 func (s *UnitService) GetUnresolvedExceptions(ctx context.Context, limit int) ([]*domain.UnitException, error) {
 	return s.exceptionRepo.FindUnresolved(ctx, limit)
+}
+
+// firstNonEmpty returns the first non-empty string from the provided values
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// ReleaseUnits releases all unit reservations for an order (compensation operation)
+func (s *UnitService) ReleaseUnits(ctx context.Context, cmd ReleaseUnitsCommand) error {
+	// Find all units reserved for this order
+	units, err := s.unitRepo.FindByOrderID(ctx, cmd.OrderID)
+	if err != nil {
+		return fmt.Errorf("failed to find units for order: %w", err)
+	}
+
+	if len(units) == 0 {
+		// No units found for this order - this is not an error, just return success
+		return nil
+	}
+
+	// Release each unit
+	handlerID := cmd.HandlerID
+	if handlerID == "" {
+		handlerID = "system-compensation"
+	}
+
+	reason := cmd.Reason
+	if reason == "" {
+		reason = "Order processing failed - releasing unit reservation"
+	}
+
+	for _, unit := range units {
+		// Only release units that are still in reserved status
+		if unit.Status == domain.UnitStatusReserved {
+			if err := unit.Release(handlerID, reason); err != nil {
+				return fmt.Errorf("failed to release unit %s: %w", unit.UnitID, err)
+			}
+
+			if err := s.unitRepo.Update(ctx, unit); err != nil {
+				return fmt.Errorf("failed to update unit %s: %w", unit.UnitID, err)
+			}
+
+			if s.publisher != nil {
+				s.publisher.Publish(ctx, unit.Events())
+			}
+		}
+	}
+
+	return nil
 }

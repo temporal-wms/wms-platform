@@ -16,6 +16,8 @@ type ReceiveStockCommand struct {
 	Quantity    int
 	ReferenceID string
 	CreatedBy   string
+	UnitCost    int64  // Unit cost in cents (for ledger tracking)
+	Currency    string // ISO 4217 currency code (default: USD)
 }
 
 // ReserveCommand represents the command to reserve stock
@@ -131,4 +133,17 @@ type RecordShortageCommand struct {
 	ActualQty    int
 	Reason       string // not_found, damaged, quantity_mismatch
 	ReportedBy   string
+}
+
+// ReserveInventoryBulkCommand represents the command to reserve multiple items atomically
+type ReserveInventoryBulkCommand struct {
+	OrderID string
+	Items   []ReserveInventoryBulkItem
+}
+
+// ReserveInventoryBulkItem represents a single item in a bulk reservation request
+type ReserveInventoryBulkItem struct {
+	SKU        string
+	Quantity   int
+	LocationID string
 }

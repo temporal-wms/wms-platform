@@ -14,7 +14,14 @@
     "seller-service",
     "billing-service",
     "channel-service",
-    "seller-portal"
+    "seller-portal",
+    "unit-service",
+    "process-path-service",
+    "receiving-service",
+    "stow-service",
+    "sortation-service",
+    "walling-service",
+    "wes-service"
   ],
   "namespace": "wms-platform-dev",
   "tempo_datasource_uid": "tempo",

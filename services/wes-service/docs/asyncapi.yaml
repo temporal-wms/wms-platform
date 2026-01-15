@@ -179,30 +179,7 @@ components:
 
   schemas:
     CloudEventHeaders:
-      type: object
-      properties:
-        ce_specversion:
-          type: string
-          const: '1.0'
-        ce_type:
-          type: string
-          description: Event type
-        ce_source:
-          type: string
-          const: '/wms/wes-service'
-        ce_subject:
-          type: string
-          description: Route ID
-        ce_id:
-          type: string
-          format: uuid
-        ce_time:
-          type: string
-          format: date-time
-        ce_datacontenttype:
-          type: string
-          const: 'application/json'
-
+      $ref: '../../../shared/docs/asyncapi-cloudevents-schema.yaml#/CloudEventHeaders'
     RouteCreatedPayload:
       type: object
       properties:

@@ -222,3 +222,69 @@ func (h *Handlers) HealthCheck(c *gin.Context) {
 func (h *Handlers) ReadyCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ready"})
 }
+
+// ReserveStationCapacityRequest represents the request body for reserving station capacity
+type ReserveStationCapacityRequest struct {
+	StationID     string `json:"stationId" binding:"required"`
+	OrderID       string `json:"orderId" binding:"required"`
+	RequiredSlots int    `json:"requiredSlots" binding:"required"`
+	ReservationID string `json:"reservationId" binding:"required"`
+}
+
+// ReserveStationCapacity handles POST /api/v1/stations/:stationId/capacity/reserve
+func (h *Handlers) ReserveStationCapacity(c *gin.Context) {
+	stationID := c.Param("stationId")
+
+	var req ReserveStationCapacityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// For now, return a simple success response
+	// TODO: Implement actual station capacity management
+	h.logger.Info("Station capacity reserved",
+		"stationId", stationID,
+		"orderId", req.OrderID,
+		"requiredSlots", req.RequiredSlots,
+		"reservationId", req.ReservationID,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"reservationId":     req.ReservationID,
+		"stationId":         stationID,
+		"reservedSlots":     req.RequiredSlots,
+		"remainingCapacity": 10, // Mock value
+	})
+}
+
+// ReleaseStationCapacityRequest represents the request body for releasing station capacity
+type ReleaseStationCapacityRequest struct {
+	StationID     string `json:"stationId" binding:"required"`
+	OrderID       string `json:"orderId" binding:"required"`
+	ReservationID string `json:"reservationId" binding:"required"`
+}
+
+// ReleaseStationCapacity handles POST /api/v1/stations/:stationId/capacity/release
+func (h *Handlers) ReleaseStationCapacity(c *gin.Context) {
+	stationID := c.Param("stationId")
+
+	var req ReleaseStationCapacityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// For now, return a simple success response
+	// TODO: Implement actual station capacity management
+	h.logger.Info("Station capacity released",
+		"stationId", stationID,
+		"orderId", req.OrderID,
+		"reservationId", req.ReservationID,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "capacity released successfully",
+		"stationId": stationID,
+	})
+}

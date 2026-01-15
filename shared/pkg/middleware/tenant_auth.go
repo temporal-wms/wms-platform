@@ -160,6 +160,64 @@ func RequireTenant() gin.HandlerFunc {
 	}
 }
 
+// RequireTenantAuth creates middleware that requires tenant headers.
+// This is a stricter version that validates TenantID, FacilityID, and WarehouseID are all present.
+// Use this for all API endpoints that need tenant scoping.
+func RequireTenantAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Extract tenant context from headers
+		tenantID := c.GetHeader(HeaderWMSTenantID)
+		facilityID := c.GetHeader(HeaderWMSFacilityID)
+		warehouseID := c.GetHeader(HeaderWMSWarehouseID)
+		sellerID := c.GetHeader(HeaderWMSSellerID)
+		channelID := c.GetHeader(HeaderWMSChannelID)
+
+		// Build list of missing required headers
+		var missingHeaders []string
+		if tenantID == "" {
+			missingHeaders = append(missingHeaders, HeaderWMSTenantID)
+		}
+		if facilityID == "" {
+			missingHeaders = append(missingHeaders, HeaderWMSFacilityID)
+		}
+		if warehouseID == "" {
+			missingHeaders = append(missingHeaders, HeaderWMSWarehouseID)
+		}
+
+		if len(missingHeaders) > 0 {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"code":           "MISSING_TENANT_HEADERS",
+				"message":        "Required tenant headers are missing",
+				"missingHeaders": missingHeaders,
+			})
+			return
+		}
+
+		// Create tenant context
+		tc := &tenant.Context{
+			TenantID:    tenantID,
+			FacilityID:  facilityID,
+			WarehouseID: warehouseID,
+			SellerID:    sellerID,
+			ChannelID:   channelID,
+		}
+
+		// Add tenant context to Go context
+		ctx := tenant.ToContext(c.Request.Context(), tc)
+		c.Request = c.Request.WithContext(ctx)
+
+		// Also store in Gin context for easy access in handlers
+		c.Set("tenantContext", tc)
+		c.Set(ContextKeyWMSTenantID, tenantID)
+		c.Set(ContextKeyWMSFacilityID, facilityID)
+		c.Set(ContextKeyWMSWarehouseID, warehouseID)
+		c.Set(ContextKeyWMSSellerID, sellerID)
+		c.Set(ContextKeyWMSChannelID, channelID)
+
+		c.Next()
+	}
+}
+
 // RequireSeller is a middleware that ensures seller context is present.
 // Use this for endpoints that are seller-specific (3PL/FBA-style).
 func RequireSeller() gin.HandlerFunc {

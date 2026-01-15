@@ -61,3 +61,50 @@ type ReceiveItemRequest struct {
 	WorkerID  string `json:"workerId" binding:"required"`
 	Notes     string `json:"notes,omitempty"`
 }
+
+// BatchReceiveCartonRequest represents the request to batch receive a carton via ASN
+type BatchReceiveCartonRequest struct {
+	CartonID string `json:"cartonId" binding:"required"`
+	WorkerID string `json:"workerId" binding:"required"`
+	ToteID   string `json:"toteId,omitempty"`
+}
+
+// MarkItemForPrepRequest represents the request to mark an item for prep
+type MarkItemForPrepRequest struct {
+	Quantity int    `json:"quantity" binding:"required,min=1"`
+	WorkerID string `json:"workerId" binding:"required"`
+	ToteID   string `json:"toteId,omitempty"`
+	Reason   string `json:"reason" binding:"required"`
+}
+
+// CompletePrepRequest represents the request to complete prep for an item
+type CompletePrepRequest struct {
+	Quantity int    `json:"quantity" binding:"required,min=1"`
+	WorkerID string `json:"workerId" binding:"required"`
+	ToteID   string `json:"toteId,omitempty"`
+}
+
+// CreateProblemTicketRequest represents the request to create a problem ticket
+type CreateProblemTicketRequest struct {
+	ShipmentID  string   `json:"shipmentId" binding:"required"`
+	SKU         string   `json:"sku,omitempty"`
+	ProductName string   `json:"productName,omitempty"`
+	ProblemType string   `json:"problemType" binding:"required"`
+	Description string   `json:"description" binding:"required"`
+	Quantity    int      `json:"quantity"`
+	CreatedBy   string   `json:"createdBy" binding:"required"`
+	Priority    string   `json:"priority,omitempty"`
+	ImageURLs   []string `json:"imageUrls,omitempty"`
+}
+
+// ResolveProblemTicketRequest represents the request to resolve a problem ticket
+type ResolveProblemTicketRequest struct {
+	Resolution      string `json:"resolution" binding:"required"`
+	ResolutionNotes string `json:"resolutionNotes,omitempty"`
+	ResolvedBy      string `json:"resolvedBy" binding:"required"`
+}
+
+// AssignProblemTicketRequest represents the request to assign a ticket
+type AssignProblemTicketRequest struct {
+	AssignedTo string `json:"assignedTo" binding:"required"`
+}

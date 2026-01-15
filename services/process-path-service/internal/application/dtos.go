@@ -118,14 +118,21 @@ type RoutingMetricsDTO struct {
 
 // ToRoutingMetricsDTO converts domain DynamicRoutingMetrics to DTO
 func ToRoutingMetricsDTO(m *domain.DynamicRoutingMetrics) *RoutingMetricsDTO {
+	// Convert time.Duration to milliseconds
+	avgDecisionTimeMs := m.AverageDecisionTime.Milliseconds()
+
+	// Calculate rebalancing recommendation using optimizer
+	optimizer := domain.NewRoutingOptimizer()
+	rebalancingRecommended := optimizer.RecommendRebalancing(*m)
+
 	return &RoutingMetricsDTO{
 		TotalRoutingDecisions:   m.TotalRoutingDecisions,
-		AverageDecisionTimeMs:   m.AverageDecisionTimeMs,
+		AverageDecisionTimeMs:   avgDecisionTimeMs,
 		AverageConfidence:       m.AverageConfidence,
 		StationUtilization:      m.StationUtilization,
 		CapacityConstrainedRate: m.CapacityConstrainedRate,
 		RouteChanges:            m.RouteChanges,
-		RebalancingRecommended:  m.RebalancingRecommended,
+		RebalancingRecommended:  rebalancingRecommended,
 		LastUpdated:             time.Now(),
 	}
 }

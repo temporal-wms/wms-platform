@@ -8,6 +8,11 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/wms-platform/shared/pkg/tenant"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ServiceClients holds HTTP clients for all WMS services
@@ -16,7 +21,7 @@ type ServiceClients struct {
 	httpClient *http.Client
 }
 
-// Config holds service URLs
+// Config holds service URLs and client configuration
 type Config struct {
 	OrderServiceURL         string
 	InventoryServiceURL     string
@@ -33,14 +38,20 @@ type Config struct {
 	BillingServiceURL       string
 	ChannelServiceURL       string
 	SellerServiceURL        string
+	// HTTPTimeout is the timeout for HTTP requests (default: 30s)
+	HTTPTimeout time.Duration
 }
 
 // NewServiceClients creates a new ServiceClients instance
 func NewServiceClients(config *Config) *ServiceClients {
+	timeout := config.HTTPTimeout
+	if timeout == 0 {
+		timeout = 30 * time.Second // Default timeout
+	}
 	return &ServiceClients{
 		config: config,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: timeout,
 		},
 	}
 }
@@ -65,6 +76,26 @@ func (c *ServiceClients) doRequest(ctx context.Context, method, url string, body
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
+
+	// Inject W3C Trace Context headers for distributed tracing
+	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
+		carrier := propagation.HeaderCarrier(req.Header)
+		otel.GetTextMapPropagator().Inject(ctx, carrier)
+	}
+
+	// Inject tenant headers from context
+	if tenantID := tenant.GetTenantID(ctx); tenantID != "" {
+		req.Header.Set("X-WMS-Tenant-ID", tenantID)
+	}
+	if facilityID := tenant.GetFacilityID(ctx); facilityID != "" {
+		req.Header.Set("X-WMS-Facility-ID", facilityID)
+	}
+	if warehouseID := tenant.GetWarehouseID(ctx); warehouseID != "" {
+		req.Header.Set("X-WMS-Warehouse-ID", warehouseID)
+	}
+	if sellerID := tenant.GetSellerID(ctx); sellerID != "" {
+		req.Header.Set("X-WMS-Seller-ID", sellerID)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -640,29 +671,29 @@ func (c *ServiceClients) ReleaseStationCapacity(ctx context.Context, req *Releas
 // Labor Service methods
 
 // FindCertifiedWorkers finds workers with required certifications
-func (c *ServiceClients) FindCertifiedWorkers(ctx context.Context, req *FindCertifiedWorkersRequest) ([]Worker, error) {
+func (c *ServiceClients) FindCertifiedWorkers(ctx context.Context, req *FindCertifiedWorkersRequest) ([]CertifiedWorker, error) {
 	url := fmt.Sprintf("%s/api/v1/workers/certified", c.config.LaborServiceURL)
-	var result []Worker
+	var result []CertifiedWorker
 	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
-// AssignWorker assigns a worker to a task
-func (c *ServiceClients) AssignWorker(ctx context.Context, req *AssignWorkerRequest) (*Worker, error) {
+// AssignCertifiedWorker assigns a certified worker to a station
+func (c *ServiceClients) AssignCertifiedWorker(ctx context.Context, req *AssignCertifiedWorkerRequest) (*CertifiedWorker, error) {
 	url := fmt.Sprintf("%s/api/v1/workers/assign", c.config.LaborServiceURL)
-	var result Worker
+	var result CertifiedWorker
 	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-// GetAvailableWorkers retrieves available workers
-func (c *ServiceClients) GetAvailableWorkers(ctx context.Context, req *GetAvailableWorkersRequest) ([]Worker, error) {
+// GetCertifiedWorkers retrieves available certified workers
+func (c *ServiceClients) GetCertifiedWorkers(ctx context.Context, req *GetCertifiedWorkersRequest) ([]CertifiedWorker, error) {
 	url := fmt.Sprintf("%s/api/v1/workers/available", c.config.LaborServiceURL)
-	var result []Worker
+	var result []CertifiedWorker
 	if err := c.doRequest(ctx, http.MethodPost, url, req, &result); err != nil {
 		return nil, err
 	}

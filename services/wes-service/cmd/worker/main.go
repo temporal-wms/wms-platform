@@ -43,6 +43,7 @@ func main() {
 	laborServiceURL := getEnv("LABOR_SERVICE_URL", "http://localhost:8010")
 	pickingServiceURL := getEnv("PICKING_SERVICE_URL", "http://localhost:8012")
 	wallingServiceURL := getEnv("WALLING_SERVICE_URL", "http://localhost:8017")
+	consolidationServiceURL := getEnv("CONSOLIDATION_SERVICE_URL", "http://localhost:8005")
 	packingServiceURL := getEnv("PACKING_SERVICE_URL", "http://localhost:8014")
 	processPathServiceURL := getEnv("PROCESS_PATH_SERVICE_URL", "http://localhost:8011")
 
@@ -111,6 +112,7 @@ func main() {
 	laborClient := activities.NewLaborServiceClient(laborServiceURL)
 	pickingClient := activities.NewPickingServiceClient(pickingServiceURL)
 	wallingClient := activities.NewWallingServiceClient(wallingServiceURL)
+	consolidationClient := activities.NewConsolidationServiceClient(consolidationServiceURL)
 	packingClient := activities.NewPackingServiceClient(packingServiceURL)
 
 	// Create application service
@@ -129,6 +131,7 @@ func main() {
 		laborClient,
 		pickingClient,
 		wallingClient,
+		consolidationClient,
 		packingClient,
 	)
 

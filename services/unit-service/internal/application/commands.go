@@ -9,6 +9,11 @@ type CreateUnitsCommand struct {
 	LocationID string `json:"locationId"`
 	Quantity   int    `json:"quantity"`
 	CreatedBy  string `json:"createdBy"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId,omitempty"`
+	FacilityID  string `json:"facilityId,omitempty"`
+	WarehouseID string `json:"warehouseId,omitempty"`
+	SellerID    string `json:"sellerId,omitempty"`
 }
 
 // ReserveUnitsCommand holds the input for reserving units for an order
@@ -17,6 +22,11 @@ type ReserveUnitsCommand struct {
 	PathID    string            `json:"pathId"`
 	Items     []ReserveItemSpec `json:"items"`
 	HandlerID string            `json:"handlerId"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId,omitempty"`
+	FacilityID  string `json:"facilityId,omitempty"`
+	WarehouseID string `json:"warehouseId,omitempty"`
+	SellerID    string `json:"sellerId,omitempty"`
 }
 
 // ReserveItemSpec specifies SKU and quantity to reserve
@@ -72,6 +82,13 @@ type ResolveExceptionCommand struct {
 	ExceptionID string `json:"exceptionId"`
 	Resolution  string `json:"resolution"`
 	ResolvedBy  string `json:"resolvedBy"`
+}
+
+// ReleaseUnitsCommand holds the input for releasing unit reservations
+type ReleaseUnitsCommand struct {
+	OrderID   string `json:"orderId"`
+	HandlerID string `json:"handlerId"`
+	Reason    string `json:"reason"`
 }
 
 // CreateUnitsResult holds the result of creating units

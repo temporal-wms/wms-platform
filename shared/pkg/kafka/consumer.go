@@ -134,7 +134,7 @@ func (c *Consumer) parseMessage(msg kafka.Message) (*cloudevents.WMSCloudEvent, 
 		return nil, fmt.Errorf("failed to unmarshal event: %w", err)
 	}
 
-	// Extract CloudEvents headers
+	// Extract CloudEvents headers (WMS extensions + W3C trace context)
 	for _, header := range msg.Headers {
 		switch header.Key {
 		case "ce-wmscorrelationid":
@@ -149,6 +149,11 @@ func (c *Consumer) parseMessage(msg kafka.Message) (*cloudevents.WMSCloudEvent, 
 			event.WarehouseID = string(header.Value)
 		case "ce-wmsorderid":
 			event.OrderID = string(header.Value)
+		// W3C Distributed Tracing extensions
+		case "ce-traceparent":
+			event.TraceParent = string(header.Value)
+		case "ce-tracestate":
+			event.TraceState = string(header.Value)
 		}
 	}
 

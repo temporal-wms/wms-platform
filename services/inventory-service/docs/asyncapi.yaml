@@ -56,6 +56,12 @@ channels:
         $ref: '#/components/messages/LowStockAlertEvent'
       lowStockCleared:
         $ref: '#/components/messages/LowStockClearedEvent'
+      ledgerEntryCreated:
+        $ref: '#/components/messages/LedgerEntryCreatedEvent'
+      inventoryValued:
+        $ref: '#/components/messages/InventoryValuedEvent'
+      reconciliationCompleted:
+        $ref: '#/components/messages/ReconciliationCompletedEvent'
 
 operations:
   publishInventoryItemCreated:
@@ -129,6 +135,33 @@ operations:
     description: Published when stock is replenished above reorder point
     messages:
       - $ref: '#/channels/wms.inventory.events/messages/lowStockCleared'
+
+  publishLedgerEntryCreated:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish ledger entry created event
+    description: Published when a double-entry ledger entry is created (debit or credit)
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/ledgerEntryCreated'
+
+  publishInventoryValued:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish inventory valued event
+    description: Published when inventory value is calculated based on cost layers
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/inventoryValued'
+
+  publishReconciliationCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/wms.inventory.events'
+    summary: Publish reconciliation completed event
+    description: Published when book-to-physical reconciliation is completed
+    messages:
+      - $ref: '#/channels/wms.inventory.events/messages/reconciliationCompleted'
 
 components:
   messages:
@@ -422,45 +455,7 @@ components:
 
   schemas:
     CloudEventHeaders:
-      type: object
-      description: CloudEvents 1.0 headers with WMS extensions
-      properties:
-        ce_specversion:
-          type: string
-          const: '1.0'
-          description: CloudEvents specification version
-        ce_type:
-          type: string
-          description: Event type (e.g., wms.inventory.reserved)
-        ce_source:
-          type: string
-          const: '/wms/inventory-service'
-          description: Event source identifier
-        ce_subject:
-          type: string
-          description: Subject (SKU for inventory events)
-        ce_id:
-          type: string
-          format: uuid
-          description: Unique event identifier
-        ce_time:
-          type: string
-          format: date-time
-          description: Event timestamp
-        ce_datacontenttype:
-          type: string
-          const: 'application/json'
-          description: Content type of the data
-        ce_wmscorrelationid:
-          type: string
-          description: Correlation ID for distributed tracing
-        ce_wmswavenumber:
-          type: string
-          description: Wave number for wave-based processing
-        ce_wmsworkflowid:
-          type: string
-          description: Temporal workflow ID
-
+      $ref: '../../../shared/docs/asyncapi-cloudevents-schema.yaml#/CloudEventHeaders'
     InventoryItemCreatedPayload:
       type: object
       properties:
@@ -718,3 +713,165 @@ components:
         clearedAt:
           type: string
           format: date-time
+
+    LedgerEntryCreatedEvent:
+      name: LedgerEntryCreatedEvent
+      title: Ledger Entry Created
+      summary: Published when a double-entry ledger entry is created
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/LedgerEntryCreatedPayload'
+
+    InventoryValuedEvent:
+      name: InventoryValuedEvent
+      title: Inventory Valued
+      summary: Published when inventory value is calculated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/InventoryValuedPayload'
+
+    ReconciliationCompletedEvent:
+      name: ReconciliationCompletedEvent
+      title: Reconciliation Completed
+      summary: Published when book-to-physical reconciliation is completed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ReconciliationCompletedPayload'
+
+  schemas:
+    LedgerEntryCreatedPayload:
+      type: object
+      description: Ledger entry created in double-entry accounting
+      properties:
+        entryId:
+          type: string
+          example: "LE-20240120-001"
+        transactionId:
+          type: string
+          description: Links debit/credit entry pairs
+          example: "LTXN-20240120-001"
+        sku:
+          type: string
+          example: "WIDGET-001"
+        accountType:
+          type: string
+          enum: ["INVENTORY", "COGS", "GOODS_IN_TRANSIT", "ADJUSTMENTS", "RETURNS"]
+          example: "INVENTORY"
+        debitAmount:
+          type: integer
+          description: Quantity debited (0 if credit entry)
+          example: 100
+        creditAmount:
+          type: integer
+          description: Quantity credited (0 if debit entry)
+          example: 0
+        debitValue:
+          type: integer
+          description: Value debited in cents
+          example: 150000
+        creditValue:
+          type: integer
+          description: Value credited in cents
+          example: 0
+        runningBalance:
+          type: integer
+          description: Balance after this entry
+          example: 150
+        runningValue:
+          type: integer
+          description: Value after this entry in cents
+          example: 235000
+        locationId:
+          type: string
+          example: "A-1-2-3"
+        referenceId:
+          type: string
+          description: Order ID, PO ID, etc.
+          example: "PO-002"
+        referenceType:
+          type: string
+          enum: ["order", "po", "adjustment", "transfer"]
+          example: "po"
+        description:
+          type: string
+          example: "Received 100 units from PO-002"
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          example: "user-001"
+
+    InventoryValuedPayload:
+      type: object
+      description: Inventory valuation based on cost layers
+      properties:
+        sku:
+          type: string
+          example: "WIDGET-001"
+        valuationMethod:
+          type: string
+          enum: ["FIFO", "LIFO", "WEIGHTED_AVERAGE"]
+          example: "FIFO"
+        totalQuantity:
+          type: integer
+          example: 150
+        totalValue:
+          type: integer
+          description: Total inventory value in cents
+          example: 235000
+        averageUnitCost:
+          type: integer
+          description: Average unit cost in cents
+          example: 1566
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          example: "USD"
+        costLayerCount:
+          type: integer
+          description: Number of cost layers (FIFO/LIFO)
+          example: 2
+        valuedAt:
+          type: string
+          format: date-time
+
+    ReconciliationCompletedPayload:
+      type: object
+      description: Result of book-to-physical inventory reconciliation
+      properties:
+        reconciliationId:
+          type: string
+          example: "RECON-20240120-001"
+        sku:
+          type: string
+          example: "WIDGET-001"
+        locationId:
+          type: string
+          example: "A-1-2-3"
+        bookBalance:
+          type: integer
+          description: Balance according to ledger
+          example: 150
+        physicalCount:
+          type: integer
+          description: Actual physical count
+          example: 148
+        variance:
+          type: integer
+          description: Difference (physical - book)
+          example: -2
+        varianceValue:
+          type: integer
+          description: Value of variance in cents
+          example: -3132
+        status:
+          type: string
+          enum: ["matched", "variance_recorded", "adjustment_required"]
+          example: "variance_recorded"
+        completedAt:
+          type: string
+          format: date-time
+        completedBy:
+          type: string
+          example: "user-001"

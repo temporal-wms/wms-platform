@@ -125,6 +125,19 @@ export function completeTask(taskId) {
     'complete task status 200': (r) => r.status === 200,
   });
 
+  // Handle "task is already completed" as success (idempotency)
+  if (!success && response.status === 400 && response.body) {
+    try {
+      const errorBody = JSON.parse(response.body);
+      if (errorBody.message && errorBody.message.includes('already completed')) {
+        console.log(`Task ${taskId} already completed (idempotent success)`);
+        return { taskId: taskId, status: 'completed' };
+      }
+    } catch (e) {
+      // Continue to regular error handling
+    }
+  }
+
   if (!success) {
     console.warn(`Failed to complete task ${taskId}: ${response.status} - ${response.body}`);
     return null;
@@ -263,7 +276,11 @@ export function simulatePickingTask(task) {
       // Note: We only create reservations here, orchestrator's StageInventory will convert to hard allocations
       const reserveResult = reserveStock(item.sku, task.orderId, locationId, item.quantity);
       if (!reserveResult.success) {
-        console.warn(`Failed to reserve inventory for ${item.sku}: ${reserveResult.status} (continuing anyway)`);
+        // 400 is expected when stock is insufficient or SKU doesn't exist at location
+        // Only warn on unexpected errors (500, network issues, etc.)
+        if (reserveResult.status !== 400) {
+          console.warn(`Failed to reserve inventory for ${item.sku}: ${reserveResult.status} (continuing anyway)`);
+        }
       } else {
         console.log(`Inventory reserved: ${item.sku} x${item.quantity} at ${locationId} for staging`);
       }

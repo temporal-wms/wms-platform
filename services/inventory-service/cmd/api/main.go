@@ -141,6 +141,15 @@ func main() {
 		logger,
 	)
 
+	// Initialize ledger repositories and service (optional feature)
+	ledgerRepo := mongoRepo.NewInventoryLedgerRepository(instrumentedMongo.Database(), eventFactory)
+	entryRepo := mongoRepo.NewLedgerEntryRepository(instrumentedMongo.Database(), eventFactory)
+	ledgerService := application.NewLedgerApplicationService(ledgerRepo, entryRepo)
+
+	// Set ledger service on inventory service to enable double-entry bookkeeping
+	inventoryService.SetLedgerService(ledgerService)
+	logger.Info("Ledger service initialized and integrated")
+
 	// Setup Gin router with middleware
 	router := gin.New()
 
@@ -184,8 +193,9 @@ func main() {
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// API v1 routes
+	// API v1 routes with tenant context required
 	api := router.Group("/api/v1/inventory")
+	api.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		// Static routes first (must come before wildcard routes)
 		api.POST("", createItemHandler(inventoryService, logger))
@@ -193,6 +203,7 @@ func main() {
 		api.GET("/location/:locationId", getByLocationHandler(inventoryService, logger))
 		api.GET("/zone/:zone", getByZoneHandler(inventoryService, logger))
 		api.GET("/low-stock", getLowStockHandler(inventoryService, logger))
+		api.POST("/reserve", reserveBulkHandler(inventoryService, logger))
 		api.POST("/release/:orderId", releaseByOrderHandler(inventoryService, logger))
 
 		// Wildcard SKU routes (must come after static routes)
@@ -211,6 +222,11 @@ func main() {
 
 		// Shortage handling routes
 		api.POST("/:sku/shortage", recordShortageHandler(inventoryService, logger))
+
+		// Ledger routes (double-entry accounting)
+		api.GET("/:sku/ledger", getLedgerHandler(ledgerService, logger))
+		api.GET("/:sku/ledger/entries", getLedgerEntriesHandler(ledgerService, logger))
+		api.GET("/ledger/transactions/:transactionId", getLedgerTransactionHandler(ledgerService, logger))
 	}
 
 	// Start server
@@ -403,6 +419,57 @@ func reserveHandler(service *application.InventoryApplicationService, logger *lo
 		}
 
 		c.JSON(http.StatusOK, item)
+	}
+}
+
+func reserveBulkHandler(service *application.InventoryApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		var req struct {
+			OrderID string `json:"orderId" binding:"required"`
+			Items   []struct {
+				SKU        string `json:"sku" binding:"required"`
+				Quantity   int    `json:"quantity" binding:"required"`
+				LocationID string `json:"locationId"` // Optional - service will auto-select if not provided
+			} `json:"items" binding:"required,min=1"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Convert to command
+		items := make([]application.ReserveInventoryBulkItem, len(req.Items))
+		for i, item := range req.Items {
+			items[i] = application.ReserveInventoryBulkItem{
+				SKU:        item.SKU,
+				Quantity:   item.Quantity,
+				LocationID: item.LocationID,
+			}
+		}
+
+		cmd := application.ReserveInventoryBulkCommand{
+			OrderID: req.OrderID,
+			Items:   items,
+		}
+
+		err := service.ReserveBulk(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"orderId":   req.OrderID,
+			"message":   "Inventory reserved successfully",
+			"itemCount": len(items),
+		})
 	}
 }
 
@@ -754,5 +821,115 @@ func recordShortageHandler(service *application.InventoryApplicationService, log
 		}
 
 		c.JSON(http.StatusOK, item)
+	}
+}
+
+// Ledger Handlers
+
+func getLedgerHandler(service *application.LedgerApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		sku := c.Param("sku")
+		tenantID := c.GetString("tenantId")
+		facilityID := c.GetString("facilityId")
+
+		if tenantID == "" || facilityID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "tenantId and facilityId are required"})
+			return
+		}
+
+		query := application.GetLedgerQuery{
+			SKU:        sku,
+			TenantID:   tenantID,
+			FacilityID: facilityID,
+		}
+
+		ledger, err := service.GetLedger(c.Request.Context(), query)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, ledger)
+	}
+}
+
+func getLedgerEntriesHandler(service *application.LedgerApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		sku := c.Param("sku")
+		tenantID := c.GetString("tenantId")
+		facilityID := c.GetString("facilityId")
+
+		if tenantID == "" || facilityID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "tenantId and facilityId are required"})
+			return
+		}
+
+		limit := 50
+		if limitStr := c.Query("limit"); limitStr != "" {
+			if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+				limit = l
+			}
+		}
+
+		query := application.GetLedgerEntriesQuery{
+			SKU:        sku,
+			TenantID:   tenantID,
+			FacilityID: facilityID,
+			Limit:      limit,
+		}
+
+		entries, err := service.GetLedgerEntries(c.Request.Context(), query)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"entries": entries,
+			"count":   len(entries),
+		})
+	}
+}
+
+func getLedgerTransactionHandler(service *application.LedgerApplicationService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		transactionID := c.Param("transactionId")
+		tenantID := c.GetString("tenantId")
+
+		if tenantID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "tenantId is required"})
+			return
+		}
+
+		query := application.GetLedgerByTransactionQuery{
+			TransactionID: transactionID,
+			TenantID:      tenantID,
+		}
+
+		transaction, err := service.GetTransactionEntries(c.Request.Context(), query)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, transaction)
 	}
 }

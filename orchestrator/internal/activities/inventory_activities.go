@@ -171,7 +171,11 @@ func (a *InventoryActivities) StageInventory(ctx context.Context, input StageInv
 	}
 
 	var lastError error
-	for _, item := range input.Items {
+	totalItems := len(input.Items)
+	for i, item := range input.Items {
+		// Record heartbeat for long-running staging operations
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Staging inventory item %d/%d", i+1, totalItems))
+
 		req := &clients.StageInventoryRequest{
 			ReservationID:     item.ReservationID,
 			StagingLocationID: input.StagingLocationID,
@@ -239,8 +243,12 @@ func (a *InventoryActivities) PackInventory(ctx context.Context, input PackInven
 
 	var lastError error
 	successCount := 0
+	totalItems := len(input.Items)
 
-	for _, item := range input.Items {
+	for i, item := range input.Items {
+		// Record heartbeat for long-running packing operations
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Packing inventory item %d/%d", i+1, totalItems))
+
 		req := &clients.PackInventoryRequest{
 			AllocationID: item.AllocationID,
 			PackedBy:     input.PackedBy,
@@ -297,8 +305,12 @@ func (a *InventoryActivities) ShipInventory(ctx context.Context, input ShipInven
 
 	var lastError error
 	successCount := 0
+	totalItems := len(input.Items)
 
-	for _, item := range input.Items {
+	for i, item := range input.Items {
+		// Record heartbeat for long-running shipping operations
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Shipping inventory item %d/%d", i+1, totalItems))
+
 		req := &clients.ShipInventoryRequest{
 			AllocationID: item.AllocationID,
 		}
@@ -356,8 +368,12 @@ func (a *InventoryActivities) ReturnInventoryToShelf(ctx context.Context, input 
 
 	var lastError error
 	successCount := 0
+	totalItems := len(input.Items)
 
-	for _, item := range input.Items {
+	for i, item := range input.Items {
+		// Record heartbeat for long-running return operations
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Returning inventory item %d/%d to shelf", i+1, totalItems))
+
 		req := &clients.ReturnToShelfRequest{
 			AllocationID: item.AllocationID,
 			ReturnedBy:   input.ReturnedBy,

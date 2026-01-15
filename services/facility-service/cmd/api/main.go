@@ -331,8 +331,9 @@ func run(ctx context.Context, config *Config, deps appDependencies, signalCh <-c
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// API v1 routes
+	// API v1 routes with tenant context required
 	apiV1 := router.Group("/api/v1")
+	apiV1.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 
 	// Station routes (for process path routing and facility management)
 	stationHandlers := handlers.NewStationHandlers(stationService, logger, businessMetrics)

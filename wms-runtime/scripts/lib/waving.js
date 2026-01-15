@@ -177,6 +177,19 @@ export function sendWaveAssignedSignal(orderId, waveId) {
     'signal wave assigned status 200': (r) => r.status === 200,
   });
 
+  // Handle "workflow execution already completed" as success (idempotent behavior)
+  if (!success && response.status === 500) {
+    try {
+      const errorBody = JSON.parse(response.body);
+      if (errorBody.error && errorBody.error.includes('already completed')) {
+        console.log(`Wave signal for order ${orderId}: workflow already completed (idempotent success)`);
+        return true;
+      }
+    } catch (e) {
+      // Continue to regular error handling
+    }
+  }
+
   if (!success) {
     console.warn(`Failed to signal wave assigned for order ${orderId}: ${response.status} - ${response.body}`);
   } else {

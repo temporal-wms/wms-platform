@@ -109,6 +109,21 @@ func (p *Producer) PublishEvent(ctx context.Context, topic string, event *cloude
 		})
 	}
 
+	// Add W3C Trace Context headers
+	if event.TraceParent != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   "ce-traceparent",
+			Value: []byte(event.TraceParent),
+		})
+	}
+
+	if event.TraceState != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   "ce-tracestate",
+			Value: []byte(event.TraceState),
+		})
+	}
+
 	if err := writer.WriteMessages(ctx, msg); err != nil {
 		return fmt.Errorf("failed to publish event to topic %s: %w", topic, err)
 	}
@@ -168,6 +183,14 @@ func (p *Producer) PublishBatch(ctx context.Context, topic string, events []*clo
 		}
 		if event.OrderID != "" {
 			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-wmsorderid", Value: []byte(event.OrderID)})
+		}
+
+		// Add W3C Trace Context headers
+		if event.TraceParent != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-traceparent", Value: []byte(event.TraceParent)})
+		}
+		if event.TraceState != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{Key: "ce-tracestate", Value: []byte(event.TraceState)})
 		}
 
 		messages = append(messages, msg)

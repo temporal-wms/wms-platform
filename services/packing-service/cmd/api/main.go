@@ -169,8 +169,9 @@ func main() {
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// API v1 routes
+	// API v1 routes with tenant context required
 	api := router.Group("/api/v1/tasks")
+	api.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		api.POST("", createPackTaskHandler(packingService, logger))
 		api.GET("/:taskId", getPackTaskHandler(packingService, logger))

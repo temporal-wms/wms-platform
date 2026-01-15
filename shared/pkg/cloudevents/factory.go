@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wms-platform/shared/pkg/tenant"
 )
 
 // EventFactory creates CloudEvents for WMS domain events
@@ -55,6 +56,7 @@ func (f *EventFactory) CreateEventWithCorrelation(
 }
 
 // CreateEventWithContext creates an event with full WMS context
+// Deprecated: Use CreateEventWithTenantContext for proper tenant isolation
 func (f *EventFactory) CreateEventWithContext(
 	ctx context.Context,
 	eventType string,
@@ -71,6 +73,39 @@ func (f *EventFactory) CreateEventWithContext(
 	event.WorkflowID = workflowID
 	event.FacilityID = facilityID
 	event.WarehouseID = warehouseID
+	event.OrderID = orderID
+	return event
+}
+
+// CreateEventWithTenantContext creates an event with full tenant context.
+// This is the preferred method for creating events with tenant isolation.
+func (f *EventFactory) CreateEventWithTenantContext(
+	ctx context.Context,
+	eventType string,
+	subject string,
+	data interface{},
+	tc *tenant.Context,
+) *WMSCloudEvent {
+	event := f.CreateEvent(ctx, eventType, subject, data)
+	event.SetTenantContext(tc)
+	return event
+}
+
+// CreateEventWithFullContext creates an event with full WMS context including tenant.
+// Use this when you need all context fields including correlation and workflow IDs.
+func (f *EventFactory) CreateEventWithFullContext(
+	ctx context.Context,
+	eventType string,
+	subject string,
+	data interface{},
+	tc *tenant.Context,
+	correlationID string,
+	workflowID string,
+	orderID string,
+) *WMSCloudEvent {
+	event := f.CreateEventWithTenantContext(ctx, eventType, subject, data, tc)
+	event.CorrelationID = correlationID
+	event.WorkflowID = workflowID
 	event.OrderID = orderID
 	return event
 }

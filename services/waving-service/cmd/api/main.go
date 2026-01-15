@@ -233,8 +233,9 @@ func main() {
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// Wave API routes
+	// Wave API routes with tenant context required
 	api := router.Group("/api/v1")
+	api.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		waves := api.Group("/waves")
 		{

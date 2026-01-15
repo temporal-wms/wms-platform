@@ -13,6 +13,13 @@ type CreateOrderCommand struct {
 	ShippingAddress    AddressInput
 	Priority           string
 	PromisedDeliveryAt time.Time
+	// Multi-tenant context
+	TenantID        string
+	FacilityID      string
+	WarehouseID     string
+	SellerID        string
+	ChannelID       string
+	ExternalOrderID string
 }
 
 // OrderItemInput represents an order item in a command

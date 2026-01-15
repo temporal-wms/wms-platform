@@ -13,6 +13,7 @@ import (
 	"github.com/wms-platform/shared/pkg/logging"
 	"github.com/wms-platform/shared/pkg/middleware"
 	"github.com/wms-platform/shared/pkg/temporal"
+	"github.com/wms-platform/shared/pkg/tenant"
 
 	"github.com/wms-platform/services/order-service/internal/domain"
 	"github.com/wms-platform/services/order-service/internal/infrastructure/projections"
@@ -52,17 +53,31 @@ func NewOrderApplicationService(
 
 // CreateOrder creates a new order and starts the fulfillment workflow
 func (s *OrderApplicationService) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (*OrderCreatedResponse, error) {
+	// Extract tenant context from Go context (set by TenantAuth middleware)
+	tenantCtx := tenant.FromContextOptional(ctx)
+
+	// Build tenant info - prefer explicit command values, fallback to context
+	tenantInfo := &domain.TenantInfo{
+		TenantID:        firstNonEmpty(cmd.TenantID, tenantCtx.TenantID),
+		FacilityID:      firstNonEmpty(cmd.FacilityID, tenantCtx.FacilityID),
+		WarehouseID:     firstNonEmpty(cmd.WarehouseID, tenantCtx.WarehouseID),
+		SellerID:        firstNonEmpty(cmd.SellerID, tenantCtx.SellerID),
+		ChannelID:       firstNonEmpty(cmd.ChannelID, tenantCtx.ChannelID),
+		ExternalOrderID: cmd.ExternalOrderID,
+	}
+
 	// Generate order ID
 	orderID := "ORD-" + uuid.New().String()[:8]
 
-	// Create the order aggregate
-	order, err := domain.NewOrder(
+	// Create the order aggregate WITH tenant info
+	order, err := domain.NewOrderWithTenant(
 		orderID,
 		cmd.CustomerID,
 		cmd.ToDomainOrderItems(),
 		cmd.ShippingAddress.ToDomainAddress(),
 		cmd.ToDomainPriority(),
 		cmd.PromisedDeliveryAt,
+		tenantInfo,
 	)
 	if err != nil {
 		return nil, errors.ErrValidation(err.Error())
@@ -471,6 +486,10 @@ func (s *OrderApplicationService) startOrderFulfillmentWorkflow(ctx context.Cont
 		PromisedDeliveryAt: cmd.PromisedDeliveryAt,
 		IsMultiItem:        order.IsMultiItem(),
 		Items:              make([]WorkflowItem, 0, len(cmd.Items)),
+		// Propagate tenant context to workflow
+		TenantID:    order.TenantID,
+		FacilityID:  order.FacilityID,
+		WarehouseID: order.WarehouseID,
 	}
 
 	for _, item := range cmd.Items {
@@ -504,6 +523,10 @@ type OrderFulfillmentInput struct {
 	Priority           string         `json:"priority"`
 	PromisedDeliveryAt time.Time      `json:"promisedDeliveryAt"`
 	IsMultiItem        bool           `json:"isMultiItem"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId,omitempty"`
+	FacilityID  string `json:"facilityId,omitempty"`
+	WarehouseID string `json:"warehouseId,omitempty"`
 }
 
 // WorkflowItem represents an item in the workflow input
@@ -540,4 +563,14 @@ func (s *OrderApplicationService) updateProjections(ctx context.Context, events 
 			s.logger.WithError(err).Error("Failed to update projection", "eventType", fmt.Sprintf("%T", event))
 		}
 	}
+}
+
+// firstNonEmpty returns the first non-empty string from the provided values
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

@@ -769,6 +769,63 @@ components:
           description: Additional error details
 
   parameters:
+    # WMS Tenant Context Headers (Multi-Tenancy - REQUIRED)
+    TenantIdHeader:
+      name: X-WMS-Tenant-ID
+      in: header
+      required: true
+      description: |
+        Tenant identifier for multi-tenant isolation.
+        Required for all API operations to ensure proper data segregation.
+      schema:
+        type: string
+      example: "tenant-001"
+
+    FacilityIdHeader:
+      name: X-WMS-Facility-ID
+      in: header
+      required: true
+      description: |
+        Facility/distribution center identifier.
+        Required for all API operations to route requests to the correct facility.
+      schema:
+        type: string
+      example: "facility-east"
+
+    WarehouseIdHeader:
+      name: X-WMS-Warehouse-ID
+      in: header
+      required: true
+      description: |
+        Warehouse identifier within the facility.
+        Required for all API operations for warehouse-specific processing.
+      schema:
+        type: string
+      example: "warehouse-a"
+
+    SellerIdHeader:
+      name: X-WMS-Seller-ID
+      in: header
+      required: false
+      description: |
+        Seller identifier for marketplace operations.
+        Optional - used for multi-seller scenarios.
+      schema:
+        type: string
+      example: "seller-123"
+
+    ChannelIdHeader:
+      name: X-WMS-Channel-ID
+      in: header
+      required: false
+      description: |
+        Sales channel identifier (e.g., web, mobile, marketplace).
+        Optional - used for channel-specific processing.
+      schema:
+        type: string
+      example: "web"
+
+    # CloudEvents Extensions Headers
     WMSCorrelationID:
       name: X-WMS-Correlation-ID
       in: header

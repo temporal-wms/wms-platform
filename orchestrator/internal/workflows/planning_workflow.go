@@ -555,10 +555,13 @@ func PlanningWorkflow(ctx workflow.Context, input PlanningWorkflowInput) (*Plann
 
 		var reserveResult map[string]interface{}
 		err = workflow.ExecuteActivity(ctx, "ReserveUnits", map[string]interface{}{
-			"orderId":   input.OrderID,
-			"pathId":    result.PathID,
-			"items":     reserveItems,
-			"handlerId": "planning-workflow",
+			"orderId":     input.OrderID,
+			"pathId":      result.PathID,
+			"items":       reserveItems,
+			"handlerId":   "planning-workflow",
+			"tenantId":    input.TenantID,
+			"facilityId":  input.FacilityID,
+			"warehouseId": input.WarehouseID,
 		}).Get(ctx, &reserveResult)
 		if err != nil {
 			result.Error = fmt.Sprintf("unit reservation failed: %v", err)
@@ -612,8 +615,11 @@ func PlanningWorkflow(ctx workflow.Context, input PlanningWorkflowInput) (*Plann
 					"error", err)
 
 				releaseErr := workflow.ExecuteActivity(compensationCtx, "ReleaseUnits", map[string]interface{}{
-					"orderId": input.OrderID,
-					"reason":  "workflow_failed",
+					"orderId":     input.OrderID,
+					"reason":      "workflow_failed",
+					"tenantId":    input.TenantID,
+					"facilityId":  input.FacilityID,
+					"warehouseId": input.WarehouseID,
 				}).Get(compensationCtx, nil)
 
 				if releaseErr != nil {

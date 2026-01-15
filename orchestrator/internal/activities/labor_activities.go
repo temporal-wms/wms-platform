@@ -130,7 +130,7 @@ type AssignCertifiedWorkerInput struct {
 }
 
 // AssignCertifiedWorker assigns a certified worker to an order/station
-func (a *LaborActivities) AssignCertifiedWorker(ctx context.Context, input AssignCertifiedWorkerInput) (*clients.Worker, error) {
+func (a *LaborActivities) AssignCertifiedWorker(ctx context.Context, input AssignCertifiedWorkerInput) (*clients.CertifiedWorker, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Assigning certified worker",
 		"orderId", input.OrderID,
@@ -139,7 +139,7 @@ func (a *LaborActivities) AssignCertifiedWorker(ctx context.Context, input Assig
 	)
 
 	// Call labor service to assign worker
-	req := &clients.AssignWorkerRequest{
+	req := &clients.AssignCertifiedWorkerRequest{
 		OrderID:        input.OrderID,
 		StationID:      input.StationID,
 		RequiredSkills: input.RequiredSkills,
@@ -147,7 +147,7 @@ func (a *LaborActivities) AssignCertifiedWorker(ctx context.Context, input Assig
 		Priority:       input.Priority,
 	}
 
-	worker, err := a.clients.AssignWorker(ctx, req)
+	worker, err := a.clients.AssignCertifiedWorker(ctx, req)
 	if err != nil {
 		logger.Error("Failed to assign certified worker",
 			"orderId", input.OrderID,
@@ -174,21 +174,21 @@ type GetAvailableWorkersInput struct {
 	ShiftTime      string   `json:"shiftTime,omitempty"`
 }
 
-// GetAvailableWorkers retrieves available workers (optionally filtered by skills)
-func (a *LaborActivities) GetAvailableWorkers(ctx context.Context, input GetAvailableWorkersInput) ([]clients.Worker, error) {
+// GetAvailableWorkers retrieves available certified workers (optionally filtered by skills)
+func (a *LaborActivities) GetAvailableWorkers(ctx context.Context, input GetAvailableWorkersInput) ([]clients.CertifiedWorker, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Getting available workers",
 		"zone", input.Zone,
 		"requiredSkills", input.RequiredSkills,
 	)
 
-	req := &clients.GetAvailableWorkersRequest{
+	req := &clients.GetCertifiedWorkersRequest{
 		Zone:           input.Zone,
 		RequiredSkills: input.RequiredSkills,
 		ShiftTime:      input.ShiftTime,
 	}
 
-	workers, err := a.clients.GetAvailableWorkers(ctx, req)
+	workers, err := a.clients.GetCertifiedWorkers(ctx, req)
 	if err != nil {
 		logger.Error("Failed to get available workers", "error", err)
 		return nil, fmt.Errorf("failed to get available workers: %w", err)

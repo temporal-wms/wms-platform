@@ -9,6 +9,11 @@ type CreateUnitsRequest struct {
 	LocationID string `json:"locationId" binding:"required"`
 	Quantity   int    `json:"quantity" binding:"required,min=1"`
 	CreatedBy  string `json:"createdBy" binding:"required"`
+	// Multi-tenant context (optional - can come from headers or body)
+	TenantID    string `json:"tenantId,omitempty"`
+	FacilityID  string `json:"facilityId,omitempty"`
+	WarehouseID string `json:"warehouseId,omitempty"`
+	SellerID    string `json:"sellerId,omitempty"`
 }
 
 // ReserveUnitsRequest holds the input for reserving units
@@ -17,6 +22,11 @@ type ReserveUnitsRequest struct {
 	PathID    string            `json:"pathId" binding:"required"`
 	Items     []ReserveItemSpec `json:"items" binding:"required,dive"`
 	HandlerID string            `json:"handlerId" binding:"required"`
+	// Multi-tenant context (optional - can come from headers or body)
+	TenantID    string `json:"tenantId,omitempty"`
+	FacilityID  string `json:"facilityId,omitempty"`
+	WarehouseID string `json:"warehouseId,omitempty"`
+	SellerID    string `json:"sellerId,omitempty"`
 }
 
 // ReserveItemSpec specifies SKU and quantity to reserve

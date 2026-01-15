@@ -280,6 +280,30 @@ func (u *Unit) Ship(shipmentID, trackingNumber, handlerID string) error {
 	return nil
 }
 
+// Release releases the unit reservation and returns it to available status
+func (u *Unit) Release(handlerID, reason string) error {
+	if u.Status != UnitStatusReserved {
+		return fmt.Errorf("cannot release unit in status %s", u.Status)
+	}
+
+	now := time.Now()
+	oldStatus := u.Status
+
+	// Clear reservation data
+	orderID := u.OrderID
+	u.OrderID = ""
+	u.AssignedPathID = ""
+	u.ReservationID = ""
+	u.Status = UnitStatusReceived
+	u.ReservedAt = nil
+	u.UpdatedAt = now
+
+	u.recordMovement(u.CurrentLocationID, u.CurrentLocationID, oldStatus, u.Status, "", handlerID, reason)
+	u.addEvent(NewUnitReleasedEvent(u, orderID, reason))
+
+	return nil
+}
+
 // MarkException marks the unit as having an exception
 func (u *Unit) MarkException(exceptionID, reason, handlerID, stationID string) error {
 	now := time.Now()

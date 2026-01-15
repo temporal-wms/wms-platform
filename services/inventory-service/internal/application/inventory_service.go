@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/wms-platform/shared/pkg/cloudevents"
 	"github.com/wms-platform/shared/pkg/errors"
@@ -19,6 +20,7 @@ type InventoryApplicationService struct {
 	producer     *kafka.InstrumentedProducer
 	eventFactory *cloudevents.EventFactory
 	projector    *projections.InventoryProjector // CQRS projector for read model
+	ledgerService *LedgerApplicationService      // Optional: for double-entry ledger
 	logger       *logging.Logger
 }
 
@@ -35,8 +37,14 @@ func NewInventoryApplicationService(
 		producer:     producer,
 		eventFactory: eventFactory,
 		projector:    projector,
+		ledgerService: nil, // Will be set via SetLedgerService if enabled
 		logger:       logger,
 	}
+}
+
+// SetLedgerService sets the ledger service (optional feature)
+func (s *InventoryApplicationService) SetLedgerService(ledgerService *LedgerApplicationService) {
+	s.ledgerService = ledgerService
 }
 
 // CreateItem creates a new inventory item
@@ -102,6 +110,35 @@ func (s *InventoryApplicationService) ReceiveStock(ctx context.Context, cmd Rece
 	// Update CQRS projections
 	s.updateProjections(ctx, cmd.SKU, events)
 
+	// Record in ledger if ledger service is enabled
+	if s.ledgerService != nil && cmd.UnitCost > 0 {
+		currency := cmd.Currency
+		if currency == "" {
+			currency = "USD" // Default currency
+		}
+
+		ledgerCmd := RecordReceivingCommand{
+			SKU:         cmd.SKU,
+			Quantity:    cmd.Quantity,
+			UnitCost:    cmd.UnitCost,
+			Currency:    currency,
+			LocationID:  cmd.LocationID,
+			ReferenceID: cmd.ReferenceID,
+			CreatedBy:   cmd.CreatedBy,
+			TenantID:    item.TenantID,
+			FacilityID:  item.FacilityID,
+			WarehouseID: item.WarehouseID,
+			SellerID:    item.SellerID,
+		}
+
+		if _, err := s.ledgerService.RecordReceiving(ctx, ledgerCmd); err != nil {
+			// Log error but don't fail the operation - ledger is supplementary
+			s.logger.Warn("Failed to record receiving in ledger", "sku", cmd.SKU, "error", err)
+		} else {
+			s.logger.Debug("Recorded receiving in ledger", "sku", cmd.SKU, "quantity", cmd.Quantity)
+		}
+	}
+
 	// Events are saved to outbox by repository in transaction
 
 	s.logger.Info("Received stock", "sku", cmd.SKU, "quantity", cmd.Quantity, "location", cmd.LocationID)
@@ -141,6 +178,134 @@ func (s *InventoryApplicationService) Reserve(ctx context.Context, cmd ReserveCo
 	return ToInventoryItemDTO(item), nil
 }
 
+// ReserveBulk reserves multiple items atomically for an order
+func (s *InventoryApplicationService) ReserveBulk(ctx context.Context, cmd ReserveInventoryBulkCommand) error {
+	if len(cmd.Items) == 0 {
+		return errors.ErrValidation("items list cannot be empty")
+	}
+
+	s.logger.Info("Starting bulk reservation", "orderId", cmd.OrderID, "itemCount", len(cmd.Items))
+
+	// Phase 1: Load and validate all items
+	itemsMap := make(map[string]*domain.InventoryItem)
+	for _, itemReq := range cmd.Items {
+		item, err := s.repo.FindBySKU(ctx, itemReq.SKU)
+		if err != nil {
+			s.logger.Error("Failed to get item", "sku", itemReq.SKU, "error", err)
+			return fmt.Errorf("failed to get item %s: %w", itemReq.SKU, err)
+		}
+		if item == nil {
+			return errors.ErrNotFound(fmt.Sprintf("item with SKU %s", itemReq.SKU))
+		}
+		itemsMap[itemReq.SKU] = item
+	}
+
+	// Phase 2: Auto-select locations and validate availability for all items before reserving any
+	locationSelections := make(map[string]string) // SKU -> LocationID
+	for _, itemReq := range cmd.Items {
+		item := itemsMap[itemReq.SKU]
+
+		var locationID string
+		var available int
+
+		if itemReq.LocationID != "" {
+			// Use specified location
+			locationID = itemReq.LocationID
+			loc := item.GetLocationStock(locationID)
+			if loc == nil {
+				return errors.ErrValidation(fmt.Sprintf(
+					"location %s not found for SKU %s",
+					locationID, itemReq.SKU,
+				))
+			}
+			available = loc.Available
+		} else {
+			// Auto-select location with sufficient availability
+			availableLocations := item.GetAvailableLocations()
+			if len(availableLocations) == 0 {
+				return errors.ErrValidation(fmt.Sprintf(
+					"no available stock for SKU %s",
+					itemReq.SKU,
+				))
+			}
+
+			// Find first location with sufficient quantity
+			found := false
+			for _, loc := range availableLocations {
+				if loc.Available >= itemReq.Quantity {
+					locationID = loc.LocationID
+					available = loc.Available
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				// Calculate total available
+				totalAvailable := 0
+				for _, loc := range availableLocations {
+					totalAvailable += loc.Available
+				}
+				return errors.ErrValidation(fmt.Sprintf(
+					"insufficient stock for SKU %s: requested %d, total available %d (split across locations)",
+					itemReq.SKU, itemReq.Quantity, totalAvailable,
+				))
+			}
+		}
+
+		// Validate availability
+		if available < itemReq.Quantity {
+			return errors.ErrValidation(fmt.Sprintf(
+				"insufficient stock for SKU %s at location %s: requested %d, available %d",
+				itemReq.SKU, locationID, itemReq.Quantity, available,
+			))
+		}
+
+		locationSelections[itemReq.SKU] = locationID
+	}
+
+	// Phase 3: Reserve all items (domain logic) using selected locations
+	for _, itemReq := range cmd.Items {
+		item := itemsMap[itemReq.SKU]
+		locationID := locationSelections[itemReq.SKU]
+		if err := item.Reserve(cmd.OrderID, locationID, itemReq.Quantity); err != nil {
+			s.logger.Error("Failed to reserve item", "sku", itemReq.SKU, "orderId", cmd.OrderID, "error", err)
+			return errors.ErrValidation(fmt.Sprintf("failed to reserve %s: %s", itemReq.SKU, err.Error()))
+		}
+	}
+
+	// Phase 4: Save all items and update projections
+	for _, itemReq := range cmd.Items {
+		item := itemsMap[itemReq.SKU]
+		locationID := locationSelections[itemReq.SKU]
+
+		if err := s.repo.Save(ctx, item); err != nil {
+			s.logger.Error("Failed to save item after reservation", "sku", itemReq.SKU, "error", err)
+			// Note: At this point some items may have been saved.
+			// Consider implementing compensating transaction in production
+			return fmt.Errorf("failed to save item %s: %w", itemReq.SKU, err)
+		}
+
+		// Update CQRS projections
+		if s.projector != nil {
+			_ = s.projector.OnInventoryReserved(ctx, itemReq.SKU, cmd.OrderID)
+		}
+
+		s.logger.Info("Reserved item in bulk",
+			"sku", itemReq.SKU,
+			"orderId", cmd.OrderID,
+			"quantity", itemReq.Quantity,
+			"location", locationID,
+		)
+	}
+
+	s.logger.Info("Bulk reservation completed successfully",
+		"orderId", cmd.OrderID,
+		"itemCount", len(cmd.Items),
+	)
+	return nil
+}
+
 // Pick picks stock (reduces quantity)
 func (s *InventoryApplicationService) Pick(ctx context.Context, cmd PickCommand) (*InventoryItemDTO, error) {
 	item, err := s.repo.FindBySKU(ctx, cmd.SKU)
@@ -171,6 +336,28 @@ func (s *InventoryApplicationService) Pick(ctx context.Context, cmd PickCommand)
 	s.updateProjections(ctx, cmd.SKU, events)
 	if s.projector != nil {
 		_ = s.projector.OnInventoryPicked(ctx, cmd.SKU)
+	}
+
+	// Record in ledger if ledger service is enabled
+	if s.ledgerService != nil {
+		ledgerCmd := RecordPickCommand{
+			SKU:         cmd.SKU,
+			Quantity:    cmd.Quantity,
+			LocationID:  cmd.LocationID,
+			OrderID:     cmd.OrderID,
+			CreatedBy:   cmd.CreatedBy,
+			TenantID:    item.TenantID,
+			FacilityID:  item.FacilityID,
+			WarehouseID: item.WarehouseID,
+			SellerID:    item.SellerID,
+		}
+
+		if _, err := s.ledgerService.RecordPick(ctx, ledgerCmd); err != nil {
+			// Log error but don't fail the operation - ledger is supplementary
+			s.logger.Warn("Failed to record pick in ledger", "sku", cmd.SKU, "error", err)
+		} else {
+			s.logger.Debug("Recorded pick in ledger", "sku", cmd.SKU, "quantity", cmd.Quantity)
+		}
 	}
 
 	// Events are saved to outbox by repository in transaction
@@ -258,6 +445,16 @@ func (s *InventoryApplicationService) Adjust(ctx context.Context, cmd AdjustComm
 		return nil, errors.ErrNotFound("item")
 	}
 
+	// Calculate adjustment delta before modifying
+	oldQty := 0
+	for _, loc := range item.Locations {
+		if loc.LocationID == cmd.LocationID {
+			oldQty = loc.Quantity
+			break
+		}
+	}
+	adjustmentQty := cmd.NewQuantity - oldQty
+
 	// Adjust inventory (domain logic)
 	if err := item.Adjust(cmd.LocationID, cmd.NewQuantity, cmd.Reason, cmd.CreatedBy); err != nil {
 		return nil, errors.ErrValidation(err.Error())
@@ -274,6 +471,29 @@ func (s *InventoryApplicationService) Adjust(ctx context.Context, cmd AdjustComm
 
 	// Update CQRS projections
 	s.updateProjections(ctx, cmd.SKU, events)
+
+	// Record in ledger if ledger service is enabled
+	if s.ledgerService != nil && adjustmentQty != 0 {
+		ledgerCmd := RecordAdjustmentCommand{
+			SKU:         cmd.SKU,
+			Quantity:    adjustmentQty,
+			Reason:      cmd.Reason,
+			LocationID:  cmd.LocationID,
+			ReferenceID: fmt.Sprintf("ADJ-%d", time.Now().Unix()),
+			CreatedBy:   cmd.CreatedBy,
+			TenantID:    item.TenantID,
+			FacilityID:  item.FacilityID,
+			WarehouseID: item.WarehouseID,
+			SellerID:    item.SellerID,
+		}
+
+		if _, err := s.ledgerService.RecordAdjustment(ctx, ledgerCmd); err != nil {
+			// Log error but don't fail the operation - ledger is supplementary
+			s.logger.Warn("Failed to record adjustment in ledger", "sku", cmd.SKU, "error", err)
+		} else {
+			s.logger.Debug("Recorded adjustment in ledger", "sku", cmd.SKU, "quantity", adjustmentQty)
+		}
+	}
 
 	// Events are saved to outbox by repository in transaction
 

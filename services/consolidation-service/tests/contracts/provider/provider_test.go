@@ -1,6 +1,3 @@
-//go:build never
-// +build never
-
 package provider_test
 
 import (
@@ -12,7 +9,6 @@ import (
 	"testing"
 
 	pact "github.com/pact-foundation/pact-go/v2/provider"
-	"github.com/pact-foundation/pact-go/v2/models"
 	"github.com/stretchr/testify/require"
 )
 

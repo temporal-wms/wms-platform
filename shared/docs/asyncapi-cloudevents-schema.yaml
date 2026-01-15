@@ -1,0 +1,204 @@
+# CloudEvents 1.0 Headers Schema - Reusable across all WMS services
+# This schema defines the standard CloudEvents attributes plus WMS and W3C extensions
+
+CloudEventHeaders:
+  type: object
+  description: |
+    CloudEvents 1.0 specification headers with WMS-specific and W3C Distributed Tracing extensions.
+    All WMS services publish events following this standardized header structure.
+  properties:
+    # =========================================================================
+    # Standard CloudEvents v1.0 Attributes (REQUIRED)
+    # https://github.com/cloudevents/spec/blob/v1.0.2/cloudevents/spec.md
+    # =========================================================================
+    ce_specversion:
+      type: string
+      const: "1.0"
+      description: CloudEvents specification version (always 1.0)
+      example: "1.0"
+
+    ce_type:
+      type: string
+      description: |
+        Event type identifier using WMS naming convention: wms.<service>.<entity>.<action>
+        Examples: wms.order.received, wms.wave.created, wms.picking.item-picked
+      pattern: "^wms\\.[a-z]+\\.[a-z.-]+$"
+      example: "wms.order.received"
+
+    ce_source:
+      type: string
+      description: |
+        Event source identifier (service that produced the event)
+        Format: /wms/<service-name>
+      pattern: "^/wms/[a-z-]+$"
+      example: "/wms/order-service"
+
+    ce_id:
+      type: string
+      format: uuid
+      description: Unique event identifier (UUID v4)
+      example: "550e8400-e29b-41d4-a716-446655440001"
+
+    ce_time:
+      type: string
+      format: date-time
+      description: Event timestamp in RFC 3339 format
+      example: "2024-12-24T10:00:00Z"
+
+    ce_datacontenttype:
+      type: string
+      const: "application/json"
+      description: Content type of the event data payload
+      example: "application/json"
+
+    ce_subject:
+      type: string
+      description: |
+        Subject of the event (entity ID being acted upon)
+        Examples: order ID, wave ID, shipment ID
+      example: "ORD-A1B2C3D4"
+
+    # =========================================================================
+    # WMS-Specific Extensions
+    # Business context attributes for WMS operations
+    # =========================================================================
+
+    # Multi-Tenancy Context (REQUIRED)
+    ce_wmstenantid:
+      type: string
+      description: |
+        Tenant identifier for multi-tenant isolation (REQUIRED).
+        All WMS events must include tenant context for proper data segregation.
+      example: "tenant-001"
+
+    ce_wmsfacilityid:
+      type: string
+      description: |
+        Facility/distribution center identifier (REQUIRED).
+        All WMS events must include facility context for routing and processing.
+      example: "facility-east"
+
+    ce_wmswarehouseid:
+      type: string
+      description: |
+        Warehouse identifier within the facility (REQUIRED).
+        All WMS events must include warehouse context for warehouse-specific processing.
+      example: "warehouse-a"
+
+    ce_wmssellerid:
+      type: string
+      description: |
+        Seller identifier for marketplace operations (OPTIONAL).
+        Used for multi-seller scenarios and marketplace fulfillment.
+      example: "seller-123"
+
+    ce_wmschannelid:
+      type: string
+      description: |
+        Sales channel identifier (OPTIONAL).
+        Used for channel-specific processing (e.g., web, mobile, marketplace).
+      example: "web"
+
+    # Business Correlation (OPTIONAL)
+    ce_wmscorrelationid:
+      type: string
+      format: uuid
+      description: |
+        Business correlation ID for tracking related events across workflows.
+        NOTE: This is for business correlation, NOT distributed tracing
+        (use ce_traceparent for trace correlation)
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    ce_wmswavenumber:
+      type: string
+      description: Wave number for batch processing correlation
+      pattern: "^WAVE-[0-9]{4}-[0-9]{5}$"
+      example: "WAVE-2024-00123"
+
+    ce_wmsworkflowid:
+      type: string
+      description: Temporal workflow ID for workflow-driven events
+      pattern: "^[a-z-]+-[A-Z0-9-]+$"
+      example: "order-fulfillment-ORD-A1B2C3D4"
+
+    ce_wmsorderid:
+      type: string
+      description: Order identifier for order-related events
+      pattern: "^ORD-[A-Z0-9]+$"
+      example: "ORD-A1B2C3D4"
+
+    # =========================================================================
+    # W3C Distributed Tracing Extensions (OPTIONAL)
+    # https://www.w3.org/TR/trace-context/
+    # Enables trace correlation across service boundaries via CloudEvents
+    # =========================================================================
+    ce_traceparent:
+      type: string
+      pattern: "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"
+      description: |
+        W3C Trace Context traceparent header for distributed tracing
+        Format: version-trace_id-span_id-trace_flags
+
+        - version (2 hex digits): Trace context version (currently "00")
+        - trace_id (32 hex digits): Unique trace identifier
+        - span_id (16 hex digits): Unique span identifier within trace
+        - trace_flags (2 hex digits): Trace sampling/debug flags
+
+        This enables end-to-end trace correlation from HTTP requests through
+        Kafka events to downstream services and back. When set, tracing backends
+        (Jaeger, Zipkin, Grafana Tempo) can link all spans into a single trace.
+      example: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+    ce_tracestate:
+      type: string
+      description: |
+        W3C Trace Context tracestate header for vendor-specific trace state
+        Format: vendor1=value1,vendor2=value2
+
+        Carries additional vendor-specific trace context. Optional companion to
+        traceparent. Used by tracing systems to pass proprietary information.
+      example: "rojo=00f067aa0ba902b7,congo=t61rcWkgMzE"
+
+  required:
+    - ce_specversion
+    - ce_type
+    - ce_source
+    - ce_id
+    - ce_time
+    - ce_datacontenttype
+    - ce_wmstenantid
+    - ce_wmsfacilityid
+    - ce_wmswarehouseid
+
+# CloudEvents Payload Schema (generic structure)
+CloudEventPayload:
+  type: object
+  description: |
+    Generic CloudEvents message structure (Kafka binary content mode)
+    The actual data payload is domain-specific and defined in each event schema
+  properties:
+    specversion:
+      type: string
+      const: "1.0"
+    type:
+      type: string
+    source:
+      type: string
+    id:
+      type: string
+    time:
+      type: string
+      format: date-time
+    datacontenttype:
+      type: string
+    data:
+      type: object
+      description: Domain-specific event data (varies by event type)
+  required:
+    - specversion
+    - type
+    - source
+    - id
+    - time
+    - datacontenttype
+    - data

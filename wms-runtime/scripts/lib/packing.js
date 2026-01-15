@@ -169,7 +169,7 @@ export function verifyItem(taskId, sku, quantity = null) {
 export function selectPackaging(taskId, packagingType, dimensions = {}) {
   const url = `${BASE_URLS.packing}${ENDPOINTS.packing.package(taskId)}`;
   const payload = JSON.stringify({
-    packagingType: packagingType,
+    packageType: packagingType,
     ...dimensions,
   });
 

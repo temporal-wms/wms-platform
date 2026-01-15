@@ -155,6 +155,88 @@ func (s *ReceivingService) CompleteReceiving(ctx context.Context, cmd CompleteRe
 	return shipment, nil
 }
 
+// BatchReceiveByCarton receives all items in a carton at once (batch ASN receive)
+func (s *ReceivingService) BatchReceiveByCarton(ctx context.Context, cmd BatchReceiveByCartonCommand) (*domain.InboundShipment, error) {
+	shipment, err := s.repo.FindByID(ctx, cmd.ShipmentID)
+	if err != nil {
+		return nil, err
+	}
+	if shipment == nil {
+		return nil, fmt.Errorf("shipment not found: %s", cmd.ShipmentID)
+	}
+
+	if err := shipment.BatchReceiveByCarton(cmd.CartonID, cmd.WorkerID, cmd.ToteID); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Save(ctx, shipment); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("Batch received carton",
+		"shipmentId", cmd.ShipmentID,
+		"cartonId", cmd.CartonID,
+		"workerId", cmd.WorkerID,
+	)
+
+	return shipment, nil
+}
+
+// MarkItemForPrep marks an item as needing prep (repackaging)
+func (s *ReceivingService) MarkItemForPrep(ctx context.Context, cmd MarkItemForPrepCommand) (*domain.InboundShipment, error) {
+	shipment, err := s.repo.FindByID(ctx, cmd.ShipmentID)
+	if err != nil {
+		return nil, err
+	}
+	if shipment == nil {
+		return nil, fmt.Errorf("shipment not found: %s", cmd.ShipmentID)
+	}
+
+	if err := shipment.MarkItemForPrep(cmd.SKU, cmd.Quantity, cmd.WorkerID, cmd.ToteID, cmd.Reason); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Save(ctx, shipment); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("Marked item for prep",
+		"shipmentId", cmd.ShipmentID,
+		"sku", cmd.SKU,
+		"quantity", cmd.Quantity,
+		"reason", cmd.Reason,
+	)
+
+	return shipment, nil
+}
+
+// CompletePrep completes prep for an item
+func (s *ReceivingService) CompletePrep(ctx context.Context, cmd CompletePrepCommand) (*domain.InboundShipment, error) {
+	shipment, err := s.repo.FindByID(ctx, cmd.ShipmentID)
+	if err != nil {
+		return nil, err
+	}
+	if shipment == nil {
+		return nil, fmt.Errorf("shipment not found: %s", cmd.ShipmentID)
+	}
+
+	if err := shipment.CompletePrepForItem(cmd.SKU, cmd.Quantity, cmd.WorkerID, cmd.ToteID); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Save(ctx, shipment); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("Completed prep for item",
+		"shipmentId", cmd.ShipmentID,
+		"sku", cmd.SKU,
+		"quantity", cmd.Quantity,
+	)
+
+	return shipment, nil
+}
+
 // GetShipment retrieves a shipment by ID
 func (s *ReceivingService) GetShipment(ctx context.Context, shipmentID string) (*domain.InboundShipment, error) {
 	return s.repo.FindByID(ctx, shipmentID)

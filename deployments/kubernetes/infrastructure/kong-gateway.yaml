@@ -1,0 +1,199 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-declarative-config
+  namespace: wms-platform-dev
+data:
+  kong.yml: |
+    _format_version: "3.0"
+    services:
+      - name: order-service
+        url: http://order-service:8001
+        routes:
+          - name: order-service-route
+            paths:
+              - /order-service
+            strip_path: true
+
+      - name: waving-service
+        url: http://waving-service:8002
+        routes:
+          - name: waving-service-route
+            paths:
+              - /waving-service
+            strip_path: true
+
+      - name: routing-service
+        url: http://routing-service:8003
+        routes:
+          - name: routing-service-route
+            paths:
+              - /routing-service
+            strip_path: true
+
+      - name: picking-service
+        url: http://picking-service:8004
+        routes:
+          - name: picking-service-route
+            paths:
+              - /picking-service
+            strip_path: true
+
+      - name: consolidation-service
+        url: http://consolidation-service:8005
+        routes:
+          - name: consolidation-service-route
+            paths:
+              - /consolidation-service
+            strip_path: true
+
+      - name: packing-service
+        url: http://packing-service:8006
+        routes:
+          - name: packing-service-route
+            paths:
+              - /packing-service
+            strip_path: true
+
+      - name: shipping-service
+        url: http://shipping-service:8007
+        routes:
+          - name: shipping-service-route
+            paths:
+              - /shipping-service
+            strip_path: true
+
+      - name: inventory-service
+        url: http://inventory-service:8008
+        routes:
+          - name: inventory-service-route
+            paths:
+              - /inventory-service
+            strip_path: true
+
+      - name: labor-service
+        url: http://labor-service:8009
+        routes:
+          - name: labor-service-route
+            paths:
+              - /labor-service
+            strip_path: true
+
+      - name: facility-service
+        url: http://facility-service:8010
+        routes:
+          - name: facility-service-route
+            paths:
+              - /facility-service
+            strip_path: true
+
+      - name: stow-service
+        url: http://stow-service:8011
+        routes:
+          - name: stow-service-route
+            paths:
+              - /stow-service
+            strip_path: true
+
+      - name: orchestrator
+        url: http://orchestrator:8020
+        routes:
+          - name: orchestrator-route
+            paths:
+              - /orchestrator
+            strip_path: true
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-gateway
+  namespace: wms-platform-dev
+  labels:
+    app: kong-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kong-gateway
+  template:
+    metadata:
+      labels:
+        app: kong-gateway
+    spec:
+      containers:
+        - name: kong
+          image: kong:3.4
+          env:
+            - name: KONG_DATABASE
+              value: "off"
+            - name: KONG_DECLARATIVE_CONFIG
+              value: /kong/declarative/kong.yml
+            - name: KONG_PROXY_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_PROXY_ERROR_LOG
+              value: /dev/stderr
+            - name: KONG_ADMIN_ERROR_LOG
+              value: /dev/stderr
+            - name: KONG_ADMIN_LISTEN
+              value: "0.0.0.0:8001"
+            - name: KONG_PROXY_LISTEN
+              value: "0.0.0.0:8000"
+          ports:
+            - name: proxy
+              containerPort: 8000
+              protocol: TCP
+            - name: admin
+              containerPort: 8001
+              protocol: TCP
+          volumeMounts:
+            - name: kong-config
+              mountPath: /kong/declarative
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: kong-config
+          configMap:
+            name: kong-declarative-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-gateway
+  namespace: wms-platform-dev
+  labels:
+    app: kong-gateway
+spec:
+  type: NodePort
+  ports:
+    - name: proxy
+      port: 8000
+      targetPort: 8000
+      nodePort: 30888
+      protocol: TCP
+    - name: admin
+      port: 8001
+      targetPort: 8001
+      protocol: TCP
+  selector:
+    app: kong-gateway

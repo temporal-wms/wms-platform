@@ -16,11 +16,12 @@ import (
 
 // WESActivities contains the WES workflow activities
 type WESActivities struct {
-	service       *application.WESApplicationService
-	laborClient   *LaborServiceClient
-	pickingClient *PickingServiceClient
-	wallingClient *WallingServiceClient
-	packingClient *PackingServiceClient
+	service             *application.WESApplicationService
+	laborClient         *LaborServiceClient
+	pickingClient       *PickingServiceClient
+	wallingClient       *WallingServiceClient
+	consolidationClient *ConsolidationServiceClient
+	packingClient       *PackingServiceClient
 }
 
 // NewWESActivities creates a new WESActivities instance
@@ -29,14 +30,16 @@ func NewWESActivities(
 	laborClient *LaborServiceClient,
 	pickingClient *PickingServiceClient,
 	wallingClient *WallingServiceClient,
+	consolidationClient *ConsolidationServiceClient,
 	packingClient *PackingServiceClient,
 ) *WESActivities {
 	return &WESActivities{
-		service:       service,
-		laborClient:   laborClient,
-		pickingClient: pickingClient,
-		wallingClient: wallingClient,
-		packingClient: packingClient,
+		service:             service,
+		laborClient:         laborClient,
+		pickingClient:       pickingClient,
+		wallingClient:       wallingClient,
+		consolidationClient: consolidationClient,
+		packingClient:       packingClient,
 	}
 }
 
@@ -361,8 +364,33 @@ func (a *WESActivities) ExecuteConsolidationTask(ctx context.Context, input map[
 
 	logger.Info("Executing consolidation task", "orderId", orderID, "taskId", taskID)
 
-	// Consolidation is typically internal - just log and return
-	// In a real implementation, this would coordinate consolidation units
+	if a.consolidationClient != nil {
+		// Convert items
+		var items []ConsolidationItem
+		if itemsRaw, ok := input["items"].([]interface{}); ok {
+			for _, itemRaw := range itemsRaw {
+				if itemMap, ok := itemRaw.(map[string]interface{}); ok {
+					items = append(items, ConsolidationItem{
+						SKU:      getString(itemMap, "sku"),
+						Quantity: getInt(itemMap, "quantity"),
+					})
+				}
+			}
+		}
+
+		// Create consolidation task via consolidation service
+		err := a.consolidationClient.CreateConsolidationTask(ctx, &CreateConsolidationTaskRequest{
+			ConsolidationID: taskID,
+			OrderID:         orderID,
+			WaveID:          waveID,
+			Strategy:        "standard",
+			Items:           items,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create consolidation task: %w", err)
+		}
+	}
+
 	logger.Info("Consolidation task created", "orderId", orderID, "waveId", waveID, "routeId", routeID, "taskId", taskID)
 	return nil
 }
@@ -649,6 +677,63 @@ func (c *PackingServiceClient) CreatePackTask(ctx context.Context, req *CreatePa
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("packing service returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// ConsolidationServiceClient is a client for the consolidation service
+type ConsolidationServiceClient struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+// NewConsolidationServiceClient creates a new ConsolidationServiceClient
+func NewConsolidationServiceClient(baseURL string) *ConsolidationServiceClient {
+	return &ConsolidationServiceClient{
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
+}
+
+// CreateConsolidationTaskRequest represents a request to create a consolidation task
+type CreateConsolidationTaskRequest struct {
+	ConsolidationID string              `json:"consolidationId"`
+	OrderID         string              `json:"orderId"`
+	WaveID          string              `json:"waveId"`
+	Strategy        string              `json:"strategy,omitempty"`
+	Items           []ConsolidationItem `json:"items"`
+}
+
+// ConsolidationItem represents an item to consolidate
+type ConsolidationItem struct {
+	SKU      string `json:"sku"`
+	Quantity int    `json:"quantity"`
+}
+
+// CreateConsolidationTask creates a consolidation task via the consolidation service
+func (c *ConsolidationServiceClient) CreateConsolidationTask(ctx context.Context, req *CreateConsolidationTaskRequest) error {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/v1/consolidations", strings.NewReader(string(body)))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("consolidation service returned status %d", resp.StatusCode)
 	}
 
 	return nil

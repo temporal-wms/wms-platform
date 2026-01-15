@@ -75,6 +75,20 @@ spec:
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
+  name: wms.consolidation.events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: wms-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
   name: wms.shipping.events
   namespace: kafka
   labels:

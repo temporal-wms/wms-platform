@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -53,7 +54,7 @@ func main() {
 	defer temporalClient.Close()
 	logger.Info("Connected to Temporal", "hostPort", config.Temporal.HostPort, "namespace", config.Temporal.Namespace)
 
-	// Initialize HTTP clients for service communication
+	// Initialize HTTP clients for service communication with configurable timeout
 	serviceClients := activities.NewServiceClients(&activities.ServiceClientsConfig{
 		OrderServiceURL:         config.OrderServiceURL,
 		InventoryServiceURL:     config.InventoryServiceURL,
@@ -70,7 +71,9 @@ func main() {
 		BillingServiceURL:       config.BillingServiceURL,
 		ChannelServiceURL:       config.ChannelServiceURL,
 		SellerServiceURL:        config.SellerServiceURL,
+		HTTPTimeout:             config.HTTPClientTimeout,
 	})
+	logger.Info("Service clients initialized", "httpTimeout", config.HTTPClientTimeout)
 
 	// Create activities with service clients
 	orderActivities := activities.NewOrderActivities(serviceClients, logger)
@@ -84,12 +87,12 @@ func main() {
 	processPathActivities := activities.NewProcessPathActivities(serviceClients, logger)
 	giftWrapActivities := activities.NewGiftWrapActivities(serviceClients)
 
-	// Create Phase 2 & 3 enhancement activities
-	laborActivities := activities.NewLaborActivities(serviceClients, logger)
-	equipmentActivities := activities.NewEquipmentActivities(serviceClients, logger)
-	routingOptimizerActivities := activities.NewRoutingOptimizerActivities(serviceClients)
-	escalationActivities := activities.NewEscalationActivities(serviceClients)
-	continuousOptimizationActivities := activities.NewContinuousOptimizationActivities(serviceClients)
+	// Create Phase 2 & 3 enhancement activities (these use inner clients.ServiceClients)
+	laborActivities := activities.NewLaborActivities(serviceClients.ServiceClients)
+	equipmentActivities := activities.NewEquipmentActivities(serviceClients.ServiceClients)
+	routingOptimizerActivities := activities.NewRoutingOptimizerActivities(serviceClients.ServiceClients)
+	escalationActivities := activities.NewEscalationActivities(serviceClients.ServiceClients)
+	continuousOptimizationActivities := activities.NewContinuousOptimizationActivities(serviceClients.ServiceClients)
 
 	// Create Amazon-aligned fulfillment activities
 	receivingActivities := activities.NewReceivingActivities()
@@ -100,8 +103,18 @@ func main() {
 	// Create unit-level tracking activities
 	unitActivities := activities.NewUnitActivities(serviceClients, logger)
 
-	// Create worker
+	// Create worker with configurable concurrency settings
 	workerOpts := temporal.DefaultWorkerOptions(temporal.TaskQueues.Orchestrator)
+	workerOpts.MaxConcurrentActivities = getEnvInt("WORKER_MAX_ACTIVITY_CONCURRENCY", 100)
+	workerOpts.MaxConcurrentWorkflows = getEnvInt("WORKER_MAX_WORKFLOW_CONCURRENCY", 100)
+	workerOpts.MaxConcurrentActivityPollers = getEnvInt("WORKER_MAX_ACTIVITY_POLLERS", 4)
+	workerOpts.MaxConcurrentWorkflowPollers = getEnvInt("WORKER_MAX_WORKFLOW_POLLERS", 4)
+	logger.Info("Worker concurrency settings",
+		"maxActivities", workerOpts.MaxConcurrentActivities,
+		"maxWorkflows", workerOpts.MaxConcurrentWorkflows,
+		"activityPollers", workerOpts.MaxConcurrentActivityPollers,
+		"workflowPollers", workerOpts.MaxConcurrentWorkflowPollers,
+	)
 	w := temporalClient.NewWorker(workerOpts)
 
 	// Register workflows
@@ -423,18 +436,30 @@ func main() {
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	logger.Info("Shutting down worker...")
+	sig := <-quit
+	logger.Info("Received shutdown signal", "signal", sig)
+
+	// Configurable shutdown timeout
+	shutdownTimeout := getEnvDuration("WORKER_SHUTDOWN_TIMEOUT", 30*time.Second)
+	logger.Info("Starting graceful shutdown", "timeout", shutdownTimeout)
+
+	// Create shutdown context with timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	// Stop worker first - this stops accepting new tasks and waits for in-flight tasks
+	logger.Info("Stopping worker, waiting for in-flight tasks to complete...")
+	w.Stop()
+	logger.Info("Worker stopped successfully")
 
 	// Shutdown health server
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := healthServer.Shutdown(ctx); err != nil {
+	if err := healthServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Health server shutdown failed", "error", err)
+	} else {
+		logger.Info("Health server shutdown complete")
 	}
 
-	w.Stop()
-	logger.Info("Worker stopped")
+	logger.Info("Graceful shutdown complete")
 }
 
 func startHealthServer(port string, temporalClient temporalclient.Client, m *metrics.Metrics, logger *slog.Logger) *http.Server {
@@ -1339,6 +1364,7 @@ type Config struct {
 	BillingServiceURL       string
 	ChannelServiceURL       string
 	SellerServiceURL        string
+	HTTPClientTimeout       time.Duration
 }
 
 func loadConfig() *Config {
@@ -1366,12 +1392,31 @@ func loadConfig() *Config {
 		BillingServiceURL:       getEnv("BILLING_SERVICE_URL", "http://localhost:8018"),
 		ChannelServiceURL:       getEnv("CHANNEL_SERVICE_URL", "http://localhost:8019"),
 		SellerServiceURL:        getEnv("SELLER_SERVICE_URL", "http://localhost:8020"),
+		HTTPClientTimeout:       getEnvDuration("HTTP_CLIENT_TIMEOUT", 30*time.Second),
 	}
 }
 
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if duration, err := time.ParseDuration(value); err == nil {
+			return duration
+		}
 	}
 	return defaultValue
 }

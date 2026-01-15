@@ -204,9 +204,6 @@ func run(ctx context.Context, signalCh <-chan os.Signal) error {
 	// Add tracing middleware
 	router.Use(middleware.SimpleTracingMiddleware(serviceName))
 
-	// Add tenant middleware
-	router.Use(middleware.TenantAuth(middleware.DefaultTenantAuthConfig()))
-
 	// Handle 404 and 405 errors
 	router.NoRoute(middleware.NoRoute())
 	router.NoMethod(middleware.NoMethod())
@@ -220,8 +217,9 @@ func run(ctx context.Context, signalCh <-chan os.Signal) error {
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// API v1 routes
+	// API v1 routes with tenant context required
 	v1 := router.Group("/api/v1")
+	v1.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		// Activities
 		activities := v1.Group("/activities")

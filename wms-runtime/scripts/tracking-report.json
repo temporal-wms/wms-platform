@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-07T02:12:04.340Z",
+  "timestamp": "2026-01-14T19:02:33.003Z",
   "trackingConfig": {
     "enabled": true,
     "logLevel": "standard",
@@ -8,16 +8,16 @@
     "trackSignals": true
   },
   "metrics": {
-    "snapshots_captured": 9,
-    "state_changes": 3,
+    "snapshots_captured": 27,
+    "state_changes": 11,
     "signals_tracked": 0,
     "workflow_query_duration": {
-      "avg_ms": 1.25,
+      "avg_ms": 1.52,
       "p95_ms": 2
     },
     "entity_query_duration": {
-      "avg_ms": 14.625,
-      "p95_ms": 17.65
+      "avg_ms": 18.28,
+      "p95_ms": 52.39999999999996
     }
   }
 }

@@ -1,9 +1,9 @@
 package workflows
 
 import (
-	"fmt"
 	"time"
 
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -66,7 +66,7 @@ func ContinuousOptimizationWorkflow(ctx workflow.Context, input ContinuousOptimi
 	// Configure activity options
 	activityOptions := workflow.ActivityOptions{
 		StartToCloseTimeout: 2 * time.Minute,
-		RetryPolicy: &workflow.RetryPolicy{
+		RetryPolicy: &temporal.RetryPolicy{
 			MaximumAttempts: 3,
 		},
 	}

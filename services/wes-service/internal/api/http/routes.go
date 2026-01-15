@@ -2,12 +2,14 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/wms-platform/shared/pkg/middleware"
 )
 
 // SetupRoutes configures all HTTP routes for the WES service
 func SetupRoutes(router *gin.Engine, handlers *Handlers) {
-	// API v1 routes
+	// API v1 routes with tenant context required
 	v1 := router.Group("/api/v1")
+	v1.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		// Execution plans
 		executionPlans := v1.Group("/execution-plans")
@@ -34,6 +36,13 @@ func SetupRoutes(router *gin.Engine, handlers *Handlers) {
 		{
 			templates.GET("", handlers.ListTemplates)
 			templates.GET("/:templateId", handlers.GetTemplate)
+		}
+
+		// Station capacity management
+		stations := v1.Group("/stations")
+		{
+			stations.POST("/:stationId/capacity/reserve", handlers.ReserveStationCapacity)
+			stations.POST("/:stationId/capacity/release", handlers.ReleaseStationCapacity)
 		}
 	}
 }

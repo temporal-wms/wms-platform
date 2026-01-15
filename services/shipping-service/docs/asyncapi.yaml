@@ -377,45 +377,7 @@ components:
 
   schemas:
     CloudEventHeaders:
-      type: object
-      description: CloudEvents 1.0 headers with WMS extensions
-      properties:
-        ce_specversion:
-          type: string
-          const: '1.0'
-          description: CloudEvents specification version
-        ce_type:
-          type: string
-          description: Event type (e.g., wms.shipping.ship-confirmed)
-        ce_source:
-          type: string
-          const: '/wms/shipping-service'
-          description: Event source
-        ce_subject:
-          type: string
-          description: Shipment ID
-        ce_id:
-          type: string
-          format: uuid
-          description: Unique event ID
-        ce_time:
-          type: string
-          format: date-time
-          description: Event timestamp
-        ce_datacontenttype:
-          type: string
-          const: 'application/json'
-          description: Content type of the data
-        ce_wmscorrelationid:
-          type: string
-          description: Correlation ID for distributed tracing
-        ce_wmswavenumber:
-          type: string
-          description: Wave number for wave-based processing
-        ce_wmsworkflowid:
-          type: string
-          description: Temporal workflow ID
-
+      $ref: '../../../shared/docs/asyncapi-cloudevents-schema.yaml#/CloudEventHeaders'
     ShipmentCreatedPayload:
       type: object
       properties:

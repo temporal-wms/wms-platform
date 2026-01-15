@@ -219,8 +219,9 @@ func main() {
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// API v1 routes
+	// API v1 routes with tenant context required
 	v1 := router.Group("/api/v1")
+	v1.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		orders := v1.Group("/orders")
 		{

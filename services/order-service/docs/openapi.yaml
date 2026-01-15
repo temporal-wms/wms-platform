@@ -35,6 +35,13 @@ paths:
     post:
       summary: Create a new order
       parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+        - $ref: '#/components/parameters/FacilityIdHeader'
+        - $ref: '#/components/parameters/WarehouseIdHeader'
+        - $ref: '#/components/parameters/SellerIdHeader'
+        - $ref: '#/components/parameters/ChannelIdHeader'
+        - $ref: '#/components/parameters/TraceParent'
+        - $ref: '#/components/parameters/TraceState'
         - $ref: '#/components/parameters/WMSCorrelationID'
         - $ref: '#/components/parameters/WMSWaveNumber'
         - $ref: '#/components/parameters/WMSWorkflowID'
@@ -133,6 +140,11 @@ paths:
       tags:
         - Orders
       parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+        - $ref: '#/components/parameters/FacilityIdHeader'
+        - $ref: '#/components/parameters/WarehouseIdHeader'
+        - $ref: '#/components/parameters/SellerIdHeader'
+        - $ref: '#/components/parameters/ChannelIdHeader'
         - name: page
           in: query
           schema:
@@ -752,10 +764,94 @@ components:
           format: date-time
 
   parameters:
+    # WMS Tenant Context Headers (Multi-Tenancy - REQUIRED)
+    TenantIdHeader:
+      name: X-WMS-Tenant-ID
+      in: header
+      required: true
+      description: |
+        Tenant identifier for multi-tenant isolation.
+        Required for all API operations to ensure proper data segregation.
+      schema:
+        type: string
+      example: "tenant-001"
+
+    FacilityIdHeader:
+      name: X-WMS-Facility-ID
+      in: header
+      required: true
+      description: |
+        Facility/distribution center identifier.
+        Required for all API operations to route requests to the correct facility.
+      schema:
+        type: string
+      example: "facility-east"
+
+    WarehouseIdHeader:
+      name: X-WMS-Warehouse-ID
+      in: header
+      required: true
+      description: |
+        Warehouse identifier within the facility.
+        Required for all API operations for warehouse-specific processing.
+      schema:
+        type: string
+      example: "warehouse-a"
+
+    SellerIdHeader:
+      name: X-WMS-Seller-ID
+      in: header
+      required: false
+      description: |
+        Seller identifier for marketplace operations.
+        Optional - used for multi-seller scenarios.
+      schema:
+        type: string
+      example: "seller-123"
+
+    ChannelIdHeader:
+      name: X-WMS-Channel-ID
+      in: header
+      required: false
+      description: |
+        Sales channel identifier (e.g., web, mobile, marketplace).
+        Optional - used for channel-specific processing.
+      schema:
+        type: string
+      example: "web"
+
+    # W3C Trace Context Headers (Distributed Tracing)
+    TraceParent:
+      name: traceparent
+      in: header
+      description: |
+        W3C Trace Context traceparent header for distributed tracing.
+        Format: version-trace_id-span_id-trace_flags
+        Enables end-to-end trace correlation across service boundaries.
+      required: false
+      schema:
+        type: string
+        pattern: "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"
+      example: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+    TraceState:
+      name: tracestate
+      in: header
+      description: |
+        W3C Trace Context tracestate header for vendor-specific trace state.
+        Format: vendor1=value1,vendor2=value2
+      required: false
+      schema:
+        type: string
+      example: "rojo=00f067aa0ba902b7,congo=t61rcWkgMzE"
+
+    # WMS Custom Headers (Business Context)
     WMSCorrelationID:
       name: X-WMS-Correlation-ID
       in: header
-      description: CloudEvents extension for distributed tracing and correlation across WMS services
+      description: |
+        CloudEvents extension for business correlation across WMS workflows.
+        NOTE: For distributed tracing, use traceparent/tracestate headers.
       required: false
       schema:
         type: string

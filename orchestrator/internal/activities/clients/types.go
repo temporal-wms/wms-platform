@@ -578,10 +578,10 @@ type ReleaseStationCapacityRequest struct {
 	Reason        string `json:"reason,omitempty"`
 }
 
-// Labor Service Types
+// Labor Service Types (Phase 2 Enhancement: Certified Workers)
 
-// Worker represents a warehouse worker
-type Worker struct {
+// CertifiedWorker represents a warehouse worker with certifications and skills
+type CertifiedWorker struct {
 	WorkerID        string   `json:"workerId"`
 	Name            string   `json:"name"`
 	Skills          []string `json:"skills"`
@@ -601,8 +601,8 @@ type FindCertifiedWorkersRequest struct {
 	MinCount       int      `json:"minCount"`
 }
 
-// AssignWorkerRequest represents a request to assign a worker
-type AssignWorkerRequest struct {
+// AssignCertifiedWorkerRequest represents a request to assign a certified worker to a station
+type AssignCertifiedWorkerRequest struct {
 	OrderID        string   `json:"orderId"`
 	StationID      string   `json:"stationId"`
 	RequiredSkills []string `json:"requiredSkills"`
@@ -610,8 +610,8 @@ type AssignWorkerRequest struct {
 	Priority       string   `json:"priority,omitempty"`
 }
 
-// GetAvailableWorkersRequest represents a request to get available workers
-type GetAvailableWorkersRequest struct {
+// GetCertifiedWorkersRequest represents a request to get available certified workers
+type GetCertifiedWorkersRequest struct {
 	Zone           string   `json:"zone,omitempty"`
 	RequiredSkills []string `json:"requiredSkills,omitempty"`
 	ShiftTime      string   `json:"shiftTime,omitempty"`

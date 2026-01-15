@@ -68,6 +68,8 @@ func (h *StationHandlers) RegisterRoutes(router *gin.RouterGroup) {
 		stations.GET("/zone/:zone", h.GetByZone)
 		stations.GET("/type/:type", h.GetByType)
 		stations.GET("/status/:status", h.GetByStatus)
+		stations.POST("/:stationId/capacity/reserve", h.ReserveStationCapacity)
+		stations.POST("/:stationId/capacity/release", h.ReleaseStationCapacity)
 	}
 }
 
@@ -536,4 +538,87 @@ func (h *StationHandlers) GetByStatus(c *gin.Context) {
 	})
 
 	c.JSON(http.StatusOK, stations)
+}
+
+// ReserveStationCapacity handles reserving capacity on a station
+func (h *StationHandlers) ReserveStationCapacity(c *gin.Context) {
+	stationID := c.Param("stationId")
+
+	var req struct {
+		StationID     string `json:"stationId" binding:"required"`
+		OrderID       string `json:"orderId" binding:"required"`
+		RequiredSlots int    `json:"requiredSlots" binding:"required"`
+		ReservationID string `json:"reservationId" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":      "reserve_capacity",
+		"station.id":     stationID,
+		"order.id":       req.OrderID,
+		"required_slots": req.RequiredSlots,
+	})
+
+	// For now, return a simple success response
+	// TODO: Implement actual station capacity management domain logic
+	h.logger.Info("Station capacity reserved",
+		"stationId", stationID,
+		"orderId", req.OrderID,
+		"requiredSlots", req.RequiredSlots,
+		"reservationId", req.ReservationID,
+	)
+
+	middleware.AddSpanEvent(c, "capacity_reserved", map[string]interface{}{
+		"station_id":     stationID,
+		"reservation_id": req.ReservationID,
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"reservationId":     req.ReservationID,
+		"stationId":         stationID,
+		"reservedSlots":     req.RequiredSlots,
+		"remainingCapacity": 10, // Mock value - TODO: implement actual capacity tracking
+	})
+}
+
+// ReleaseStationCapacity handles releasing previously reserved capacity
+func (h *StationHandlers) ReleaseStationCapacity(c *gin.Context) {
+	stationID := c.Param("stationId")
+
+	var req struct {
+		StationID     string `json:"stationId" binding:"required"`
+		OrderID       string `json:"orderId" binding:"required"`
+		ReservationID string `json:"reservationId" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	middleware.AddSpanAttributes(c, map[string]interface{}{
+		"operation":  "release_capacity",
+		"station.id": stationID,
+		"order.id":   req.OrderID,
+	})
+
+	// For now, return a simple success response
+	// TODO: Implement actual station capacity management domain logic
+	h.logger.Info("Station capacity released",
+		"stationId", stationID,
+		"orderId", req.OrderID,
+		"reservationId", req.ReservationID,
+	)
+
+	middleware.AddSpanEvent(c, "capacity_released", map[string]interface{}{
+		"station_id":     stationID,
+		"reservation_id": req.ReservationID,
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "capacity released successfully",
+		"stationId": stationID,
+	})
 }

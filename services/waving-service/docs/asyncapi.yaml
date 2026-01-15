@@ -127,31 +127,8 @@ components:
         $ref: '#/components/schemas/CloudEventsHeaders'
 
   schemas:
-    CloudEventsHeaders:
-      type: object
-      properties:
-        ce-specversion:
-          type: string
-          const: '1.0'
-        ce-type:
-          type: string
-        ce-source:
-          type: string
-        ce-id:
-          type: string
-        ce-time:
-          type: string
-          format: date-time
-        ce-wmscorrelationid:
-          type: string
-        ce-wmswavenumber:
-          type: string
-        ce-wmsworkflowid:
-          type: string
-        content-type:
-          type: string
-          const: application/json
-
+    CloudEventHeaders:
+      $ref: '../../../shared/docs/asyncapi-cloudevents-schema.yaml#/CloudEventHeaders'
     WaveCreatedPayload:
       type: object
       properties:

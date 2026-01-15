@@ -60,3 +60,57 @@ type StartReceivingCommand struct {
 type CompleteReceivingCommand struct {
 	ShipmentID string `json:"shipmentId" binding:"required"`
 }
+
+// BatchReceiveByCartonCommand represents a command to receive all items in a carton (batch ASN)
+type BatchReceiveByCartonCommand struct {
+	ShipmentID string `json:"shipmentId" binding:"required"`
+	CartonID   string `json:"cartonId" binding:"required"`
+	WorkerID   string `json:"workerId" binding:"required"`
+	ToteID     string `json:"toteId"`
+}
+
+// MarkItemForPrepCommand represents a command to mark an item as needing prep
+type MarkItemForPrepCommand struct {
+	ShipmentID string `json:"shipmentId" binding:"required"`
+	SKU        string `json:"sku" binding:"required"`
+	Quantity   int    `json:"quantity" binding:"required,min=1"`
+	WorkerID   string `json:"workerId" binding:"required"`
+	ToteID     string `json:"toteId"`
+	Reason     string `json:"reason" binding:"required"`
+}
+
+// CompletePrepCommand represents a command to complete prep for an item
+type CompletePrepCommand struct {
+	ShipmentID string `json:"shipmentId" binding:"required"`
+	SKU        string `json:"sku" binding:"required"`
+	Quantity   int    `json:"quantity" binding:"required,min=1"`
+	WorkerID   string `json:"workerId" binding:"required"`
+	ToteID     string `json:"toteId"`
+}
+
+// CreateProblemTicketCommand represents a command to create a problem ticket
+type CreateProblemTicketCommand struct {
+	ShipmentID  string   `json:"shipmentId" binding:"required"`
+	SKU         string   `json:"sku,omitempty"`
+	ProductName string   `json:"productName,omitempty"`
+	ProblemType string   `json:"problemType" binding:"required"`
+	Description string   `json:"description" binding:"required"`
+	Quantity    int      `json:"quantity"`
+	CreatedBy   string   `json:"createdBy" binding:"required"`
+	Priority    string   `json:"priority"`
+	ImageURLs   []string `json:"imageUrls,omitempty"`
+}
+
+// ResolveProblemTicketCommand represents a command to resolve a problem ticket
+type ResolveProblemTicketCommand struct {
+	TicketID        string `json:"ticketId" binding:"required"`
+	Resolution      string `json:"resolution" binding:"required"`
+	ResolutionNotes string `json:"resolutionNotes"`
+	ResolvedBy      string `json:"resolvedBy" binding:"required"`
+}
+
+// AssignProblemTicketCommand represents a command to assign a ticket to someone
+type AssignProblemTicketCommand struct {
+	TicketID   string `json:"ticketId" binding:"required"`
+	AssignedTo string `json:"assignedTo" binding:"required"`
+}

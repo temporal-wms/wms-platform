@@ -46,6 +46,11 @@ export function getConsolidationsByOrder(orderId) {
     'get consolidations by order status 200': (r) => r.status === 200,
   });
 
+  // 404 is expected when no consolidations exist yet for the order
+  if (response.status === 404) {
+    return [];
+  }
+
   if (!success || !response.body) {
     console.warn(`Failed to get consolidations for order ${orderId}: ${response.status}`);
     return [];

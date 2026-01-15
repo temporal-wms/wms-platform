@@ -50,6 +50,30 @@ func NewUnitReservedEvent(u *Unit) *UnitReservedEvent {
 func (e *UnitReservedEvent) EventType() string  { return "UnitReservedEvent" }
 func (e *UnitReservedEvent) OccurredAt() time.Time { return e.ReservedAt }
 
+// UnitReleasedEvent - when a unit reservation is released
+type UnitReleasedEvent struct {
+	UnitID     string    `json:"unitId"`
+	SKU        string    `json:"sku"`
+	OrderID    string    `json:"orderId"`
+	LocationID string    `json:"locationId"`
+	Reason     string    `json:"reason"`
+	ReleasedAt time.Time `json:"releasedAt"`
+}
+
+func NewUnitReleasedEvent(u *Unit, orderID, reason string) *UnitReleasedEvent {
+	return &UnitReleasedEvent{
+		UnitID:     u.UnitID,
+		SKU:        u.SKU,
+		OrderID:    orderID,
+		LocationID: u.CurrentLocationID,
+		Reason:     reason,
+		ReleasedAt: time.Now(),
+	}
+}
+
+func (e *UnitReleasedEvent) EventType() string  { return "UnitReleasedEvent" }
+func (e *UnitReleasedEvent) OccurredAt() time.Time { return e.ReleasedAt }
+
 // UnitStagedEvent - when a unit is staged (hard allocated)
 type UnitStagedEvent struct {
 	UnitID            string    `json:"unitId"`

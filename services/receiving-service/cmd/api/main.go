@@ -96,6 +96,7 @@ func main() {
 
 	// Initialize repositories with instrumented client and event factory
 	repo := mongoRepo.NewInboundShipmentRepository(instrumentedMongo.Database(), eventFactory)
+	problemRepo := mongoRepo.NewProblemTicketRepository(instrumentedMongo.Database(), eventFactory)
 
 	// Initialize idempotency repository
 	idempotencyKeyRepo := idempotency.NewMongoKeyRepository(instrumentedMongo.Database())
@@ -119,8 +120,9 @@ func main() {
 	defer outboxPublisher.Stop()
 	logger.Info("Outbox publisher started")
 
-	// Initialize application service
+	// Initialize application services
 	receivingService := application.NewReceivingService(repo, logger)
+	problemSolveService := application.NewProblemSolveService(problemRepo, repo, logger)
 
 	// Setup Gin router with middleware
 	router := gin.New()
@@ -165,8 +167,9 @@ func main() {
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// API v1 routes
+	// API v1 routes with tenant context required
 	api := router.Group("/api/v1/shipments")
+	api.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		api.GET("", listShipmentsHandler(receivingService, logger))
 		api.POST("", createShipmentHandler(receivingService, logger))
@@ -176,6 +179,9 @@ func main() {
 		api.POST("/:shipmentId/arrive", markArrivedHandler(receivingService, logger))
 		api.POST("/:shipmentId/start", startReceivingHandler(receivingService, logger))
 		api.POST("/:shipmentId/receive", receiveItemHandler(receivingService, logger))
+		api.POST("/:shipmentId/receive-carton", batchReceiveCartonHandler(receivingService, logger))
+		api.POST("/:shipmentId/items/:sku/prep", markItemForPrepHandler(receivingService, logger))
+		api.POST("/:shipmentId/items/:sku/prep-complete", completePrepHandler(receivingService, logger))
 		api.POST("/:shipmentId/complete", completeReceivingHandler(receivingService, logger))
 	}
 
@@ -604,6 +610,128 @@ func completeReceivingHandler(service *application.ReceivingService, logger *log
 	}
 }
 
+func batchReceiveCartonHandler(service *application.ReceivingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		shipmentID := c.Param("shipmentId")
+
+		var req dto.BatchReceiveCartonRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"shipment.id": shipmentID,
+			"carton.id":   req.CartonID,
+			"worker.id":   req.WorkerID,
+		})
+
+		cmd := application.BatchReceiveByCartonCommand{
+			ShipmentID: shipmentID,
+			CartonID:   req.CartonID,
+			WorkerID:   req.WorkerID,
+			ToteID:     req.ToteID,
+		}
+
+		shipment, err := service.BatchReceiveByCarton(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, toShipmentResponse(shipment))
+	}
+}
+
+func markItemForPrepHandler(service *application.ReceivingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		shipmentID := c.Param("shipmentId")
+		sku := c.Param("sku")
+
+		var req dto.MarkItemForPrepRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"shipment.id": shipmentID,
+			"sku":         sku,
+			"quantity":    req.Quantity,
+		})
+
+		cmd := application.MarkItemForPrepCommand{
+			ShipmentID: shipmentID,
+			SKU:        sku,
+			Quantity:   req.Quantity,
+			WorkerID:   req.WorkerID,
+			ToteID:     req.ToteID,
+			Reason:     req.Reason,
+		}
+
+		shipment, err := service.MarkItemForPrep(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, toShipmentResponse(shipment))
+	}
+}
+
+func completePrepHandler(service *application.ReceivingService, logger *logging.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		responder := middleware.NewErrorResponder(c, logger.Logger)
+
+		shipmentID := c.Param("shipmentId")
+		sku := c.Param("sku")
+
+		var req dto.CompletePrepRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		middleware.AddSpanAttributes(c, map[string]interface{}{
+			"shipment.id": shipmentID,
+			"sku":         sku,
+			"quantity":    req.Quantity,
+		})
+
+		cmd := application.CompletePrepCommand{
+			ShipmentID: shipmentID,
+			SKU:        sku,
+			Quantity:   req.Quantity,
+			WorkerID:   req.WorkerID,
+			ToteID:     req.ToteID,
+		}
+
+		shipment, err := service.CompletePrep(c.Request.Context(), cmd)
+		if err != nil {
+			if appErr, ok := err.(*errors.AppError); ok {
+				responder.RespondWithAppError(appErr)
+			} else {
+				responder.RespondInternalError(err)
+			}
+			return
+		}
+
+		c.JSON(http.StatusOK, toShipmentResponse(shipment))
+	}
+}
+
 // Helper function to convert domain to response
 func toShipmentResponse(s *domain.InboundShipment) dto.ShipmentResponse {
 	resp := dto.ShipmentResponse{
@@ -647,6 +775,7 @@ func toShipmentResponse(s *domain.InboundShipment) dto.ShipmentResponse {
 			ExpectedQuantity:  item.ExpectedQuantity,
 			ReceivedQuantity:  item.ReceivedQuantity,
 			DamagedQuantity:   item.DamagedQuantity,
+			PrepQuantity:      item.PrepQuantity,
 			RemainingQuantity: item.RemainingQuantity(),
 			UnitCost:          item.UnitCost,
 			Weight:            item.Weight,

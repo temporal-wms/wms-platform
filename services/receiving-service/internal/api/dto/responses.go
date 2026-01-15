@@ -53,6 +53,7 @@ type ExpectedItemResponse struct {
 	ExpectedQuantity  int     `json:"expectedQuantity"`
 	ReceivedQuantity  int     `json:"receivedQuantity"`
 	DamagedQuantity   int     `json:"damagedQuantity"`
+	PrepQuantity      int     `json:"prepQuantity"`      // Items needing prep
 	RemainingQuantity int     `json:"remainingQuantity"`
 	UnitCost          float64 `json:"unitCost"`
 	Weight            float64 `json:"weight"`
@@ -101,4 +102,35 @@ type ShipmentSummary struct {
 	TotalExpected   int       `json:"totalExpected"`
 	TotalReceived   int       `json:"totalReceived"`
 	CreatedAt       time.Time `json:"createdAt"`
+}
+
+// ProblemTicketResponse represents the response for a problem ticket
+type ProblemTicketResponse struct {
+	ID              string     `json:"id"`
+	TicketID        string     `json:"ticketId"`
+	ShipmentID      string     `json:"shipmentId"`
+	SKU             string     `json:"sku,omitempty"`
+	ProductName     string     `json:"productName,omitempty"`
+	ProblemType     string     `json:"problemType"`
+	Description     string     `json:"description"`
+	Quantity        int        `json:"quantity"`
+	AffectedUnitIDs []string   `json:"affectedUnitIds,omitempty"`
+	Resolution      string     `json:"resolution"`
+	ResolutionNotes string     `json:"resolutionNotes,omitempty"`
+	CreatedBy       string     `json:"createdBy"`
+	AssignedTo      string     `json:"assignedTo,omitempty"`
+	ResolvedBy      string     `json:"resolvedBy,omitempty"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	ResolvedAt      *time.Time `json:"resolvedAt,omitempty"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+	Priority        string     `json:"priority"`
+	ImageURLs       []string   `json:"imageUrls,omitempty"`
+	IsPending       bool       `json:"isPending"`
+	IsResolved      bool       `json:"isResolved"`
+}
+
+// ProblemTicketListResponse represents a list of problem tickets
+type ProblemTicketListResponse struct {
+	Tickets []ProblemTicketResponse `json:"tickets"`
+	Total   int                     `json:"total"`
 }

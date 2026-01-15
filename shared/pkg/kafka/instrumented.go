@@ -76,14 +76,16 @@ func (p *InstrumentedProducer) PublishEvent(ctx context.Context, topic string, e
 	// Add WMS CloudEvents extension attributes
 	addWMSCloudEventAttributes(span, event)
 
-	// Inject trace context into event headers (via correlation ID for now)
+	// Inject W3C Trace Context into CloudEvents extensions
 	carrier := tracing.MapCarrier{}
 	tracing.InjectTraceContext(ctx, carrier)
-	if _, ok := carrier["traceparent"]; ok {
-		// Store trace context in event for propagation
-		if event.CorrelationID == "" {
-			event.CorrelationID = event.ID
-		}
+
+	// Extract traceparent and tracestate from carrier and set in event
+	if traceparent, ok := carrier["traceparent"]; ok {
+		event.TraceParent = traceparent
+	}
+	if tracestate, ok := carrier["tracestate"]; ok {
+		event.TraceState = tracestate
 	}
 
 	// Publish the event
@@ -173,6 +175,19 @@ func (p *InstrumentedProducer) PublishBatch(ctx context.Context, topic string, e
 	)
 	defer span.End()
 
+	// Inject W3C Trace Context into each event
+	carrier := tracing.MapCarrier{}
+	tracing.InjectTraceContext(ctx, carrier)
+
+	for _, event := range events {
+		if traceparent, ok := carrier["traceparent"]; ok {
+			event.TraceParent = traceparent
+		}
+		if tracestate, ok := carrier["tracestate"]; ok {
+			event.TraceState = tracestate
+		}
+	}
+
 	// Publish the batch
 	err := p.producer.PublishBatch(ctx, topic, events)
 	duration := time.Since(start)
@@ -237,11 +252,13 @@ func (c *InstrumentedConsumer) instrumentHandler(topic, eventType string, handle
 	return func(ctx context.Context, event *cloudevents.WMSCloudEvent) error {
 		start := time.Now()
 
-		// Extract trace context from event if available
-		if event.CorrelationID != "" {
-			// Try to extract parent context (simplified - in production you'd parse trace headers)
+		// Extract W3C Trace Context from CloudEvents extensions to link spans
+		if event.TraceParent != "" {
 			carrier := tracing.MapCarrier{
-				"correlationId": event.CorrelationID,
+				"traceparent": event.TraceParent,
+			}
+			if event.TraceState != "" {
+				carrier["tracestate"] = event.TraceState
 			}
 			ctx = tracing.ExtractTraceContext(ctx, carrier)
 		}

@@ -173,8 +173,9 @@ func main() {
 	// Metrics endpoint
 	router.GET("/metrics", middleware.MetricsEndpoint(m))
 
-	// API v1 routes - Shipments
+	// API v1 routes - Shipments with tenant context required
 	api := router.Group("/api/v1/shipments")
+	api.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		api.POST("", createShipmentHandler(shippingService, logger))
 		api.GET("/:shipmentId", getShipmentHandler(shippingService, logger))
@@ -188,8 +189,9 @@ func main() {
 		api.GET("/carrier/:carrierCode/pending", getPendingForManifestHandler(shippingService, logger))
 	}
 
-	// API v1 routes - Manifests
+	// API v1 routes - Manifests with tenant context required
 	manifestAPI := router.Group("/api/v1/manifests")
+	manifestAPI.Use(middleware.RequireTenantAuth()) // All API routes require tenant headers
 	{
 		manifestAPI.POST("", createManifestHandler(manifestService, logger))
 		manifestAPI.GET("/:manifestId", getManifestHandler(manifestService, logger))

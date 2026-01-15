@@ -122,11 +122,17 @@ func (s *ProcessPathService) OptimizeRouting(ctx context.Context, cmd OptimizeRo
 	// Create routing optimizer with weighted scoring
 	optimizer := domain.NewRoutingOptimizer()
 
+	// Convert requirements from []string to []ProcessRequirement
+	requirements := make([]domain.ProcessRequirement, len(cmd.Requirements))
+	for i, req := range cmd.Requirements {
+		requirements[i] = domain.ProcessRequirement(req)
+	}
+
 	// Build routing context from command
 	routingContext := domain.OrderRoutingContext{
 		OrderID:            cmd.OrderID,
 		Priority:           cmd.Priority,
-		Requirements:       cmd.Requirements,
+		Requirements:       requirements,
 		SpecialHandling:    cmd.SpecialHandling,
 		ItemCount:          cmd.ItemCount,
 		TotalWeight:        cmd.TotalWeight,
@@ -157,31 +163,46 @@ func (s *ProcessPathService) buildStationCandidates(stationType, zone string) []
 	// This is a simplified mock for demonstration
 	return []domain.StationCandidate{
 		{
-			StationID:         "station-1",
-			AvailableCapacity: 10,
+			StationID:          "station-1",
+			StationType:        stationType,
+			Zone:               zone,
+			Capabilities:       []string{"packing", "gift_wrap"},
+			MaxConcurrentTasks: 15,
+			CurrentTasks:       10,
+			AvailableCapacity:  5,
 			CurrentUtilization: 0.65,
-			Capabilities:      []string{"packing", "gift_wrap"},
-			DistanceMeters:    100.0,
-			AverageThroughput: 50.0,
-			CertifiedWorkers:  5,
+			AverageThroughput:  50.0,
+			DistanceScore:      0.9, // High score = close distance
+			SLAComplianceRate:  0.95,
+			CertifiedWorkers:   5,
 		},
 		{
-			StationID:         "station-2",
-			AvailableCapacity: 8,
+			StationID:          "station-2",
+			StationType:        stationType,
+			Zone:               zone,
+			Capabilities:       []string{"packing", "hazmat"},
+			MaxConcurrentTasks: 12,
+			CurrentTasks:       5,
+			AvailableCapacity:  7,
 			CurrentUtilization: 0.45,
-			Capabilities:      []string{"packing", "hazmat"},
-			DistanceMeters:    150.0,
-			AverageThroughput: 45.0,
-			CertifiedWorkers:  3,
+			AverageThroughput:  45.0,
+			DistanceScore:      0.7, // Medium distance
+			SLAComplianceRate:  0.92,
+			CertifiedWorkers:   3,
 		},
 		{
-			StationID:         "station-3",
-			AvailableCapacity: 15,
+			StationID:          "station-3",
+			StationType:        stationType,
+			Zone:               zone,
+			Capabilities:       []string{"packing"},
+			MaxConcurrentTasks: 20,
+			CurrentTasks:       6,
+			AvailableCapacity:  14,
 			CurrentUtilization: 0.30,
-			Capabilities:      []string{"packing"},
-			DistanceMeters:    200.0,
-			AverageThroughput: 60.0,
-			CertifiedWorkers:  8,
+			AverageThroughput:  60.0,
+			DistanceScore:      0.5, // Farther distance
+			SLAComplianceRate:  0.88,
+			CertifiedWorkers:   8,
 		},
 	}
 }
@@ -198,7 +219,7 @@ func (s *ProcessPathService) GetRoutingMetrics(ctx context.Context, facilityID, 
 	// This is a mock for demonstration
 	metrics := domain.DynamicRoutingMetrics{
 		TotalRoutingDecisions:   150,
-		AverageDecisionTimeMs:   45,
+		AverageDecisionTime:     45000000, // 45ms in nanoseconds (time.Duration)
 		AverageConfidence:       0.82,
 		StationUtilization: map[string]float64{
 			"station-1": 0.85,
@@ -207,7 +228,6 @@ func (s *ProcessPathService) GetRoutingMetrics(ctx context.Context, facilityID, 
 		},
 		CapacityConstrainedRate: 0.12,
 		RouteChanges:            8,
-		RebalancingRecommended:  true,
 	}
 
 	s.logger.Info("Routing metrics retrieved",
@@ -236,11 +256,17 @@ func (s *ProcessPathService) RerouteOrder(ctx context.Context, cmd RerouteOrderC
 	// Create routing optimizer
 	optimizer := domain.NewRoutingOptimizer()
 
+	// Convert requirements from []string to []ProcessRequirement
+	requirements := make([]domain.ProcessRequirement, len(cmd.Requirements))
+	for i, req := range cmd.Requirements {
+		requirements[i] = domain.ProcessRequirement(req)
+	}
+
 	// Build routing context
 	routingContext := domain.OrderRoutingContext{
 		OrderID:         cmd.OrderID,
 		Priority:        cmd.Priority,
-		Requirements:    cmd.Requirements,
+		Requirements:    requirements,
 		SpecialHandling: processPath.SpecialHandling,
 	}
 

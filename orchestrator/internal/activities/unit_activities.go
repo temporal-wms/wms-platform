@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/wms-platform/orchestrator/internal/activities/clients"
+	"github.com/wms-platform/shared/pkg/tenant"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -15,6 +16,11 @@ type CreateUnitsInput struct {
 	LocationID string `json:"locationId"`
 	Quantity   int    `json:"quantity"`
 	CreatedBy  string `json:"createdBy"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId,omitempty"`
+	FacilityID  string `json:"facilityId,omitempty"`
+	WarehouseID string `json:"warehouseId,omitempty"`
+	SellerID    string `json:"sellerId,omitempty"`
 }
 
 // CreateUnitsOutput holds the result of creating units
@@ -28,6 +34,20 @@ type CreateUnitsOutput struct {
 func (a *UnitActivities) CreateUnits(ctx context.Context, input CreateUnitsInput) (*CreateUnitsOutput, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Creating units", "sku", input.SKU, "quantity", input.Quantity, "shipmentId", input.ShipmentID)
+
+	// Set tenant context from input for HTTP client
+	if input.TenantID != "" {
+		ctx = tenant.WithTenantID(ctx, input.TenantID)
+	}
+	if input.FacilityID != "" {
+		ctx = tenant.WithFacilityID(ctx, input.FacilityID)
+	}
+	if input.WarehouseID != "" {
+		ctx = tenant.WithWarehouseID(ctx, input.WarehouseID)
+	}
+	if input.SellerID != "" {
+		ctx = tenant.WithSellerID(ctx, input.SellerID)
+	}
 
 	result, err := a.clients.CreateUnits(ctx, input.SKU, input.ShipmentID, input.LocationID, input.Quantity, input.CreatedBy)
 	if err != nil {
@@ -50,6 +70,11 @@ type ReserveUnitsInput struct {
 	PathID    string            `json:"pathId"`
 	Items     []ReserveItemSpec `json:"items"`
 	HandlerID string            `json:"handlerId"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId,omitempty"`
+	FacilityID  string `json:"facilityId,omitempty"`
+	WarehouseID string `json:"warehouseId,omitempty"`
+	SellerID    string `json:"sellerId,omitempty"`
 }
 
 // ReserveItemSpec specifies SKU and quantity to reserve
@@ -83,6 +108,20 @@ type FailedReserve struct {
 func (a *UnitActivities) ReserveUnits(ctx context.Context, input ReserveUnitsInput) (*ReserveUnitsOutput, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Reserving units", "orderId", input.OrderID, "pathId", input.PathID, "itemCount", len(input.Items))
+
+	// Set tenant context from input for HTTP client
+	if input.TenantID != "" {
+		ctx = tenant.WithTenantID(ctx, input.TenantID)
+	}
+	if input.FacilityID != "" {
+		ctx = tenant.WithFacilityID(ctx, input.FacilityID)
+	}
+	if input.WarehouseID != "" {
+		ctx = tenant.WithWarehouseID(ctx, input.WarehouseID)
+	}
+	if input.SellerID != "" {
+		ctx = tenant.WithSellerID(ctx, input.SellerID)
+	}
 
 	result, err := a.clients.ReserveUnits(ctx, input.OrderID, input.PathID, input.Items, input.HandlerID)
 	if err != nil {
@@ -447,12 +486,31 @@ func (a *UnitActivities) GetProcessPath(ctx context.Context, input GetProcessPat
 type ReleaseUnitsInput struct {
 	OrderID string `json:"orderId"`
 	Reason  string `json:"reason"`
+	// Multi-tenant context
+	TenantID    string `json:"tenantId,omitempty"`
+	FacilityID  string `json:"facilityId,omitempty"`
+	WarehouseID string `json:"warehouseId,omitempty"`
+	SellerID    string `json:"sellerId,omitempty"`
 }
 
 // ReleaseUnits releases all unit reservations for an order (compensation activity)
 func (a *UnitActivities) ReleaseUnits(ctx context.Context, input ReleaseUnitsInput) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Releasing unit reservations", "orderId", input.OrderID, "reason", input.Reason)
+
+	// Set tenant context from input for HTTP client
+	if input.TenantID != "" {
+		ctx = tenant.WithTenantID(ctx, input.TenantID)
+	}
+	if input.FacilityID != "" {
+		ctx = tenant.WithFacilityID(ctx, input.FacilityID)
+	}
+	if input.WarehouseID != "" {
+		ctx = tenant.WithWarehouseID(ctx, input.WarehouseID)
+	}
+	if input.SellerID != "" {
+		ctx = tenant.WithSellerID(ctx, input.SellerID)
+	}
 
 	err := a.clients.ReleaseUnits(ctx, input.OrderID)
 	if err != nil {

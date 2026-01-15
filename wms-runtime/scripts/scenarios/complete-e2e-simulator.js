@@ -34,7 +34,7 @@ import {
 } from '../lib/chaos.js';
 import { createOrder, getOrder } from '../lib/orders.js';
 import { discoverPendingTasks, processPickTask } from '../lib/picking.js';
-import { discoverPendingConsolidations, processConsolidation } from '../lib/consolidation.js';
+import { discoverPendingConsolidations, getConsolidationsByOrder, processConsolidation } from '../lib/consolidation.js';
 import { discoverPendingPackTasks, processPackTask } from '../lib/packing.js';
 import { discoverPendingShipments, processShipment } from '../lib/shipping.js';
 import { discoverReadyWaves, releaseWave, sendWaveAssignedSignal } from '../lib/waving.js';
@@ -417,8 +417,8 @@ function executeConsolidateStage(flowContext) {
   let elapsed = 0;
 
   while (tasks.length === 0 && elapsed < timeoutMs) {
-    tasks = discoverPendingConsolidations();
-    tasks = tasks.filter(t => t.orderId === flowContext.orderId);
+    // Query by orderId directly instead of discovering all pending
+    tasks = getConsolidationsByOrder(flowContext.orderId);
 
     if (tasks.length === 0) {
       sleep(CONFIG.pollIntervalMs / 1000);
